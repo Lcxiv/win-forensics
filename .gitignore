@@ -1,0 +1,15 @@
+# Bundles and raw captures from real machines never enter the repository
+bundles/
+captures/
+*.etl
+*.pml
+*.dmp
+*.blg
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+# OS and editors
+.DS_Store
+Thumbs.db
