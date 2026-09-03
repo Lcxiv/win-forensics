@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/pdh_counters.schema.json",
+  "title": "pdh_counters row",
+  "description": "Long form counter samples decoded from a PDH CSV (Get-Counter, typeperf, logman). One row per sample and counter path.",
+  "x-schema-version": "1.0.0",
+  "x-decoded-table": "pdh_counters",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sample_index",
+    "timestamp_local",
+    "timestamp_utc",
+    "tz_name",
+    "tz_bias_minutes",
+    "counter_path",
+    "machine",
+    "object",
+    "instance",
+    "counter",
+    "value",
+    "provenance"
+  ],
+  "properties": {
+    "sample_index": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "timestamp_local": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$"
+    },
+    "tz_name": {
+      "type": "string"
+    },
+    "tz_bias_minutes": {
+      "type": "integer"
+    },
+    "counter_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "machine": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "object": {
+      "type": "string",
+      "minLength": 1
+    },
+    "instance": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "counter": {
+      "type": "string",
+      "minLength": 1
+    },
+    "value": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "properties": {
+            "decoded_table": {
+              "const": "pdh_counters"
+            },
+            "schema_version": {
+              "const": "1.0.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

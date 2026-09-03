@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/eventlog_events.schema.json",
+  "title": "eventlog_events row",
+  "description": "One row per Windows event log record from the collector's Get-WinEvent JSON export.",
+  "x-schema-version": "1.0.0",
+  "x-decoded-table": "eventlog_events",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_id",
+    "log_name",
+    "provider_name",
+    "event_id",
+    "version",
+    "level",
+    "level_display",
+    "task",
+    "task_display",
+    "opcode",
+    "keywords",
+    "time_created_utc",
+    "machine_name",
+    "user_id",
+    "process_id",
+    "thread_id",
+    "message",
+    "properties",
+    "provenance"
+  ],
+  "properties": {
+    "record_id": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "log_name": {
+      "type": "string"
+    },
+    "provider_name": {
+      "type": "string"
+    },
+    "event_id": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "version": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "level": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "level_display": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "task": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "task_display": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "opcode": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "keywords": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "time_created_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+      "description": "ISO 8601 date and time in UTC with a trailing Z; up to seven fractional digits (100 ns)."
+    },
+    "machine_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "user_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "process_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "thread_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "message": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "properties": {
+      "type": "array",
+      "items": {
+        "type": [
+          "string",
+          "number",
+          "boolean",
+          "null"
+        ]
+      }
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "properties": {
+            "decoded_table": {
+              "const": "eventlog_events"
+            },
+            "schema_version": {
+              "const": "1.0.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

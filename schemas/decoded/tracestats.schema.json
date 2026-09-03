@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/tracestats.schema.json",
+  "title": "tracestats row",
+  "description": "Provisional. One row per key in an xperf -a tracestats report, verbatim, with a normalized subset.",
+  "x-schema-version": "0.1.0",
+  "x-decoded-table": "tracestats",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "section",
+    "key",
+    "value_text",
+    "normalized_key",
+    "value_number",
+    "provenance"
+  ],
+  "properties": {
+    "section": {
+      "type": "string"
+    },
+    "key": {
+      "type": "string"
+    },
+    "value_text": {
+      "type": "string"
+    },
+    "normalized_key": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "events_lost",
+        "buffers_lost",
+        "buffer_size_kb",
+        "buffer_count",
+        "session_start_utc",
+        "session_end_utc",
+        "first_event_utc",
+        "last_event_utc",
+        "perf_freq_hz",
+        "clock_type",
+        "cpu_count",
+        "os_version",
+        "trace_file",
+        null
+      ]
+    },
+    "value_number": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "properties": {
+            "decoded_table": {
+              "const": "tracestats"
+            },
+            "schema_version": {
+              "const": "0.1.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

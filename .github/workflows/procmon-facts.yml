@@ -1,0 +1,101 @@
+name: procmon-facts
+
+# Phase 0a fact finding only. Downloads Process Monitor from download.sysinternals.com,
+# runs bounded captures with the committed test configurations under fixtures/procmon/,
+# exports CSV and XML, summarizes with procmon-parser, and uploads everything as an
+# artifact. The committed fixtures under fixtures/procmon/ are copied from that artifact.
+# This is not a collector and not the phase 2 capture contract job.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/procmon-facts.yml"
+      - "scripts/procmon_facts.ps1"
+      - "scripts/procmon_facts_summarize.py"
+      - "fixtures/procmon/*.pmc"
+
+permissions:
+  contents: read
+
+jobs:
+  facts:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install procmon-parser
+        run: python -m pip install --quiet "procmon-parser>=0.3.13"
+
+      - name: Record runner image and OS build
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          $os = Get-CimInstance Win32_OperatingSystem
+          $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+          $ubr = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').UBR
+          [ordered]@{
+            image_os = $env:ImageOS
+            image_version = $env:ImageVersion
+            runner_os = $env:RUNNER_OS
+            runner_arch = $env:RUNNER_ARCH
+            os_caption = $os.Caption
+            os_version = $os.Version
+            os_build = $os.BuildNumber
+            os_ubr = $ubr
+            pwsh_version = $PSVersionTable.PSVersion.ToString()
+            is_admin = $isAdmin
+            logical_processors = $env:NUMBER_OF_PROCESSORS
+            recorded_utc = (Get-Date).ToUniversalTime().ToString("o")
+            github_run_id = $env:GITHUB_RUN_ID
+            github_sha = $env:GITHUB_SHA
+          } | ConvertTo-Json | Set-Content -Path out/runner.json
+          Get-Content out/runner.json
+
+      - name: Download Process Monitor from download.sysinternals.com
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path tools | Out-Null
+          Invoke-WebRequest -Uri "https://download.sysinternals.com/files/ProcessMonitor.zip" -OutFile tools/ProcessMonitor.zip
+          Expand-Archive -Path tools/ProcessMonitor.zip -DestinationPath tools/ProcessMonitor -Force
+          $exe = Get-Item tools/ProcessMonitor/Procmon64.exe
+          [ordered]@{
+            download_url = "https://download.sysinternals.com/files/ProcessMonitor.zip"
+            zip_sha256 = (Get-FileHash tools/ProcessMonitor.zip -Algorithm SHA256).Hash.ToLower()
+            zip_bytes = (Get-Item tools/ProcessMonitor.zip).Length
+            zip_contents = @(Get-ChildItem tools/ProcessMonitor | ForEach-Object { $_.Name })
+            procmon64_sha256 = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+            procmon64_bytes = $exe.Length
+            file_version = $exe.VersionInfo.FileVersion
+            product_version = $exe.VersionInfo.ProductVersion
+            product_name = $exe.VersionInfo.ProductName
+            file_description = $exe.VersionInfo.FileDescription
+            last_write_utc = $exe.LastWriteTimeUtc.ToString("o")
+          } | ConvertTo-Json | Set-Content -Path out/procmon-version.json
+          Get-Content out/procmon-version.json
+
+      - name: Run captures and exports
+        shell: pwsh
+        run: ./scripts/procmon_facts.ps1 -OutDir out -ProcmonDir tools/ProcessMonitor -RuntimeSeconds 10
+
+      - name: Summarize outputs
+        if: always()
+        shell: pwsh
+        run: python scripts/procmon_facts_summarize.py out out/fixtures fixtures/procmon
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: procmon-facts
+          path: |
+            out/**
+            !out/*.pml
+            !out/*.PML
+          if-no-files-found: warn
+          retention-days: 30

@@ -1,0 +1,49 @@
+{
+  "decoded_table": "pdh_counters",
+  "schema_version": "1.0.0",
+  "decoder": "decode_pdh",
+  "decoder_version": "1.0.0",
+  "tool": {
+    "name": "PDH CSV (Get-Counter, typeperf, or logman)",
+    "version": null
+  },
+  "source_files": [
+    {
+      "path": "raw/pdh/percpu_dpc_20260424_slow.csv",
+      "sha256": "b397dc513447efbbe5ce3834edc3d3ae8943ef36f4c9b8996d6c647884945869"
+    }
+  ],
+  "row_count": 1530,
+  "time_domain": "system_time",
+  "native_time_range": {
+    "start": "2026-04-24T20:23:47.231Z",
+    "end": "2026-04-24T20:24:16.294Z",
+    "domain": "system_time",
+    "unit": "iso_utc"
+  },
+  "status": "observed",
+  "status_reason": null,
+  "checks": [
+    {
+      "name": "pdh_header",
+      "ok": true,
+      "detail": "(PDH-CSV 4.0) (Pacific Summer Time)(420)"
+    },
+    {
+      "name": "samples_present",
+      "ok": true,
+      "detail": "30 samples, 51 counter columns"
+    },
+    {
+      "name": "timestamps_parsed",
+      "ok": true,
+      "detail": "0 unparsed timestamps"
+    },
+    {
+      "name": "null_cells",
+      "ok": true,
+      "detail": "col:2 nulls=1;col:3 nulls=1;col:4 nulls=1;col:5 nulls=1;col:6 nulls=1;col:7 nulls=1;col:8 nulls=1;col:9 nulls=1;col:10 nulls=1;col:11 nulls=1;col:12 nulls=1;col:13 nulls=1;col:14 nulls=1;col:15 nulls=1;col:16 nulls=1;col:17 nulls=1;col:18 nulls=1;col:19 nulls=1;col:20 nulls=1;col:21 nulls=1;col:22 nulls=1;col:23 nulls=1;col:24 nulls=1;col:25 nulls=1;col:26 nulls=1;col:27 nulls=1;col:28 nulls=1;col:29 nulls=1;col:30 nulls=1;col:31 nulls=1;col:32 nulls=1;col:33 nulls=1;col:34 nulls=1;col:35 nulls=1;col:36 nulls=1;col:37 nulls=1;col:38 nulls=1;col:39 nulls=1;col:40 nulls=1;col:41 nulls=1;col:42 nulls=1;col:43 nulls=1;col:44 nulls=1;col:45 nulls=1;col:46 nulls=1;col:47 nulls=1;col:48 nulls=1;col:49 nulls=1;col:50 nulls=1;col:51 nulls=1;col:52 nulls=1"
+    }
+  ],
+  "decoded_at_utc": "2026-09-03T00:00:00Z"
+}

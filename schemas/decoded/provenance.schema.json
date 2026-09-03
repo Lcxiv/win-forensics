@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/provenance.schema.json",
+  "title": "Provenance object (the plan's structured raw_ref)",
+  "description": "Every decoded row and every observed evidence row carries this object. See docs/contracts/decoded-tables.md section 4.",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_file",
+    "row_id_or_offset",
+    "decoded_table",
+    "decoder_version",
+    "schema_version"
+  ],
+  "properties": {
+    "source_file": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^raw/",
+      "description": "Bundle relative path of the raw artifact."
+    },
+    "row_id_or_offset": {
+      "type": "string",
+      "pattern": "^(line:[0-9]+(-[0-9]+)?|row:[0-9]+|col:[0-9]+|event:[0-9]+|record:[0-9]+|index:[0-9]+|offset:[0-9]+|len:[0-9]+)(;(line:[0-9]+(-[0-9]+)?|row:[0-9]+|col:[0-9]+|event:[0-9]+|record:[0-9]+|index:[0-9]+|offset:[0-9]+|len:[0-9]+))*$"
+    },
+    "decoded_table": {
+      "$ref": "../common.schema.json#/$defs/decoded_table"
+    },
+    "decoder_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    }
+  }
+}

@@ -1,0 +1,398 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/common.schema.json",
+  "title": "Shared definitions for win-forensics schemas",
+  "x-schema-version": "1.0.0",
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "iso_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+      "description": "ISO 8601 date and time in UTC with a trailing Z; up to seven fractional digits (100 ns)."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "measurement_status": {
+      "type": "string",
+      "enum": [
+        "observed",
+        "observed_zero",
+        "not_applicable",
+        "not_collected",
+        "capture_failed",
+        "decode_failed",
+        "unsupported",
+        "analyzer_failed"
+      ],
+      "description": "See docs/contracts/measurement-status.md. Only observed_zero with adequate coverage may support a claim of absence."
+    },
+    "collector_kind": {
+      "type": "string",
+      "enum": [
+        "wpr",
+        "xperf",
+        "pdh",
+        "eventlog",
+        "powercfg",
+        "process_inventory",
+        "config_snapshot",
+        "clock",
+        "presentmon",
+        "capframex",
+        "procmon",
+        "nvidia_smi",
+        "dump",
+        "other"
+      ]
+    },
+    "decoded_table": {
+      "type": "string",
+      "enum": [
+        "dpcisr_module_cpu",
+        "dpcisr_interval",
+        "tracestats",
+        "pdh_counters",
+        "presentmon_frames",
+        "eventlog_events",
+        "process_inventory",
+        "config_snapshot",
+        "powercfg",
+        "cdb_analyze",
+        "procmon_events",
+        "procmon_stacks"
+      ]
+    },
+    "time_domain": {
+      "type": "string",
+      "enum": [
+        "etw_qpc",
+        "etw_qpc_relative",
+        "system_time",
+        "relative_monotonic",
+        "none"
+      ],
+      "description": "See docs/contracts/timestamps.md section 2."
+    },
+    "subsystem": {
+      "type": "string",
+      "enum": [
+        "cpu_dpc",
+        "gpu",
+        "storage",
+        "network",
+        "power",
+        "memory",
+        "display",
+        "input",
+        "firmware",
+        "process",
+        "scheduling",
+        "audio",
+        "crash",
+        "system"
+      ]
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "info",
+        "warn",
+        "error",
+        "critical"
+      ]
+    },
+    "evidence_kind": {
+      "type": "string",
+      "enum": [
+        "observed",
+        "inferred",
+        "absent"
+      ]
+    },
+    "unit": {
+      "type": "string",
+      "enum": [
+        "100ns",
+        "us",
+        "ms",
+        "s",
+        "count",
+        "pct",
+        "bytes",
+        "hz",
+        "ratio",
+        "bool",
+        "none"
+      ]
+    },
+    "hash": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "value"
+      ],
+      "properties": {
+        "algorithm": {
+          "type": "string",
+          "enum": [
+            "sha256"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "window_utc": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start_utc",
+        "end_utc"
+      ],
+      "properties": {
+        "start_utc": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+          "description": "ISO 8601 date and time in UTC with a trailing Z; up to seven fractional digits (100 ns)."
+        },
+        "end_utc": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+          "description": "ISO 8601 date and time in UTC with a trailing Z; up to seven fractional digits (100 ns)."
+        }
+      }
+    },
+    "native_time_range": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end",
+        "domain",
+        "unit"
+      ],
+      "properties": {
+        "start": {
+          "type": [
+            "number",
+            "string"
+          ]
+        },
+        "end": {
+          "type": [
+            "number",
+            "string"
+          ]
+        },
+        "domain": {
+          "$ref": "#/$defs/time_domain"
+        },
+        "unit": {
+          "type": "string"
+        }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "ok",
+        "detail"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "detail": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "row_count_stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stage",
+        "rows"
+      ],
+      "properties": {
+        "stage": {
+          "type": "string"
+        },
+        "rows": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "clock_fit": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "offset_100ns",
+        "rate",
+        "residual_max_100ns",
+        "error_bound_100ns",
+        "pairs_used",
+        "clock_step_segments"
+      ],
+      "properties": {
+        "model": {
+          "type": "string",
+          "enum": [
+            "identity",
+            "affine",
+            "piecewise",
+            "unaligned"
+          ]
+        },
+        "offset_100ns": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "rate": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "residual_max_100ns": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "error_bound_100ns": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "pairs_used": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "clock_step_segments": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "join": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "left",
+        "right",
+        "tolerance_100ns",
+        "achieved_bound_100ns",
+        "aligned",
+        "reason"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "left": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "right": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "tolerance_100ns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "achieved_bound_100ns": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "aligned": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "disconfirmer_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "playbook",
+        "result",
+        "reason",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "playbook": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "result": {
+          "type": "string",
+          "enum": [
+            "disconfirmed",
+            "not_disconfirmed",
+            "not_checked"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

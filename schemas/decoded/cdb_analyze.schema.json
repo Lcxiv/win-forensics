@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/cdb_analyze.schema.json",
+  "title": "cdb_analyze row",
+  "description": "One row per crash dump from the text of cdb !analyze -v.",
+  "x-schema-version": "1.0.0",
+  "x-decoded-table": "cdb_analyze",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "dump_file",
+    "bugcheck_code_hex",
+    "bugcheck_args_hex",
+    "symbol_status",
+    "provenance"
+  ],
+  "properties": {
+    "dump_file": {
+      "type": "string"
+    },
+    "bugcheck_code_hex": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]+$"
+    },
+    "bugcheck_args_hex": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "string",
+        "pattern": "^0x[0-9a-fA-F]+$"
+      }
+    },
+    "symbol_status": {
+      "type": "string",
+      "enum": [
+        "resolved",
+        "partial",
+        "unresolved",
+        "unknown"
+      ]
+    },
+    "bucket_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "failure_bucket_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "module_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "image_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "process_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "faulting_ip_hex": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "stack_frames": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      }
+    },
+    "dump_time_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$"
+    },
+    "os_build_text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "debugger_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "properties": {
+            "decoded_table": {
+              "const": "cdb_analyze"
+            },
+            "schema_version": {
+              "const": "1.0.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

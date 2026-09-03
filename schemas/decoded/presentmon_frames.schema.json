@@ -1,0 +1,254 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/presentmon_frames.schema.json",
+  "title": "presentmon_frames row",
+  "description": "Provisional. One row per frame from a PresentMon console CSV. Exactly one of cpu_start_qpc and cpu_start_time_s is non-null.",
+  "x-schema-version": "0.1.0",
+  "x-decoded-table": "presentmon_frames",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "application",
+    "process_id",
+    "swap_chain_address",
+    "present_runtime",
+    "sync_interval",
+    "present_flags",
+    "allows_tearing",
+    "present_mode",
+    "ms_between_presents",
+    "ms_in_present_api",
+    "cpu_start_qpc",
+    "cpu_start_time_s",
+    "provenance"
+  ],
+  "properties": {
+    "application": {
+      "type": "string"
+    },
+    "process_id": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "swap_chain_address": {
+      "type": "string"
+    },
+    "present_runtime": {
+      "type": "string"
+    },
+    "sync_interval": {
+      "type": "integer"
+    },
+    "present_flags": {
+      "type": "integer"
+    },
+    "allows_tearing": {
+      "type": "integer",
+      "enum": [
+        0,
+        1
+      ]
+    },
+    "present_mode": {
+      "type": "string"
+    },
+    "ms_between_presents": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ms_in_present_api": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "cpu_start_qpc": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "cpu_start_time_s": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ms_cpu_busy": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ms_cpu_wait": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ms_gpu_latency": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ms_gpu_time": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ms_gpu_busy": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ms_gpu_wait": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "display_latency_ms": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "displayed_time_ms": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ms_animation_error": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "animation_time_ms": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ms_click_to_photon_latency": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ms_all_input_to_photon_latency": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "instrumented_latency_ms": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ms_between_display_change": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ms_until_displayed": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ms_render_present_latency": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ms_between_simulation_start": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ms_between_app_start": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "frame_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "video_busy_ms": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ms_pc_latency": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "raw_columns": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "properties": {
+            "decoded_table": {
+              "const": "presentmon_frames"
+            },
+            "schema_version": {
+              "const": "0.1.0"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "cpu_start_qpc": {
+          "type": "integer"
+        },
+        "cpu_start_time_s": {
+          "type": "null"
+        }
+      }
+    },
+    {
+      "properties": {
+        "cpu_start_qpc": {
+          "type": "null"
+        },
+        "cpu_start_time_s": {
+          "type": "number"
+        }
+      }
+    }
+  ]
+}
