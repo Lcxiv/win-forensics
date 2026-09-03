@@ -1,0 +1,162 @@
+{
+  "key": "HKCU:\\Software\\Sysinternals\\Process Monitor",
+  "exists": true,
+  "values": [
+    {
+      "name": "EulaAccepted",
+      "kind": "DWord",
+      "value": 1,
+      "binary_bytes": null
+    },
+    {
+      "name": "MainWindow",
+      "kind": "Binary",
+      "value": null,
+      "binary_bytes": 44
+    },
+    {
+      "name": "Columns",
+      "kind": "Binary",
+      "value": null,
+      "binary_bytes": 128
+    },
+    {
+      "name": "ColumnCount",
+      "kind": "DWord",
+      "value": 27,
+      "binary_bytes": null
+    },
+    {
+      "name": "ColumnMap",
+      "kind": "Binary",
+      "value": null,
+      "binary_bytes": 256
+    },
+    {
+      "name": "DbgHelpPath",
+      "kind": "String",
+      "value": "C:\\Windows\\SYSTEM32\\dbghelp.dll",
+      "binary_bytes": null
+    },
+    {
+      "name": "Logfile",
+      "kind": "String",
+      "value": "D:\\a\\win-forensics\\win-forensics\\out\\D.pml",
+      "binary_bytes": null
+    },
+    {
+      "name": "HighlightFG",
+      "kind": "DWord",
+      "value": 0,
+      "binary_bytes": null
+    },
+    {
+      "name": "HighlightBG",
+      "kind": "DWord",
+      "value": 16777088,
+      "binary_bytes": null
+    },
+    {
+      "name": "Theme",
+      "kind": "String",
+      "value": "",
+      "binary_bytes": null
+    },
+    {
+      "name": "LogFont",
+      "kind": "Binary",
+      "value": null,
+      "binary_bytes": 92
+    },
+    {
+      "name": "BoookmarkFont",
+      "kind": "Binary",
+      "value": null,
+      "binary_bytes": 92
+    },
+    {
+      "name": "AdvancedMode",
+      "kind": "DWord",
+      "value": 0,
+      "binary_bytes": null
+    },
+    {
+      "name": "Autoscroll",
+      "kind": "DWord",
+      "value": 0,
+      "binary_bytes": null
+    },
+    {
+      "name": "HistoryDepth",
+      "kind": "DWord",
+      "value": 18,
+      "binary_bytes": null
+    },
+    {
+      "name": "Profiling",
+      "kind": "DWord",
+      "value": 0,
+      "binary_bytes": null
+    },
+    {
+      "name": "DestructiveFilter",
+      "kind": "DWord",
+      "value": 0,
+      "binary_bytes": null
+    },
+    {
+      "name": "AlwaysOnTop",
+      "kind": "DWord",
+      "value": 0,
+      "binary_bytes": null
+    },
+    {
+      "name": "ResolveAddresses",
+      "kind": "DWord",
+      "value": 0,
+      "binary_bytes": null
+    },
+    {
+      "name": "SourcePath",
+      "kind": "String",
+      "value": "",
+      "binary_bytes": null
+    },
+    {
+      "name": "SymbolPath",
+      "kind": "String",
+      "value": "srv*https://msdl.microsoft.com/download/symbols",
+      "binary_bytes": null
+    },
+    {
+      "name": "FilterRules",
+      "kind": "Binary",
+      "value": null,
+      "binary_bytes": 75
+    },
+    {
+      "name": "HighlightRules",
+      "kind": "Binary",
+      "value": null,
+      "binary_bytes": 5
+    },
+    {
+      "name": "FlightRecorder",
+      "kind": "DWord",
+      "value": 0,
+      "binary_bytes": null
+    },
+    {
+      "name": "RingBufferSize",
+      "kind": "DWord",
+      "value": 0,
+      "binary_bytes": null
+    },
+    {
+      "name": "RingBufferMin",
+      "kind": "DWord",
+      "value": 0,
+      "binary_bytes": null
+    }
+  ]
+}

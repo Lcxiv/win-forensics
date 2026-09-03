@@ -1,0 +1,794 @@
+{
+  "runner": {
+    "image_os": "win25-vs2026",
+    "image_version": "20260824.214.3",
+    "runner_os": "Windows",
+    "runner_arch": "X64",
+    "os_caption": "Microsoft Windows Server 2025 Datacenter",
+    "os_version": "10.0.26100",
+    "os_build": "26100",
+    "os_ubr": 33296,
+    "pwsh_version": "7.6.5",
+    "is_admin": true,
+    "logical_processors": "4",
+    "recorded_utc": "2026-09-03T21:37:38.1000379Z",
+    "github_run_id": "33808897785",
+    "github_sha": "d4a8160420e2040beadedf6e024200cfa47019b7"
+  },
+  "procmon": {
+    "download_url": "https://download.sysinternals.com/files/ProcessMonitor.zip",
+    "zip_sha256": "4ff309fe52c56599377896b7863cb77b6c601d9f2522e52da7a182eac593e8e1",
+    "zip_bytes": 3191035,
+    "zip_contents": [
+      "Eula.txt",
+      "Procmon.exe",
+      "Procmon64.exe",
+      "Procmon64a.exe"
+    ],
+    "procmon64_sha256": "78d7148ef5e1472bbcec02cfd655f5aa789006b65d9990862dd8546ecf6c9af1",
+    "procmon64_bytes": 2232136,
+    "file_version": "4.1",
+    "product_version": "4.1",
+    "product_name": "Sysinternals Procmon",
+    "file_description": "Process Monitor",
+    "last_write_utc": "2026-08-19T21:04:56.0000000Z"
+  },
+  "runs": [
+    {
+      "label": "A-capture",
+      "arguments": "/AcceptEula /Quiet /Minimized /BackingFile D:\\a\\win-forensics\\win-forensics\\out\\A.pml /Runtime 10 /LoadConfig D:\\a\\win-forensics\\win-forensics\\fixtures\\procmon\\wf-default-columns.pmc",
+      "exited_on_own": true,
+      "forced_kill": false,
+      "exit_code": 1,
+      "elapsed_s": 10.26,
+      "kind": "capture",
+      "pmc": "wf-default-columns.pmc",
+      "load_root": "C:\\wf-procmon-facts\\97c63ab1",
+      "pml_files": [
+        {
+          "name": "A.pml",
+          "bytes": 107224317
+        }
+      ]
+    },
+    {
+      "label": "A-filtered-export",
+      "arguments": "/AcceptEula /Quiet /OpenLog D:\\a\\win-forensics\\win-forensics\\out\\A.pml /LoadConfig D:\\a\\win-forensics\\win-forensics\\fixtures\\procmon\\wf-default-columns.pmc /SaveApplyFilter /SaveAs D:\\a\\win-forensics\\win-forensics\\out\\A_default_filtered.csv",
+      "exited_on_own": true,
+      "forced_kill": false,
+      "exit_code": 0,
+      "elapsed_s": 0.82,
+      "kind": "export",
+      "pmc": "wf-default-columns.pmc",
+      "output": "A_default_filtered.csv",
+      "output_exists": true,
+      "output_bytes": 8552677
+    },
+    {
+      "label": "A-all-export",
+      "arguments": "/AcceptEula /Quiet /OpenLog D:\\a\\win-forensics\\win-forensics\\out\\A.pml /LoadConfig D:\\a\\win-forensics\\win-forensics\\fixtures\\procmon\\wf-default-columns.pmc /SaveAs D:\\a\\win-forensics\\win-forensics\\out\\A_default_unfiltered.csv",
+      "exited_on_own": true,
+      "forced_kill": false,
+      "exit_code": 0,
+      "elapsed_s": 2.11,
+      "kind": "export",
+      "pmc": "wf-default-columns.pmc",
+      "output": "A_default_unfiltered.csv",
+      "output_exists": true,
+      "output_bytes": 45512583
+    },
+    {
+      "label": "A-stacks-export",
+      "arguments": "/AcceptEula /Quiet /OpenLog D:\\a\\win-forensics\\win-forensics\\out\\A.pml /LoadConfig D:\\a\\win-forensics\\win-forensics\\fixtures\\procmon\\wf-default-columns.pmc /SaveApplyFilter /SaveAs1 D:\\a\\win-forensics\\win-forensics\\out\\A_default_filtered_stacks.xml",
+      "exited_on_own": true,
+      "forced_kill": false,
+      "exit_code": 0,
+      "elapsed_s": 11.41,
+      "kind": "export",
+      "pmc": "wf-default-columns.pmc",
+      "output": "A_default_filtered_stacks.xml",
+      "output_exists": true,
+      "output_bytes": 365127190
+    },
+    {
+      "label": "B-capture",
+      "arguments": "/AcceptEula /Quiet /Minimized /BackingFile D:\\a\\win-forensics\\win-forensics\\out\\B.pml /Runtime 10 /LoadConfig D:\\a\\win-forensics\\win-forensics\\fixtures\\procmon\\wf-all-columns.pmc",
+      "exited_on_own": true,
+      "forced_kill": false,
+      "exit_code": 1,
+      "elapsed_s": 10.24,
+      "kind": "capture",
+      "pmc": "wf-all-columns.pmc",
+      "load_root": "C:\\wf-procmon-facts\\97c63ab1",
+      "pml_files": [
+        {
+          "name": "B.pml",
+          "bytes": 106547000
+        }
+      ]
+    },
+    {
+      "label": "B-filtered-export",
+      "arguments": "/AcceptEula /Quiet /OpenLog D:\\a\\win-forensics\\win-forensics\\out\\B.pml /LoadConfig D:\\a\\win-forensics\\win-forensics\\fixtures\\procmon\\wf-all-columns.pmc /SaveApplyFilter /SaveAs D:\\a\\win-forensics\\win-forensics\\out\\B_allcolumns_filtered.csv",
+      "exited_on_own": true,
+      "forced_kill": false,
+      "exit_code": 0,
+      "elapsed_s": 1.52,
+      "kind": "export",
+      "pmc": "wf-all-columns.pmc",
+      "output": "B_allcolumns_filtered.csv",
+      "output_exists": true,
+      "output_bytes": 29759380
+    },
+    {
+      "label": "C-capture",
+      "arguments": "/AcceptEula /Quiet /Minimized /BackingFile D:\\a\\win-forensics\\win-forensics\\out\\C.pml /Runtime 10 /NoFilter /RingBuffer /RingBufferSize 1",
+      "exited_on_own": true,
+      "forced_kill": false,
+      "exit_code": 1,
+      "elapsed_s": 10.15,
+      "kind": "capture",
+      "pmc": "",
+      "load_root": "C:\\wf-procmon-facts\\97c63ab1",
+      "pml_files": [
+        {
+          "name": "C.pml",
+          "bytes": 124016279
+        }
+      ]
+    },
+    {
+      "label": "C-all-export",
+      "arguments": "/AcceptEula /Quiet /OpenLog D:\\a\\win-forensics\\win-forensics\\out\\C.pml /SaveAs D:\\a\\win-forensics\\win-forensics\\out\\C_ringbuffer_unfiltered.csv",
+      "exited_on_own": true,
+      "forced_kill": false,
+      "exit_code": 0,
+      "elapsed_s": 7.01,
+      "kind": "export",
+      "pmc": "",
+      "output": "C_ringbuffer_unfiltered.csv",
+      "output_exists": true,
+      "output_bytes": 193506949
+    },
+    {
+      "label": "D-capture",
+      "arguments": "/AcceptEula /Quiet /Minimized /BackingFile D:\\a\\win-forensics\\win-forensics\\out\\D.pml /Runtime 10 /NoFilter",
+      "exited_on_own": true,
+      "forced_kill": false,
+      "exit_code": 1,
+      "elapsed_s": 10.24,
+      "kind": "capture",
+      "pmc": "",
+      "load_root": "C:\\wf-procmon-facts\\97c63ab1",
+      "pml_files": [
+        {
+          "name": "D.pml",
+          "bytes": 104361761
+        }
+      ]
+    },
+    {
+      "label": "D-all-export",
+      "arguments": "/AcceptEula /Quiet /OpenLog D:\\a\\win-forensics\\win-forensics\\out\\D.pml /SaveAs D:\\a\\win-forensics\\win-forensics\\out\\D_plain_unfiltered.csv",
+      "exited_on_own": true,
+      "forced_kill": false,
+      "exit_code": 0,
+      "elapsed_s": 5.88,
+      "kind": "export",
+      "pmc": "",
+      "output": "D_plain_unfiltered.csv",
+      "output_exists": true,
+      "output_bytes": 161362120
+    }
+  ],
+  "registry_after_run": {
+    "key": "HKCU:\\Software\\Sysinternals\\Process Monitor",
+    "exists": true,
+    "values": [
+      {
+        "name": "EulaAccepted",
+        "kind": "DWord",
+        "value": 1,
+        "binary_bytes": null
+      },
+      {
+        "name": "MainWindow",
+        "kind": "Binary",
+        "value": null,
+        "binary_bytes": 44
+      },
+      {
+        "name": "Columns",
+        "kind": "Binary",
+        "value": null,
+        "binary_bytes": 128
+      },
+      {
+        "name": "ColumnCount",
+        "kind": "DWord",
+        "value": 27,
+        "binary_bytes": null
+      },
+      {
+        "name": "ColumnMap",
+        "kind": "Binary",
+        "value": null,
+        "binary_bytes": 256
+      },
+      {
+        "name": "DbgHelpPath",
+        "kind": "String",
+        "value": "C:\\Windows\\SYSTEM32\\dbghelp.dll",
+        "binary_bytes": null
+      },
+      {
+        "name": "Logfile",
+        "kind": "String",
+        "value": "D:\\a\\win-forensics\\win-forensics\\out\\D.pml",
+        "binary_bytes": null
+      },
+      {
+        "name": "HighlightFG",
+        "kind": "DWord",
+        "value": 0,
+        "binary_bytes": null
+      },
+      {
+        "name": "HighlightBG",
+        "kind": "DWord",
+        "value": 16777088,
+        "binary_bytes": null
+      },
+      {
+        "name": "Theme",
+        "kind": "String",
+        "value": "",
+        "binary_bytes": null
+      },
+      {
+        "name": "LogFont",
+        "kind": "Binary",
+        "value": null,
+        "binary_bytes": 92
+      },
+      {
+        "name": "BoookmarkFont",
+        "kind": "Binary",
+        "value": null,
+        "binary_bytes": 92
+      },
+      {
+        "name": "AdvancedMode",
+        "kind": "DWord",
+        "value": 0,
+        "binary_bytes": null
+      },
+      {
+        "name": "Autoscroll",
+        "kind": "DWord",
+        "value": 0,
+        "binary_bytes": null
+      },
+      {
+        "name": "HistoryDepth",
+        "kind": "DWord",
+        "value": 18,
+        "binary_bytes": null
+      },
+      {
+        "name": "Profiling",
+        "kind": "DWord",
+        "value": 0,
+        "binary_bytes": null
+      },
+      {
+        "name": "DestructiveFilter",
+        "kind": "DWord",
+        "value": 0,
+        "binary_bytes": null
+      },
+      {
+        "name": "AlwaysOnTop",
+        "kind": "DWord",
+        "value": 0,
+        "binary_bytes": null
+      },
+      {
+        "name": "ResolveAddresses",
+        "kind": "DWord",
+        "value": 0,
+        "binary_bytes": null
+      },
+      {
+        "name": "SourcePath",
+        "kind": "String",
+        "value": "",
+        "binary_bytes": null
+      },
+      {
+        "name": "SymbolPath",
+        "kind": "String",
+        "value": "srv*https://msdl.microsoft.com/download/symbols",
+        "binary_bytes": null
+      },
+      {
+        "name": "FilterRules",
+        "kind": "Binary",
+        "value": null,
+        "binary_bytes": 75
+      },
+      {
+        "name": "HighlightRules",
+        "kind": "Binary",
+        "value": null,
+        "binary_bytes": 5
+      },
+      {
+        "name": "FlightRecorder",
+        "kind": "DWord",
+        "value": 0,
+        "binary_bytes": null
+      },
+      {
+        "name": "RingBufferSize",
+        "kind": "DWord",
+        "value": 0,
+        "binary_bytes": null
+      },
+      {
+        "name": "RingBufferMin",
+        "kind": "DWord",
+        "value": 0,
+        "binary_bytes": null
+      }
+    ]
+  },
+  "csv_exports": {
+    "A_default_filtered.csv": {
+      "bytes": 8552677,
+      "sha256": "84d6a671076888bfa1a5dc242e32a6792273eadcc964b845ed77c86f5389db1f",
+      "columns": [
+        "Time of Day",
+        "Process Name",
+        "PID",
+        "Operation",
+        "Path",
+        "Result",
+        "Detail"
+      ],
+      "column_count": 7,
+      "rows": 45814,
+      "rows_with_load_path_prefix": 45814,
+      "distinct_process_names": 2,
+      "top_process_names": [
+        [
+          "pwsh.exe",
+          44650
+        ],
+        [
+          "System",
+          1164
+        ]
+      ],
+      "head_fixture": "A_default_filtered.head.csv"
+    },
+    "A_default_unfiltered.csv": {
+      "bytes": 45512583,
+      "sha256": "8841d078e9ce35452686217c6ea3f008ff2d4688ee4051be5d564fb6a984bd67",
+      "columns": [
+        "Time of Day",
+        "Process Name",
+        "PID",
+        "Operation",
+        "Path",
+        "Result",
+        "Detail"
+      ],
+      "column_count": 7,
+      "rows": 260225,
+      "rows_with_load_path_prefix": 45814,
+      "distinct_process_names": 55,
+      "top_process_names": [
+        [
+          "Procmon64.exe",
+          175588
+        ],
+        [
+          "pwsh.exe",
+          47198
+        ],
+        [
+          "svchost.exe",
+          23109
+        ],
+        [
+          "Explorer.EXE",
+          7494
+        ],
+        [
+          "pwsh.EXE",
+          2310
+        ],
+        [
+          "System",
+          2114
+        ],
+        [
+          "provjobd.exe2862774879",
+          761
+        ],
+        [
+          "wmiprvse.exe",
+          469
+        ]
+      ],
+      "head_fixture": "A_default_unfiltered.head.csv"
+    },
+    "B_allcolumns_filtered.csv": {
+      "bytes": 29759380,
+      "sha256": "2b325ba08f74b7e8154352225aa5d502170c43c875a6cf1c0beef371baed1f60",
+      "columns": [
+        "Sequence",
+        "Time of Day",
+        "Date & Time",
+        "Relative Time",
+        "Duration",
+        "Completion Time",
+        "Process Name",
+        "PID",
+        "TID",
+        "Parent PID",
+        "Operation",
+        "Path",
+        "Result",
+        "Detail",
+        "Event Class",
+        "Category",
+        "Image Path",
+        "Command Line",
+        "Company",
+        "Description",
+        "Version",
+        "User",
+        "Session",
+        "Authentication ID",
+        "Integrity",
+        "Architecture",
+        "Virtualized"
+      ],
+      "column_count": 27,
+      "rows": 51248,
+      "rows_with_load_path_prefix": 51248,
+      "distinct_process_names": 2,
+      "top_process_names": [
+        [
+          "pwsh.exe",
+          49828
+        ],
+        [
+          "System",
+          1420
+        ]
+      ],
+      "head_fixture": "B_allcolumns_filtered.head.csv"
+    },
+    "C_ringbuffer_unfiltered.csv": {
+      "bytes": 193506949,
+      "sha256": "8bd383ec080d3748ba30f448b2974b005b0e1b07b8a8fe0f9c52f37ee6ee3016",
+      "columns": [
+        "Sequence",
+        "Time of Day",
+        "Date & Time",
+        "Relative Time",
+        "Duration",
+        "Completion Time",
+        "Process Name",
+        "PID",
+        "TID",
+        "Parent PID",
+        "Operation",
+        "Path",
+        "Result",
+        "Detail",
+        "Event Class",
+        "Category",
+        "Image Path",
+        "Command Line",
+        "Company",
+        "Description",
+        "Version",
+        "User",
+        "Session",
+        "Authentication ID",
+        "Integrity",
+        "Architecture",
+        "Virtualized"
+      ],
+      "column_count": 27,
+      "rows": 300429,
+      "rows_with_load_path_prefix": 48758,
+      "distinct_process_names": 55,
+      "top_process_names": [
+        [
+          "Procmon64.exe",
+          176669
+        ],
+        [
+          "pwsh.exe",
+          50021
+        ],
+        [
+          "svchost.exe",
+          32110
+        ],
+        [
+          "taskhostw.exe",
+          27375
+        ],
+        [
+          "Explorer.EXE",
+          8025
+        ],
+        [
+          "System",
+          1889
+        ],
+        [
+          "wsl.exe",
+          1822
+        ],
+        [
+          "provjobd.exe2862774879",
+          1221
+        ]
+      ],
+      "head_fixture": "C_ringbuffer_unfiltered.head.csv"
+    },
+    "D_plain_unfiltered.csv": {
+      "bytes": 161362120,
+      "sha256": "2c374790a379846a9ba19fdf48c75e1faef50f98a77ad8ddf0c39567ddbc3aa1",
+      "columns": [
+        "Sequence",
+        "Time of Day",
+        "Date & Time",
+        "Relative Time",
+        "Duration",
+        "Completion Time",
+        "Process Name",
+        "PID",
+        "TID",
+        "Parent PID",
+        "Operation",
+        "Path",
+        "Result",
+        "Detail",
+        "Event Class",
+        "Category",
+        "Image Path",
+        "Command Line",
+        "Company",
+        "Description",
+        "Version",
+        "User",
+        "Session",
+        "Authentication ID",
+        "Integrity",
+        "Architecture",
+        "Virtualized"
+      ],
+      "column_count": 27,
+      "rows": 252985,
+      "rows_with_load_path_prefix": 48076,
+      "distinct_process_names": 53,
+      "top_process_names": [
+        [
+          "Procmon64.exe",
+          172505
+        ],
+        [
+          "pwsh.exe",
+          49392
+        ],
+        [
+          "svchost.exe",
+          21746
+        ],
+        [
+          "Explorer.EXE",
+          6843
+        ],
+        [
+          "System",
+          1687
+        ],
+        [
+          "WindowsAzureGuestAgent.exe",
+          131
+        ],
+        [
+          "csrss.exe",
+          56
+        ],
+        [
+          "conhost.exe",
+          40
+        ]
+      ],
+      "head_fixture": "D_plain_unfiltered.head.csv"
+    }
+  },
+  "xml_exports": {
+    "A_default_filtered_stacks.xml": {
+      "bytes": 365127190,
+      "sha256": "7026363597cacabbdcd8b8d0f484c81166cd8a8b543a8b7c05af92f24def1883",
+      "event_elements": 45814,
+      "stack_elements": 45814,
+      "frame_elements": 2075177,
+      "head_fixture": "A_default_filtered_stacks.head.xml"
+    }
+  },
+  "pml_files": {
+    "A.pml": {
+      "bytes": 107224317,
+      "parser": "procmon-parser",
+      "events_total": 260225,
+      "events_scanned_for_stacks": 5000,
+      "events_with_stack": 4768,
+      "max_stack_depth_seen": 86,
+      "system_details_keys": [
+        "Computer Name",
+        "Logical Processors",
+        "Memory (RAM)",
+        "Operating System",
+        "System Root",
+        "System Type"
+      ]
+    },
+    "B.pml": {
+      "bytes": 106547000,
+      "parser_error": "ValueError('6 is not a valid EventClass')"
+    },
+    "C.pml": {
+      "bytes": 124016279,
+      "parser_error": "ValueError('6 is not a valid EventClass')"
+    },
+    "D.pml": {
+      "bytes": 104361761,
+      "parser_error": "ValueError('6 is not a valid EventClass')"
+    }
+  },
+  "committed_pmc": {
+    "wf-all-columns.pmc": {
+      "bytes": 1729,
+      "sha256": "1bc93f7fd08df60d2905e7967bc467da88d5c79b76d0b463cd0ddcac7f9daad2",
+      "records": {
+        "Columns": [
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100
+        ],
+        "ColumnCount": 27,
+        "ColumnMap": [
+          "SEQUENCE",
+          "TIME_OF_DAY",
+          "DATE_AND_TIME",
+          "RELATIVE_TIME",
+          "DURATION",
+          "COMPLETION_TIME",
+          "PROCESS_NAME",
+          "PID",
+          "TID",
+          "PARENT_PID",
+          "OPERATION",
+          "PATH",
+          "RESULT",
+          "DETAIL",
+          "EVENT_CLASS",
+          "CATEGORY",
+          "IMAGE_PATH",
+          "COMMAND_LINE",
+          "COMPANY",
+          "DESCRIPTION",
+          "VERSION",
+          "USER",
+          "SESSION",
+          "AUTHENTICATION_ID",
+          "INTEGRITY",
+          "ARCHITECTURE",
+          "VIRTUALIZED"
+        ],
+        "DbgHelpPath": "C:\\Windows\\SYSTEM32\\dbghelp.dll",
+        "Logfile": "",
+        "HighlightFG": 0,
+        "HighlightBG": 16777088,
+        "LogFont": "<procmon_parser.configuration.Font object at 0x000002147BBCE270>",
+        "BoookmarkFont": "<procmon_parser.configuration.Font object at 0x000002147B5C7410>",
+        "AdvancedMode": 0,
+        "Autoscroll": 0,
+        "HistoryDepth": 200,
+        "Profiling": 0,
+        "DestructiveFilter": 0,
+        "AlwaysOnTop": 0,
+        "ResolveAddresses": 0,
+        "SourcePath": "",
+        "SymbolPath": "srv*https://msdl.microsoft.com/download/symbols",
+        "FilterRules": [
+          "If Path begins_with \"C:\\wf-procmon-facts\", then Include",
+          "If Process_name is \"Procmon64.exe\", then Exclude",
+          "If Process_name is \"Procmon.exe\", then Exclude"
+        ],
+        "HighlightRules": []
+      }
+    },
+    "wf-default-columns.pmc": {
+      "bytes": 1729,
+      "sha256": "c43c9534ccfff3c7a10e938c003ea2a1f70f560e24528bceef2812d60a82aa24",
+      "records": {
+        "Columns": [
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100
+        ],
+        "ColumnCount": 7,
+        "ColumnMap": [
+          "TIME_OF_DAY",
+          "PROCESS_NAME",
+          "PID",
+          "OPERATION",
+          "PATH",
+          "RESULT",
+          "DETAIL"
+        ],
+        "DbgHelpPath": "C:\\Windows\\SYSTEM32\\dbghelp.dll",
+        "Logfile": "",
+        "HighlightFG": 0,
+        "HighlightBG": 16777088,
+        "LogFont": "<procmon_parser.configuration.Font object at 0x000002147B5C7440>",
+        "BoookmarkFont": "<procmon_parser.configuration.Font object at 0x000002147E27A690>",
+        "AdvancedMode": 0,
+        "Autoscroll": 0,
+        "HistoryDepth": 200,
+        "Profiling": 0,
+        "DestructiveFilter": 0,
+        "AlwaysOnTop": 0,
+        "ResolveAddresses": 0,
+        "SourcePath": "",
+        "SymbolPath": "srv*https://msdl.microsoft.com/download/symbols",
+        "FilterRules": [
+          "If Path begins_with \"C:\\wf-procmon-facts\", then Include",
+          "If Process_name is \"Procmon64.exe\", then Exclude",
+          "If Process_name is \"Procmon.exe\", then Exclude"
+        ],
+        "HighlightRules": []
+      }
+    }
+  }
+}

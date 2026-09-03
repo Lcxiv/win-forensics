@@ -1,0 +1,16 @@
+{
+  "image_os": "win25-vs2026",
+  "image_version": "20260824.214.3",
+  "runner_os": "Windows",
+  "runner_arch": "X64",
+  "os_caption": "Microsoft Windows Server 2025 Datacenter",
+  "os_version": "10.0.26100",
+  "os_build": "26100",
+  "os_ubr": 33296,
+  "pwsh_version": "7.6.5",
+  "is_admin": true,
+  "logical_processors": "4",
+  "recorded_utc": "2026-09-03T21:37:38.1000379Z",
+  "github_run_id": "33808897785",
+  "github_sha": "d4a8160420e2040beadedf6e024200cfa47019b7"
+}

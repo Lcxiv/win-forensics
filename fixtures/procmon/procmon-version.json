@@ -1,0 +1,18 @@
+{
+  "download_url": "https://download.sysinternals.com/files/ProcessMonitor.zip",
+  "zip_sha256": "4ff309fe52c56599377896b7863cb77b6c601d9f2522e52da7a182eac593e8e1",
+  "zip_bytes": 3191035,
+  "zip_contents": [
+    "Eula.txt",
+    "Procmon.exe",
+    "Procmon64.exe",
+    "Procmon64a.exe"
+  ],
+  "procmon64_sha256": "78d7148ef5e1472bbcec02cfd655f5aa789006b65d9990862dd8546ecf6c9af1",
+  "procmon64_bytes": 2232136,
+  "file_version": "4.1",
+  "product_version": "4.1",
+  "product_name": "Sysinternals Procmon",
+  "file_description": "Process Monitor",
+  "last_write_utc": "2026-08-19T21:04:56.0000000Z"
+}
