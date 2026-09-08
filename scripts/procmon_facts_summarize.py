@@ -27,6 +27,7 @@ DATE_TIME_RE = re.compile(r"^\d{1,2}/\d{1,2}/\d{4} \d{1,2}:[0-5]\d:[0-5]\d (AM|P
 RELATIVE_RE = re.compile(r"^\d{2}:[0-5]\d:[0-5]\d\.\d{7}$")
 DECIMAL_7_RE = re.compile(r"^\d+\.\d{7}$")
 INTEGER_RE = re.compile(r"^\d+$")
+TEXT_RE = re.compile(r"^.+$")
 
 
 def clock_ticks(value: str) -> int:
@@ -40,16 +41,28 @@ def clock_ticks(value: str) -> int:
 def format_checks(header: list[str], rows: list[list[str]], row_count: int) -> dict:
     checks = {"rows_checked": row_count, "mismatches": {}}
     positions = {name: header.index(name) for name in header}
+    def field(row: list[str], name: str) -> str | None:
+        index = positions[name]
+        return row[index] if index < len(row) else None
+
+    def matches(row: list[str], name: str, pattern: re.Pattern[str]) -> bool:
+        value = field(row, name)
+        return value is not None and pattern.fullmatch(value) is not None
+
+    checks["mismatches"]["row_width"] = sum(len(row) != len(header) for row in rows)
     for name in ("Time of Day", "Completion Time"):
-        checks["mismatches"][name] = sum(not CLOCK_RE.fullmatch(row[positions[name]]) for row in rows)
-    checks["mismatches"]["Date & Time"] = sum(not DATE_TIME_RE.fullmatch(row[positions["Date & Time"]]) for row in rows)
-    checks["mismatches"]["Relative Time"] = sum(not RELATIVE_RE.fullmatch(row[positions["Relative Time"]]) for row in rows)
-    checks["mismatches"]["Duration"] = sum(not DECIMAL_7_RE.fullmatch(row[positions["Duration"]]) for row in rows)
+        checks["mismatches"][name] = sum(not matches(row, name, CLOCK_RE) for row in rows)
+    checks["mismatches"]["Date & Time"] = sum(not matches(row, "Date & Time", DATE_TIME_RE) for row in rows)
+    checks["mismatches"]["Relative Time"] = sum(not matches(row, "Relative Time", RELATIVE_RE) for row in rows)
+    checks["mismatches"]["Duration"] = sum(not matches(row, "Duration", DECIMAL_7_RE) for row in rows)
     for name in ("PID", "TID", "Parent PID", "Session"):
-        checks["mismatches"][name] = sum(not INTEGER_RE.fullmatch(row[positions[name]]) for row in rows)
-    checks["mismatches"]["Event Class"] = sum(row[positions["Event Class"]] not in {
+        checks["mismatches"][name] = sum(not matches(row, name, INTEGER_RE) for row in rows)
+    checks["mismatches"]["Event Class"] = sum(field(row, "Event Class") not in {
         "File System", "Registry", "Process", "Network", "Profiling", "IPC"
     } for row in rows)
+    checks["mismatches"]["Category"] = sum(field(row, "Category") is None for row in rows)
+    for name in ("Integrity", "Architecture", "Virtualized"):
+        checks["mismatches"][name] = sum(not matches(row, name, TEXT_RE) for row in rows)
     return checks
 
 
@@ -90,12 +103,16 @@ def summarize_csv(path: Path, fixture_dir: Path) -> dict:
                         try:
                             expected = (clock_ticks(row[header.index("Completion Time")]) -
                                         clock_ticks(row[header.index("Time of Day")]))
+                            if expected < 0:
+                                expected += 24 * 60 * 60 * 10_000_000
                             actual = Decimal(row[header.index("Duration")])
                             duration_matches += actual == (Decimal(expected) / Decimal(10_000_000))
-                        except (InvalidOperation, ValueError):
+                        except (IndexError, InvalidOperation, ValueError):
                             pass
-                    sequence_not_na += row[header.index("Sequence")] != "n/a"
-                    format_rows.append(row)
+                    sequence_index = header.index("Sequence")
+                    sequence_not_na += sequence_index >= len(row) or row[sequence_index] != "n/a"
+                    if set(("Category", "Integrity", "Architecture", "Virtualized")) <= set(header):
+                        format_rows.append(row)
                 if header and "Path" in header:
                     p = row[header.index("Path")]
                     if p.startswith("C:\\wf-procmon-facts"):

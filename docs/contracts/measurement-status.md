@@ -77,7 +77,7 @@ The same rule applies to inferred rows that rest on absence: an inference whose 
 | `playbook` | identifier or null | The playbook whose rule produced the row |
 | `payload` | object | Source specific fields, free form but documented by the playbook |
 
-Validation rules beyond the schema: `provenance[].source_file` must exist in the manifest; `links` must resolve to rows in the same file; `coverage_ref.collector_id` must exist in the verdict coverage table with the stated status; `metric` and `unit` must match the playbook's declared pairing.
+Validation rules beyond the schema: `provenance[].source_file` must exist in the manifest; `links` must resolve to rows in the same file; `coverage_ref.analyzer_id` must exist in the verdict coverage table with the stated status, and `coverage_ref.collector_id` must exist there with its own `observed` or `observed_zero` status; `metric` and `unit` must match the playbook's declared pairing.
 
 ## 5. The verdict and its coverage table
 
