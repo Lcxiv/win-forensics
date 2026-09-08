@@ -2,7 +2,7 @@
 
 Capture, decode, and correlate Windows performance evidence to root-cause gaming stutters and hitches, with every analysis step testable off the gaming PC.
 
-Three layers and one contract:
+Three layers, connected by a bundle contract:
 
 - capture: thin Windows-only collectors (WPR, counters, event log, powercfg, process inventory, PresentMon, Process Monitor) that start, stop, verify, and checksum their own artifacts.
 - decode: Windows-only decoders (TraceProcessing, wpaexporter, xperf, cdb, Process Monitor export) that emit versioned typed tables with provenance.
