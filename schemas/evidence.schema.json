@@ -267,10 +267,7 @@
             "type": "object",
             "properties": {
               "status": {
-                "enum": [
-                  "observed",
-                  "observed_zero"
-                ]
+                "const": "observed_zero"
               }
             }
           }

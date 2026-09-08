@@ -46,3 +46,8 @@ def test_facts_json_if_present_is_consistent(repo_root):
             assert head.exists(), name
             first = head.read_text(encoding="utf-8").splitlines()[0]
             assert first.strip('"').split('","') == info["columns"], name
+    facts_b = facts["csv_exports"]["B_allcolumns_filtered.csv"]
+    assert facts_b["duration_check"] == {"rows_checked": 2000, "exact_matches": 2000}
+    assert facts_b["sequence_check"] == {"rows_checked": 51248, "not_n_a": 0}
+    assert facts_b["format_checks"]["rows_checked"] == 51248
+    assert all(value == 0 for value in facts_b["format_checks"]["mismatches"].values())

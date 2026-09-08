@@ -14,12 +14,43 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import re
 import sys
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 HEAD_ROWS = 20
 XML_HEAD_LINES = 120
 STACK_SCAN_LIMIT = 5000
+CLOCK_RE = re.compile(r"^(?P<h>\d{1,2}):(?P<m>[0-5]\d):(?P<s>[0-5]\d)\.(?P<f>\d{7}) (?P<ampm>AM|PM)$")
+DATE_TIME_RE = re.compile(r"^\d{1,2}/\d{1,2}/\d{4} \d{1,2}:[0-5]\d:[0-5]\d (AM|PM)$")
+RELATIVE_RE = re.compile(r"^\d{2}:[0-5]\d:[0-5]\d\.\d{7}$")
+DECIMAL_7_RE = re.compile(r"^\d+\.\d{7}$")
+INTEGER_RE = re.compile(r"^\d+$")
+
+
+def clock_ticks(value: str) -> int:
+    match = CLOCK_RE.fullmatch(value)
+    if not match:
+        raise ValueError(value)
+    hour = int(match["h"]) % 12 + (12 if match["ampm"] == "PM" else 0)
+    return ((hour * 60 + int(match["m"])) * 60 + int(match["s"])) * 10_000_000 + int(match["f"])
+
+
+def format_checks(header: list[str], rows: list[list[str]], row_count: int) -> dict:
+    checks = {"rows_checked": row_count, "mismatches": {}}
+    positions = {name: header.index(name) for name in header}
+    for name in ("Time of Day", "Completion Time"):
+        checks["mismatches"][name] = sum(not CLOCK_RE.fullmatch(row[positions[name]]) for row in rows)
+    checks["mismatches"]["Date & Time"] = sum(not DATE_TIME_RE.fullmatch(row[positions["Date & Time"]]) for row in rows)
+    checks["mismatches"]["Relative Time"] = sum(not RELATIVE_RE.fullmatch(row[positions["Relative Time"]]) for row in rows)
+    checks["mismatches"]["Duration"] = sum(not DECIMAL_7_RE.fullmatch(row[positions["Duration"]]) for row in rows)
+    for name in ("PID", "TID", "Parent PID", "Session"):
+        checks["mismatches"][name] = sum(not INTEGER_RE.fullmatch(row[positions[name]]) for row in rows)
+    checks["mismatches"]["Event Class"] = sum(row[positions["Event Class"]] not in {
+        "File System", "Registry", "Process", "Network", "Profiling", "IPC"
+    } for row in rows)
+    return checks
 
 
 def sha256(path: Path) -> str:
@@ -42,12 +73,29 @@ def summarize_csv(path: Path, fixture_dir: Path) -> dict:
             header = next(reader)
             rows = 0
             head: list[list[str]] = []
+            duration_matches = 0
+            duration_checked = 0
+            sequence_not_na = 0
+            format_rows: list[list[str]] = []
             path_prefix_hits = 0
             process_names: dict[str, int] = {}
             for row in reader:
                 rows += 1
                 if rows <= HEAD_ROWS:
                     head.append(row)
+                if set(("Time of Day", "Date & Time", "Relative Time", "Duration", "Completion Time",
+                        "Sequence", "PID", "TID", "Parent PID", "Session", "Event Class")) <= set(header):
+                    if rows <= 2000:
+                        duration_checked += 1
+                        try:
+                            expected = (clock_ticks(row[header.index("Completion Time")]) -
+                                        clock_ticks(row[header.index("Time of Day")]))
+                            actual = Decimal(row[header.index("Duration")])
+                            duration_matches += actual == (Decimal(expected) / Decimal(10_000_000))
+                        except (InvalidOperation, ValueError):
+                            pass
+                    sequence_not_na += row[header.index("Sequence")] != "n/a"
+                    format_rows.append(row)
                 if header and "Path" in header:
                     p = row[header.index("Path")]
                     if p.startswith("C:\\wf-procmon-facts"):
@@ -63,6 +111,10 @@ def summarize_csv(path: Path, fixture_dir: Path) -> dict:
             "distinct_process_names": len(process_names),
             "top_process_names": sorted(process_names.items(), key=lambda kv: -kv[1])[:8],
         })
+        if duration_checked:
+            info["duration_check"] = {"rows_checked": duration_checked, "exact_matches": duration_matches}
+            info["sequence_check"] = {"rows_checked": rows, "not_n_a": sequence_not_na}
+            info["format_checks"] = format_checks(header, format_rows, len(format_rows))
         head_path = fixture_dir / (path.stem + ".head.csv")
         with head_path.open("w", encoding="utf-8", newline="") as fh:
             w = csv.writer(fh, quoting=csv.QUOTE_ALL, lineterminator="\r\n")

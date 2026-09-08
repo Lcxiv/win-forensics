@@ -42,7 +42,7 @@ A window is adequately covered by a collector when all of the following hold, an
 - the target process, when the collector is scoped to one, was alive for the whole window;
 - the collector's clock fit for the window is within the tolerance of every join that uses it (see the timestamp contract), or the analyzer making the claim uses no cross source join.
 
-The absence rule: an evidence row with `evidence_kind = absent` is valid only when its `coverage_ref` names a collector and window whose status is `observed` or `observed_zero` under adequate coverage, and the row's own window lies inside that coverage window. Validation rejects any absence row that fails this test. Any other status forbids every exculpatory statement about that subsystem in that window: the report may say "not measured", never "nothing happened".
+The absence rule: an evidence row with `evidence_kind = absent` is valid only when its `coverage_ref` names an analyzer and window whose status is `observed_zero` under adequate coverage, and the row's own window lies inside that coverage window. The collector named by the same reference must separately be `observed` or `observed_zero` for the analyzer to have adequate input. Validation rejects any absence row that fails this test. Any other status forbids every exculpatory statement about that subsystem in that window: the report may say "not measured", never "nothing happened".
 
 The same rule applies to inferred rows that rest on absence: an inference whose `links` include an absence row inherits that row's coverage requirement, and the verdict's disconfirmer check for the hypothesis records which coverage it relied on.
 

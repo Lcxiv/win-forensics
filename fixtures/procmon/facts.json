@@ -470,6 +470,29 @@
           1420
         ]
       ],
+      "duration_check": {
+        "rows_checked": 2000,
+        "exact_matches": 2000
+      },
+      "sequence_check": {
+        "rows_checked": 51248,
+        "not_n_a": 0
+      },
+      "format_checks": {
+        "rows_checked": 51248,
+        "mismatches": {
+          "Time of Day": 0,
+          "Completion Time": 0,
+          "Date & Time": 0,
+          "Relative Time": 0,
+          "Duration": 0,
+          "PID": 0,
+          "TID": 0,
+          "Parent PID": 0,
+          "Session": 0,
+          "Event Class": 0
+        }
+      },
       "head_fixture": "B_allcolumns_filtered.head.csv"
     },
     "C_ringbuffer_unfiltered.csv": {
