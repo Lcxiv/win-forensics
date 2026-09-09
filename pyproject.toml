@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "win-forensics"
+version = "0.1.0"
+description = "Capture, decode, and correlate Windows performance evidence; phase 0a holds the contracts, schemas, decoders for two format fixtures, and the Process Monitor fact fixtures."
+requires-python = ">=3.12"
+license = { text = "MIT" }
+dependencies = [
+  "pandas>=2.2",
+  "jsonschema>=4.23",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "procmon-parser>=0.3.13",
+]
+
+[tool.setuptools]
+packages = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts"]
+addopts = "-q"

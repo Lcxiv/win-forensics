@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/table_meta.schema.json",
+  "title": "Decoded table sidecar metadata",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "decoded_table",
+    "schema_version",
+    "decoder",
+    "decoder_version",
+    "tool",
+    "source_files",
+    "row_count",
+    "time_domain",
+    "native_time_range",
+    "status",
+    "status_reason",
+    "checks",
+    "decoded_at_utc"
+  ],
+  "properties": {
+    "decoded_table": {
+      "$ref": "../common.schema.json#/$defs/decoded_table"
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "decoder": {
+      "type": "string"
+    },
+    "decoder_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "tool": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "source_files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^raw/"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "row_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "time_domain": {
+      "$ref": "../common.schema.json#/$defs/time_domain"
+    },
+    "native_time_range": {
+      "$ref": "../common.schema.json#/$defs/native_time_range"
+    },
+    "status": {
+      "$ref": "../common.schema.json#/$defs/measurement_status"
+    },
+    "status_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "$ref": "../common.schema.json#/$defs/check"
+      }
+    },
+    "decoded_at_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+      "description": "ISO 8601 date and time in UTC with a trailing Z; up to seven fractional digits (100 ns)."
+    }
+  }
+}

@@ -1,0 +1,120 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<procmon><processlist><process>
+<ProcessIndex>1</ProcessIndex>
+<ProcessId>6432</ProcessId>
+<ParentProcessId>9688</ParentProcessId>
+<ParentProcessIndex>2</ParentProcessIndex>
+<AuthenticationId>00000000:000d67f1</AuthenticationId>
+<CreateTime>134329450608011898</CreateTime>
+<FinishTime>0</FinishTime>
+<IsVirtualized>0</IsVirtualized>
+<Is64bit>1</Is64bit>
+<Integrity>High</Integrity>
+<Owner>runnervmeef0v\runneradmin</Owner>
+<ProcessName>Procmon64.exe</ProcessName>
+<ImagePath>D:\a\win-forensics\win-forensics\tools\ProcessMonitor\Procmon64.exe</ImagePath>
+<CommandLine>&quot;D:\a\win-forensics\win-forensics\tools\ProcessMonitor\Procmon64.exe&quot; /AcceptEula /Quiet /Minimized /BackingFile D:\a\win-forensics\win-forensics\out\A.pml /Runtime 10 /LoadConfig D:\a\win-forensics\win-forensics\fixtures\procmon\wf-default-columns.pmc</CommandLine>
+<CompanyName>Sysinternals - www.sysinternals.com</CompanyName>
+<Version>4.1</Version>
+<Description>Process Monitor</Description>
+<modulelist>
+<module>
+<Timestamp>134329450609140946</Timestamp>
+<BaseAddress>0x7ff78b080000</BaseAddress>
+<Size>2314240</Size>
+<Path>D:\a\win-forensics\win-forensics\tools\ProcessMonitor\Procmon64.exe</Path>
+<Version>4.1</Version>
+<Company>Sysinternals - www.sysinternals.com</Company>
+<Description>Process Monitor</Description>
+</module>
+<module>
+<Timestamp>134329450609140946</Timestamp>
+<BaseAddress>0x7ffcf6890000</BaseAddress>
+<Size>53248</Size>
+<Path>C:\Windows\SYSTEM32\atlthunk.dll</Path>
+<Version>10.0.26100.1 (WinBuild.160101.0800)</Version>
+<Company>Microsoft Corporation</Company>
+<Description>atlthunk.dll</Description>
+</module>
+<module>
+<Timestamp>134329450609140946</Timestamp>
+<BaseAddress>0x7ffcfff90000</BaseAddress>
+<Size>2699264</Size>
+<Path>C:\Windows\WinSxS\amd64_microsoft.windows.common-controls_6595b64144ccf1df_6.0.26100.33296_none_ee345681daf24d54\COMCTL32.dll</Path>
+<Version>6.10 (WinBuild.160101.0800)</Version>
+<Company>Microsoft Corporation</Company>
+<Description>User Experience Controls Library</Description>
+</module>
+<module>
+<Timestamp>134329450609140946</Timestamp>
+<BaseAddress>0x7ffd00cf0000</BaseAddress>
+<Size>733184</Size>
+<Path>C:\Windows\SYSTEM32\TextShaping.dll</Path>
+<Version>10.0.26100.33296 (WinBuild.160101.0800)</Version>
+<Company>Microsoft Corporation</Company>
+<Description>Microsoft Text Shaping Library</Description>
+</module>
+<module>
+<Timestamp>134329450609140946</Timestamp>
+<BaseAddress>0x7ffd0d700000</BaseAddress>
+<Size>3026944</Size>
+<Path>C:\Windows\SYSTEM32\CoreUIComponents.dll</Path>
+<Version>10.0.26100.33296</Version>
+<Company>Microsoft Corporation</Company>
+<Description>Microsoft Core UI Components Dll</Description>
+</module>
+<module>
+<Timestamp>134329450609140946</Timestamp>
+<BaseAddress>0x7ffd0f1e0000</BaseAddress>
+<Size>2379776</Size>
+<Path>C:\Windows\system32\twinapi.appcore.dll</Path>
+<Version>10.0.26100.1 (WinBuild.160101.0800)</Version>
+<Company>Microsoft Corporation</Company>
+<Description>twinapi.appcore</Description>
+</module>
+<module>
+<Timestamp>134329450609140946</Timestamp>
+<BaseAddress>0x7ffd0f430000</BaseAddress>
+<Size>368640</Size>
+<Path>C:\Windows\system32\dataexchange.dll</Path>
+<Version>10.0.26100.32684 (WinBuild.160101.0800)</Version>
+<Company>Microsoft Corporation</Company>
+<Description>Data exchange</Description>
+</module>
+<module>
+<Timestamp>134329450609140946</Timestamp>
+<BaseAddress>0x7ffd116c0000</BaseAddress>
+<Size>2367488</Size>
+<Path>C:\Windows\SYSTEM32\dbghelp.dll</Path>
+<Version>10.0.26100.5074 (WinBuild.160101.0800)</Version>
+<Company>Microsoft Corporation</Company>
+<Description>Windows Image Helper</Description>
+</module>
+<module>
+<Timestamp>134329450609140946</Timestamp>
+<BaseAddress>0x7ffd17e90000</BaseAddress>
+<Size>49152</Size>
+<Path>C:\Windows\SYSTEM32\FLTLIB.DLL</Path>
+<Version>10.0.26100.1 (WinBuild.160101.0800)</Version>
+<Company>Microsoft Corporation</Company>
+<Description>Filter Library</Description>
+</module>
+<module>
+<Timestamp>134329450609140946</Timestamp>
+<BaseAddress>0x7ffd1e980000</BaseAddress>
+<Size>45056</Size>
+<Path>C:\Windows\SYSTEM32\VERSION.dll</Path>
+<Version>10.0.26100.1150 (WinBuild.160101.0800)</Version>
+<Company>Microsoft Corporation</Company>
+<Description>Version Checking and File Installation Libraries</Description>
+</module>
+<module>
+<Timestamp>134329450609140946</Timestamp>
+<BaseAddress>0x7ffd20160000</BaseAddress>
+<Size>1343488</Size>
+<Path>C:\Windows\SYSTEM32\textinputframework.dll</Path>
+<Version>10.0.26100.33296 (WinBuild.160101.0800)</Version>
+<Company>Microsoft Corporation</Company>
+<Description>&quot;TextInputFramework.DYNLINK&quot;</Description>
+</module>
+<module>

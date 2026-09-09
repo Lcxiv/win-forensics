@@ -1,0 +1,74 @@
+{
+  "decoded_table": "dpcisr_module_cpu",
+  "schema_version": "1.0.0",
+  "decoder": "decode_dpcisr",
+  "decoder_version": "1.0.0",
+  "tool": {
+    "name": "xperf -a dpcisr",
+    "version": null
+  },
+  "source_files": [
+    {
+      "path": "raw/dpcisr/xperf_analysis.txt",
+      "sha256": "6a602e4baff98aa8546d08010eb28116a80ee361a43002c497fd5aac977d582d"
+    }
+  ],
+  "row_count": 288,
+  "time_domain": "etw_qpc_relative",
+  "native_time_range": {
+    "start": 0,
+    "end": 10555465,
+    "domain": "etw_qpc_relative",
+    "unit": "us"
+  },
+  "status": "observed",
+  "status_reason": null,
+  "checks": [
+    {
+      "name": "dpc_span_present",
+      "ok": true,
+      "detail": "0 us to 10555465 us"
+    },
+    {
+      "name": "dpc_report_equal_line",
+      "ok": true,
+      "detail": "All Module = 119045,  Total = 119045,   EQUAL"
+    },
+    {
+      "name": "dpc_histogram_totals_reconcile",
+      "ok": true,
+      "detail": "sum of per module totals 119045, section total 119045"
+    },
+    {
+      "name": "dpc_histogram_modules_match_table",
+      "ok": true,
+      "detail": "table modules 14, histogram modules 14"
+    },
+    {
+      "name": "isr_span_present",
+      "ok": true,
+      "detail": "0 us to 10555465 us"
+    },
+    {
+      "name": "isr_report_equal_line",
+      "ok": true,
+      "detail": "All Module = 118495,  Total = 118495,   EQUAL"
+    },
+    {
+      "name": "isr_histogram_totals_reconcile",
+      "ok": true,
+      "detail": "sum of per module totals 118495, section total 118495"
+    },
+    {
+      "name": "isr_histogram_modules_match_table",
+      "ok": true,
+      "detail": "table modules 4, histogram modules 4"
+    },
+    {
+      "name": "isr_unconsumed_section",
+      "ok": true,
+      "detail": "line:299 Distribution of number of 2000 ms intervals w.r.t. DPC/ISR usage:"
+    }
+  ],
+  "decoded_at_utc": "2026-09-03T00:00:00Z"
+}

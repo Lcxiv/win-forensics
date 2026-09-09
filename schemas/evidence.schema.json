@@ -1,0 +1,278 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/evidence.schema.json",
+  "title": "Evidence row (evidence.jsonl)",
+  "description": "One observation, inference, or absence, as win-opt's v0 evidence bus row plus metric, unit, payload, master time, coverage reference, and structured provenance. See docs/contracts/measurement-status.md section 4.",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "row_id",
+    "ts_utc",
+    "window",
+    "t_master_100ns",
+    "clock_error_bound_100ns",
+    "collected_ts_utc",
+    "source",
+    "subsystem",
+    "signal",
+    "metric",
+    "unit",
+    "value",
+    "severity",
+    "faulting_module",
+    "cpu",
+    "confidence",
+    "evidence_kind",
+    "coverage_ref",
+    "provenance",
+    "links",
+    "incident_id",
+    "analyzer",
+    "playbook",
+    "payload"
+  ],
+  "properties": {
+    "row_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ts_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$"
+    },
+    "window": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "common.schema.json#/$defs/window_utc"
+        }
+      ]
+    },
+    "t_master_100ns": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "clock_error_bound_100ns": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "collected_ts_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+      "description": "ISO 8601 date and time in UTC with a trailing Z; up to seven fractional digits (100 ns)."
+    },
+    "source": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "subsystem": {
+      "$ref": "common.schema.json#/$defs/subsystem"
+    },
+    "signal": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "metric": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "unit": {
+      "$ref": "common.schema.json#/$defs/unit"
+    },
+    "value": {
+      "type": [
+        "number",
+        "boolean",
+        "null"
+      ]
+    },
+    "severity": {
+      "$ref": "common.schema.json#/$defs/severity"
+    },
+    "faulting_module": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cpu": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "evidence_kind": {
+      "$ref": "common.schema.json#/$defs/evidence_kind"
+    },
+    "coverage_ref": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "collector_id",
+            "analyzer_id",
+            "window",
+            "status"
+          ],
+          "properties": {
+            "collector_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$"
+            },
+            "analyzer_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$"
+            },
+            "window": {
+              "$ref": "common.schema.json#/$defs/window_utc"
+            },
+            "status": {
+              "$ref": "common.schema.json#/$defs/measurement_status"
+            }
+          }
+        }
+      ]
+    },
+    "provenance": {
+      "type": "array",
+      "items": {
+        "$ref": "decoded/provenance.schema.json"
+      }
+    },
+    "links": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "incident_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "analyzer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        }
+      }
+    },
+    "playbook": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        }
+      ]
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "evidence_kind": {
+            "const": "observed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "confidence": {
+            "const": 1.0
+          },
+          "provenance": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evidence_kind": {
+            "const": "inferred"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "confidence": {
+            "exclusiveMaximum": 1.0
+          },
+          "links": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evidence_kind": {
+            "const": "absent"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "confidence": {
+            "const": 1.0
+          },
+          "window": {
+            "type": "object"
+          },
+          "ts_utc": {
+            "type": "string"
+          },
+          "coverage_ref": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "observed_zero"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

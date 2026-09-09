@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/process_inventory.schema.json",
+  "title": "process_inventory row",
+  "description": "One row per process per snapshot (start and stop) from the process inventory collector.",
+  "x-schema-version": "1.0.0",
+  "x-decoded-table": "process_inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "snapshot",
+    "captured_at_utc",
+    "pid",
+    "name",
+    "provenance"
+  ],
+  "properties": {
+    "snapshot": {
+      "type": "string",
+      "enum": [
+        "start",
+        "stop"
+      ]
+    },
+    "captured_at_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+      "description": "ISO 8601 date and time in UTC with a trailing Z; up to seven fractional digits (100 ns)."
+    },
+    "pid": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "name": {
+      "type": "string"
+    },
+    "parent_pid": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "image_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "command_line": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "priority_class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "affinity_mask_hex": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^0x[0-9a-fA-F]+$"
+    },
+    "session_id": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "start_time_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$"
+    },
+    "user": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cpu_time_s": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "working_set_bytes": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "handle_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "thread_count": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "properties": {
+            "decoded_table": {
+              "const": "process_inventory"
+            },
+            "schema_version": {
+              "const": "1.0.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

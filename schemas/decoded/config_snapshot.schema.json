@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/config_snapshot.schema.json",
+  "title": "config_snapshot row",
+  "description": "One row per configuration setting captured at capture time (interrupt affinity, MSI mode, HAGS, MMCSS, power, parking, driver and BIOS versions).",
+  "x-schema-version": "1.0.0",
+  "x-decoded-table": "config_snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "category",
+    "key",
+    "value_text",
+    "source_command",
+    "captured_at_utc",
+    "provenance"
+  ],
+  "properties": {
+    "category": {
+      "type": "string",
+      "enum": [
+        "interrupt_affinity",
+        "msi_mode",
+        "hags",
+        "mmcss",
+        "power_scheme",
+        "core_parking",
+        "driver",
+        "bios",
+        "os",
+        "other"
+      ]
+    },
+    "key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "value_text": {
+      "type": "string"
+    },
+    "value_number": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "source_command": {
+      "type": "string"
+    },
+    "captured_at_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+      "description": "ISO 8601 date and time in UTC with a trailing Z; up to seven fractional digits (100 ns)."
+    },
+    "device_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "device_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "registry_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "properties": {
+            "decoded_table": {
+              "const": "config_snapshot"
+            },
+            "schema_version": {
+              "const": "1.0.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

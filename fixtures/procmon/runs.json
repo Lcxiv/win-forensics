@@ -1,0 +1,148 @@
+[
+  {
+    "label": "A-capture",
+    "arguments": "/AcceptEula /Quiet /Minimized /BackingFile D:\\a\\win-forensics\\win-forensics\\out\\A.pml /Runtime 10 /LoadConfig D:\\a\\win-forensics\\win-forensics\\fixtures\\procmon\\wf-default-columns.pmc",
+    "exited_on_own": true,
+    "forced_kill": false,
+    "exit_code": 1,
+    "elapsed_s": 10.26,
+    "kind": "capture",
+    "pmc": "wf-default-columns.pmc",
+    "load_root": "C:\\wf-procmon-facts\\97c63ab1",
+    "pml_files": [
+      {
+        "name": "A.pml",
+        "bytes": 107224317
+      }
+    ]
+  },
+  {
+    "label": "A-filtered-export",
+    "arguments": "/AcceptEula /Quiet /OpenLog D:\\a\\win-forensics\\win-forensics\\out\\A.pml /LoadConfig D:\\a\\win-forensics\\win-forensics\\fixtures\\procmon\\wf-default-columns.pmc /SaveApplyFilter /SaveAs D:\\a\\win-forensics\\win-forensics\\out\\A_default_filtered.csv",
+    "exited_on_own": true,
+    "forced_kill": false,
+    "exit_code": 0,
+    "elapsed_s": 0.82,
+    "kind": "export",
+    "pmc": "wf-default-columns.pmc",
+    "output": "A_default_filtered.csv",
+    "output_exists": true,
+    "output_bytes": 8552677
+  },
+  {
+    "label": "A-all-export",
+    "arguments": "/AcceptEula /Quiet /OpenLog D:\\a\\win-forensics\\win-forensics\\out\\A.pml /LoadConfig D:\\a\\win-forensics\\win-forensics\\fixtures\\procmon\\wf-default-columns.pmc /SaveAs D:\\a\\win-forensics\\win-forensics\\out\\A_default_unfiltered.csv",
+    "exited_on_own": true,
+    "forced_kill": false,
+    "exit_code": 0,
+    "elapsed_s": 2.11,
+    "kind": "export",
+    "pmc": "wf-default-columns.pmc",
+    "output": "A_default_unfiltered.csv",
+    "output_exists": true,
+    "output_bytes": 45512583
+  },
+  {
+    "label": "A-stacks-export",
+    "arguments": "/AcceptEula /Quiet /OpenLog D:\\a\\win-forensics\\win-forensics\\out\\A.pml /LoadConfig D:\\a\\win-forensics\\win-forensics\\fixtures\\procmon\\wf-default-columns.pmc /SaveApplyFilter /SaveAs1 D:\\a\\win-forensics\\win-forensics\\out\\A_default_filtered_stacks.xml",
+    "exited_on_own": true,
+    "forced_kill": false,
+    "exit_code": 0,
+    "elapsed_s": 11.41,
+    "kind": "export",
+    "pmc": "wf-default-columns.pmc",
+    "output": "A_default_filtered_stacks.xml",
+    "output_exists": true,
+    "output_bytes": 365127190
+  },
+  {
+    "label": "B-capture",
+    "arguments": "/AcceptEula /Quiet /Minimized /BackingFile D:\\a\\win-forensics\\win-forensics\\out\\B.pml /Runtime 10 /LoadConfig D:\\a\\win-forensics\\win-forensics\\fixtures\\procmon\\wf-all-columns.pmc",
+    "exited_on_own": true,
+    "forced_kill": false,
+    "exit_code": 1,
+    "elapsed_s": 10.24,
+    "kind": "capture",
+    "pmc": "wf-all-columns.pmc",
+    "load_root": "C:\\wf-procmon-facts\\97c63ab1",
+    "pml_files": [
+      {
+        "name": "B.pml",
+        "bytes": 106547000
+      }
+    ]
+  },
+  {
+    "label": "B-filtered-export",
+    "arguments": "/AcceptEula /Quiet /OpenLog D:\\a\\win-forensics\\win-forensics\\out\\B.pml /LoadConfig D:\\a\\win-forensics\\win-forensics\\fixtures\\procmon\\wf-all-columns.pmc /SaveApplyFilter /SaveAs D:\\a\\win-forensics\\win-forensics\\out\\B_allcolumns_filtered.csv",
+    "exited_on_own": true,
+    "forced_kill": false,
+    "exit_code": 0,
+    "elapsed_s": 1.52,
+    "kind": "export",
+    "pmc": "wf-all-columns.pmc",
+    "output": "B_allcolumns_filtered.csv",
+    "output_exists": true,
+    "output_bytes": 29759380
+  },
+  {
+    "label": "C-capture",
+    "arguments": "/AcceptEula /Quiet /Minimized /BackingFile D:\\a\\win-forensics\\win-forensics\\out\\C.pml /Runtime 10 /NoFilter /RingBuffer /RingBufferSize 1",
+    "exited_on_own": true,
+    "forced_kill": false,
+    "exit_code": 1,
+    "elapsed_s": 10.15,
+    "kind": "capture",
+    "pmc": "",
+    "load_root": "C:\\wf-procmon-facts\\97c63ab1",
+    "pml_files": [
+      {
+        "name": "C.pml",
+        "bytes": 124016279
+      }
+    ]
+  },
+  {
+    "label": "C-all-export",
+    "arguments": "/AcceptEula /Quiet /OpenLog D:\\a\\win-forensics\\win-forensics\\out\\C.pml /SaveAs D:\\a\\win-forensics\\win-forensics\\out\\C_ringbuffer_unfiltered.csv",
+    "exited_on_own": true,
+    "forced_kill": false,
+    "exit_code": 0,
+    "elapsed_s": 7.01,
+    "kind": "export",
+    "pmc": "",
+    "output": "C_ringbuffer_unfiltered.csv",
+    "output_exists": true,
+    "output_bytes": 193506949
+  },
+  {
+    "label": "D-capture",
+    "arguments": "/AcceptEula /Quiet /Minimized /BackingFile D:\\a\\win-forensics\\win-forensics\\out\\D.pml /Runtime 10 /NoFilter",
+    "exited_on_own": true,
+    "forced_kill": false,
+    "exit_code": 1,
+    "elapsed_s": 10.24,
+    "kind": "capture",
+    "pmc": "",
+    "load_root": "C:\\wf-procmon-facts\\97c63ab1",
+    "pml_files": [
+      {
+        "name": "D.pml",
+        "bytes": 104361761
+      }
+    ]
+  },
+  {
+    "label": "D-all-export",
+    "arguments": "/AcceptEula /Quiet /OpenLog D:\\a\\win-forensics\\win-forensics\\out\\D.pml /SaveAs D:\\a\\win-forensics\\win-forensics\\out\\D_plain_unfiltered.csv",
+    "exited_on_own": true,
+    "forced_kill": false,
+    "exit_code": 0,
+    "elapsed_s": 5.88,
+    "kind": "export",
+    "pmc": "",
+    "output": "D_plain_unfiltered.csv",
+    "output_exists": true,
+    "output_bytes": 161362120
+  }
+]

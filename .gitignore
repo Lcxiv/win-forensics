@@ -1,15 +1,26 @@
-# Bundles and raw captures from real machines never enter the repository
+# Bundles and raw captures from real machines never enter the repository.
+# Only fixtures/ holds synthetic bundles and format fixtures.
 bundles/
 captures/
 *.etl
 *.pml
+*.PML
 *.dmp
 *.blg
+*.evtx
+# Runner harness outputs and downloaded tools
+out/
+tools/
 # Python
 __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+*.egg-info/
+build/
+dist/
 # OS and editors
 .DS_Store
 Thumbs.db
+# firstmate session hooks
+.claude/settings.local.json

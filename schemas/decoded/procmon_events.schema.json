@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/procmon_events.schema.json",
+  "title": "procmon_events row",
+  "description": "One row per event from a Process Monitor CSV export. The default seven columns are required; every other column is present only when the capture configuration selected it. See docs/contracts/procmon-facts.md.",
+  "x-schema-version": "1.0.0",
+  "x-decoded-table": "procmon_events",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "time_of_day",
+    "process_name",
+    "pid",
+    "operation",
+    "path",
+    "result",
+    "detail",
+    "time_utc",
+    "provenance"
+  ],
+  "properties": {
+    "time_of_day": {
+      "type": "string",
+      "minLength": 1
+    },
+    "process_name": {
+      "type": "string"
+    },
+    "pid": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "operation": {
+      "type": "string"
+    },
+    "path": {
+      "type": "string"
+    },
+    "result": {
+      "type": "string"
+    },
+    "detail": {
+      "type": "string"
+    },
+    "time_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$"
+    },
+    "sequence": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "date_and_time": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "relative_time": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "duration_s": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "tid": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "parent_pid": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "image_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "command_line": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "company": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "user": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "session": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "authentication_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "integrity": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "architecture": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "virtualized": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "category": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "event_class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "completion_time": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "properties": {
+            "decoded_table": {
+              "const": "procmon_events"
+            },
+            "schema_version": {
+              "const": "1.0.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

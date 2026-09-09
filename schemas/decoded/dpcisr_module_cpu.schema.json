@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/dpcisr_module_cpu.schema.json",
+  "title": "dpcisr_module_cpu row",
+  "description": "One row per (kind, module, cpu) cell of the 'CPU Usage Summing By Module For the Whole Trace' tables in an xperf -a dpcisr report. Zero cells are rows.",
+  "x-schema-version": "1.0.0",
+  "x-decoded-table": "dpcisr_module_cpu",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "module",
+    "cpu",
+    "usec",
+    "percent",
+    "trace_span_start_us",
+    "trace_span_end_us",
+    "provenance"
+  ],
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "dpc",
+        "isr"
+      ]
+    },
+    "module": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cpu": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "usec": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "percent": {
+      "type": "number",
+      "minimum": 0
+    },
+    "trace_span_start_us": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "trace_span_end_us": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "properties": {
+            "decoded_table": {
+              "const": "dpcisr_module_cpu"
+            },
+            "schema_version": {
+              "const": "1.0.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

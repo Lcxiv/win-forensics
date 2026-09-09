@@ -1,0 +1,22 @@
+2026-09-03T21:37:39.6867407Z nonce=97c63ab1 loadRoot=C:\wf-procmon-facts\97c63ab1 procmon=D:\a\win-forensics\win-forensics\tools\ProcessMonitor\Procmon64.exe runtime=10
+2026-09-03T21:37:40.7939728Z A-capture : Procmon64.exe /AcceptEula /Quiet /Minimized /BackingFile D:\a\win-forensics\win-forensics\out\A.pml /Runtime 10 /LoadConfig D:\a\win-forensics\win-forensics\fixtures\procmon\wf-default-columns.pmc
+2026-09-03T21:37:51.0699561Z A-capture : exited_on_own=True exit_code=1 elapsed=10.26s
+2026-09-03T21:37:54.1355193Z A-filtered-export : Procmon64.exe /AcceptEula /Quiet /OpenLog D:\a\win-forensics\win-forensics\out\A.pml /LoadConfig D:\a\win-forensics\win-forensics\fixtures\procmon\wf-default-columns.pmc /SaveApplyFilter /SaveAs D:\a\win-forensics\win-forensics\out\A_default_filtered.csv
+2026-09-03T21:37:54.9618698Z A-filtered-export : exited_on_own=True exit_code=0 elapsed=0.82s
+2026-09-03T21:37:54.9750575Z A-all-export : Procmon64.exe /AcceptEula /Quiet /OpenLog D:\a\win-forensics\win-forensics\out\A.pml /LoadConfig D:\a\win-forensics\win-forensics\fixtures\procmon\wf-default-columns.pmc /SaveAs D:\a\win-forensics\win-forensics\out\A_default_unfiltered.csv
+2026-09-03T21:37:57.0850940Z A-all-export : exited_on_own=True exit_code=0 elapsed=2.11s
+2026-09-03T21:37:57.0878857Z A-stacks-export : Procmon64.exe /AcceptEula /Quiet /OpenLog D:\a\win-forensics\win-forensics\out\A.pml /LoadConfig D:\a\win-forensics\win-forensics\fixtures\procmon\wf-default-columns.pmc /SaveApplyFilter /SaveAs1 D:\a\win-forensics\win-forensics\out\A_default_filtered_stacks.xml
+2026-09-03T21:38:08.5048345Z A-stacks-export : exited_on_own=True exit_code=0 elapsed=11.41s
+2026-09-03T21:38:09.5264003Z B-capture : Procmon64.exe /AcceptEula /Quiet /Minimized /BackingFile D:\a\win-forensics\win-forensics\out\B.pml /Runtime 10 /LoadConfig D:\a\win-forensics\win-forensics\fixtures\procmon\wf-all-columns.pmc
+2026-09-03T21:38:19.7708370Z B-capture : exited_on_own=True exit_code=1 elapsed=10.24s
+2026-09-03T21:38:22.9108367Z B-filtered-export : Procmon64.exe /AcceptEula /Quiet /OpenLog D:\a\win-forensics\win-forensics\out\B.pml /LoadConfig D:\a\win-forensics\win-forensics\fixtures\procmon\wf-all-columns.pmc /SaveApplyFilter /SaveAs D:\a\win-forensics\win-forensics\out\B_allcolumns_filtered.csv
+2026-09-03T21:38:24.4299349Z B-filtered-export : exited_on_own=True exit_code=0 elapsed=1.52s
+2026-09-03T21:38:25.4542187Z C-capture : Procmon64.exe /AcceptEula /Quiet /Minimized /BackingFile D:\a\win-forensics\win-forensics\out\C.pml /Runtime 10 /NoFilter /RingBuffer /RingBufferSize 1
+2026-09-03T21:38:35.6069794Z C-capture : exited_on_own=True exit_code=1 elapsed=10.15s
+2026-09-03T21:38:38.8026734Z C-all-export : Procmon64.exe /AcceptEula /Quiet /OpenLog D:\a\win-forensics\win-forensics\out\C.pml /SaveAs D:\a\win-forensics\win-forensics\out\C_ringbuffer_unfiltered.csv
+2026-09-03T21:38:45.8176669Z C-all-export : exited_on_own=True exit_code=0 elapsed=7.01s
+2026-09-03T21:38:46.8335217Z D-capture : Procmon64.exe /AcceptEula /Quiet /Minimized /BackingFile D:\a\win-forensics\win-forensics\out\D.pml /Runtime 10 /NoFilter
+2026-09-03T21:38:57.0771457Z D-capture : exited_on_own=True exit_code=1 elapsed=10.24s
+2026-09-03T21:39:00.1966289Z D-all-export : Procmon64.exe /AcceptEula /Quiet /OpenLog D:\a\win-forensics\win-forensics\out\D.pml /SaveAs D:\a\win-forensics\win-forensics\out\D_plain_unfiltered.csv
+2026-09-03T21:39:06.0821634Z D-all-export : exited_on_own=True exit_code=0 elapsed=5.88s
+2026-09-03T21:39:06.1405824Z registry values: 26

@@ -1,0 +1,991 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/manifest.schema.json",
+  "title": "Bundle manifest (manifest.json)",
+  "description": "Written by the capture orchestrator when the privileged capture session closes. See docs/contracts/bundle.md.",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifest_version",
+    "bundle_id",
+    "created_utc",
+    "scenario",
+    "capture",
+    "machine",
+    "collectors",
+    "calibration",
+    "tools",
+    "symbols",
+    "checksum_algorithm",
+    "notes"
+  ],
+  "properties": {
+    "manifest_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "bundle_id": {
+      "type": "string",
+      "pattern": "^[0-9]{8}T[0-9]{6}Z_[a-z0-9_]+_[a-z0-9]+$",
+      "description": "<UTC start as yyyymmddThhmmssZ>_<scenario>_<machine id short>"
+    },
+    "created_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+      "description": "ISO 8601 date and time in UTC with a trailing Z; up to seven fractional digits (100 ns)."
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "requested_duration_s",
+        "target_process",
+        "marks"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "requested_duration_s": {
+          "type": "number",
+          "minimum": 0
+        },
+        "target_process": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "marks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "label",
+              "at_utc",
+              "qpc"
+            ],
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "at_utc": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+                "description": "ISO 8601 date and time in UTC with a trailing Z; up to seven fractional digits (100 ns)."
+              },
+              "qpc": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "capture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start_utc",
+        "stop_utc",
+        "orchestrator",
+        "orchestrator_version",
+        "elevated",
+        "incomplete"
+      ],
+      "properties": {
+        "start_utc": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+          "description": "ISO 8601 date and time in UTC with a trailing Z; up to seven fractional digits (100 ns)."
+        },
+        "stop_utc": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+          "description": "ISO 8601 date and time in UTC with a trailing Z; up to seven fractional digits (100 ns)."
+        },
+        "orchestrator": {
+          "type": "string"
+        },
+        "orchestrator_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "elevated": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "incomplete": {
+          "type": "boolean",
+          "description": "True when an optional collector failed; required collector failure refuses the bundle instead."
+        }
+      }
+    },
+    "machine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "machine_id",
+        "hostname",
+        "os",
+        "cpu",
+        "memory_bytes",
+        "gpus",
+        "bios",
+        "board",
+        "drivers",
+        "time_zone"
+      ],
+      "properties": {
+        "machine_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable opaque id (for example a hash of the machine GUID); never a serial number."
+        },
+        "hostname": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "os": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "caption",
+            "version",
+            "build",
+            "ubr",
+            "display_version",
+            "architecture",
+            "edition"
+          ],
+          "properties": {
+            "caption": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "build": {
+              "type": "integer"
+            },
+            "ubr": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "display_version": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "architecture": {
+              "type": "string"
+            },
+            "edition": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "cpu": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "logical_processors",
+            "qpc_frequency_hz"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "logical_processors": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "qpc_frequency_hz": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            }
+          }
+        },
+        "memory_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "gpus": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "driver_version",
+              "driver_date",
+              "device_id"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "driver_version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "driver_date": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "device_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "bios": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "vendor",
+            "version",
+            "release_date"
+          ],
+          "properties": {
+            "vendor": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "version": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "release_date": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "board": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "manufacturer",
+            "product"
+          ],
+          "properties": {
+            "manufacturer": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "product": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "drivers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "version",
+              "provider",
+              "class"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "provider": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "class": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "time_zone": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "utc_offset_minutes",
+            "dst_active"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "utc_offset_minutes": {
+              "type": "integer"
+            },
+            "dst_active": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "collectors": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "required",
+          "status",
+          "status_reason",
+          "preflight",
+          "command",
+          "started_utc",
+          "stopped_utc",
+          "exit_code",
+          "config_hash",
+          "filter_hash",
+          "requested",
+          "enabled",
+          "events_lost",
+          "buffers",
+          "artifacts",
+          "raw_time_range",
+          "expectation",
+          "target_process"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "kind": {
+            "$ref": "common.schema.json#/$defs/collector_kind"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "common.schema.json#/$defs/measurement_status"
+          },
+          "status_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preflight": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "required": [
+              "ok",
+              "at_utc",
+              "checks"
+            ],
+            "properties": {
+              "ok": {
+                "type": "boolean"
+              },
+              "at_utc": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+                "description": "ISO 8601 date and time in UTC with a trailing Z; up to seven fractional digits (100 ns)."
+              },
+              "checks": {
+                "type": "array",
+                "items": {
+                  "$ref": "common.schema.json#/$defs/check"
+                }
+              }
+            }
+          },
+          "command": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "started_utc": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$"
+          },
+          "stopped_utc": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$"
+          },
+          "exit_code": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "config_hash": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "common.schema.json#/$defs/hash"
+              }
+            ]
+          },
+          "filter_hash": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "common.schema.json#/$defs/hash"
+              }
+            ]
+          },
+          "requested": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "providers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "keywords": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "stack_walk": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "counters": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "options": {
+                "type": "object"
+              }
+            }
+          },
+          "enabled": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "providers": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                }
+              },
+              "keywords": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                }
+              },
+              "stack_walk": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                }
+              },
+              "counters": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                }
+              },
+              "options": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "verified_by": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "events_lost": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "buffers": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "required": [
+              "size_kb",
+              "count",
+              "mode"
+            ],
+            "properties": {
+              "size_kb": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "count": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "mode": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "file",
+                  "memory",
+                  "circular",
+                  null
+                ]
+              }
+            }
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "bytes",
+                "sha256",
+                "role"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "pattern": "^raw/"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "primary",
+                    "log",
+                    "config",
+                    "report",
+                    "other"
+                  ]
+                }
+              }
+            }
+          },
+          "raw_time_range": {
+            "$ref": "common.schema.json#/$defs/native_time_range"
+          },
+          "expectation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "required": [
+              "declared",
+              "met",
+              "detail"
+            ],
+            "properties": {
+              "declared": {
+                "type": "string"
+              },
+              "met": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "detail": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "target_process": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "pid",
+              "alive_at_start",
+              "alive_at_stop"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "pid": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "alive_at_start": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "alive_at_stop": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "calibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "method",
+        "qpc_frequency_hz",
+        "expected_pairs",
+        "pairs",
+        "missing_pairs",
+        "time_adjustment",
+        "boot_time_utc"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "common.schema.json#/$defs/measurement_status"
+        },
+        "method": {
+          "type": "string"
+        },
+        "qpc_frequency_hz": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "expected_pairs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pairs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "seq",
+              "phase",
+              "qpc_before",
+              "qpc_after",
+              "filetime_utc_100ns"
+            ],
+            "properties": {
+              "seq": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "phase": {
+                "type": "string",
+                "enum": [
+                  "start",
+                  "interval",
+                  "stop"
+                ]
+              },
+              "qpc_before": {
+                "type": "integer"
+              },
+              "qpc_after": {
+                "type": "integer"
+              },
+              "filetime_utc_100ns": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "missing_pairs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "time_adjustment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "start",
+            "stop"
+          ],
+          "properties": {
+            "start": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": false,
+              "required": [
+                "adjustment_disabled",
+                "time_adjustment",
+                "time_increment"
+              ],
+              "properties": {
+                "adjustment_disabled": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "time_adjustment": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "time_increment": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "stop": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": false,
+              "required": [
+                "adjustment_disabled",
+                "time_adjustment",
+                "time_increment"
+              ],
+              "properties": {
+                "adjustment_disabled": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "time_adjustment": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "time_increment": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "boot_time_utc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$"
+        }
+      }
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "version",
+          "path",
+          "sha256"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sha256": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "symbols": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "symbol_path",
+        "cache_path",
+        "dbghelp_version"
+      ],
+      "properties": {
+        "symbol_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cache_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dbghelp_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "checksum_algorithm": {
+      "const": "sha256"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
