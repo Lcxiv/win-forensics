@@ -464,10 +464,12 @@ function Test-WfRuleAdmitsSsh {
     $package = ''
     if ($Rule.ContainsKey('Package')) { $package = [string]$Rule.Package }
     if ($package -ne '' -and $package -ne 'Any') { return $false }
-    # A rule scoped to another Windows service does not cover the sshd service.
+    # A rule scoped to another Windows service does not cover the sshd service. '*' means every
+    # service, sshd included (INetFwRule::ServiceName, "*" applies the rule to all services):
+    # https://learn.microsoft.com/en-us/windows/win32/api/netfw/nf-netfw-inetfwrule-get_servicename
     $service = ''
     if ($Rule.ContainsKey('Service')) { $service = [string]$Rule.Service }
-    if ($service -ne '' -and $service -ne 'Any' -and $service.ToLowerInvariant() -ne 'sshd') { return $false }
+    if (@('', 'Any', '*', 'sshd') -notcontains $service) { return $false }
     return $true
 }
 

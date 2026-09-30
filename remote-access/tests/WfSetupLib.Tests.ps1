@@ -345,10 +345,11 @@ Describe 'Firewall decisions' {
             (New-Rule @{ Name = 'broad-tcp-any-port'; LocalPort = @('Any') })
             (New-Rule @{ Name = 'broad-any-protocol-port-22'; Protocol = 'Any' })
             (New-Rule @{ Name = 'sshd-service-any'; Protocol = 'Any'; LocalPort = @('Any'); Service = 'sshd' })
+            (New-Rule @{ Name = 'every-service'; LocalPort = @('Any'); Service = '*' })
             (New-Rule @{ Name = 'win-forensics-ssh-in'; Profile = 'Private'; RemoteAddress = @('192.0.2.10') })
         )
         $plan = Get-WfFirewallPlan -Rules $rules -OwnRuleName 'win-forensics-ssh-in'
-        @($plan.Disable | Sort-Object) | Should -Be @('{renamed-default-rule}', 'broad-any-any', 'broad-any-protocol-port-22', 'broad-tcp-any-port', 'OpenSSH-Server-In-TCP', 'sshd-any-port', 'sshd-service-any')
+        @($plan.Disable | Sort-Object) | Should -Be @('{renamed-default-rule}', 'broad-any-any', 'broad-any-protocol-port-22', 'broad-tcp-any-port', 'every-service', 'OpenSSH-Server-In-TCP', 'sshd-any-port', 'sshd-service-any')
         @($plan.FailClosed).Count | Should -Be 0
     }
 

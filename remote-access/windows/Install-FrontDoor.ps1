@@ -7,7 +7,8 @@ one Mac on the home network, as a standard account that can run nothing but the 
 .DESCRIPTION
 Run once, elevated, at the PC, from Windows PowerShell 5.1. Safe to run again: after a Windows
 feature update, to install new collectors, or with a new Mac address or key. Every step checks
-its own result, and the script ends with a PASS or FAIL summary. It never displays or stores a
+its own result, and the script ends with a PASS, INCOMPLETE, or FAIL summary (exit code 0, 2,
+or 1). Only PASS means the front door works; after INCOMPLETE or FAIL, do not continue on the Mac. It never displays or stores a
 password, and it changes nothing about the machine's evidence (no logs cleared, nothing repaired).
 
 The step by step instructions for the person at the PC are in remote-access/CHECKLIST.md. The

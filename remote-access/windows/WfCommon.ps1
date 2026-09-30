@@ -93,7 +93,7 @@ function Invoke-WfNative {
     $stderrTask = $process.StandardError.ReadToEndAsync()
     $timedOut = -not $process.WaitForExit($TimeoutSeconds * 1000)
     if ($timedOut) {
-        try { $process.Kill() } catch { Write-Verbose "kill after timeout: $_" }
+        Stop-WfProcessTree -Process $process
         [void]$process.WaitForExit(5000)
     } else {
         # The parameterless overload also waits for the redirected streams to drain.
@@ -111,6 +111,28 @@ function Invoke-WfNative {
         StdOut   = $stdout
         StdErr   = $stderr
         TimedOut = $timedOut
+    }
+}
+
+function Stop-WfProcessTree {
+    # End a process that ran past its limit together with every process it started. On Windows
+    # PowerShell 5.1 (.NET Framework) Process.Kill() ends only the one process, so a capture tool
+    # a collector started would keep running and keep the output pipe open. taskkill /T "ends the
+    # specified process and any child processes started by it", /F forcefully:
+    # https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/taskkill
+    param([Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process)
+    if ([System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT) {
+        $taskkill = Join-Path ([System.Environment]::SystemDirectory) 'taskkill.exe'
+        try {
+            [void](Invoke-WfNative -FilePath $taskkill -ArgumentList @('/T', '/F', '/PID', [string]$Process.Id) -TimeoutSeconds 30)
+        } catch {
+            Write-Verbose "taskkill after timeout: $_"
+        }
+    }
+    try {
+        if (-not $Process.HasExited) { $Process.Kill() }
+    } catch {
+        Write-Verbose "kill after timeout: $_"
     }
 }
 

@@ -288,7 +288,7 @@ If something goes wrong in a way the table does not cover, `Stop-Service sshd` c
 - After a big Windows update, run the setup script again at the PC. It puts back anything the update reset, and changes nothing that is already right.
 - When collectors are ready, make a new kit (step 3), move it over (step 4), and run the setup script again (step 6). The installed collectors always match the kit you ran last. Then `ping` lists them.
 - If the Mac's address changes, redo steps 3 to 6 with the new `<MAC_LAN_ADDRESS>`. If the PC's address changes, rerun step 1 with the new `<PC_LAN_ADDRESS>`; nothing at the PC needs to change.
-- Finished bundles wait in `C:\ProgramData\win-forensics\outbox` until fetched. The dispatcher stops collecting when 50 bundles or 2 GB are waiting there. To clear it, delete old folders in that directory from an admin terminal at the PC. They are copies made by the collectors, not the PC's own logs.
+- Finished bundles wait in `C:\ProgramData\win-forensics\outbox` until fetched. The dispatcher stops collecting when 50 bundles or 2 GB are waiting there. The 2 GB also counts `outbox\.staging`, where runs that failed or timed out leave their output. To clear it, delete old folders in that directory and in `.staging` from an admin terminal at the PC. They are copies made by the collectors, not the PC's own logs.
 - The sshd log is `C:\ProgramData\ssh\logs\sshd.log`. It grows slowly and is safe to delete while `sshd` is stopped.
 
 ## How to turn it all off

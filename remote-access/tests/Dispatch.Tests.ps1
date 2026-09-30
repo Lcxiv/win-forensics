@@ -187,7 +187,7 @@ Describe 'collect' {
         Test-Path -LiteralPath (Join-Path (Join-Path $config.OutboxDir $json.bundle_dir) 'manifest.json') | Should -BeTrue
     }
 
-    It 'passes the collector exactly one parameter, a directory inside the outbox' {
+    It 'passes the collector exactly one parameter, a staging directory it publishes to the outbox afterwards' {
         $config = New-TestLayout
         Add-TestCollector -Config $config -Name 'show-args' -Body @'
 [System.IO.File]::WriteAllText((Join-Path $OutputDirectory 'args.txt'), ($OutputDirectory + '|' + $args.Count))
@@ -197,10 +197,24 @@ Describe 'collect' {
         $result.ExitCode | Should -Be 0
         $json = ConvertFrom-Json -InputObject $result.StdOut
         $written = [System.IO.File]::ReadAllText((Join-Path (Join-Path $config.OutboxDir $json.bundle_dir) 'args.txt'))
-        $written | Should -BeExactly ((Join-Path $config.OutboxDir $json.bundle_dir) + '|0')
+        $written | Should -BeExactly ((Join-Path $config.StagingDir $json.bundle_dir) + '|0')
+        Test-Path -LiteralPath (Join-Path $config.StagingDir $json.bundle_dir) | Should -BeFalse
     }
 
-    It 'reports a failing collector with exit code 71 and keeps the partial bundle' {
+    It 'publishes nothing in the outbox while the collector is still writing' {
+        $config = New-TestLayout
+        $probe = @'
+$outbox = Split-Path -Parent (Split-Path -Parent $OutputDirectory)
+$published = @(Get-ChildItem -LiteralPath $outbox -Directory -Force | Where-Object { $_.Name -ne '.staging' })
+[System.IO.File]::WriteAllText((Join-Path $OutputDirectory 'seen.txt'), ([string]$published.Count))
+[Console]::Out.WriteLine('{"collector":"sample-probe","status":"ok","bundle":"x","artifacts":1}')
+'@
+        Add-TestCollector -Config $config -Name 'sample-probe' -Body $probe
+        $json = ConvertFrom-Json -InputObject (Invoke-TestDispatch -Config $config -Requested 'collect-sample-probe').StdOut
+        [System.IO.File]::ReadAllText((Join-Path (Join-Path $config.OutboxDir $json.bundle_dir) 'seen.txt')) | Should -BeExactly '0'
+    }
+
+    It 'reports a failing collector with exit code 71 and keeps its output out of the outbox' {
         $config = New-TestLayout
         Add-TestCollector -Config $config -Name 'sample-bad' -Body @'
 [System.IO.File]::WriteAllText((Join-Path $OutputDirectory 'partial.txt'), 'x')
@@ -214,6 +228,12 @@ exit 3
         $json.collector_exit_code | Should -Be 3
         $json.summary.status | Should -BeExactly 'failed'
         $json.files | Should -Be 1
+        $json.bundle_dir | Should -MatchExactly '\A[0-9]{8}T[0-9]{6}Z_sample-bad_[0-9a-f]{8}\z'
+        $json.PSObject.Properties['fetch'] | Should -BeNullOrEmpty
+        Test-Path -LiteralPath (Join-Path (Join-Path $config.StagingDir $json.bundle_dir) 'partial.txt') | Should -BeTrue
+        @((ConvertFrom-Json -InputObject (Invoke-TestDispatch -Config $config -Requested 'list-bundles').StdOut).bundles).Count | Should -Be 0
+        (ConvertFrom-Json -InputObject (Invoke-TestDispatch -Config $config -Requested 'ping').StdOut).outbox.bundles | Should -Be 0
+        (Invoke-TestDispatch -Config $config -Requested ('fetch-' + $json.bundle_dir)).ExitCode | Should -Be 66
     }
 
     It 'treats a summary line that is not of the agreed shape as data it does not trust' {
@@ -232,10 +252,20 @@ exit 3
     It 'stops a collector that runs past the time limit with exit code 72' {
         $config = New-TestLayout
         $config.CollectorTimeoutSeconds = 2
-        Add-TestCollector -Config $config -Name 'sample-slow' -Body 'Start-Sleep -Seconds 60'
+        Add-TestCollector -Config $config -Name 'sample-slow' -Body "[System.IO.File]::WriteAllText((Join-Path `$OutputDirectory 'partial.txt'), 'x')`nStart-Sleep -Seconds 60"
         $result = Invoke-TestDispatch -Config $config -Requested 'collect-sample-slow'
         $result.ExitCode | Should -Be 72
         (ConvertFrom-Json -InputObject $result.StdOut).timed_out | Should -BeTrue
+        @((ConvertFrom-Json -InputObject (Invoke-TestDispatch -Config $config -Requested 'list-bundles').StdOut).bundles).Count | Should -Be 0
+    }
+
+    It 'counts what failed runs left in staging toward the byte limit' {
+        $config = New-TestLayout
+        $config.MaxOutboxBytes = 10
+        [void](New-Item -ItemType Directory -Path (Join-Path $config.StagingDir '20200101T000000Z_sample-bad_00000000') -Force)
+        [System.IO.File]::WriteAllText((Join-Path (Join-Path $config.StagingDir '20200101T000000Z_sample-bad_00000000') 'left.txt'), ('x' * 20))
+        Add-TestCollector -Config $config -Name 'sample-ok' -Body $script:OkCollector
+        (Invoke-TestDispatch -Config $config -Requested 'collect-sample-ok').ExitCode | Should -Be 73
     }
 
     It 'refuses to collect when the outbox is full, with exit code 73' {
@@ -372,11 +402,11 @@ Describe 'dispatch.ps1 run as the forced command' {
 
         function Invoke-ForcedCommand {
             # As sshd does it: the client's words only in SSH_ORIGINAL_COMMAND, no arguments.
-            param([AllowNull()][string]$Requested)
+            param([AllowNull()][string]$Requested, [string[]]$ExtraArguments = @())
             $saved = $env:SSH_ORIGINAL_COMMAND
             try {
                 if ($null -eq $Requested) { Remove-Item Env:SSH_ORIGINAL_COMMAND -ErrorAction SilentlyContinue } else { $env:SSH_ORIGINAL_COMMAND = $Requested }
-                return Invoke-WfNative -FilePath $script:Exe -ArgumentList @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'RemoteSigned', '-File', $script:RunConfig.DispatcherPath)
+                return Invoke-WfNative -FilePath $script:Exe -ArgumentList (@('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'RemoteSigned', '-File', $script:RunConfig.DispatcherPath) + $ExtraArguments)
             } finally {
                 if ($null -eq $saved) { Remove-Item Env:SSH_ORIGINAL_COMMAND -ErrorAction SilentlyContinue } else { $env:SSH_ORIGINAL_COMMAND = $saved }
             }
@@ -421,26 +451,39 @@ Describe 'dispatch.ps1 run as the forced command' {
         $fetch.StdOut.TrimEnd() | Should -Match ('WF-BUNDLE-END v1 dir=' + [regex]::Escape($id) + '\z')
     }
 
-    It 'takes no script parameters and reads no variable but SSH_ORIGINAL_COMMAND' {
-        $text = [System.IO.File]::ReadAllText((Join-Path $script:WindowsDir 'dispatch.ps1'))
-        $tokens = $null
-        $errors = $null
-        $ast = [System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$tokens, [ref]$errors)
-        $errors.Count | Should -Be 0
-        $ast.ParamBlock | Should -BeNullOrEmpty
-        $envVariables = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.VariableExpressionAst] -and $node.VariablePath.DriveName -eq 'env' }, $true) | ForEach-Object { $_.VariablePath.UserPath } | Sort-Object -Unique)
-        $envVariables | Should -Be @('env:SSH_ORIGINAL_COMMAND')
+    It 'ignores script arguments and every environment variable but SSH_ORIGINAL_COMMAND' {
+        $baseline = Invoke-ForcedCommand -Requested 'list-bundles'
+        $baseline.ExitCode | Should -Be 0
+        $names = @('SSH_CONNECTION', 'SSH_CLIENT', 'WF_OUTBOX', 'WF_COLLECTORS', 'OutputDirectory', 'Requested')
+        $saved = @{}
+        foreach ($name in $names) { $saved[$name] = [System.Environment]::GetEnvironmentVariable($name) }
+        try {
+            foreach ($name in $names) { [System.Environment]::SetEnvironmentVariable($name, '$(touch PWNED); whoami') }
+            $withEnv = Invoke-ForcedCommand -Requested 'list-bundles'
+            $withArgs = Invoke-ForcedCommand -Requested 'list-bundles' -ExtraArguments @('-Requested', 'collect-sample-ok', 'whoami')
+        } finally {
+            foreach ($name in $names) { [System.Environment]::SetEnvironmentVariable($name, $saved[$name]) }
+        }
+        foreach ($run in @($withEnv, $withArgs)) {
+            $run.ExitCode | Should -Be 0
+            $run.StdErr | Should -BeExactly ''
+            $run.StdOut | Should -BeExactly $baseline.StdOut
+        }
+        Test-Path -LiteralPath (Join-Path $script:RunConfig.RemoteDir 'PWNED') | Should -BeFalse
     }
 
-    It 'never uses Invoke-Expression, a script block built from text, or a shell to run anything' {
-        foreach ($file in @('dispatch.ps1', 'WfCommon.ps1')) {
-            $text = [System.IO.File]::ReadAllText((Join-Path $script:WindowsDir $file))
-            $tokens = $null
-            $errors = $null
-            $ast = [System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$tokens, [ref]$errors)
-            $commands = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] }, $true) | ForEach-Object { $_.GetCommandName() })
-            foreach ($banned in @('Invoke-Expression', 'iex', 'Start-Process', 'cmd', 'cmd.exe', 'Invoke-Command')) { $commands | Should -Not -Contain $banned }
-            $text | Should -Not -Match '\[scriptblock\]::Create|ExecutionContext\.InvokeCommand|AddScript\('
-        }
+    It 'never evaluates a request that is PowerShell or shell code' -ForEach @(
+        @{ Requested = '$(New-Item -Path PWNED)' }
+        @{ Requested = 'ping; New-Item -Path PWNED' }
+        @{ Requested = '& { New-Item -Path PWNED }' }
+        @{ Requested = 'ping`nNew-Item -Path PWNED' }
+        @{ Requested = 'ping && touch PWNED' }
+        @{ Requested = 'cmd /c type nul > PWNED' }
+    ) {
+        $run = Invoke-ForcedCommand -Requested $Requested
+        $run.ExitCode | Should -Be 64
+        $run.StdOut | Should -Not -Match 'PWNED'
+        Test-Path -LiteralPath (Join-Path $script:RunConfig.RemoteDir 'PWNED') | Should -BeFalse
+        Test-Path -LiteralPath 'PWNED' | Should -BeFalse
     }
 }

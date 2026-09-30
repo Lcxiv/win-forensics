@@ -64,7 +64,8 @@ command_line="powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\remote-
     printf '2. Go to this folder, for example:  cd $HOME\\Desktop\\wf-frontdoor-kit\r\n'
     printf '3. Run this one line:\r\n\r\n'
     printf '%s\r\n\r\n' "$command_line"
-    printf 'The last lines say RESULT: PASS or RESULT: FAIL. It is safe to run again.\r\n'
+    printf 'The last lines say RESULT: PASS, RESULT: INCOMPLETE, or RESULT: FAIL. Only PASS means\r\n'
+    printf 'it worked; INCOMPLETE means a check could not run and is not a pass. It is safe to run again.\r\n'
 } >"$kit/RUN-AT-PC.txt"
 
 mkdir -p "$(dirname "$out_zip")"

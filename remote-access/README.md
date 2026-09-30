@@ -144,8 +144,8 @@ C:\ProgramData\win-forensics\        SYSTEM, Administrators: full.  Account: rea
     authorized_keys                  SYSTEM, Administrators: full.  Account: read.  No inheritance
     install-state.json               what earlier runs did (for turning it off again)
   outbox\                            SYSTEM, Administrators: full.  Account: modify (inherited)
-    <bundle dir>\                    one directory per collector run
-    .staging\                        zip files while a fetch is streaming; removed afterwards
+    <bundle dir>\                    one directory per finished collector run (exit code 0)
+    .staging\                        runs in progress, runs that failed or timed out, and zip files while a fetch streams
 ```
 
 Every directory has inheritance from its parent switched off and its access list written whole, because `C:\ProgramData` lets every user create files in new subdirectories. All three are owned by Administrators. After copying, the script reads the owner and the rules of every directory and file under `remote\` back and fails if anyone other than SYSTEM and Administrators holds a write, delete, change permissions, or take ownership right. The account therefore cannot modify the dispatcher, a collector, the key file, or any directory on the path to them; the PowerShell executable it runs is in System32.
@@ -160,7 +160,7 @@ The request is compared, never executed. It must equal one of these exactly, cas
 |---|---|---|
 | `ping` | Nothing on the machine | One line of JSON: `ok`, `verb`, `protocol`, `time_utc`, `host_id` (16 hex characters of the SHA-256 of the lower case host name; the name itself never leaves), `account`, `os` (version, build, UBR, display version), `openssh_server` (file version of sshd.exe), `powershell`, `dispatcher_sha256`, `collectors` (installed names), `outbox` (count, bytes, limits), `boot_time_utc`, `console_user` (true, false, or null; never a name) |
 | `list-bundles` | Lists the outbox | JSON with `bundles`: `bundle_dir`, file count, bytes |
-| `collect-<name>` | Runs `collectors\<name>.ps1` into a new outbox directory | JSON: `bundle_dir`, the collector's exit code, its checked summary, file count, bytes, and the `fetch-` verb to use |
+| `collect-<name>` | Runs `collectors\<name>.ps1` into `outbox\.staging\<bundle dir>` and moves that directory into the outbox only when the collector exits 0 | JSON: `bundle_dir`, the collector's exit code, its checked summary, file count, bytes, and the `fetch-` verb to use |
 | `fetch-<bundle dir>` | Zips that outbox directory and streams it | The framed transfer below |
 | `security-log-access` | Runs `wevtutil gl Security` and `wevtutil gli Security` | JSON: the channel's access string (SDDL), whether it has a read entry for Event Log Readers, and whether each query succeeded for this account. Neither query returns an event |
 
@@ -173,8 +173,8 @@ The request is compared, never executed. It must equal one of these exactly, cas
 | 65 | unknown collector (the expected answer to `collect-<name>` until collectors are installed) |
 | 66 | unknown bundle |
 | 70 | internal error |
-| 71 | the collector exited non zero (the partial bundle is kept and can be fetched) |
-| 72 | the collector ran past 15 minutes and was stopped |
+| 71 | the collector exited non zero (its partial output stays in `outbox\.staging` at the PC and is never listed or fetched) |
+| 72 | the collector ran past 15 minutes and was stopped, with every process it started (`taskkill /T /F`); its output stays in `outbox\.staging` |
 | 73 | outbox full: 50 bundles or 2 GB are waiting |
 | 75 | busy: the same collector was started in the same second three times running |
 
@@ -184,8 +184,8 @@ Standard output is written as UTF-8 bytes with line feeds, ASCII only, straight 
 
 The seam, fixed between this work and the collector work:
 
-- The dispatcher starts `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File <collectors>\<name>.ps1 -OutputDirectory <outbox>\<bundle dir>` as its own process, with standard input closed, as the collector account.
-- `<bundle dir>` is `<yyyymmddThhmmssZ>_<name>_<first 8 hex of host_id>`. The dispatcher chooses that name and creates the directory; the collector writes its bundle into it. The name is only the dispatcher's handle for `list-bundles` and `fetch-`. The `bundle_id` inside the bundle's `manifest.json` is the authoritative id and may differ from it, which is why the wire field is called `bundle_dir`.
+- The dispatcher starts `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File <collectors>\<name>.ps1 -OutputDirectory <outbox>\.staging\<bundle dir>` as its own process, with standard input closed, as the collector account.
+- `<bundle dir>` is `<yyyymmddThhmmssZ>_<name>_<first 8 hex of host_id>`. The dispatcher chooses that name and creates the directory under `.staging`; the collector writes its bundle into it, and the dispatcher renames it into the outbox after a run that exits 0, so `list-bundles`, `ping`, and `fetch-` never see a bundle still being written or one from a failed run. The name is only the dispatcher's handle for `list-bundles` and `fetch-`. The `bundle_id` inside the bundle's `manifest.json` is the authoritative id and may differ from it, which is why the wire field is called `bundle_dir`.
 - The collector's last line of standard output is its summary, `{"collector":"<name>","status":"ok|partial|failed","bundle":"<OutputDirectory>","artifacts":<count>}`. The dispatcher treats it as data: it must parse, name this collector, carry a known status and a non negative count, or it is reported as `summary_valid: false`. The `bundle` path in it is ignored; the dispatcher knows the directory.
 - Standard error is passed on to the SSH client (the last 8 KB, printable characters only). Exit code 0 means the bundle is complete; a collector reporting status `partial` exits 0 (a complete bundle in which some source could not be read, with the reason in the manifest), and one reporting `failed` exits non zero, which the dispatcher turns into exit code 71.
 - The setup script installs every `.ps1` file directly in the kit's `collectors/windows`, never its subdirectories (the collectors' tests live in one), and removes installed files the kit no longer holds. A file whose name matches the collector pattern becomes a verb. Any other, such as the collectors' shared helper `_common.ps1`, is installed next to them so they can load it, and can never be asked for by name because its name fails the pattern.
@@ -237,7 +237,7 @@ There was no Windows machine and no Windows PowerShell 5.1 available when this w
 9. That `PermitTTY no` refuses a terminal on the Windows build, and that the Windows `ssh.exe` reports it with "PTY allocation request failed on channel 0" as the OpenSSH client does. Settled by S13's `-tt` request and by A3.
 10. That the account holds `SeNetworkLogonRight` and is not named by `SeDenyNetworkLogonRight` on this machine, and that `secedit /export /areas USER_RIGHTS` prints them in the `Name = *SID,*SID` form the script parses. S13 settles the first; the second only matters when S13 fails.
 11. That stopping sshd between S4 and S9 and starting it in S9 behaves as `Stop-Service` and `Start-Service` report (the service is asked and its status read back each time).
-12. `dispatch.ps1` under Windows PowerShell 5.1 specifically: the tests run it under PowerShell 7 on macOS. Known differences were coded around (JSON arrays, encodings, zip entry separators, culture dependent dates), but only S13, A2, and a first real collector prove it.
+12. `dispatch.ps1` under Windows PowerShell 5.1 specifically: the tests run it under PowerShell 7 on macOS. Known differences were coded around (JSON arrays, encodings, zip entry separators, culture dependent dates), but only S13, A2, and a first real collector prove it. The same goes for two collect details: that `taskkill /T /F` ends a timed out collector together with every process it started, and that the account can rename its finished directory from `outbox\.staging` into the outbox. A first real collector run settles the rename; the timeout path is settled only if a collector ever reaches exit code 72, when Task Manager should show none of its processes left.
 13. `wevtutil gl Security` and `wevtutil gli Security` as the standard account. This is a measurement (S11, A7), whatever it returns.
 14. Whether `Disable-LocalUser` stops key sign in, as the plan states. The checklist's "turn it off" section says to confirm with a `ping` that must fail.
 15. Whether the account appears on the Windows sign in screen. Cosmetic; the checklist says it may.
@@ -251,9 +251,9 @@ A one off check on a Windows runner would remove most of this list. It is propos
 pytest tests/test_remote_access.py
 ```
 
-- Always run: document hygiene for this directory (no em or en dashes, none of the denylisted strings, scripts are ASCII, no address or key hard coded), the checklist's coverage of every setup step and acceptance check, `sh -n` and shellcheck on the Mac scripts, and the Mac scripts against a stand-in `ssh` that plays a correct PC, a PC that runs `whoami`, a PC that offers passwords, a client that trusts a wrong host key, and damaged transfers.
+- Always run: document hygiene for this directory (no em or en dashes, none of the denylisted strings, scripts are ASCII, no address or key hard coded), the checklist's coverage of every acceptance check, `sh -n` and shellcheck on the Mac scripts, and the Mac scripts against a stand-in `ssh` that plays a correct PC, a PC that runs `whoami`, a PC that offers passwords, a client that trusts a wrong host key, and damaged transfers.
 - With OpenSSH client tools present: `wf-mac-setup.sh` checked through a real `ssh -G`, `wf-make-kit.sh`, and `wf-pin-host-key.sh`, all with throwaway keys in a temporary home.
-- With a PowerShell 7 available: the Pester suite in `remote-access/tests` (verb parsing and refusal, the dispatcher run as a real process, `authorized_keys` and `sshd_config` rendering against the upstream default file in `tests/fixtures`, idempotency decisions, the mocked setup steps), PSScriptAnalyzer with the Windows PowerShell 5.1 compatibility rules, and the Mac scripts driving the real dispatcher end to end (collect, fetch, verify, extract).
+- With a PowerShell 7 available: the Pester suite in `remote-access/tests` (verb parsing and refusal, the dispatcher run as a real process, `authorized_keys` and `sshd_config` rendering against the upstream default file in `tests/fixtures`, idempotency decisions, the mocked setup steps, and a checklist row for every step id a run reports), PSScriptAnalyzer with the Windows PowerShell 5.1 compatibility rules, and the Mac scripts driving the real dispatcher end to end (collect, fetch, verify, extract).
 
 PowerShell is found in `$WF_PWSH`, on `PATH`, or in `tools/pwsh/pwsh` (the `tools/` directory is ignored by git). Pester 5.5 or later and PSScriptAnalyzer are found the usual way, or in `$WF_PSMODULES`, or in `tools/psmodules`. These are the same locations the collector tests use, so one copy serves both. To set that up by hand without installing anything system wide:
 

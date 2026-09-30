@@ -95,24 +95,67 @@ Describe 'Install-FrontDoor.ps1 as a file' {
             @($bytes | Where-Object { $_ -gt 127 }).Count | Should -Be 0 -Because "$($file.Name) would be read as ANSI by Windows PowerShell 5.1"
         }
     }
+}
 
-    It 'does not hard code an address, a key, or a password' {
-        $text = [System.IO.File]::ReadAllText($script:InstallScript)
-        $text | Should -Not -Match '\b(10|192\.168|172\.(1[6-9]|2[0-9]|3[01]))\.\d{1,3}\.\d{1,3}(\.\d{1,3})?\b'
-        $text | Should -Not -Match 'AAAAC3NzaC1lZDI1NTE5'
-        $text | Should -Not -Match 'ConvertTo-SecureString'
+Describe 'Invoke-WfInstall' {
+    BeforeAll {
+        $script:StepFunctions = @(
+            'Invoke-WfPreflight', 'Install-WfOpenSshServer', 'Set-WfFirewall', 'Start-WfSshd', 'Set-WfDefaultShell',
+            'Set-WfAccount', 'Install-WfLayout', 'Install-WfAuthorizedKey', 'Set-WfSshdConfig', 'Set-WfPower',
+            'Show-WfSecurityLogAccess', 'Show-WfHostKey', 'Invoke-WfSelfTest'
+        )
+
+        function Invoke-TestInstall {
+            # The real step sequence and summary, with every step's work replaced by a recorder.
+            param([bool]$SkipSelfTest = $false)
+            $script:Seen = New-Object System.Collections.Generic.List[object]
+            $script:ReportText = ''
+            foreach ($name in $script:StepFunctions) {
+                Mock $name { $script:Seen.Add($Context) }
+            }
+            Mock Save-WfState { }
+            Mock Write-WfTextFile { $script:ReportText = $Text }
+            $script:WfSteps.Clear()
+            $script:WfAbort = $false
+            $savedProgramData = $env:ProgramData
+            try {
+                $env:ProgramData = Join-Path $TestDrive 'ProgramData'
+                $results = @(Invoke-WfInstall -MacIpAddress ' 192.0.2.10 ' -MacPublicKeyFile 'mac.pub' -AccountName 'wfcollector' -CollectorSource '' -SkipSelfTest $SkipSelfTest)
+            } finally {
+                $env:ProgramData = $savedProgramData
+            }
+            return [int]$results[$results.Count - 1]
+        }
     }
 
-    It 'never writes the password to the console or to a file' {
-        $text = [System.IO.File]::ReadAllText($script:InstallScript)
-        $tokens = $null
-        $errors = $null
-        $ast = [System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$tokens, [ref]$errors)
-        $errors.Count | Should -Be 0
-        $uses = @($ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.VariableExpressionAst] -and $node.VariablePath.UserPath -eq 'password' }, $true))
-        # Assigned once, passed to New-LocalUser once, disposed once. Nothing else touches it.
-        $uses.Count | Should -Be 3
-        @($uses | Where-Object { $_.Parent.Extent.Text -match 'Write-|Add-Wf|Out-File|Set-Content' }).Count | Should -Be 0
+    It 'runs every step with the address and key file it was given, and nothing built in' {
+        $code = Invoke-TestInstall
+        $code | Should -Be 0
+        @($script:WfSteps | ForEach-Object { $_.Id }) | Should -Be @('S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10', 'S11', 'S12', 'S13')
+        foreach ($name in $script:StepFunctions) { Should -Invoke $name -Times 1 -Exactly }
+        foreach ($context in $script:Seen) {
+            $context.MacIpAddress | Should -BeExactly '192.0.2.10'
+            $context.MacPublicKeyFile | Should -BeExactly 'mac.pub'
+            $context.AccountName | Should -BeExactly 'wfcollector'
+            $context.Layout.Root | Should -BeExactly ((Join-Path $TestDrive 'ProgramData') + '\win-forensics')
+        }
+        $script:ReportText | Should -Match 'RESULT: PASS'
+    }
+
+    It 'ends INCOMPLETE with exit code 2 and never runs the self test when -SkipSelfTest is given' {
+        $code = Invoke-TestInstall -SkipSelfTest $true
+        $code | Should -Be 2
+        Should -Invoke Invoke-WfSelfTest -Times 0
+        ($script:WfSteps | Where-Object { $_.Id -eq 'S13' }).Status | Should -BeExactly 'INCOMPLETE'
+        $script:ReportText | Should -Match 'RESULT: INCOMPLETE'
+    }
+
+    It 'reports only step ids that have a row under "If a step fails" in the checklist' {
+        [void](Invoke-TestInstall)
+        $checklist = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot '../CHECKLIST.md'))
+        foreach ($id in @($script:WfSteps | ForEach-Object { $_.Id })) {
+            $checklist | Should -Match ('(?m)^\| ' + $id + ' \|') -Because "the summary sends the reader to row $id"
+        }
     }
 }
 
@@ -473,6 +516,30 @@ Describe 'Set-WfAccount' {
         $script:Ctx.State.account_created_by_this_script | Should -BeTrue
         ($record.Details -join ' ') | Should -Not -Match 'System\.Security\.SecureString'
         ($record.Details -join ' ') | Should -Match 'no other group'
+    }
+
+    It 'never shows, returns, or records the password it generated' {
+        $script:Secret = 'MARKER-PASSWORD-4411-abcdefghijklmnopqrstuvwxyz'
+        Mock New-WfRandomPassword {
+            $secure = New-Object System.Security.SecureString
+            foreach ($ch in $script:Secret.ToCharArray()) { $secure.AppendChar($ch) }
+            return $secure
+        }
+        $script:Exists = $false
+        Mock Get-LocalUser { if ($script:Exists) { $script:User } else { $null } }
+        Mock New-LocalUser { $script:Exists = $true; $script:User }
+        $script:Printed = New-Object System.Collections.Generic.List[string]
+        Mock Write-Host { $script:Printed.Add([string]$Object) }
+        $before = @(Get-ChildItem -LiteralPath $TestDrive -Recurse -File | ForEach-Object { $_.FullName })
+        $output = @(Invoke-TestStep { Set-WfAccount -Context $script:Ctx } 6>&1 5>&1 4>&1 3>&1 2>&1)
+        $record = $script:WfSteps[$script:WfSteps.Count - 1]
+        $record.Status | Should -BeExactly 'PASS'
+        Should -Invoke New-LocalUser -Times 1 -Exactly
+        $seen = @($script:Printed) + @($record.Details) + @($output | ForEach-Object { [string]$_ }) + @(ConvertTo-Json -InputObject $script:Ctx.State -Depth 5)
+        ($seen -join "`n") | Should -Not -Match 'MARKER-PASSWORD'
+        foreach ($file in @(Get-ChildItem -LiteralPath $TestDrive -Recurse -File | Where-Object { $before -notcontains $_.FullName })) {
+            [System.IO.File]::ReadAllText($file.FullName) | Should -Not -Match 'MARKER-PASSWORD'
+        }
     }
 
     It 'keeps the description within the 48 characters New-LocalUser allows' {

@@ -35,7 +35,7 @@ Rules this script keeps:
 Verbs (see remote-access/README.md for the full protocol):
   ping                    health JSON
   list-bundles            finished bundles waiting in the outbox
-  collect-<name>          run collectors\<name>.ps1 into a new outbox directory
+  collect-<name>          run collectors\<name>.ps1; publish its directory in the outbox if it exits 0
   fetch-<bundle dir>      stream one bundle as a zip, base64 framed, with its SHA-256
   security-log-access     run "wevtutil gl Security" and "wevtutil gli Security" and report
 
@@ -354,8 +354,10 @@ function Invoke-WfCollect {
     }
 
     $bundles = @(Get-WfBundleList -Config $Config)
+    # The byte limit counts everything under the outbox, including what failed runs left in
+    # .staging, so that a collector failing again and again cannot fill the disk unseen.
     [long]$outboxBytes = 0
-    foreach ($bundle in $bundles) { $outboxBytes += $bundle.bytes }
+    if (Test-Path -LiteralPath $Config.OutboxDir -PathType Container) { $outboxBytes = (Get-WfDirectoryStat -Path $Config.OutboxDir).Bytes }
     if ($bundles.Count -ge $Config.MaxBundles -or $outboxBytes -ge $Config.MaxOutboxBytes) {
         $full = [ordered]@{
             ok      = $false
@@ -369,15 +371,22 @@ function Invoke-WfCollect {
         return 73
     }
 
+    # The collector writes into outbox\.staging\<bundle dir>, which list-bundles, ping, and
+    # fetch never look at. Only a run that exited 0 is moved into the outbox, by a rename on the
+    # same volume, so a bundle still being written, or one from a run that failed, timed out, or
+    # lost its SSH session, can never be listed or fetched.
     $machineShort = (Get-WfHostId).Substring(0, 8)
     $dirName = ''
     $bundleDir = ''
+    $workDir = ''
     for ($attempt = 0; $attempt -lt 3; $attempt++) {
         $candidate = '{0}_{1}_{2}' -f (Get-WfUtcStamp -Format 'yyyyMMddTHHmmssZ'), $Name, $machineShort
         $candidateDir = Join-Path $Config.OutboxDir $candidate
-        if (-not (Test-Path -LiteralPath $candidateDir)) {
+        $candidateWork = Join-Path $Config.StagingDir $candidate
+        if (-not (Test-Path -LiteralPath $candidateDir) -and -not (Test-Path -LiteralPath $candidateWork)) {
             $dirName = $candidate
             $bundleDir = $candidateDir
+            $workDir = $candidateWork
             break
         }
         Start-Sleep -Milliseconds 1100
@@ -388,7 +397,7 @@ function Invoke-WfCollect {
         Write-WfLine -Stream $ErrStream -Text 'wf-dispatch: another run of this collector started in the same second; try again'
         return 75
     }
-    [void](New-Item -ItemType Directory -Path $bundleDir)
+    [void](New-Item -ItemType Directory -Path $workDir -Force)
 
     # The collector runs as its own Windows PowerShell process, as the seam says: standalone,
     # -OutputDirectory as its one parameter, a JSON summary as its last stdout line. -File makes
@@ -398,7 +407,7 @@ function Invoke-WfCollect {
     # not downloaded from the internet". The setup script unblocks every file it installs.
     # https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-5.1
     # Status "partial" exits 0 (a complete bundle, some source unread); "failed" exits non zero.
-    $arguments = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'RemoteSigned', '-File', $collectorPath, '-OutputDirectory', $bundleDir)
+    $arguments = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'RemoteSigned', '-File', $collectorPath, '-OutputDirectory', $workDir)
     $run = Invoke-WfNative -FilePath $Config.PowerShellExe -ArgumentList $arguments -TimeoutSeconds $Config.CollectorTimeoutSeconds
 
     if (-not [string]::IsNullOrEmpty($run.StdErr)) {
@@ -410,7 +419,7 @@ function Invoke-WfCollect {
     }
 
     $summary = ConvertFrom-WfCollectorSummary -StdOut $run.StdOut -CollectorName $Name
-    $stat = Get-WfDirectoryStat -Path $bundleDir
+    $stat = Get-WfDirectoryStat -Path $workDir
     $exitCode = 0
     $errorText = $null
     if ($run.TimedOut) {
@@ -433,7 +442,12 @@ function Invoke-WfCollect {
         bytes               = $stat.Bytes
         fetch               = 'fetch-' + $dirName
     }
-    if ($null -ne $errorText) { $result['error'] = $errorText }
+    if ($null -ne $errorText) {
+        $result['error'] = $errorText
+        $result.Remove('fetch')
+    } else {
+        Move-Item -LiteralPath $workDir -Destination $bundleDir
+    }
     Write-WfLine -Stream $OutStream -Text (ConvertTo-WfJsonLine -InputObject $result)
     return $exitCode
 }

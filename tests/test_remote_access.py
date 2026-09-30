@@ -307,10 +307,8 @@ def test_checklist_uses_placeholders_and_covers_every_step():
         "unknown collector", "--after-reboot", "about 45 minutes",
     ]:
         assert needle in text, needle
-    # Every step id the setup script can report has a row in the failure table.
-    script = (WINDOWS / "Install-FrontDoor.ps1").read_text()
-    for step in sorted(set(re.findall(r"-Id '(S\d+)'", script))):
-        assert re.search(rf"^\| {step} \|", text, flags=re.M), f"no failure row for {step}"
+    # Every step id the setup script reports has a failure row: InstallFrontDoor.Tests.ps1 checks
+    # that against the step records of a run, in the Pester suite below.
     # And every acceptance check has an explanation.
     acceptance = (MAC / "wf-acceptance.sh").read_text()
     for check in sorted(set(re.findall(r"\b(A\d+)\b", acceptance))):
