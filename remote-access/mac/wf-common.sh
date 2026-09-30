@@ -41,6 +41,16 @@ wf_sha256() {
     fi
 }
 
+# wf_kit_code <hex digest>: the kit code the person carries from the Mac screen to the PC. The
+# left-most 32 hex characters (128 bits) of the kit zip's SHA-256, lower case, in 8 groups of 4.
+# Start-FrontDoorSetup.ps1 (Get-WfKitCode) derives the same code at the PC; the two must agree.
+# Why 128 bits: a digest truncated to its left-most bits keeps a preimage and second preimage
+# resistance equal to its length (NIST SP 800-107 Rev. 1, section 5.1), and 128 bits is the
+# smallest strength NIST rates "Acceptable" beyond 2030 (NIST SP 800-57 Part 1 Rev. 5, Table 4).
+wf_kit_code() {
+    printf '%s' "$1" | tr 'A-F' 'a-f' | cut -c 1-32 | sed 's/.\{4\}/& /g; s/ $//'
+}
+
 wf_base64_decode() {
     # macOS and GNU base64 both accept --decode; BusyBox only knows -d.
     if printf 'QQ==' | base64 --decode >/dev/null 2>&1; then
@@ -56,6 +66,15 @@ wf_json_string() {
     sed -n 's/.*"'"$1"'":"\([^"]*\)".*/\1/p' "$2" | head -n 1
 }
 
+# Four numbers separated by dots, each 0 to 255, none with a leading zero. The same shape,
+# range, and leading zero rule the setup script (Get-WfIPv4Info) applies at the PC.
 wf_is_ipv4() {
-    printf '%s\n' "$1" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$'
+    printf '%s\n' "$1" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$' || return 1
+    printf '%s\n' "$1" | awk -F. '{ for (i = 1; i <= 4; i++) if ($i + 0 > 255 || $i ~ /^0[0-9]/) exit 1 }'
+}
+
+# wf_full_digest <hex digest>: the full SHA-256 as the Mac prints it for the manual check at
+# the PC, upper case in 8 groups of 8, the way Get-FileHash prints its Hash (upper case).
+wf_full_digest() {
+    printf '%s' "$1" | tr 'a-f' 'A-F' | sed 's/.\{8\}/& /g; s/ $//'
 }
