@@ -2,20 +2,24 @@
 # wf-finish.sh: the last Mac command of the win-forensics front door setup. Pins the PC's host
 # key and runs every acceptance check, ending with a PASS, FAIL, or INCOMPLETE list.
 #
-#   sh remote-access/mac/wf-finish.sh [--kit <folder>] [--fingerprint SHA256:<from the PC screen>] [--after-reboot] [--replace]
+#   sh remote-access/mac/wf-finish.sh [--kit <folder>] [--fingerprint SHA256:<from the PC screen>] [--by-eye] [--after-reboot] [--replace]
 #
 # Where the expected host key comes from, in this order:
-#   --fingerprint   the line the PC launcher printed, typed or pasted (use this when the kit did
-#                   not travel on removable media: a cloud folder or a network share can be changed
-#                   by whoever controls it)
-#   --kit <folder>  pc-host-key.pub, which the PC launcher wrote next to the zip on the same stick
-#   (neither)       pc-host-key.pub is looked for in ~/Desktop/wf-frontdoor and in every
-#                   /Volumes/*/wf-frontdoor (where macOS mounts other disks: Apple, File System
-#                   Programming Guide, "File System Basics"); exactly one must exist
-#   (none found)    wf-pin-host-key.sh shows the fingerprint it received over the network and
-#                   asks you to compare it with the PC screen and type yes
+#   --fingerprint   the line the PC printed, typed or pasted. Required when the kit did not travel
+#                   on a removable drive: a file in a cloud folder, on a network share, or on the
+#                   Desktop can be changed by whoever controls that place
+#   --kit <folder>  pc-host-key.pub in that folder, which the PC launcher wrote next to the zip;
+#                   used automatically only when the folder is on a disk mounted under /Volumes
+#                   (where macOS mounts other disks: Apple, File System Programming Guide, "File
+#                   System Basics"), otherwise this ends INCOMPLETE and asks for --fingerprint
+#   (neither)       pc-host-key.pub is looked for in every /Volumes/*/wf-frontdoor; exactly one
+#                   must exist. None: plug the stick in and run again, or give --fingerprint
+#   --by-eye        only when there is no file and no line to type: wf-pin-host-key.sh shows the
+#                   fingerprint it received over the network and asks you to compare it with the
+#                   PC screen and type yes
 # The key offered over the network is fetched by wf-pin-host-key.sh and pinned only when its
-# fingerprint equals the expected one; on any difference nothing is pinned and this ends in FAIL.
+# fingerprint equals the expected one; on any difference nothing is pinned, this ends in FAIL,
+# and no acceptance check is sent.
 # Exit codes: 0 PASS, 1 FAIL, 2 INCOMPLETE (a check could not run; not a pass).
 set -u
 # shellcheck source-path=SCRIPTDIR
@@ -23,16 +27,20 @@ set -u
 
 kit_folder=""
 fingerprint=""
+by_eye=0
 after_reboot=0
 replace=0
+# Where mounted disks appear. Overridable for the tests, which cannot mount a disk.
+volumes_dir="${WF_VOLUMES_DIR:-/Volumes}"
 while [ $# -gt 0 ]; do
     case "$1" in
         --kit) kit_folder="${2:-}"; shift 2 ;;
         --fingerprint) fingerprint="${2:-}"; shift 2 ;;
+        --by-eye) by_eye=1; shift ;;
         --after-reboot) after_reboot=1; shift ;;
         --replace) replace=1; shift ;;
         --host-alias) WF_HOST_ALIAS="${2:-}"; shift 2 ;;
-        -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
         *) wf_die "unknown option: $1" ;;
     esac
 done
@@ -56,8 +64,15 @@ finish() {
     printf '\nRESULT: %s\n' "$result"
     case "$result" in
         PASS) printf 'The front door works from this Mac. A9 (the check from another device) is still yours to do by hand; see CHECKLIST.md.\n'; exit 0 ;;
-        INCOMPLETE) printf 'A check could not run, so this is not a pass. Fix what the line above names and run wf-finish.sh again.\n'; exit 2 ;;
+        INCOMPLETE) printf 'A check could not run, so this is not a pass. Do what the line above says and run wf-finish.sh again.\n'; exit 2 ;;
         *) printf 'Read the FAIL line above and the checklist section "If an action fails".\n'; exit 1 ;;
+    esac
+}
+# is_removable <path>: on a disk mounted under the volumes directory.
+is_removable() {
+    case "$1" in
+        "$volumes_dir"/*) return 0 ;;
+        *) return 1 ;;
     esac
 }
 
@@ -70,18 +85,26 @@ if [ -n "$fingerprint" ]; then
 else
     key_file=""
     if [ -n "$kit_folder" ]; then
+        if ! is_removable "$kit_folder"; then
+            note INCOMPLETE "host key: $kit_folder is not on a disk mounted under $volumes_dir, so its pc-host-key.pub is not trusted: a file in a cloud folder, on a network share, or on this Mac can be changed by whoever controls that place. Run again with --fingerprint SHA256:... typed from the PC screen (it is also in the wf-frontdoor-report.txt the PC wrote), or plug the stick in and give its folder"
+            finish
+        fi
         key_file="$kit_folder/pc-host-key.pub"
-        [ -f "$key_file" ] || { note INCOMPLETE "host key: $key_file does not exist. The PC launcher writes it next to the zip after a PASS; or give --fingerprint from the PC screen"; finish; }
+        [ -f "$key_file" ] || { note INCOMPLETE "host key: $key_file does not exist. The PC launcher writes it next to the zip after a PASS. Plug in the stick the kit came back on and run again, or give --fingerprint SHA256:... from the PC screen"; finish; }
     else
         found=""
         count=0
-        for candidate in "$HOME/Desktop/wf-frontdoor/pc-host-key.pub" /Volumes/*/wf-frontdoor/pc-host-key.pub; do
+        for candidate in "$volumes_dir"/*/wf-frontdoor/pc-host-key.pub; do
             [ -f "$candidate" ] || continue
             found="$candidate"
             count=$((count + 1))
         done
         if [ "$count" -gt 1 ]; then
-            note FAIL "host key: more than one pc-host-key.pub was found; say which kit folder with --kit <folder>"
+            note FAIL "host key: more than one pc-host-key.pub was found under $volumes_dir; say which kit folder with --kit <folder>"
+            finish
+        fi
+        if [ "$count" -eq 0 ] && [ "$by_eye" -eq 0 ]; then
+            note INCOMPLETE "host key: no pc-host-key.pub on any disk under $volumes_dir. Plug in the USB stick the kit came back on and run again; if the kit did not travel on a stick, run again with --fingerprint SHA256:... typed from the PC screen; with neither, --by-eye shows the fingerprint received over the network for you to compare with the PC screen yourself"
             finish
         fi
         key_file="$found"
@@ -92,11 +115,7 @@ else
         [ "$(awk '{print $1}' "$work/hostkey")" = "ssh-ed25519" ] || { note FAIL "host key: $key_file is not an ssh-ed25519 public key line"; finish; }
         fingerprint="$(ssh-keygen -l -E sha256 -f "$work/hostkey" 2>/dev/null | awk '{print $2}')"
         printf '%s\n' "$fingerprint" | grep -Eq '^SHA256:[A-Za-z0-9+/]{43}$' || { note FAIL "host key: $key_file could not be read as a public key"; finish; }
-        source="pc-host-key.pub in $(dirname "$key_file") (written by the PC launcher)"
-        case "$key_file" in
-            /Volumes/*) ;;
-            *) printf 'Note: %s did not come from a mounted disk under /Volumes. If the kit travelled through a cloud folder or a network share, prefer --fingerprint from the PC screen.\n' "$key_file" ;;
-        esac
+        source="pc-host-key.pub on the removable disk at $(dirname "$key_file") (written by the PC launcher)"
     fi
 fi
 
@@ -104,8 +123,9 @@ if [ -n "$fingerprint" ]; then
     printf 'Expected host key fingerprint, from %s:\n    %s\n' "$source" "$fingerprint"
     set -- --fingerprint "$fingerprint"
 else
-    printf 'No pc-host-key.pub was found and no --fingerprint was given: comparing by eye with the PC screen.\n'
-    [ -t 0 ] || { note INCOMPLETE "host key: nothing to compare against (no pc-host-key.pub, no --fingerprint, no terminal to ask on). Run again with --fingerprint SHA256:... from the PC screen"; finish; }
+    source="your own comparison with the PC screen (--by-eye)"
+    printf 'Expected host key fingerprint, from %s: the one received over the network is shown next; compare it with the PC screen.\n' "$source"
+    [ -t 0 ] || { note INCOMPLETE "host key: --by-eye needs a terminal to ask on. Run again from Terminal, or with --fingerprint SHA256:... from the PC screen"; finish; }
     set --
 fi
 [ "$replace" -eq 1 ] && set -- "$@" --replace
@@ -126,15 +146,16 @@ fi
 printf '\n==== 2 of 2: acceptance checks ====\n'
 set --
 [ "$after_reboot" -eq 1 ] && set -- --after-reboot
+# The output is captured first and shown after, so that the script's own exit code is known.
 acceptance_rc=0
-sh "$script_dir/wf-acceptance.sh" --host-alias "$WF_HOST_ALIAS" "$@" | tee "$work/acceptance" || acceptance_rc=$?
-# tee hides the script's exit code in a POSIX pipeline; the RESULT line carries it.
-if grep -q '^RESULT: PASS' "$work/acceptance"; then
+sh "$script_dir/wf-acceptance.sh" --host-alias "$WF_HOST_ALIAS" "$@" >"$work/acceptance" 2>&1 || acceptance_rc=$?
+cat "$work/acceptance"
+if [ "$acceptance_rc" -eq 0 ] && grep -q '^RESULT: PASS' "$work/acceptance"; then
     note PASS "acceptance: every check passed (A1 to A8$([ "$after_reboot" -eq 1 ] && printf ' and A10'))"
 elif grep -q '^RESULT: FAIL' "$work/acceptance"; then
     note FAIL "acceptance: $(grep -c '^FAIL' "$work/acceptance") check(s) failed; the FAIL lines above say which"
 else
-    note INCOMPLETE "acceptance: the checks did not finish (exit code $acceptance_rc); nothing can be concluded"
+    note INCOMPLETE "acceptance: the checks did not finish (wf-acceptance.sh exit code $acceptance_rc, no RESULT line); nothing can be concluded. The last lines above say what stopped it"
 fi
 grep '^WARN' "$work/acceptance" | while IFS= read -r line; do note WARN "acceptance: ${line#WARN }"; done
 report="$(sed -n 's/^Report saved to \([^ ]*\).*/\1/p' "$work/acceptance" | tail -n 1)"

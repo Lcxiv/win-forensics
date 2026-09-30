@@ -66,7 +66,8 @@ awk 'NF { print $1, $2, "win-forensics-mac"; exit }' "$public_key" >"$kit/mac-pu
 command_line="powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\remote-access\\windows\\Install-FrontDoor.ps1 -MacIpAddress $mac_address -MacPublicKeyFile .\\mac-public-key.pub -AccountName $account"
 {
     printf 'win-forensics front door kit\r\n\r\n'
-    printf 'Follow CHECKLIST.md (step 5 onward). The short form:\r\n\r\n'
+    printf 'This is the manual path: CHECKLIST.md, action 2, "any other way", and Appendix A from L3 on.\r\n'
+    printf 'Check the zip with Get-FileHash against the full SHA-256 the Mac printed BEFORE unpacking it.\r\n\r\n'
     printf '1. Right click the Start button and choose "Terminal (Admin)".\r\n'
     # shellcheck disable=SC2016
     printf '2. Go to this folder, for example:  cd $HOME\\Desktop\\wf-frontdoor-kit\r\n'
@@ -82,10 +83,11 @@ rm -f "$out_zip"
 mv "$stage/kit.zip" "$out_zip"
 
 digest="$(wf_sha256 "$out_zip" | tr 'a-f' 'A-F')"
-grouped="$(printf '%s' "$digest" | sed 's/.\{8\}/& /g; s/ $//')"
+grouped="$(wf_full_digest "$digest")"
 printf 'Kit written: %s (%s collector script(s) inside; account %s)\n\n' "$out_zip" "$collectors" "$account"
-printf 'Kit code (what the double click launcher at the PC asks for):\n\n    %s\n\n' "$(wf_kit_code "$digest")"
-printf 'SHA-256 of the zip. Keep this on screen, or photograph it, to compare at the PC:\n\n    %s\n\n' "$grouped"
-printf 'At the PC, before unpacking, this must print the same eight groups:\n\n'
-printf "    ((Get-FileHash .\\\\wf-frontdoor-kit.zip -Algorithm SHA256).Hash -split '(.{8})' -ne '') -join ' '\n\n"
-printf 'Then unpack it (Expand-Archive .\\wf-frontdoor-kit.zip -DestinationPath .) and run, as Administrator, inside the wf-frontdoor-kit folder:\n\n    %s\n' "$command_line"
+printf 'Kit code (what the double click launcher asks for, USB stick only):\n\n    %s\n\n' "$(wf_kit_code "$digest")"
+printf 'Full SHA-256 of the zip, for the manual check at the PC (any other way in). Keep it on screen, or photograph it:\n\n    %s\n\n' "$grouped"
+printf 'At the PC, in a Windows PowerShell window opened as Administrator, in the folder holding the zip, this must print True\n'
+printf '(type the 64 characters without the spaces; nothing from the kit runs before it does):\n\n'
+printf "    (Get-FileHash .\\\\wf-frontdoor-kit.zip -Algorithm SHA256).Hash -eq '%s'\n\n" "$digest"
+printf 'Then unpack it (Expand-Archive .\\wf-frontdoor-kit.zip -DestinationPath . -Force), cd .\\wf-frontdoor-kit, and run:\n\n    %s\n' "$command_line"

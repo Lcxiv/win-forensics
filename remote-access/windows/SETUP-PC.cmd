@@ -1,7 +1,10 @@
 @echo off
-rem win-forensics front door: double click this file at the PC. It starts Start-FrontDoorSetup.ps1,
-rem which sits next to it, in Windows PowerShell 5.1. That script asks for administrator permission
-rem through the normal Windows prompt and does everything else in a second window.
+rem win-forensics front door: double click this file at the PC, from the USB stick the kit came on.
+rem It starts Start-FrontDoorSetup.ps1, which sits next to it, in Windows PowerShell 5.1. That script
+rem refuses to go on unless this folder is on a removable drive (it travels with the kit and cannot
+rem prove itself on any other way in), then asks for administrator permission through the normal
+rem Windows prompt and does everything else in a second window. A kit that came any other way is
+rem checked by hand with Get-FileHash instead: CHECKLIST.md, action 2, "any other way".
 rem
 rem %~dp0 is the drive and folder this file is in (the kit folder), wherever it was copied:
 rem https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/call

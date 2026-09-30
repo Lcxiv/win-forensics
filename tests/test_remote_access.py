@@ -312,24 +312,33 @@ def test_checklist_uses_placeholders_and_covers_every_step():
         "wf-pin-host-key.sh", "wf-acceptance.sh", "StrictHostKeyChecking", "If a step fails",
         "How to turn it all off", "Disable-LocalUser", "Remove-WindowsCapability", "Remove-NetFirewallRule",
         "unknown collector", "--after-reboot", "wf-start.sh", "wf-finish.sh", "SETUP-PC.cmd", "kit code",
-        "If an action fails", "minutes",
+        "If an action fails", "minutes", "removable", "USB stick", "Get-FileHash", "--fingerprint", "full SHA-256",
     ]:
         assert needle in text, needle
-    # The three actions plus the router, each with an estimate, and the detailed procedure kept.
-    assert "Action 1" in text and "Action 2" in text and "Action 3" in text and "Action 4" in text
+    # Three actions, the router as the manual step between them, and the long procedure as an appendix
+    # with its own L ids, distinct from the acceptance A ids.
+    assert "Action 1" in text and "Action 2" in text and "Action 3" in text
+    assert "Router" in text
     assert "Appendix" in text
+    for step in ["L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8"]:
+        assert re.search(rf"^\| {step} \|", text, re.M), step
+    # The acceptance IDs are explained in the acceptance table of action 3, not anywhere else.
+    acceptance_section = re.search(r"\| Check \| What it proves \|(.*?)\n\n", text, re.S).group(1)
+    for check in sorted(set(re.findall(r"\b(A\d+)\b", (MAC / "wf-acceptance.sh").read_text()))):
+        assert re.search(rf"^\| {check} \|", acceptance_section, re.M), f"check {check} is not explained in the acceptance table"
     # Every way the launcher can stop has a row under "If an action fails".
     launcher = (WINDOWS / "Start-FrontDoorSetup.ps1").read_text()
-    for stop in ["permission prompt was declined", "kit code did not match", "not Private", "not running as Administrator", "is missing"]:
+    for stop in ["permission prompt was declined", "kit code did not match", "not Private", "not running as Administrator",
+                 "is missing", "not on a removable one", "could not look up a route", "no staging folder could be made",
+                 "could not be unpacked", "exit code could not be read"]:
         assert stop in launcher, stop
-    for row in ["declined", "code does not match", "not Private", "not running as Administrator", "missing"]:
-        assert re.search(rf"^\| .*{row}", text, re.M), f"no failure row for a launcher stop about: {row}"
+    for row in ["declined", "code does not match", "not Private", "not running as Administrator", "missing",
+                "not on a removable", "could not look up a route", "staging folder", "could not be unpacked",
+                "exit code could not be read", "more than one pc-host-key.pub", "is not on a disk mounted under",
+                "no pc-host-key.pub on any disk", "report"]:
+        assert re.search(rf"^\| .*{row}", text, re.M), f"no failure row about: {row}"
     # Every step id the setup script reports has a failure row: InstallFrontDoor.Tests.ps1 checks
     # that against the step records of a run, in the Pester suite below.
-    # And every acceptance check has an explanation.
-    acceptance = (MAC / "wf-acceptance.sh").read_text()
-    for check in sorted(set(re.findall(r"\b(A\d+)\b", acceptance))):
-        assert re.search(rf"\b{check}\b", text), f"check {check} is not explained"
 
 
 def test_checklist_never_asks_for_a_secret():
@@ -373,6 +382,20 @@ def test_setup_pc_cmd_starts_the_launcher_from_its_own_folder_with_a_process_sco
     assert "-ExecutionPolicy Bypass" in line and "-NoProfile" in line
     assert "-Elevated" not in line, "elevation is the launcher's decision, after the UAC prompt"
     assert text.rstrip().endswith("pause")
+    assert "removable drive" in text and "Get-FileHash" in text
+
+
+def full_digest(hex_digest: str) -> str:
+    upper = hex_digest.upper()
+    return " ".join(upper[i:i + 8] for i in range(0, 64, 8))
+
+
+@pytest.mark.parametrize("bad", ["999.999.999.999", "256.0.0.1", "192.0.2.300", "1.2.3", "a.b.c.d", "10.0.0.1.2"])
+def test_wf_is_ipv4_rejects_out_of_range_and_malformed_addresses(bad):
+    done = subprocess.run(["sh", "-c", f'. "{MAC / "wf-common.sh"}"; wf_is_ipv4 "{bad}"'], capture_output=True, text=True)
+    assert done.returncode != 0, bad
+    for good in ["0.0.0.0", "255.255.255.255", "192.0.2.10"]:
+        assert subprocess.run(["sh", "-c", f'. "{MAC / "wf-common.sh"}"; wf_is_ipv4 "{good}"'], capture_output=True).returncode == 0, good
 
 
 def kit_code(hex_digest: str) -> str:
@@ -624,41 +647,86 @@ def test_fetch_reports_an_unknown_bundle(mac):
 # ---------------------------------------------------------------------------------------------
 
 def finish(mac: dict, *args: str, mode: str = "healthy", extra_env: dict | None = None):
-    return run_script(mac, "wf-finish.sh", *args, mode=mode, extra_env=extra_env)
+    env = {"WF_VOLUMES_DIR": str(mac["tmp"] / "volumes"), **(extra_env or {})}
+    return run_script(mac, "wf-finish.sh", *args, mode=mode, extra_env=env)
 
 
 def kit_folder_with_host_key(mac: dict, key_blob: str, where: Path | None = None) -> Path:
-    folder = where or (mac["tmp"] / "wf-frontdoor")
+    """A kit folder; by default on a stand-in mounted disk under the volumes directory."""
+    folder = where or (mac["tmp"] / "volumes" / "STICK" / "wf-frontdoor")
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "pc-host-key.pub").write_text(f"ssh-ed25519 {key_blob} win-forensics-pc\n")
     return folder
 
 
+def summary_lines(output: str, prefix: str) -> list[str]:
+    return [line for line in output.splitlines() if line.startswith(prefix)]
+
+
 @pytest.mark.skipif(shutil.which("ssh-keygen") is None, reason="ssh-keygen is not installed")
 class TestFinish:
-    def test_pins_from_the_kit_folder_and_runs_every_check(self, mac):
+    def test_pins_from_the_stick_and_runs_every_check(self, mac):
+        mac["known_hosts"].unlink()
+        kit_folder_with_host_key(mac, mac["host_key"])
+        done = finish(mac)
+        assert done.returncode == 0, done.stdout + done.stderr
+        assert "RESULT: PASS" in done.stdout.splitlines()[-2]
+        assert any("matches pc-host-key.pub on the removable disk at" in line for line in summary_lines(done.stdout, "PASS  host key"))
+        assert summary_lines(done.stdout, "PASS  acceptance: every check passed")
+        assert summary_lines(done.stdout, "TODO  A9")
+        assert summary_lines(done.stdout, "TODO  restart test")
+        assert mac["known_hosts"].read_text() == f"gaming-pc ssh-ed25519 {mac['host_key']}\n"
+        assert {"ping", "whoami", "list-bundles"} <= {c["command"] for c in ssh_calls(mac)}
+
+    def test_pins_from_an_explicit_kit_folder_on_the_stick(self, mac):
         mac["known_hosts"].unlink()
         folder = kit_folder_with_host_key(mac, mac["host_key"])
         done = finish(mac, "--kit", str(folder))
         assert done.returncode == 0, done.stdout + done.stderr
-        assert "RESULT: PASS" in done.stdout.splitlines()[-2]
-        assert any(line.startswith("PASS  host key: the key the PC offers matches pc-host-key.pub") for line in done.stdout.splitlines())
-        assert any(line.startswith("PASS  acceptance: every check passed") for line in done.stdout.splitlines())
-        assert lines_with(done.stdout, "TODO  A9")
-        assert lines_with(done.stdout, "TODO  restart test")
-        assert mac["known_hosts"].read_text() == f"gaming-pc ssh-ed25519 {mac['host_key']}\n"
-        assert {"ping", "whoami", "list-bundles"} <= {c["command"] for c in ssh_calls(mac)}
+        assert mac["known_hosts"].exists()
 
     def test_refuses_a_host_key_file_that_does_not_match_what_the_pc_offers(self, mac):
         mac["known_hosts"].unlink()
         other_key, _ = make_public_key(8)
-        folder = kit_folder_with_host_key(mac, other_key)
-        done = finish(mac, "--kit", str(folder))
+        kit_folder_with_host_key(mac, other_key)
+        done = finish(mac)
         assert done.returncode == 1
         assert "RESULT: FAIL" in done.stdout
-        assert any(line.startswith("FAIL  host key: NOT pinned") for line in done.stdout.splitlines())
+        assert summary_lines(done.stdout, "FAIL  host key: NOT pinned")
         assert not mac["known_hosts"].exists()
         assert not [c for c in ssh_calls(mac) if "-G" not in c["flags"]], "no acceptance check may run without a pin"
+
+    def test_does_not_trust_a_host_key_file_off_removable_media(self, mac):
+        # Desktop, cloud folder, network share: the file could have been replaced.
+        mac["known_hosts"].unlink()
+        desktop = kit_folder_with_host_key(mac, mac["host_key"], mac["home"] / "Desktop" / "wf-frontdoor")
+        done = finish(mac, "--kit", str(desktop))
+        assert done.returncode == 2, done.stdout + done.stderr
+        assert "RESULT: INCOMPLETE" in done.stdout
+        assert any("is not on a disk mounted under" in line and "--fingerprint" in line for line in summary_lines(done.stdout, "INCOMPLETE  host key"))
+        assert not mac["known_hosts"].exists()
+        assert ssh_calls(mac) == [] or all("-G" in c["flags"] for c in ssh_calls(mac))
+        # Without --kit the Desktop copy is not even looked at.
+        done = finish(mac)
+        assert done.returncode == 2 and "no pc-host-key.pub on any disk" in done.stdout
+        assert not mac["known_hosts"].exists()
+
+    def test_tells_the_captain_to_plug_in_the_stick_before_offering_by_eye(self, mac):
+        mac["known_hosts"].unlink()
+        done = finish(mac)  # no stick, no fingerprint, no terminal
+        assert done.returncode == 2
+        line = summary_lines(done.stdout, "INCOMPLETE  host key")[0]
+        assert line.index("Plug in the USB stick") < line.index("--fingerprint") < line.index("--by-eye")
+        assert not mac["known_hosts"].exists()
+        assert not [c for c in ssh_calls(mac) if "-G" not in c["flags"]]
+
+    def test_by_eye_names_its_source_and_needs_a_terminal(self, mac):
+        mac["known_hosts"].unlink()
+        done = finish(mac, "--by-eye")
+        assert done.returncode == 2
+        assert "your own comparison with the PC screen" in done.stdout
+        assert "needs a terminal" in done.stdout
+        assert not mac["known_hosts"].exists()
 
     def test_accepts_a_typed_fingerprint_and_rejects_a_malformed_one(self, mac):
         mac["known_hosts"].unlink()
@@ -671,49 +739,60 @@ class TestFinish:
         assert done.returncode == 1 and "RESULT: FAIL" in done.stdout
         assert not mac["known_hosts"].exists()
 
-    def test_finds_the_kit_folder_on_the_desktop_or_says_which_one_to_use(self, mac):
+    def test_refuses_to_guess_between_two_sticks(self, mac):
         mac["known_hosts"].unlink()
-        kit_folder_with_host_key(mac, mac["host_key"], mac["home"] / "Desktop" / "wf-frontdoor")
+        kit_folder_with_host_key(mac, mac["host_key"])
+        kit_folder_with_host_key(mac, mac["host_key"], mac["tmp"] / "volumes" / "OTHER" / "wf-frontdoor")
         done = finish(mac)
-        assert done.returncode == 0, done.stdout + done.stderr
-        assert "Desktop/wf-frontdoor" in done.stdout
-
-    def test_is_incomplete_when_nothing_can_be_compared(self, mac):
-        mac["known_hosts"].unlink()
-        done = finish(mac)  # no kit folder anywhere, no fingerprint, no terminal
-        assert done.returncode == 2
-        assert "RESULT: INCOMPLETE" in done.stdout
+        assert done.returncode == 1
+        assert "more than one pc-host-key.pub" in done.stdout
         assert not mac["known_hosts"].exists()
-        done = finish(mac, "--kit", str(mac["tmp"] / "nowhere"))
-        assert done.returncode == 2 and "does not exist" in done.stdout
-        folder = kit_folder_with_host_key(mac, mac["host_key"])
-        done = finish(mac, "--kit", str(folder), mode="unreachable")
+
+    def test_is_incomplete_when_the_pc_does_not_answer_or_the_file_is_missing(self, mac):
+        mac["known_hosts"].unlink()
+        done = finish(mac, "--kit", str(mac["tmp"] / "volumes" / "STICK" / "wf-frontdoor"))
+        assert done.returncode == 2 and "does not exist" in done.stdout and "Plug in the stick" in done.stdout
+        kit_folder_with_host_key(mac, mac["host_key"])
+        done = finish(mac, mode="unreachable")
         assert done.returncode == 2
-        assert any(line.startswith("INCOMPLETE  host key: no SSH answer") for line in done.stdout.splitlines())
+        assert summary_lines(done.stdout, "INCOMPLETE  host key: no SSH answer")
         assert not mac["known_hosts"].exists()
 
     def test_fails_when_the_acceptance_checks_fail_and_keeps_their_lines(self, mac):
-        folder = kit_folder_with_host_key(mac, mac["host_key"])
-        done = finish(mac, "--kit", str(folder), mode="shell")
+        kit_folder_with_host_key(mac, mac["host_key"])
+        done = finish(mac, mode="shell")
         assert done.returncode == 1
         assert "RESULT: FAIL" in done.stdout
-        assert any(line.startswith("PASS  host key") for line in done.stdout.splitlines())
-        assert any(line.startswith("FAIL  acceptance:") for line in done.stdout.splitlines())
+        assert summary_lines(done.stdout, "PASS  host key")
+        assert summary_lines(done.stdout, "FAIL  acceptance:")
         assert lines_with(done.stdout, "FAIL A3")
 
+    def test_is_incomplete_with_the_real_exit_code_when_the_acceptance_run_does_not_finish(self, mac):
+        # wf-acceptance.sh dies before any check when it cannot write its report into $HOME.
+        kit_folder_with_host_key(mac, mac["host_key"])
+        mac["home"].chmod(0o500)
+        try:
+            done = finish(mac)
+        finally:
+            mac["home"].chmod(0o700)
+        assert done.returncode == 2, done.stdout + done.stderr
+        line = summary_lines(done.stdout, "INCOMPLETE  acceptance")[0]
+        assert "exit code 1" in line and "exit code 0" not in line
+        assert "RESULT: INCOMPLETE" in done.stdout
+
     def test_after_reboot_runs_a10_and_drops_the_restart_reminder(self, mac):
-        folder = kit_folder_with_host_key(mac, mac["host_key"])
-        done = finish(mac, "--kit", str(folder), "--after-reboot")
+        kit_folder_with_host_key(mac, mac["host_key"])
+        done = finish(mac, "--after-reboot")
         assert done.returncode == 0, done.stdout
         assert lines_with(done.stdout, "PASS A10")
-        assert not lines_with(done.stdout, "TODO  restart test")
-        assert any("A1 to A8 and A10" in line for line in lines_with(done.stdout, "PASS  acceptance"))
+        assert not summary_lines(done.stdout, "TODO  restart test")
+        assert any("A1 to A8 and A10" in line for line in summary_lines(done.stdout, "PASS  acceptance"))
 
     def test_carries_acceptance_warnings_into_the_final_list(self, mac):
-        folder = kit_folder_with_host_key(mac, mac["host_key"])
-        done = finish(mac, "--kit", str(folder), extra_env={"FAKE_DISPATCHER_SHA": "f" * 64})
+        kit_folder_with_host_key(mac, mac["host_key"])
+        done = finish(mac, extra_env={"FAKE_DISPATCHER_SHA": "f" * 64})
         assert done.returncode == 0
-        assert any("differs from this checkout" in line for line in lines_with(done.stdout, "WARN  acceptance:"))
+        assert any("differs from this checkout" in line for line in summary_lines(done.stdout, "WARN  acceptance:"))
 
 
 # ---------------------------------------------------------------------------------------------
@@ -882,6 +961,8 @@ def test_make_kit_builds_one_zip_with_the_public_key_only(real_mac):
     assert b"BEGIN OPENSSH PRIVATE KEY" not in everything
     assert "-MacIpAddress 192.0.2.10 -MacPublicKeyFile .\\mac-public-key.pub -AccountName wfcollector" in run_at_pc
     assert "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\remote-access\\windows\\Install-FrontDoor.ps1" in run_at_pc
+    assert "step 5" not in run_at_pc and "L3" in run_at_pc and "Get-FileHash" in run_at_pc
+    assert "Kit code" in done.stdout and "Full SHA-256" in done.stdout and "-eq '" in done.stdout
 
 
 @needs_openssh
@@ -913,6 +994,7 @@ def test_make_kit_refuses_a_private_key_and_a_bad_address(real_mac):
     assert "PRIVATE key" in done.stderr
     assert not out_zip.exists()
     assert run_real(real_mac, "wf-make-kit.sh", "--mac-address", "a4:83:e7:12:34:56", "--out", str(out_zip)).returncode == 1
+    assert run_real(real_mac, "wf-make-kit.sh", "--mac-address", "999.999.999.999", "--out", str(out_zip)).returncode == 1
     assert run_real(real_mac, "wf-make-kit.sh", "--out", str(out_zip)).returncode == 1
     assert not out_zip.exists()
 
@@ -944,14 +1026,31 @@ def test_start_does_the_whole_mac_side_and_prints_the_kit_code(real_mac):
     assert b"BEGIN OPENSSH PRIVATE KEY" not in everything
     for path in kit.iterdir():
         assert b"BEGIN OPENSSH PRIVATE KEY" not in path.read_bytes(), path.name
-    # The code printed is the one the launcher will compute from the zip.
+    # The code and the full digest printed are the ones Windows will compute from the zip, and
+    # neither is written into anything that travels with the kit: a value shipped next to the
+    # file it checks would prove nothing.
     digest = hashlib.sha256((kit / "wf-frontdoor-kit.zip").read_bytes()).hexdigest()
     assert kit_code(digest) in done.stdout
-    assert digest in done.stdout
+    assert full_digest(digest) in done.stdout
+    assert f"-eq '{digest.upper()}'" in done.stdout, "the exact Get-FileHash comparison to type at the PC"
+    code_forms = {kit_code(digest), kit_code(digest).replace(" ", ""), digest, digest.upper(), full_digest(digest)}
+    for path in kit.iterdir():
+        text = path.read_text(errors="replace")
+        for form in code_forms:
+            assert form not in text, f"{path.name} carries {form}"
+    with zipfile.ZipFile(kit / "wf-frontdoor-kit.zip") as archive:
+        for name in archive.namelist():
+            if name.endswith("/"):
+                continue
+            member = archive.read(name).decode(errors="replace")
+            for form in code_forms:
+                assert form not in member, f"{name} carries {form}"
     assert "SETUP-PC.cmd" in done.stdout and "wf-finish.sh" in done.stdout
+    assert "WAY A" in done.stdout and "WAY B" in done.stdout and "Get-FileHash" in done.stdout
     assert "Removed" in done.stdout and "pc-host-key.pub" in done.stdout
     readme = (kit / "READ-ME-FIRST.txt").read_bytes()
     assert b"SETUP-PC.cmd" in readme and b"wf-finish.sh" in readme and b"\r\n" in readme
+    assert b"Get-FileHash" in readme and b"removable drive" in readme
 
     # Running it again reuses the key and rebuilds the kit.
     again = run_real(real_mac, "wf-start.sh", "--pc-address", "192.0.2.20", "--mac-address", "192.0.2.10", "--kit", str(kit))
@@ -968,6 +1067,8 @@ def test_start_validates_its_addresses_before_touching_anything(real_mac):
     done = run_real(real_mac, "wf-start.sh", "--pc-address", "192.0.2.20", "--mac-address", "192.0.2.20", "--kit", str(kit))
     assert done.returncode == 1 and "the same" in done.stderr
     assert run_real(real_mac, "wf-start.sh", "--pc-address", "192.0.2.20", "--mac-address", "a4:83:e7:12:34:56", "--kit", str(kit)).returncode == 1
+    assert run_real(real_mac, "wf-start.sh", "--pc-address", "999.999.999.999", "--mac-address", "192.0.2.10", "--kit", str(kit)).returncode == 1
+    assert run_real(real_mac, "wf-start.sh", "--pc-address", "192.0.2.20", "--mac-address", "192.0.2.256", "--kit", str(kit)).returncode == 1
     assert not Path(real_mac["env"]["WF_SSH_CONFIG"]).exists()
     assert not kit.exists()
 
