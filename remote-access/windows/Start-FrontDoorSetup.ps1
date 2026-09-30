@@ -22,8 +22,7 @@ so in its own window. The elevated copy, with -Elevated, does the work in a wind
      anything is unpacked)
   2. creates a fresh, randomly named staging folder that only SYSTEM and Administrators can use,
      writes the verified bytes there, refuses a zip entry that would land outside it, unpacks
-     that copy, refuses any
-     unpacked reparse point, and removes the "downloaded from the internet" mark from the files
+     that copy, refuses any unpacked reparse point, and removes the "downloaded from the internet" mark from the files
   3. reads the Mac's address and the account name from the kit's kit-parameters.txt
   4. checks that the network the Mac is reached through is marked Private, and stops with the
      exact command to fix it if not (nothing has been changed at that point)
