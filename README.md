@@ -63,3 +63,7 @@ python scripts/decode_pdh.py --bundle fixtures/example-bundle --source raw/pdh/p
 ## What the fixtures are and are not
 
 The two raw files in `fixtures/example-bundle/raw/` are win-opt's recorded `xperf -a dpcisr` report and per CPU PDH counter CSV. They are format fixtures: they prove that the readers parse those shapes and that provenance can point at a real line and cell. No number, module name, or conclusion inside them is treated as a finding, and none is used as an example or threshold in the contracts. Thresholds in later playbooks come from Microsoft and tool documentation only.
+
+## Reaching the gaming PC
+
+`remote-access/` holds the SSH front door from the captain's plan for reaching the gaming PC from his Mac: an elevated, idempotent setup script he runs once at the PC, the dispatcher that is the only thing the dedicated standard account can run (an exact allowlist: a health check, named collectors, and fetching a finished bundle with its SHA-256), the Mac side scripts for the key, the host key pin, the acceptance checks, and the transfer, and the checklist he follows. No agent runs any of it against the PC. Start with [remote-access/README.md](remote-access/README.md), which carries the design, its sources, and the list of what is still unverified on Windows; the person at the PC follows [remote-access/CHECKLIST.md](remote-access/CHECKLIST.md). `tests/test_remote_access.py` covers it and skips its PowerShell parts when no `pwsh` is found.

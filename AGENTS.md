@@ -16,6 +16,15 @@ win-forensics: capture, decode, and correlate Windows performance evidence. Read
 
 Settled on the GitHub hosted Windows runner with committed fixtures; read `docs/contracts/procmon-facts.md` before touching anything Process Monitor related. Short form: only `/Runtime` bounds a run and its expiry exits with code 1; stack capture is unconditional and has no `.pmc` setting; the CSV column set is exactly the loaded configuration's column selection in its order, `TID` and `Duration` appear only when selected, `Sequence` is `n/a` in exports, stacks are XML only; configuration is sticky in the registry, so always pass `/LoadConfig`. The committed `.pmc` files come from `scripts/make_procmon_pmc.py` (needs the `procmon-parser` dev extra).
 
+## SSH front door
+
+`remote-access/README.md` is the authority for the path from the captain's Mac to the PC: the setup script's steps with their citations, the dispatcher's verbs, exit codes and transfer framing, where it departs from the plan, and the facts nobody has verified on Windows. No agent ever runs any of it against the PC. Rules that are easy to break:
+
+- `dispatch.ps1` takes no parameters, reads no variable but `SSH_ORIGINAL_COMMAND`, and compares the client's string against an exact allowlist; it never evaluates it or hands it to a shell. `remote-access/tests/Dispatch.Tests.ps1` checks this on the script's syntax tree.
+- The wire protocol has four readers that must change together: `dispatch.ps1`, `mac/wf-fetch.sh`, `mac/wf-acceptance.sh`, and the stand-in `ssh` in `tests/test_remote_access.py`. The outbox directory name travels as `bundle_dir`; the `bundle_id` in a bundle's manifest is the authoritative id and can differ.
+- Every setup step id (`S1`...) needs a row in `CHECKLIST.md` under "If a step fails", and every acceptance check (`A1`...) an explanation there; a test enforces both. A new assumption about Windows goes on the README's "Not verified off Windows" list with a step that proves it on the PC.
+- The Windows scripts target Windows PowerShell 5.1 and have only run under PowerShell 7 here: keep them ASCII, write files sshd reads without a byte order mark (`Write-WfTextFile`), collect function output with `@(...)` before `ConvertTo-Json`, and format dates with the invariant culture. `pytest tests/test_remote_access.py` skips the Pester suite and the analyzer when no `pwsh` is found (`$WF_PWSH`, `PATH`, `tools/pwsh`), so make sure they ran before claiming the scripts pass.
+
 ## Environment
 
 Python 3.12 or later (`python3.12 -m venv .venv`, `pip install -e ".[dev]"`, `pytest`). The only CI job is `.github/workflows/procmon-facts.yml`; do not add other CI before phase 2.
