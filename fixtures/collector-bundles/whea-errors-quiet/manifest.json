@@ -1,0 +1,229 @@
+{
+  "manifest_version": "1.0.0",
+  "bundle_id": "20260301T120001Z_whea_errors_ae3a76a9",
+  "created_utc": "2026-03-01T12:00:11.0000000Z",
+  "scenario": {
+    "id": "whea_errors",
+    "version": "1.0.0",
+    "requested_duration_s": 2592000,
+    "target_process": null,
+    "marks": []
+  },
+  "capture": {
+    "start_utc": "2026-03-01T12:00:01.0000000Z",
+    "stop_utc": "2026-03-01T12:00:11.0000000Z",
+    "orchestrator": "wf-collector:whea-errors",
+    "orchestrator_version": "1.0.0",
+    "elevated": false,
+    "incomplete": false
+  },
+  "machine": {
+    "machine_id": "ae3a76a9f32fa71b72616118339e376c",
+    "hostname": "SYNTHETIC-PC",
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26100",
+      "build": 26100,
+      "ubr": 1,
+      "display_version": "24H2",
+      "architecture": "64-bit",
+      "edition": "Professional"
+    },
+    "cpu": {
+      "name": "Synthetic CPU",
+      "logical_processors": 16,
+      "qpc_frequency_hz": 10000000
+    },
+    "memory_bytes": 34359738368,
+    "gpus": [
+      {
+        "name": "Synthetic Display Adapter",
+        "driver_version": "1.2.3.4",
+        "driver_date": "2026-01-15T00:00:00.0000000Z",
+        "device_id": "PCI\\VEN_FFFF&DEV_0001"
+      }
+    ],
+    "bios": {
+      "vendor": "Synthetic Firmware",
+      "version": "S1.00",
+      "release_date": "2025-11-01T00:00:00.0000000Z"
+    },
+    "board": {
+      "manufacturer": "Synthetic Boards",
+      "product": "SB-1"
+    },
+    "drivers": [],
+    "time_zone": {
+      "name": "UTC",
+      "utc_offset_minutes": 0,
+      "dst_active": false
+    }
+  },
+  "collectors": [
+    {
+      "id": "system_whea_events",
+      "kind": "eventlog",
+      "required": true,
+      "status": "observed_zero",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:08.0000000Z",
+        "checks": [
+          {
+            "name": "channel_found",
+            "ok": true,
+            "detail": "channel System"
+          },
+          {
+            "name": "channel_readable",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.Diagnostics.Eventing.Reader.EventLogReader",
+        "System",
+        "raw/system_whea_events/query.xml"
+      ],
+      "started_utc": "2026-03-01T12:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:10.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "0d9f25d965f6fb6f74a963a3ff19fe896d6c6baded14a2e21f51d2ba1eadd43e"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [
+          "Microsoft-Windows-WHEA-Logger"
+        ],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "System",
+          "event_ids": [],
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:00:03.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:03.0000000Z",
+          "max_events": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
+          "query_sha256": "0d9f25d965f6fb6f74a963a3ff19fe896d6c6baded14a2e21f51d2ba1eadd43e"
+        }
+      },
+      "enabled": {
+        "providers": [
+          "Microsoft-Windows-WHEA-Logger"
+        ],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "System",
+          "query_accepted": true,
+          "window_start_utc": "2026-01-30T12:00:03.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:03.0000000Z",
+          "records_read": 0,
+          "records_exported": 0,
+          "truncated": false,
+          "timed_out": false,
+          "evtx_exported": false,
+          "evtx_exit_code": null,
+          "evtx_message": "synthetic backend: wevtutil does not exist off Windows",
+          "evtx_command": null
+        },
+        "verified_by": "EventLogReader accepted the query in query.xml; the oldest retained record and the provider list are in channel_state.json"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/system_whea_events/channel_state.json",
+          "bytes": 821,
+          "sha256": "801d7401b85c626134145bbd9a82920822b42d4a76fe76fe5a7d6173c5fe1e12",
+          "role": "report"
+        },
+        {
+          "path": "raw/system_whea_events/events.json",
+          "bytes": 3,
+          "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+          "role": "primary"
+        },
+        {
+          "path": "raw/system_whea_events/query.xml",
+          "bytes": 301,
+          "sha256": "0d9f25d965f6fb6f74a963a3ff19fe896d6c6baded14a2e21f51d2ba1eadd43e",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-01-30T12:00:03.0000000Z",
+        "end": "2026-03-01T12:00:03.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
+        "met": true,
+        "detail": "0 records read; requested window 2026-01-30T12:00:03.0000000Z to 2026-03-01T12:00:03.0000000Z; covered range starts 2026-01-30T12:00:03.0000000Z"
+      },
+      "target_process": null
+    }
+  ],
+  "calibration": {
+    "status": "not_applicable",
+    "method": "none: this collector reads historical records that carry their own UTC system time, so there is no QPC session to calibrate",
+    "qpc_frequency_hz": 10000000,
+    "expected_pairs": 0,
+    "pairs": [],
+    "missing_pairs": 0,
+    "time_adjustment": {
+      "start": null,
+      "stop": null
+    },
+    "boot_time_utc": "2026-02-27T12:00:00.0000000Z"
+  },
+  "tools": [
+    {
+      "name": "powershell",
+      "version": "5.1.26100.1",
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "sha256": null
+    },
+    {
+      "name": "wevtutil",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wevtutil.exe",
+      "sha256": null
+    },
+    {
+      "name": "collector:whea-errors",
+      "version": "1.0.0",
+      "path": "<install directory>\\whea-errors.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector-helper:_common.ps1",
+      "version": "1.0.0",
+      "path": "<install directory>\\_common.ps1",
+      "sha256": null
+    }
+  ],
+  "symbols": {
+    "symbol_path": null,
+    "cache_path": null,
+    "dbghelp_version": null
+  },
+  "checksum_algorithm": "sha256",
+  "notes": [
+    "Read only collector whea-errors version 1.0.0: Did the Windows Hardware Error Architecture report corrected or uncorrected hardware errors?",
+    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
+    "Each event log query selects a fixed interval, window_end_utc minus the window to window_end_utc, so records raised while the query ran are not part of the result.",
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
+    "source system_whea_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record"
+  ]
+}

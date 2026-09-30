@@ -1,0 +1,28 @@
+{
+  "class": "Win32_SystemDriver",
+  "namespace": "root/cimv2",
+  "properties": [
+    "Name",
+    "DisplayName",
+    "Description",
+    "PathName",
+    "ServiceType",
+    "StartMode",
+    "State",
+    "Started",
+    "Status",
+    "ErrorControl",
+    "ExitCode",
+    "AcceptStop",
+    "TagId"
+  ],
+  "filter": null,
+  "time_property": null,
+  "window_days": null,
+  "window_start_utc": null,
+  "window_end_utc": null,
+  "coverage_probe_filter": null,
+  "max_records": 20000,
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 300
+}

@@ -1,0 +1,4 @@
+[
+{"Name":"synthdisp","DisplayName":"Synthetic Display Driver","Description":"Synthetic Display Driver","PathName":"C:\\Windows\\System32\\drivers\\synthdisp.sys","ServiceType":"Kernel Driver","StartMode":"Manual","State":"Running","Started":true,"Status":"OK","ErrorControl":"Normal","ExitCode":0,"AcceptStop":true,"TagId":0},
+{"Name":"ACPI","DisplayName":"Microsoft ACPI Driver","Description":"ACPI Driver","PathName":"C:\\Windows\\System32\\drivers\\ACPI.sys","ServiceType":"Kernel Driver","StartMode":"Boot","State":"Running","Started":true,"Status":"OK","ErrorControl":"Critical","ExitCode":0,"AcceptStop":true,"TagId":2}
+]

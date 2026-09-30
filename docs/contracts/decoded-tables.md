@@ -126,7 +126,7 @@ Optional: `ms_cpu_busy`, `ms_cpu_wait`, `ms_gpu_latency`, `ms_gpu_time`, `ms_gpu
 
 ### 5.6 `eventlog_events`
 
-One row per record from the JSON export the `eventlog` collector writes with `Get-WinEvent`. Decoder: `scripts/decode_eventlog.py` (later phase). Time domain: `system_time`, UTC.
+One row per record from the JSON export an event log collector writes as `raw/<collector id>/events.json` (the collectors under `collectors/windows/` read the records with `System.Diagnostics.Eventing.Reader`, the API behind `Get-WinEvent`; the export format is in `collectors/windows/README.md`). Decoder: `scripts/decode_eventlog.py`, which reads the exports of every event log collector in the bundle that is `observed` or `observed_zero` and reports `not_collected` without writing a table when there is none. Each raw element also carries the complete event XML, which stays in the raw artifact. Time domain: `system_time`, UTC.
 
 | Column | Type | Req | Notes |
 |---|---|---|---|

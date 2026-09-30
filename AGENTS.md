@@ -1,6 +1,6 @@
 # Project agent memory
 
-win-forensics: capture, decode, and correlate Windows performance evidence. Read `README.md` first; it names the four contracts under `docs/contracts/` and the build order the repository follows (phase 0a is done; collectors, decoders for the other tables, analyzers, and the correlator come in later phases and must be built against the contracts, not around them).
+win-forensics: capture, decode, and correlate Windows performance evidence. Read `README.md` first; it names the four contracts under `docs/contracts/` and the build order the repository follows (phase 0a is done, and the read only history collectors for the gaming PC are in `collectors/windows/`; the live capture collectors, decoders for the other tables, analyzers, and the correlator come in later phases and must be built against the contracts, not around them).
 
 ## Working rules that are not obvious from the code
 
@@ -11,6 +11,15 @@ win-forensics: capture, decode, and correlate Windows performance evidence. Read
 - Win-opt (the captain's earlier toolkit, registered read only) is tooling history. Its recorded files are format fixtures only; its findings, numbers, driver names, and causes never appear in prose, schemas, scripts, or tests (`tests/test_docs.py` enforces a denylist). Thresholds cite Microsoft or tool documentation.
 - Documents are plain prose with no em or en dashes (also enforced by `tests/test_docs.py`).
 - Nothing captured from a real machine is committed; `.gitignore` excludes bundles, captures, and trace, dump, and log extensions. Only `fixtures/` holds synthetic bundles and format fixtures.
+
+## Collectors that run on the PC
+
+`collectors/windows/README.md` is the authority: the interface shared with the SSH dispatcher, what each collector reads with its Microsoft citation, how status is decided, what needs elevation, and the list of facts nobody has verified on Windows yet. No agent ever runs anything against the captain's PC. Rules that are easy to break:
+
+- The scripts target Windows PowerShell 5.1 and have only ever run under PowerShell 7 with the Windows adapters replaced (`collectors/windows/tests/SyntheticBackend.ps1`). A change to an adapter at the bottom of `_common.ps1` is untested by construction; add the fact it relies on, with its citation, to the README's verification list.
+- Keep every `.ps1` plain ASCII (5.1 reads a file without a byte order mark in the ANSI code page), never use `ConvertTo-Json` in the helper (its default depth is 2, and Windows PowerShell writes a wrapped array as an object with `value` and `Count`, which cannot be tested here; use `ConvertTo-WfJson`), and never use `$script:` variables there (the helper is dot sourced into other files).
+- A collector prints one JSON line on stdout and nothing else, stays read only, and records an unreadable source as a status with a reason, never as an empty export. `tests/test_collectors_static.py` holds the forbidden command list.
+- After changing a collector or the helper, regenerate `fixtures/collector-bundles/` with `collectors/windows/tests/New-FixtureBundles.ps1`; the content is invented in `SyntheticScenarios.ps1`. `scripts/fetch_pwsh.sh` puts PowerShell 7, Pester and PSScriptAnalyzer under `tools/` (ignored), and `tests/test_collectors_pwsh.py` skips without them, so run it before claiming the collectors pass.
 
 ## Process Monitor facts to rely on
 
