@@ -66,11 +66,11 @@ wf_json_string() {
     sed -n 's/.*"'"$1"'":"\([^"]*\)".*/\1/p' "$2" | head -n 1
 }
 
-# Four numbers separated by dots, each 0 to 255. The same shape and range rule the launcher
-# (Test-WfIPv4Text) and the setup script (Get-WfIPv4Info) apply at the PC.
+# Four numbers separated by dots, each 0 to 255, none with a leading zero. The same shape,
+# range, and leading zero rule the setup script (Get-WfIPv4Info) applies at the PC.
 wf_is_ipv4() {
     printf '%s\n' "$1" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$' || return 1
-    printf '%s\n' "$1" | awk -F. '{ for (i = 1; i <= 4; i++) if ($i + 0 > 255) exit 1 }'
+    printf '%s\n' "$1" | awk -F. '{ for (i = 1; i <= 4; i++) if ($i + 0 > 255 || $i ~ /^0[0-9]/) exit 1 }'
 }
 
 # wf_full_digest <hex digest>: the full SHA-256 as the Mac prints it for the manual check at

@@ -12,7 +12,11 @@ BeforeAll {
     if (-not (Get-Command Unblock-File -ErrorAction SilentlyContinue)) {
         function Unblock-File { [CmdletBinding()] param($LiteralPath) }
     }
-    Mock Write-Host { }
+    # Every line the launcher prints in any run is kept, so that the last block can match the
+    # stops it really printed against the rows of CHECKLIST.md.
+    $script:Printed = New-Object System.Collections.Generic.List[string]
+    function Add-PrintedLine { param($Object) if ($null -ne $Object) { $script:Printed.Add([string]$Object) } }
+    Mock Write-Host { Add-PrintedLine -Object $Object }
 
     $script:Launcher = (Resolve-Path (Join-Path $PSScriptRoot '../windows/Start-FrontDoorSetup.ps1')).Path
     $script:WindowsDir = Split-Path -Parent $script:Launcher
@@ -207,7 +211,7 @@ Describe 'The unelevated run' {
 
     It 'explains a declined permission prompt and returns 1 without running anything' {
         Mock Start-Process { throw 'This operation requires an interactive window station' }
-        Mock Write-Host { }
+        Mock Write-Host { Add-PrintedLine -Object $Object }
         $code = Invoke-WfUnelevatedRun -LauncherPath 'C:\kit\Start-FrontDoorSetup.ps1' -KitFolder 'C:\kit'
         $code | Should -Be 1
         Should -Invoke Write-Host -ParameterFilter { $Object -like 'STOPPED: the permission prompt was declined*nothing was changed*' }
@@ -216,7 +220,7 @@ Describe 'The unelevated run' {
     It 'refuses a kit that is not on a removable drive before asking for elevation' {
         Mock Get-WfDriveType { 'Fixed' }
         Mock Start-Process { }
-        Mock Write-Host { }
+        Mock Write-Host { Add-PrintedLine -Object $Object }
         $code = Invoke-WfUnelevatedRun -LauncherPath 'C:\Users\A Gamer\Desktop\wf-frontdoor\Start-FrontDoorSetup.ps1' -KitFolder 'C:\Users\A Gamer\Desktop\wf-frontdoor'
         $code | Should -Be 1
         Should -Invoke Start-Process -Times 0 -Exactly
@@ -346,7 +350,7 @@ Describe 'The elevated run' {
             [System.IO.File]::WriteAllText((Join-Path (Split-Path -Parent $InstallPath) 'wf-frontdoor-report.txt'), "the report`r`n")
             return 0
         }
-        Mock Write-Host { }
+        Mock Write-Host { Add-PrintedLine -Object $Object }
         Mock New-WfPrivateDirectory { [void](New-Item -ItemType Directory -Path $Path) }
         $script:StagingParent = Join-Path $TestDrive ('staging-' + [System.Guid]::NewGuid().ToString('N'))
         [void](New-Item -ItemType Directory -Path $script:StagingParent)
@@ -386,9 +390,11 @@ Describe 'The elevated run' {
 
     It 'refuses a kit on a fixed drive before hashing, unpacking, or unblocking anything' {
         Mock Get-WfDriveType { 'Fixed' }
+        Mock Read-WfZipBytes { throw 'must not be reached' }
         Mock Get-WfZipSha256 { throw 'must not be reached' }
         $code = Invoke-WfLauncher -KitFolder $script:Kit.Folder -LauncherPath $script:Launcher -Elevated $true
         $code | Should -Be 1
+        Should -Invoke Read-WfZipBytes -Times 0 -Exactly
         Should -Invoke Get-WfZipSha256 -Times 0 -Exactly
         Should -Invoke Read-WfTypedCode -Times 0 -Exactly
         Should -Invoke Unblock-File -Times 0 -Exactly
@@ -396,6 +402,26 @@ Describe 'The elevated run' {
         Should -Invoke New-WfPrivateDirectory -Times 0 -Exactly
         Should -Invoke Write-Host -ParameterFilter { $Object -like 'STOPPED:*Fixed drive, not on a removable one*' }
         Should -Invoke Write-Host -ParameterFilter { $Object -like '*manual path in CHECKLIST.md*' }
+    }
+
+    It 'unpacks the bytes it verified, not a zip swapped on the stick while the code was typed' {
+        $swapped = New-TestKit -Parameters "mac_address=192.0.2.99`naccount=wfother`n"
+        Mock Read-WfTypedCode {
+            Copy-Item -LiteralPath $swapped.Zip -Destination $script:Kit.Zip -Force
+            $script:Kit.Code
+        }
+        Invoke-WfLauncher -KitFolder $script:Kit.Folder -LauncherPath $script:Launcher -Elevated $true | Should -Be 0
+        Should -Invoke Invoke-WfSetupScript -Times 1 -Exactly -ParameterFilter { $MacAddress -eq '192.0.2.10' -and $AccountName -eq 'wfcollector' }
+        Should -Invoke Invoke-WfSetupScript -Times 0 -Exactly -ParameterFilter { $MacAddress -eq '192.0.2.99' }
+        Get-StagingLeftovers | Should -Be 0
+    }
+
+    It 'stops when no staging folder can be made, before anything is unpacked' {
+        Mock New-WfStaging { throw 'C:\ProgramData is a reparse point (a link or junction), so no staging folder is created under it' }
+        Invoke-WfLauncher -KitFolder $script:Kit.Folder -LauncherPath $script:Launcher -Elevated $true | Should -Be 1
+        Should -Invoke Unblock-File -Times 0 -Exactly
+        Should -Invoke Invoke-WfSetupScript -Times 0 -Exactly
+        Should -Invoke Write-Host -ParameterFilter { $Object -like 'STOPPED: no staging folder could be made*reparse point*' }
     }
 
     It 'lets a typo be corrected' {
@@ -532,5 +558,32 @@ Describe 'The elevated run' {
         Invoke-WfLauncher -KitFolder $script:Kit.Folder -LauncherPath $script:Launcher -Elevated $true | Should -Be 1
         Should -Invoke Write-Host -ParameterFilter { $Object -like 'STOPPED:*wf-frontdoor-kit.zip is missing*' }
         Should -Invoke Read-WfTypedCode -Times 0 -Exactly
+    }
+}
+
+Describe 'Every way the launcher stops has a row in CHECKLIST.md' {
+    # Runs last: it matches what the runs above really printed, not the launcher's source.
+    BeforeAll {
+        $script:Checklist = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot '../CHECKLIST.md'))
+    }
+
+    It 'printed <Printed> in a run above, and the checklist has a failure row naming <Row>' -ForEach @(
+        @{ Printed = 'STOPPED:*not on a removable one*'; Row = 'not on a removable one' }
+        @{ Printed = 'STOPPED: the permission prompt was declined*'; Row = 'the permission prompt was declined' }
+        @{ Printed = 'STOPPED:*not running as Administrator*'; Row = 'not running as Administrator' }
+        @{ Printed = 'STOPPED:*wf-frontdoor-kit.zip is missing*'; Row = 'wf-frontdoor-kit.zip is missing' }
+        @{ Printed = '*The code does not match this kit*'; Row = 'The code does not match this kit' }
+        @{ Printed = 'STOPPED: no staging folder could be made*'; Row = 'no staging folder could be made' }
+        @{ Printed = 'STOPPED: the kit could not be unpacked*'; Row = 'the kit could not be unpacked' }
+        @{ Printed = 'STOPPED: kit-parameters.txt*'; Row = 'kit-parameters.txt' }
+        @{ Printed = 'STOPPED:*is set to Public, not Private*'; Row = 'is set to Public, not Private' }
+        @{ Printed = 'STOPPED: Windows could not look up a route*'; Row = 'Windows could not look up a route' }
+        @{ Printed = '*exit code could not be read*'; Row = 'exit code could not be read' }
+        @{ Printed = '*report could not be copied*'; Row = 'report could not be copied' }
+        @{ Printed = '*left no report*'; Row = 'left no report' }
+        @{ Printed = '*pc-host-key.pub could not be written*'; Row = 'pc-host-key.pub could not be written' }
+    ) {
+        @($script:Printed | Where-Object { $_ -like $Printed }).Count | Should -BeGreaterThan 0 -Because 'a run above must have printed it'
+        $script:Checklist | Should -Match ('(?m)^\| 2 \| .*' + [regex]::Escape($Row))
     }
 }

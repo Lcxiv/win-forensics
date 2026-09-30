@@ -121,7 +121,7 @@ Way A: plug the stick in and run, from the `win-forensics` folder:
 sh remote-access/mac/wf-finish.sh
 ```
 
-It reads `pc-host-key.pub` from the stick (a disk mounted under `/Volumes`). It does not read that file from anywhere else, on purpose: on the Desktop, in a cloud folder, or on a share, whoever controls the place could have replaced it.
+It reads `pc-host-key.pub` from the stick (a disk mounted under `/Volumes` that macOS reports as external and removable or ejectable). It does not read that file from anywhere else, on purpose: on the Desktop, in a cloud folder, on a network share (even one mounted under `/Volumes`), or on the Mac's own disk, whoever controls the place could have replaced it.
 
 Way B, or a stick you no longer have: give the line from the PC screen instead:
 
@@ -195,7 +195,7 @@ It must time out. If it connects, stop and run action 2 again. If you have no se
 | 3 | "INCOMPLETE  host key: no SSH answer" | PC asleep or off, wrong `<PC_LAN_ADDRESS>`, or the Mac's address is not the one given in action 1 | Wake the PC; check both addresses; if the Mac's address changed, redo actions 1 and 2 |
 | 3 | "INCOMPLETE  host key: no pc-host-key.pub on any disk" | The stick is not plugged in, or the kit did not travel on one | Plug in the stick and run again, or give `--fingerprint SHA256:...` from the PC screen |
 | 3 | "INCOMPLETE  host key: ... does not exist" | The `--kit` folder holds no `pc-host-key.pub` (the setup did not PASS, or the file could not be written) | Plug in the right stick, or give `--fingerprint SHA256:...` from the PC screen |
-| 3 | "INCOMPLETE  host key: ... is not on a disk mounted under /Volumes" | The `--kit` folder is on this Mac, in a cloud folder, or on a share, where the file is not trusted | Give `--fingerprint SHA256:...` from the PC screen (it is also in `wf-frontdoor-report.txt`), or plug in the stick and name its folder |
+| 3 | "INCOMPLETE  host key: ... is not on a removable disk" | The file is on this Mac, in a cloud folder, on a network share (also one mounted under `/Volumes`), or on a disk macOS does not report as external and removable or ejectable; the reason in brackets says which | Give `--fingerprint SHA256:...` from the PC screen (it is also in `wf-frontdoor-report.txt`), or plug in the stick and name its folder |
 | 3 | "FAIL  host key: more than one pc-host-key.pub" | Two sticks with kits are plugged in | Say which one with `--kit /Volumes/<stick name>/wf-frontdoor` |
 | 3 | "FAIL  host key: NOT pinned ... DIFFER" | A typing mistake in `--fingerprint`, a stale `pc-host-key.pub` from an earlier setup, or something else is answering on that address | Read the line at the PC again (`wf-frontdoor-report.txt` has it too). Never pin a fingerprint that differs |
 | 3 | "FAIL  host key: ... DIFFERENT host key is already pinned" | The PC's key changed (Windows or OpenSSH reinstalled), or the wrong PC answered | Only if you know the PC was reinstalled: compare the fingerprint at the PC again and rerun with `--replace` |

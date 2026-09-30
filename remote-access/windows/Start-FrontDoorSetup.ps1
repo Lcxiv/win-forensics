@@ -17,10 +17,12 @@ Windows to start a second, elevated copy through the normal User Account Control
 so in its own window. The elevated copy, with -Elevated, does the work in a window that stays open:
 
   0. checks again that the kit folder is on a removable drive
-  1. asks for the kit code the Mac printed and compares it with the SHA-256 of the zip in the
-     kit folder (up to three tries; a mismatch stops everything before anything is unpacked)
+  1. reads the zip in the kit folder once, asks for the kit code the Mac printed and compares it
+     with the SHA-256 of those bytes (up to three tries; a mismatch stops everything before
+     anything is unpacked)
   2. creates a fresh, randomly named staging folder that only SYSTEM and Administrators can use,
-     refuses a zip entry that would land outside it, unpacks the verified zip there, refuses any
+     writes the verified bytes there, refuses a zip entry that would land outside it, unpacks
+     that copy, refuses any
      unpacked reparse point, and removes the "downloaded from the internet" mark from the files
   3. reads the Mac's address and the account name from the kit's kit-parameters.txt
   4. checks that the network the Mac is reached through is marked Private, and stops with the
@@ -281,10 +283,23 @@ function Start-WfElevatedLauncher {
     }
 }
 
+function Read-WfZipBytes {
+    # The zip is read from the stick once. The bytes that are hashed are the bytes that are
+    # later written into the staging folder and unpacked, so a zip changed on the stick while
+    # the code is being typed is never the one that runs.
+    param([Parameter(Mandatory = $true)][string]$Path)
+    return ,([System.IO.File]::ReadAllBytes($Path))
+}
+
 function Get-WfZipSha256 {
     # https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/get-filehash?view=powershell-5.1
-    param([Parameter(Mandatory = $true)][string]$Path)
-    return ([string](Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash).ToLowerInvariant()
+    param([Parameter(Mandatory = $true)][byte[]]$Bytes)
+    $stream = New-Object System.IO.MemoryStream(, $Bytes)
+    try {
+        return ([string](Get-FileHash -InputStream $stream -Algorithm SHA256).Hash).ToLowerInvariant()
+    } finally {
+        $stream.Dispose()
+    }
 }
 
 function Read-WfTypedCode {
@@ -398,7 +413,8 @@ function Expand-WfKit {
     # Unpack the verified zip into the private staging folder, refuse any unpacked reparse
     # point, check the files the setup needs are there, and remove the "downloaded from the
     # internet" mark from every unpacked file so that the RemoteSigned policy the setup runs
-    # under accepts them. Only a verified kit reaches this point.
+    # under accepts them. Only the verified bytes, written into the staging folder, reach
+    # this point.
     # https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.archive/expand-archive?view=powershell-5.1
     # https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/unblock-file?view=powershell-5.1
     param(
@@ -613,7 +629,8 @@ function Invoke-WfElevatedRun {
 
     # 1. The kit code, compared with the zip's SHA-256 before the zip is opened.
     Write-Host '[1] Checking the kit against the code the Mac printed'
-    $zipHash = Get-WfZipSha256 -Path $kit.Zip
+    $zipBytes = Read-WfZipBytes -Path $kit.Zip
+    $zipHash = Get-WfZipSha256 -Bytes $zipBytes
     Write-Host "      This kit's code is computed from $($kit.Zip)."
     if (-not (Request-WfKitCode -ZipHash $zipHash)) {
         Write-Host ''
@@ -639,7 +656,9 @@ function Invoke-WfElevatedRun {
     $report = @{ Copied = $false; Present = $false; Problem = '' }
     try {
         try {
-            $unpacked = Expand-WfKit -ZipPath $kit.Zip -Destination $staging
+            $stagedZip = Join-Path $staging 'wf-frontdoor-kit.zip'
+            [System.IO.File]::WriteAllBytes($stagedZip, $zipBytes)
+            $unpacked = Expand-WfKit -ZipPath $stagedZip -Destination $staging
         } catch {
             Stop-WfLauncher -Message "the kit could not be unpacked: $($_.Exception.Message)"
         }

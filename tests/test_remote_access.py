@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
 import subprocess
@@ -195,6 +196,32 @@ if os.environ.get("FAKE_SSH_MODE") == "unreachable":
 print("192.0.2.20 ssh-ed25519 " + os.environ["FAKE_HOST_KEY"])
 '''
 
+# A stand-in for `diskutil info <mount point>`, in the text form diskutil(8) prints. Every
+# directory directly under $WF_VOLUMES_DIR plays a mounted disk; FAKE_DISKUTIL (JSON, volume name
+# to kind) says which: "usb" (the default, a stick), "smb" (a disk over a network protocol),
+# "internal", or "nodisk" (what macOS answers for a network share: no disk at all).
+FAKE_DISKUTIL = r'''
+import json, os, sys
+args = sys.argv[1:]
+if len(args) != 2 or args[0] != "info":
+    sys.exit("diskutil stand-in: only 'info <mount point>' is played")
+target = args[1]
+volumes = os.path.realpath(os.environ.get("WF_VOLUMES_DIR", "/nonexistent"))
+if not os.path.isdir(target) or os.path.dirname(os.path.realpath(target)) != volumes:
+    print(f"Could not find disk: {target}")
+    sys.exit(1)
+name = os.path.basename(target)
+kind = json.loads(os.environ.get("FAKE_DISKUTIL", "{}")).get(name, "usb")
+if kind == "nodisk":
+    print(f"Could not find disk: {target}")
+    sys.exit(1)
+protocol, location, removable = {"usb": ("USB", "External", "Removable"), "smb": ("SMB", "External", "Removable"),
+                                 "internal": ("Apple Fabric", "Internal", "Fixed")}[kind]
+print(f"   Device Identifier:         disk9s1\n   Volume Name:               {name}\n   Mounted:                   Yes\n"
+      f"   Mount Point:               {target}\n\n   Protocol:                  {protocol}\n\n"
+      f"   Device Location:           {location}\n   Removable Media:           {removable}\n")
+'''
+
 
 def make_public_key(seed: int) -> tuple[str, str]:
     """A syntactically valid Ed25519 public key blob (base64) and its SHA256 fingerprint."""
@@ -217,6 +244,7 @@ def mac(tmp_path: Path) -> dict:
     bin_dir.mkdir()
     write_executable(bin_dir / "ssh", FAKE_SSH)
     write_executable(bin_dir / "ssh-keyscan", FAKE_KEYSCAN)
+    write_executable(bin_dir / "diskutil", FAKE_DISKUTIL)
     host_key, fingerprint = make_public_key(7)
     known_hosts = home / ".ssh" / "known_hosts_winforensics"
     known_hosts.write_text(f"gaming-pc ssh-ed25519 {host_key}\n")
@@ -326,16 +354,11 @@ def test_checklist_uses_placeholders_and_covers_every_step():
     acceptance_section = re.search(r"\| Check \| What it proves \|(.*?)\n\n", text, re.S).group(1)
     for check in sorted(set(re.findall(r"\b(A\d+)\b", (MAC / "wf-acceptance.sh").read_text()))):
         assert re.search(rf"^\| {check} \|", acceptance_section, re.M), f"check {check} is not explained in the acceptance table"
-    # Every way the launcher can stop has a row under "If an action fails".
-    launcher = (WINDOWS / "Start-FrontDoorSetup.ps1").read_text()
-    for stop in ["permission prompt was declined", "kit code did not match", "not Private", "not running as Administrator",
-                 "is missing", "not on a removable one", "could not look up a route", "no staging folder could be made",
-                 "could not be unpacked", "exit code could not be read"]:
-        assert stop in launcher, stop
-    for row in ["declined", "code does not match", "not Private", "not running as Administrator", "missing",
-                "not on a removable", "could not look up a route", "staging folder", "could not be unpacked",
-                "exit code could not be read", "more than one pc-host-key.pub", "is not on a disk mounted under",
-                "no pc-host-key.pub on any disk", "report"]:
+    # Every way wf-finish.sh stops has a row under "If an action fails"; the TestFinish runs below
+    # produce those lines. The launcher's stops are matched against these rows by the Pester suite,
+    # from the messages its runs actually printed.
+    for row in ["more than one pc-host-key.pub", "is not on a removable disk", "no pc-host-key.pub on any disk",
+                "does not exist", "report"]:
         assert re.search(rf"^\| .*{row}", text, re.M), f"no failure row about: {row}"
     # Every step id the setup script reports has a failure row: InstallFrontDoor.Tests.ps1 checks
     # that against the step records of a run, in the Pester suite below.
@@ -371,18 +394,33 @@ def test_shell_scripts_parse(name):
     assert subprocess.run(["sh", "-n", str(MAC / name)], capture_output=True).returncode == 0
 
 
+def cmd_arguments(line: str) -> list[str]:
+    """Split one cmd.exe command line into its arguments: blanks separate, double quotes group, and a
+    backslash is an ordinary character (it only escapes a quote right before one, which this
+    file avoids on purpose)."""
+    lexer = shlex.shlex(line, posix=True)
+    lexer.whitespace_split = True
+    lexer.escape = ""
+    lexer.commenters = ""
+    return list(lexer)
+
+
 def test_setup_pc_cmd_starts_the_launcher_from_its_own_folder_with_a_process_scoped_policy():
-    text = (WINDOWS / "SETUP-PC.cmd").read_text()
-    command = [line for line in text.splitlines() if "powershell.exe" in line and not line.startswith("rem")]
-    assert len(command) == 1
-    line = command[0]
-    assert line.startswith('"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"'), line
-    assert '-File "%~dp0Start-FrontDoorSetup.ps1"' in line
-    assert '-KitFolder "%~dp0."' in line, "a trailing backslash before the closing quote would escape it"
-    assert "-ExecutionPolicy Bypass" in line and "-NoProfile" in line
-    assert "-Elevated" not in line, "elevation is the launcher's decision, after the UAC prompt"
-    assert text.rstrip().endswith("pause")
-    assert "removable drive" in text and "Get-FileHash" in text
+    # The batch file as cmd.exe runs it: every line that is not a remark is a command, in order.
+    commands = [line.strip() for line in (WINDOWS / "SETUP-PC.cmd").read_text().splitlines()
+                if line.strip() and not line.strip().lower().startswith("rem")]
+    assert len(commands) == 4, commands
+    assert commands[0].lower() == "@echo off"
+    assert commands[2].lower() == "echo."
+    assert commands[3].lower() == "pause", "the first window stays open until a key is pressed"
+    program, *arguments = cmd_arguments(commands[1])
+    assert program == "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", "Windows PowerShell 5.1, never pwsh"
+    # powershell.exe takes its own parameters up to -File <script>; what follows goes to the script.
+    file_at = arguments.index("-File")
+    host_arguments, script, script_arguments = arguments[:file_at], arguments[file_at + 1], arguments[file_at + 2:]
+    assert host_arguments == ["-NoProfile", "-ExecutionPolicy", "Bypass"]
+    assert script == "%~dp0Start-FrontDoorSetup.ps1"
+    assert script_arguments == ["-KitFolder", "%~dp0."], "the folder ends with a backslash, which would escape a closing quote; no -Elevated"
 
 
 def full_digest(hex_digest: str) -> str:
@@ -390,11 +428,12 @@ def full_digest(hex_digest: str) -> str:
     return " ".join(upper[i:i + 8] for i in range(0, 64, 8))
 
 
-@pytest.mark.parametrize("bad", ["999.999.999.999", "256.0.0.1", "192.0.2.300", "1.2.3", "a.b.c.d", "10.0.0.1.2"])
+@pytest.mark.parametrize("bad", ["999.999.999.999", "256.0.0.1", "192.0.2.300", "1.2.3", "a.b.c.d", "10.0.0.1.2",
+                                 "192.168.001.010", "01.2.3.4", "10.0.0.00"])
 def test_wf_is_ipv4_rejects_out_of_range_and_malformed_addresses(bad):
     done = subprocess.run(["sh", "-c", f'. "{MAC / "wf-common.sh"}"; wf_is_ipv4 "{bad}"'], capture_output=True, text=True)
     assert done.returncode != 0, bad
-    for good in ["0.0.0.0", "255.255.255.255", "192.0.2.10"]:
+    for good in ["0.0.0.0", "255.255.255.255", "192.0.2.10", "10.0.100.0"]:
         assert subprocess.run(["sh", "-c", f'. "{MAC / "wf-common.sh"}"; wf_is_ipv4 "{good}"'], capture_output=True).returncode == 0, good
 
 
@@ -703,13 +742,49 @@ class TestFinish:
         done = finish(mac, "--kit", str(desktop))
         assert done.returncode == 2, done.stdout + done.stderr
         assert "RESULT: INCOMPLETE" in done.stdout
-        assert any("is not on a disk mounted under" in line and "--fingerprint" in line for line in summary_lines(done.stdout, "INCOMPLETE  host key"))
+        assert any("is not on a removable disk" in line and "not on a disk mounted under" in line and "--fingerprint" in line
+                   for line in summary_lines(done.stdout, "INCOMPLETE  host key"))
         assert not mac["known_hosts"].exists()
         assert ssh_calls(mac) == [] or all("-G" in c["flags"] for c in ssh_calls(mac))
         # Without --kit the Desktop copy is not even looked at.
         done = finish(mac)
         assert done.returncode == 2 and "no pc-host-key.pub on any disk" in done.stdout
         assert not mac["known_hosts"].exists()
+
+    def assert_not_trusted(self, mac, done, reason: str):
+        assert done.returncode == 2, done.stdout + done.stderr
+        assert "RESULT: INCOMPLETE" in done.stdout
+        lines = summary_lines(done.stdout, "INCOMPLETE  host key")
+        assert any("is not on a removable disk" in line and reason in line and "--fingerprint" in line for line in lines), lines
+        assert not mac["known_hosts"].exists()
+        assert not [c for c in ssh_calls(mac) if "-G" not in c["flags"]], "nothing may be pinned or checked"
+
+    @pytest.mark.parametrize("kind, reason", [("smb", "is a network share"), ("nodisk", "reports no disk mounted at"),
+                                              ("internal", "is not an external disk")])
+    def test_does_not_trust_a_host_key_file_on_a_network_share_or_internal_volume_under_volumes(self, mac, kind, reason):
+        mac["known_hosts"].unlink()
+        folder = kit_folder_with_host_key(mac, mac["host_key"], mac["tmp"] / "volumes" / "SHARE" / "wf-frontdoor")
+        env = {"FAKE_DISKUTIL": json.dumps({"SHARE": kind})}
+        self.assert_not_trusted(mac, finish(mac, extra_env=env), reason)
+        self.assert_not_trusted(mac, finish(mac, "--kit", str(folder), extra_env=env), reason)
+
+    def test_does_not_trust_the_boot_disk_through_its_link_under_volumes(self, mac):
+        # /Volumes/Macintosh HD is a link to /; resolved, the folder is not under /Volumes at all.
+        mac["known_hosts"].unlink()
+        boot = mac["tmp"] / "boot"
+        kit_folder_with_host_key(mac, mac["host_key"], boot / "wf-frontdoor")
+        (mac["tmp"] / "volumes").mkdir()
+        (mac["tmp"] / "volumes" / "Macintosh HD").symlink_to(boot)
+        self.assert_not_trusted(mac, finish(mac), "not on a disk mounted under")
+        self.assert_not_trusted(mac, finish(mac, "--kit", str(mac["tmp"] / "volumes" / "Macintosh HD" / "wf-frontdoor")),
+                                "not on a disk mounted under")
+
+    def test_does_not_trust_a_path_that_climbs_out_of_volumes(self, mac):
+        mac["known_hosts"].unlink()
+        kit_folder_with_host_key(mac, mac["host_key"], mac["tmp"] / "elsewhere" / "wf-frontdoor")
+        (mac["tmp"] / "volumes" / "STICK").mkdir(parents=True)
+        climbing = f"{mac['tmp']}/volumes/STICK/../../elsewhere/wf-frontdoor"
+        self.assert_not_trusted(mac, finish(mac, "--kit", climbing), "not on a disk mounted under")
 
     def test_tells_the_captain_to_plug_in_the_stick_before_offering_by_eye(self, mac):
         mac["known_hosts"].unlink()
@@ -1069,6 +1144,7 @@ def test_start_validates_its_addresses_before_touching_anything(real_mac):
     assert run_real(real_mac, "wf-start.sh", "--pc-address", "192.0.2.20", "--mac-address", "a4:83:e7:12:34:56", "--kit", str(kit)).returncode == 1
     assert run_real(real_mac, "wf-start.sh", "--pc-address", "999.999.999.999", "--mac-address", "192.0.2.10", "--kit", str(kit)).returncode == 1
     assert run_real(real_mac, "wf-start.sh", "--pc-address", "192.0.2.20", "--mac-address", "192.0.2.256", "--kit", str(kit)).returncode == 1
+    assert run_real(real_mac, "wf-start.sh", "--pc-address", "192.0.2.20", "--mac-address", "192.168.001.010", "--kit", str(kit)).returncode == 1
     assert not Path(real_mac["env"]["WF_SSH_CONFIG"]).exists()
     assert not kit.exists()
 

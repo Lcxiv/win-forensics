@@ -9,11 +9,13 @@
 #                   on a removable drive: a file in a cloud folder, on a network share, or on the
 #                   Desktop can be changed by whoever controls that place
 #   --kit <folder>  pc-host-key.pub in that folder, which the PC launcher wrote next to the zip;
-#                   used automatically only when the folder is on a disk mounted under /Volumes
-#                   (where macOS mounts other disks: Apple, File System Programming Guide, "File
-#                   System Basics"), otherwise this ends INCOMPLETE and asks for --fingerprint
+#                   used automatically only when the folder, with links and .. resolved
+#                   (pwd -P), is on a disk mounted under /Volumes that diskutil info reports as
+#                   an external, removable or ejectable disk; a network share, the boot disk,
+#                   and anything else end INCOMPLETE and ask for --fingerprint
 #   (neither)       pc-host-key.pub is looked for in every /Volumes/*/wf-frontdoor; exactly one
-#                   must exist. None: plug the stick in and run again, or give --fingerprint
+#                   must exist, and the same rule applies to it. None: plug the stick in and run
+#                   again, or give --fingerprint
 #   --by-eye        only when there is no file and no line to type: wf-pin-host-key.sh shows the
 #                   fingerprint it received over the network and asks you to compare it with the
 #                   PC screen and type yes
@@ -40,7 +42,7 @@ while [ $# -gt 0 ]; do
         --after-reboot) after_reboot=1; shift ;;
         --replace) replace=1; shift ;;
         --host-alias) WF_HOST_ALIAS="${2:-}"; shift 2 ;;
-        -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
         *) wf_die "unknown option: $1" ;;
     esac
 done
@@ -68,12 +70,33 @@ finish() {
         *) printf 'Read the FAIL line above and the checklist section "If an action fails".\n'; exit 1 ;;
     esac
 }
-# is_removable <path>: on a disk mounted under the volumes directory.
-is_removable() {
-    case "$1" in
-        "$volumes_dir"/*) return 0 ;;
-        *) return 1 ;;
+# untrusted_reason <folder>: nothing when the folder is on a removable disk, otherwise why not.
+# The folder is resolved first (pwd -P: POSIX, every link and .. resolved), so a link or a
+# "/Volumes/.." path is judged by where it really is; /Volumes/Macintosh HD is a link to /.
+# The disk it is on is the mount point directly under /Volumes (where macOS mounts other disks:
+# Apple, File System Programming Guide, "File System Basics"), and diskutil info on that mount
+# point must report it mounted there, not over a network protocol, as External, and as
+# Removable media or Ejectable (diskutil(8)). A network share has no disk, so diskutil info does
+# not report one.
+# https://pubs.opengroup.org/onlinepubs/9699919799/utilities/pwd.html
+# https://developer.apple.com/library/archive/documentation/Darwin/Reference/ManPages/man8/diskutil.8.html
+untrusted_reason() {
+    canonical="$(cd "$1" 2>/dev/null && pwd -P)" || { printf 'the folder cannot be opened'; return; }
+    volumes_real="$(cd "$volumes_dir" 2>/dev/null && pwd -P)" || volumes_real="$volumes_dir"
+    case "$canonical" in
+        "$volumes_real"/?*) ;;
+        *) printf 'it is really %s, which is not on a disk mounted under %s' "$canonical" "$volumes_dir"; return ;;
     esac
+    rest="${canonical#"$volumes_real"/}"
+    mount_point="$volumes_real/${rest%%/*}"
+    diskutil info "$mount_point" >"$work/diskutil" 2>&1 || :
+    disk_field() { sed -n "s/^ *$1: *//p" "$work/diskutil" | head -n 1; }
+    [ "$(disk_field 'Mount Point')" = "$mount_point" ] || { printf 'macOS reports no disk mounted at %s (a network share is not a disk)' "$mount_point"; return; }
+    case "$(disk_field 'Protocol')" in
+        SMB*|AFP*|NFS*|WebDAV*) printf '%s is a network share' "$mount_point"; return ;;
+    esac
+    [ "$(disk_field 'Device Location')" = "External" ] || { printf '%s is not an external disk (the boot disk and internal disks are not trusted)' "$mount_point"; return; }
+    [ "$(disk_field 'Removable Media')" = "Removable" ] || [ "$(disk_field 'Ejectable')" = "Yes" ] || { printf '%s is neither removable nor ejectable' "$mount_point"; return; }
 }
 
 # ---- 1. the expected host key ---------------------------------------------------------------
@@ -85,10 +108,6 @@ if [ -n "$fingerprint" ]; then
 else
     key_file=""
     if [ -n "$kit_folder" ]; then
-        if ! is_removable "$kit_folder"; then
-            note INCOMPLETE "host key: $kit_folder is not on a disk mounted under $volumes_dir, so its pc-host-key.pub is not trusted: a file in a cloud folder, on a network share, or on this Mac can be changed by whoever controls that place. Run again with --fingerprint SHA256:... typed from the PC screen (it is also in the wf-frontdoor-report.txt the PC wrote), or plug the stick in and give its folder"
-            finish
-        fi
         key_file="$kit_folder/pc-host-key.pub"
         [ -f "$key_file" ] || { note INCOMPLETE "host key: $key_file does not exist. The PC launcher writes it next to the zip after a PASS. Plug in the stick the kit came back on and run again, or give --fingerprint SHA256:... from the PC screen"; finish; }
     else
@@ -110,6 +129,12 @@ else
         key_file="$found"
     fi
     if [ -n "$key_file" ]; then
+        why="$(untrusted_reason "$(dirname "$key_file")")"
+        [ -z "$why" ] && [ -L "$key_file" ] && why="the file is a link"
+        if [ -n "$why" ]; then
+            note INCOMPLETE "host key: $key_file is not on a removable disk ($why), so it is not trusted: a file in a cloud folder, on a network share, or on this Mac can be changed by whoever controls that place. Run again with --fingerprint SHA256:... typed from the PC screen (it is also in the wf-frontdoor-report.txt the PC wrote), or plug the stick in and give its folder"
+            finish
+        fi
         [ "$(grep -c . "$key_file")" = "1" ] || { note FAIL "host key: $key_file must hold exactly one line"; finish; }
         awk 'NF { print $1, $2; exit }' "$key_file" >"$work/hostkey"
         [ "$(awk '{print $1}' "$work/hostkey")" = "ssh-ed25519" ] || { note FAIL "host key: $key_file is not an ssh-ed25519 public key line"; finish; }
