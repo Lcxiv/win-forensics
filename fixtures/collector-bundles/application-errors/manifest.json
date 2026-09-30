@@ -119,7 +119,6 @@
           "max_events": 5000,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 300,
-          "evtx_export": true,
           "query_sha256": "5de392aa61044add90a5512c6b58aeb00d94f5ea57f2cde84c4eb8eba6387410"
         }
       },

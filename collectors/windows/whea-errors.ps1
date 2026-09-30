@@ -37,9 +37,7 @@ param(
     [long]$MaxArtifactBytes = 67108864,
     # Deadline for reading one source, in seconds (1 to 3600). A read that
     # does not finish in time is recorded as capture_failed.
-    [int]$TimeoutSeconds = 300,
-    # Skip the binary wevtutil export and keep only the structured one.
-    [switch]$SkipEvtx
+    [int]$TimeoutSeconds = 300
 )
 
 Set-StrictMode -Version 2.0
@@ -80,5 +78,5 @@ $definition = @{
     )
 }
 
-$exitCode = @(Invoke-WfCollectorScript -Definition $definition -OutputDirectory $OutputDirectory -WindowDays $WindowDays -MaxEvents $MaxEvents -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -SkipEvtx $SkipEvtx.IsPresent -CollectorPath $PSCommandPath)[-1]
+$exitCode = @(Invoke-WfCollectorScript -Definition $definition -OutputDirectory $OutputDirectory -WindowDays $WindowDays -MaxEvents $MaxEvents -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -CollectorPath $PSCommandPath)[-1]
 exit $exitCode

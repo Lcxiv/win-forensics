@@ -74,7 +74,27 @@ def test_committed_fixture_bundles_match_a_fresh_run(tmp_path):
     assert not stale, f"stale fixtures, regenerate with collectors/windows/tests/New-FixtureBundles.ps1: {stale}"
 
 
-@pytest.mark.parametrize("collector", sorted(p.stem for p in COLLECTOR_DIR.glob("*.ps1") if p.name != "_common.ps1"))
+COLLECTORS = sorted(p.stem for p in COLLECTOR_DIR.glob("*.ps1") if p.name != "_common.ps1")
+
+
+@pytest.mark.parametrize("collector", COLLECTORS)
+def test_no_collector_parameter_is_mandatory(collector):
+    """-OutputDirectory is a string and nothing is Mandatory, so a missing value never prompts."""
+    command = (
+        f"$c = Get-Command -Name '{COLLECTOR_DIR / (collector + '.ps1')}'; "
+        "$c.Parameters.Values | Where-Object { $_.Name -notin [System.Management.Automation.PSCmdlet]::CommonParameters } | "
+        "ForEach-Object { [pscustomobject]@{ name = $_.Name; type = $_.ParameterType.FullName; "
+        "mandatory = @($_.Attributes | Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.Mandatory }).Count -gt 0 } } | "
+        "ConvertTo-Json -Compress -AsArray"
+    )
+    result = run(["-Command", command])
+    assert result.returncode == 0, result.stderr
+    parameters = {p["name"]: p for p in json.loads(result.stdout)}
+    assert parameters["OutputDirectory"]["type"] == "System.String"
+    assert [p["name"] for p in parameters.values() if p["mandatory"]] == []
+
+
+@pytest.mark.parametrize("collector", COLLECTORS)
 def test_collector_without_an_output_directory_prints_one_failed_line(collector):
     result = run(["-File", str(COLLECTOR_DIR / f"{collector}.ps1")])
     assert result.returncode == 1

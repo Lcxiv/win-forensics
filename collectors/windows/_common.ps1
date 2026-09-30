@@ -498,14 +498,16 @@ function Get-WfChannelState {
 
 function Invoke-WfStreamingRead {
     # Runs a producer pipeline and feeds every object through the converter
-    # into the accumulator. The accumulator's caps end the pipeline early by
-    # a terminating error, which stops the producer as well, so an unbounded
-    # producer cannot run past the caps.
-    param([scriptblock]$Producer, [scriptblock]$Convert, [hashtable]$Accumulator)
+    # into the accumulator. The accumulator's caps and the deadline end the
+    # pipeline early by a terminating error, which stops the producer as
+    # well, so a producer that is unbounded or slow cannot run past either.
+    param([scriptblock]$Producer, [scriptblock]$Convert, [hashtable]$Accumulator, [datetime]$DeadlineUtc)
     $result = [ordered]@{ Ok = $false; ErrorKind = $null; ErrorMessage = $null; Count = 0 }
     $stopToken = 'WF_STOP_ENUMERATION'
+    $timeoutToken = 'WF_DEADLINE_PASSED'
     try {
         & $Producer | ForEach-Object {
+            if ((Get-WfUtcNow) -ge $DeadlineUtc) { throw $timeoutToken }
             $row = & $Convert $_
             $result.Count += 1
             if (-not (Add-WfRow -Accumulator $Accumulator -Row $row)) { throw $stopToken }
@@ -514,6 +516,9 @@ function Invoke-WfStreamingRead {
     } catch {
         if ($_.Exception.Message -eq $stopToken) {
             $result.Ok = $true
+        } elseif ($_.Exception.Message -eq $timeoutToken) {
+            $result.ErrorKind = 'timeout'
+            $result.ErrorMessage = ('the read did not finish before the deadline ' + (ConvertTo-WfUtcString -Value $DeadlineUtc) + '; ' + $result.Count + ' records had been read')
         } else {
             $result.ErrorKind = Get-WfCimErrorKind -Exception $_.Exception
             $result.ErrorMessage = $_.Exception.Message
@@ -524,18 +529,19 @@ function Invoke-WfStreamingRead {
 
 function Get-WfCimRows {
     # Every instance of a class that matches the filter, streamed through the
-    # caps, each as an ordered map of the requested properties with dates as
-    # UTC text.
-    param([string]$Namespace, [string]$ClassName, [string[]]$Properties, $Filter, [int]$MaxRows, [int64]$MaxBytes, [double]$TimeoutSeconds)
+    # caps and the deadline, each as an ordered map of the requested
+    # properties with dates as UTC text.
+    param([string]$Namespace, [string]$ClassName, [string[]]$Properties, $Filter, [int]$MaxRows, [int64]$MaxBytes, [datetime]$DeadlineUtc)
     $accumulator = New-WfRowAccumulator -MaxRows $MaxRows -MaxBytes $MaxBytes
     $result = [ordered]@{ Ok = $false; ErrorKind = $null; ErrorMessage = $null; Rows = @(); Lines = @(); Truncated = $false; TruncationReason = $null }
-    if ($TimeoutSeconds -le 0) {
+    $timeoutSeconds = Get-WfRemainingSeconds -DeadlineUtc $DeadlineUtc
+    if ($timeoutSeconds -le 0) {
         $result.ErrorKind = 'timeout'
         $result.ErrorMessage = 'the deadline had passed before the class was read'
         return $result
     }
-    $producer = New-WfCimProducer -Namespace $Namespace -ClassName $ClassName -Properties $Properties -Filter $Filter -TimeoutSeconds $TimeoutSeconds
-    $read = Invoke-WfStreamingRead -Producer $producer['Producer'] -Convert $producer['Convert'] -Accumulator $accumulator
+    $producer = New-WfCimProducer -Namespace $Namespace -ClassName $ClassName -Properties $Properties -Filter $Filter -TimeoutSeconds $timeoutSeconds
+    $read = Invoke-WfStreamingRead -Producer $producer['Producer'] -Convert $producer['Convert'] -Accumulator $accumulator -DeadlineUtc $DeadlineUtc
     $result.Ok = $read['Ok']
     $result.ErrorKind = $read['ErrorKind']
     $result.ErrorMessage = $read['ErrorMessage']
@@ -773,7 +779,6 @@ function Invoke-WfEventSource {
         [int]$MaxEvents,
         [int64]$MaxArtifactBytes,
         [int]$TimeoutSeconds,
-        [bool]$SkipEvtx,
         [System.Collections.Generic.List[string]]$Log,
         [System.Collections.Generic.List[string]]$Notes
     )
@@ -816,7 +821,6 @@ function Invoke-WfEventSource {
                 max_events         = $MaxEvents
                 max_artifact_bytes = $MaxArtifactBytes
                 timeout_seconds    = $TimeoutSeconds
-                evtx_export        = (-not $SkipEvtx)
                 query_sha256       = $queryHash
             }
         }
@@ -880,7 +884,7 @@ function Invoke-WfEventSource {
         }
 
         $evtx = [ordered]@{ Attempted = $false; Ok = $false; ExitCode = $null; Message = 'not attempted'; Command = $null }
-        if ($written -and -not $readErrorKind -and -not $truncated -and -not $SkipEvtx) {
+        if ($written -and -not $readErrorKind -and -not $truncated) {
             $evtxPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/events.evtx')
             $evtx = Export-WfEvtx -QueryPath $queryPath -TargetPath $evtxPath -MaxBytes $MaxArtifactBytes -TimeoutSeconds ([int](Get-WfRemainingSeconds -DeadlineUtc $deadline))
             if (-not $evtx['Ok']) {
@@ -889,8 +893,6 @@ function Invoke-WfEventSource {
                 $Notes.Add($message)
                 $Log.Add($message)
             }
-        } elseif ($SkipEvtx) {
-            $evtx['Message'] = 'skipped by -SkipEvtx'
         }
 
         $oldest = $null
@@ -1018,7 +1020,7 @@ function Invoke-WfCimSource {
         $entry.requested = [ordered]@{ providers = @(); keywords = @(); stack_walk = @(); counters = @(); options = $query }
 
         $read = Get-WfCimRows -Namespace $namespace -ClassName $className -Properties $properties -Filter $filter `
-            -MaxRows $MaxEvents -MaxBytes $MaxArtifactBytes -TimeoutSeconds (Get-WfRemainingSeconds -DeadlineUtc $deadline)
+            -MaxRows $MaxEvents -MaxBytes $MaxArtifactBytes -DeadlineUtc $deadline
         $readAt = Get-WfUtcNow
         $readErrorKind = ''
         $readErrorMessage = ''
@@ -1059,7 +1061,7 @@ function Invoke-WfCimSource {
                 # reaches back to the start; a probe that cannot complete
                 # proves nothing.
                 $probe = Get-WfCimRows -Namespace $namespace -ClassName $className -Properties @($timeProperty) -Filter $probeFilter `
-                    -MaxRows 1 -MaxBytes 1048576 -TimeoutSeconds (Get-WfRemainingSeconds -DeadlineUtc $deadline)
+                    -MaxRows 1 -MaxBytes 1048576 -DeadlineUtc $deadline
                 if ($probe['Ok'] -and @($probe['Rows']).Count -gt 0 -and $probe['Rows'][0][$timeProperty]) {
                     $oldest = ConvertFrom-WfUtcString -Text ([string]$probe['Rows'][0][$timeProperty])
                 }
@@ -1206,7 +1208,6 @@ function Invoke-WfCollector {
         [int]$MaxEvents = 5000,
         [int64]$MaxArtifactBytes = 67108864,
         [int]$TimeoutSeconds = 300,
-        [bool]$SkipEvtx = $false,
         [string]$CollectorPath = '',
         [hashtable]$State = @{}
     )
@@ -1254,7 +1255,7 @@ function Invoke-WfCollector {
         $type = [string]$source['Type']
         if ($type -eq 'eventlog') {
             $result = Invoke-WfEventSource -Source $source -BundleRoot $bundleRoot -WindowDays $WindowDays -MaxEvents $MaxEvents `
-                -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -SkipEvtx $SkipEvtx -Log $log -Notes $notes
+                -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes
         } elseif ($type -eq 'cim') {
             $result = Invoke-WfCimSource -Source $source -BundleRoot $bundleRoot -WindowDays $WindowDays -MaxEvents $MaxEvents `
                 -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes
@@ -1358,7 +1359,6 @@ function Invoke-WfCollectorScript {
         [int]$MaxEvents = 5000,
         [int64]$MaxArtifactBytes = 67108864,
         [int]$TimeoutSeconds = 300,
-        [bool]$SkipEvtx = $false,
         [string]$CollectorPath = ''
     )
     $name = [string]$Definition['Name']
@@ -1369,7 +1369,7 @@ function Invoke-WfCollectorScript {
         # Anything a callee writes to the success stream by accident is kept
         # away from stdout: only the last object, the result, is used.
         $output = @(Invoke-WfCollector -Definition $Definition -OutputDirectory $OutputDirectory -WindowDays $WindowDays `
-                -MaxEvents $MaxEvents -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -SkipEvtx $SkipEvtx `
+                -MaxEvents $MaxEvents -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds `
                 -CollectorPath $CollectorPath -State $state)
         $result = $output[$output.Count - 1]
         $line = [string]$result['SummaryLine']

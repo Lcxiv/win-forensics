@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.0.0",
   "bundle_id": "20260301T120001Z_reliability_records_ae3a76a9",
-  "created_utc": "2026-03-01T12:00:14.0000000Z",
+  "created_utc": "2026-03-01T12:00:20.0000000Z",
   "scenario": {
     "id": "reliability_records",
     "version": "1.0.0",
@@ -11,7 +11,7 @@
   },
   "capture": {
     "start_utc": "2026-03-01T12:00:01.0000000Z",
-    "stop_utc": "2026-03-01T12:00:14.0000000Z",
+    "stop_utc": "2026-03-01T12:00:20.0000000Z",
     "orchestrator": "wf-collector:reliability-records",
     "orchestrator_version": "1.0.0",
     "elevated": false,
@@ -68,7 +68,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:05.0000000Z",
+        "at_utc": "2026-03-01T12:00:07.0000000Z",
         "checks": [
           {
             "name": "class_readable",
@@ -91,7 +91,7 @@
         "TimeGenerated >= '20260130120003.000000+000' AND TimeGenerated <= '20260301120003.000000+000'"
       ],
       "started_utc": "2026-03-01T12:00:02.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:07.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:10.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -198,7 +198,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:11.0000000Z",
+        "at_utc": "2026-03-01T12:00:16.0000000Z",
         "checks": [
           {
             "name": "class_readable",
@@ -218,14 +218,14 @@
         "-OperationTimeoutSec",
         "300",
         "-Filter",
-        "TimeGenerated >= '20260130120009.000000+000' AND TimeGenerated <= '20260301120009.000000+000'"
+        "TimeGenerated >= '20260130120012.000000+000' AND TimeGenerated <= '20260301120012.000000+000'"
       ],
-      "started_utc": "2026-03-01T12:00:08.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:13.0000000Z",
+      "started_utc": "2026-03-01T12:00:11.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:19.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "f18d1542aaaad9ca65837180872da237d40a56899c214acc163eea8a28b7f1ae"
+        "value": "b32e7bb80cd5238a900684b11a58bb797cf65fea43809d1e9ad814b06321ec98"
       },
       "filter_hash": null,
       "requested": {
@@ -243,12 +243,12 @@
             "SystemStabilityIndex",
             "TimeGenerated"
           ],
-          "filter": "TimeGenerated >= '20260130120009.000000+000' AND TimeGenerated <= '20260301120009.000000+000'",
+          "filter": "TimeGenerated >= '20260130120012.000000+000' AND TimeGenerated <= '20260301120012.000000+000'",
           "time_property": "TimeGenerated",
           "window_days": 30,
-          "window_start_utc": "2026-01-30T12:00:09.0000000Z",
-          "window_end_utc": "2026-03-01T12:00:09.0000000Z",
-          "coverage_probe_filter": "TimeGenerated < '20260130120009.000000+000'",
+          "window_start_utc": "2026-01-30T12:00:12.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:12.0000000Z",
+          "coverage_probe_filter": "TimeGenerated < '20260130120012.000000+000'",
           "max_records": 5000,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 300
@@ -269,11 +269,11 @@
             "SystemStabilityIndex",
             "TimeGenerated"
           ],
-          "filter": "TimeGenerated >= '20260130120009.000000+000' AND TimeGenerated <= '20260301120009.000000+000'",
+          "filter": "TimeGenerated >= '20260130120012.000000+000' AND TimeGenerated <= '20260301120012.000000+000'",
           "time_property": "TimeGenerated",
           "window_days": 30,
-          "window_start_utc": "2026-01-30T12:00:09.0000000Z",
-          "window_end_utc": "2026-03-01T12:00:09.0000000Z",
+          "window_start_utc": "2026-01-30T12:00:12.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:12.0000000Z",
           "records_read": 2,
           "records_exported": 2,
           "truncated": false,
@@ -287,7 +287,7 @@
         {
           "path": "raw/reliability_stability_metrics/query.json",
           "bytes": 647,
-          "sha256": "f18d1542aaaad9ca65837180872da237d40a56899c214acc163eea8a28b7f1ae",
+          "sha256": "b32e7bb80cd5238a900684b11a58bb797cf65fea43809d1e9ad814b06321ec98",
           "role": "config"
         },
         {
@@ -298,15 +298,15 @@
         }
       ],
       "raw_time_range": {
-        "start": "2026-01-30T12:00:09.0000000Z",
-        "end": "2026-03-01T12:00:09.0000000Z",
+        "start": "2026-01-30T12:00:12.0000000Z",
+        "end": "2026-03-01T12:00:12.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
         "declared": "every instance inside the window is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when a record at or before the window start proves the range was covered",
         "met": true,
-        "detail": "2 instances inside the window; coverage probe found 1 record at or before the window start; covered range starts 2026-01-30T12:00:09.0000000Z"
+        "detail": "2 instances inside the window; coverage probe found 1 record at or before the window start; covered range starts 2026-01-30T12:00:12.0000000Z"
       },
       "target_process": null
     }

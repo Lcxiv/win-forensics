@@ -21,6 +21,7 @@
 #   Cim        class name -> @{ Rows = <list> } or @{ ErrorKind; ErrorMessage }
 #              or @{ Rows; Stuck = $true } (the provider does not answer before the timeout)
 #              or @{ Rows; Infinite = $true } (the provider never stops producing)
+#              or @{ Rows; SecondsPerRow = <n> } (every row arrives, each n seconds after the last)
 #   Providers  registered provider names, or $null when the list is unreadable
 #   Evtx       'unavailable' (default) or 'placeholder' (writes a small file)
 #   Stdout     list that receives what a collector prints on stdout
@@ -295,6 +296,10 @@ function New-WfCimProducer {
     if ($entry['Infinite']) {
         $template = $rows[0]
         return @{ Producer = { while ($true) { $template } }.GetNewClosure(); Convert = $convert }
+    }
+    if ($entry['SecondsPerRow']) {
+        $step = [int]$entry['SecondsPerRow']
+        return @{ Producer = { foreach ($row in $rows) { $global:WfSynthetic.Ticks += $step; $row } }.GetNewClosure(); Convert = $convert }
     }
     return @{ Producer = { foreach ($row in $rows) { $row } }.GetNewClosure(); Convert = $convert }
 }

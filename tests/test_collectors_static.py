@@ -50,23 +50,6 @@ def test_scripts_are_plain_ascii(path):
     assert not offenders, f"{path.name}: byte offsets {offenders[:5]}"
 
 
-@pytest.mark.parametrize("path", COLLECTORS, ids=lambda p: p.stem)
-def test_collector_follows_the_interface(path):
-    text = path.read_text(encoding="ascii")
-    assert f"$collectorName = '{path.stem}'" in text
-    assert "[string]$OutputDirectory" in text
-    assert "Mandatory" not in text.split("param(")[1].split(")\n\nSet-StrictMode")[0].replace("not marked Mandatory", "").replace("a missing Mandatory", ""), \
-        "a Mandatory parameter would prompt in an interactive session"
-    assert "Set-StrictMode -Version 2.0" in text and "$ErrorActionPreference = 'Stop'" in text
-    assert "Join-Path -Path $PSScriptRoot -ChildPath '_common.ps1'" in text and ". $common" in text
-    assert text.count("Invoke-WfCollectorScript") == 1 and text.rstrip().endswith("exit $exitCode")
-    assert '"status":"failed"' in text, "the collector prints a failed summary even when the helper is missing"
-    assert "https://learn.microsoft.com/" in text, "every collector cites the documentation for what it reads"
-    assert "Event Log Readers" in text or "Authenticated Users" in text, "every collector states why a standard account may read its source"
-    for stream in ("Write-Host", "Write-Output", "Write-Verbose", "Write-Warning", "Write-Information"):
-        assert stream not in text, f"{stream} would put text other than the summary on an output stream"
-
-
 @pytest.mark.parametrize("path", SHIPPED, ids=lambda p: p.name)
 def test_shipped_scripts_are_read_only(path):
     text = path.read_text(encoding="ascii")

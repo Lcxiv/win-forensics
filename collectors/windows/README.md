@@ -34,8 +34,7 @@ Optional parameters, for a person running a collector by hand (the dispatcher pa
 | `-WindowDays` | 30 | How far back to read, 1 to 365. Not on `driver-inventory`, which is a snapshot. |
 | `-MaxEvents` | 5000 (20000 for `driver-inventory`) | Cap on records per source, 1 to 100000. |
 | `-MaxArtifactBytes` | 67108864 (64 MiB) | Cap on the size of one export, 1 MiB to 1 GiB. It is enforced against the bytes actually written, never estimated. |
-| `-TimeoutSeconds` | 300 | Deadline for reading one source, 1 to 3600. Every read runs under it: the event log query, the oldest record probe, the WMI query with its operation timeout, and `wevtutil`. A read that does not finish in time is `capture_failed`. |
-| `-SkipEvtx` | off | Event log collectors only: do not attempt the binary `wevtutil` export. |
+| `-TimeoutSeconds` | 300 | Deadline for reading one source, 1 to 3600. Every read runs under it: the event log query, the oldest record probe, the WMI query with its operation timeout and a deadline check on every row it returns, and `wevtutil`. A read that does not finish in time is `capture_failed`. |
 
 A value outside its range produces a `failed` summary and no bundle.
 

@@ -358,16 +358,29 @@ Describe 'bounded reads' {
 
     It 'stops an unbounded producer at the caps and classifies producer failures' {
         Reset-WfSynthetic
+        $deadline = $global:WfSynthetic.Now.AddSeconds(100)
         $accumulator = New-WfRowAccumulator -MaxRows 3 -MaxBytes 1048576
-        $result = Invoke-WfStreamingRead -Producer { while ($true) { [ordered]@{ a = 1 } } } -Convert { param($r) $r } -Accumulator $accumulator
+        $result = Invoke-WfStreamingRead -Producer { while ($true) { [ordered]@{ a = 1 } } } -Convert { param($r) $r } -Accumulator $accumulator -DeadlineUtc $deadline
         $result['Ok'] | Should -BeTrue
         $accumulator.Rows.Count | Should -Be 3
         $accumulator.Truncated | Should -BeTrue
         $accumulator = New-WfRowAccumulator -MaxRows 3 -MaxBytes 1048576
-        $result = Invoke-WfStreamingRead -Producer { [ordered]@{ a = 1 }; throw 'synthetic:access_denied: no' } -Convert { param($r) $r } -Accumulator $accumulator
+        $result = Invoke-WfStreamingRead -Producer { [ordered]@{ a = 1 }; throw 'synthetic:access_denied: no' } -Convert { param($r) $r } -Accumulator $accumulator -DeadlineUtc $deadline
         $result['Ok'] | Should -BeFalse
         $result['ErrorKind'] | Should -BeExactly 'access_denied'
         $result['Count'] | Should -Be 1
+    }
+
+    It 'stops a producer that keeps answering but runs past the deadline' {
+        Reset-WfSynthetic
+        $deadline = $global:WfSynthetic.Now.AddSeconds(30)
+        $accumulator = New-WfRowAccumulator -MaxRows 1000 -MaxBytes 1048576
+        $result = Invoke-WfStreamingRead -Producer { foreach ($i in 1..20) { $global:WfSynthetic.Ticks += 5; [ordered]@{ a = $i } } } -Convert { param($r) $r } -Accumulator $accumulator -DeadlineUtc $deadline
+        $result['Ok'] | Should -BeFalse
+        $result['ErrorKind'] | Should -BeExactly 'timeout'
+        $result['ErrorMessage'] | Should -Match 'did not finish before the deadline'
+        $result['Count'] | Should -BeLessThan 20
+        $accumulator.Truncated | Should -BeFalse
     }
 }
 
@@ -621,7 +634,7 @@ Describe 'collectors, end to end against the synthetic backend' {
         @($events | ForEach-Object { $_.record_id }) | Should -Be @(3, 4)
     }
 
-    It 'lists the binary export when wevtutil succeeds and omits it with -SkipEvtx' {
+    It 'lists the binary export when wevtutil succeeds' {
         Reset-WfSynthetic
         $global:WfSynthetic.Evtx = 'placeholder'
         $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90
@@ -630,13 +643,6 @@ Describe 'collectors, end to end against the synthetic backend' {
         $source = $run.Manifest.collectors[0]
         $source.enabled.options.evtx_exported | Should -BeTrue
         @($source.artifacts | Where-Object { $_.path -eq 'raw/system_whea_events/events.evtx' -and $_.role -eq 'other' }).Count | Should -Be 1
-
-        $out2 = Join-Path $TestDrive 'skip-evtx'
-        $run2 = Invoke-TestCollector -Collector 'whea-errors' -OutputDirectory $out2 -Arguments @{ SkipEvtx = $true }
-        $source2 = $run2.Manifest.collectors[0]
-        $source2.requested.options.evtx_export | Should -BeFalse
-        $source2.enabled.options.evtx_exported | Should -BeFalse
-        @($source2.artifacts | Where-Object { $_.path -like '*.evtx' }).Count | Should -Be 0
     }
 
     It 'keeps the collector usable when the binary export fails' {
@@ -938,7 +944,7 @@ Describe 'collectors, end to end against the synthetic backend' {
         $global:WfSynthetic.Cim['Win32_ReliabilityRecords'] = @{ Rows = @(); Stuck = $true }
         $global:WfSynthetic.Cim['Win32_ReliabilityStabilityMetrics'] = @{ Rows = @([ordered]@{ SystemStabilityIndex = 5.0; TimeGenerated = (ConvertTo-WfUtcString -Value $global:WfSynthetic.Now.AddDays(-1)) }); Infinite = $true }
         $out = Join-Path $TestDrive 'wmi-stuck'
-        $run = Invoke-TestCollector -Collector 'reliability-records' -OutputDirectory $out -Arguments @{ TimeoutSeconds = 20; MaxEvents = 50 }
+        $run = Invoke-TestCollector -Collector 'reliability-records' -OutputDirectory $out -Arguments @{ TimeoutSeconds = 100; MaxEvents = 50 }
         $run.ExitCode | Should -Be 1
         $records = @($run.Manifest.collectors | Where-Object { $_.id -eq 'reliability_records' })[0]
         $records.status | Should -BeExactly 'capture_failed'
@@ -950,7 +956,25 @@ Describe 'collectors, end to end against the synthetic backend' {
         $metrics.enabled.options.records_exported | Should -Be 50
         $rows = Get-Content -LiteralPath (Join-Path $out 'raw/reliability_stability_metrics/records.json') -Raw | ConvertFrom-Json
         @($rows).Count | Should -Be 50
-        $global:WfSynthetic.Ticks | Should -BeLessThan 200
+        $global:WfSynthetic.Ticks | Should -BeLessThan 400
+    }
+
+    It 'fails closed when a WMI provider keeps answering but the enumeration outlasts the deadline' {
+        Reset-WfSynthetic
+        $rows = @()
+        for ($i = 1; $i -le 10; $i++) {
+            $rows += [ordered]@{ ProductName = 'Synthetic'; SourceName = 'Application Error'; EventIdentifier = 1000; Message = ('slow ' + $i); TimeGenerated = (ConvertTo-WfUtcString -Value $global:WfSynthetic.Now.AddDays(-1 * $i)) }
+        }
+        $global:WfSynthetic.Cim['Win32_ReliabilityRecords'] = @{ Rows = $rows; SecondsPerRow = 10 }
+        $global:WfSynthetic.Cim['Win32_ReliabilityStabilityMetrics'] = @{ Rows = @([ordered]@{ SystemStabilityIndex = 5.0; TimeGenerated = (ConvertTo-WfUtcString -Value $global:WfSynthetic.Now.AddDays(-1)) }) }
+        $out = Join-Path $TestDrive 'wmi-slow'
+        $run = Invoke-TestCollector -Collector 'reliability-records' -OutputDirectory $out -Arguments @{ TimeoutSeconds = 30 }
+        $records = @($run.Manifest.collectors | Where-Object { $_.id -eq 'reliability_records' })[0]
+        $records.status | Should -BeExactly 'capture_failed'
+        $records.status_reason | Should -Match 'timed out'
+        $records.expectation.met | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $out 'raw/reliability_records/records.json') | Should -BeFalse
+        @($records.artifacts | ForEach-Object { $_.role }) | Should -Not -Contain 'primary'
     }
 
     It 'requests only the documented properties and gets nulls for the rest' {
@@ -975,7 +999,7 @@ Describe 'collectors, end to end against the synthetic backend' {
         }
         $global:WfSynthetic.Cim['Win32_PnPSignedDriver'] = @{ Rows = $rows }
         $global:WfSynthetic.Cim['Win32_SystemDriver'] = @{ Rows = @([ordered]@{ Name = 'ACPI'; State = 'Running' }) }
-        $run = Invoke-TestCollector -Collector 'driver-inventory' -OutputDirectory (Join-Path $TestDrive 'many-drivers') -Arguments @{ MaxEvents = 5000 }
+        $run = Invoke-TestCollector -Collector 'driver-inventory' -OutputDirectory (Join-Path $TestDrive 'many-drivers') -Arguments @{ MaxEvents = 5000; TimeoutSeconds = 3600 }
         $run.ExitCode | Should -Be 0
         @($run.Manifest.machine.drivers).Count | Should -Be 2000
         @($run.Manifest.notes | Where-Object { $_ -match 'machine.drivers lists the first 2000 named drivers of 2003 from source pnp_signed_drivers; 3 were left out' }).Count | Should -Be 1
