@@ -41,6 +41,16 @@ wf_sha256() {
     fi
 }
 
+# wf_kit_code <hex digest>: the kit code the person carries from the Mac screen to the PC. The
+# left-most 32 hex characters (128 bits) of the kit zip's SHA-256, lower case, in 8 groups of 4.
+# Start-FrontDoorSetup.ps1 (Get-WfKitCode) derives the same code at the PC; the two must agree.
+# Why 128 bits: a digest truncated to its left-most bits keeps a preimage and second preimage
+# resistance equal to its length (NIST SP 800-107 Rev. 1, section 5.1), and 128 bits is the
+# smallest strength NIST rates "Acceptable" beyond 2030 (NIST SP 800-57 Part 1 Rev. 5, Table 4).
+wf_kit_code() {
+    printf '%s' "$1" | tr 'A-F' 'a-f' | cut -c 1-32 | sed 's/.\{4\}/& /g; s/ $//'
+}
+
 wf_base64_decode() {
     # macOS and GNU base64 both accept --decode; BusyBox only knows -d.
     if printf 'QQ==' | base64 --decode >/dev/null 2>&1; then
