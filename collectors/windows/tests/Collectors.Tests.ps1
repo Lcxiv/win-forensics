@@ -175,15 +175,23 @@ Describe 'collector names' {
 }
 
 Describe 'event query' {
-    It 'builds a structured query with one Select per predicate and a timediff bound' {
-        $text = Build-WfEventQueryXml -Channel 'Application' -Predicates @("Provider[@Name='Application Error'] and (EventID=1000)", '(EventID=1002)') -WindowMilliseconds 2592000000
+    It 'builds a structured query with one Select per predicate and a fixed interval' {
+        $end = [datetime]::new(2026, 3, 1, 12, 0, 0, [System.DateTimeKind]::Utc)
+        $text = Build-WfEventQueryXml -Channel 'Application' -Predicates @("Provider[@Name='Application Error'] and (EventID=1000)", '(EventID=1002)') -EndUtc $end -WindowMilliseconds 2592000000
         $xml = [xml]$text
         $xml.QueryList.Query.Path | Should -BeExactly 'Application'
         $selects = @($xml.QueryList.Query.Select)
         $selects.Count | Should -Be 2
         $selects[0].Path | Should -BeExactly 'Application'
-        $selects[0].InnerText | Should -BeExactly "*[System[Provider[@Name='Application Error'] and (EventID=1000) and TimeCreated[timediff(@SystemTime) <= 2592000000]]]"
-        $selects[1].InnerText | Should -BeExactly '*[System[(EventID=1002) and TimeCreated[timediff(@SystemTime) <= 2592000000]]]'
+        $fileTime = $end.ToFileTimeUtc()
+        $fileTime | Should -Be ($end - [datetime]::new(1601, 1, 1, 0, 0, 0, [System.DateTimeKind]::Utc)).Ticks
+        $selects[0].InnerText | Should -BeExactly "*[System[Provider[@Name='Application Error'] and (EventID=1000) and TimeCreated[timediff(@SystemTime, $fileTime) >= 0 and timediff(@SystemTime, $fileTime) <= 2592000000]]]"
+        $selects[1].InnerText | Should -BeExactly "*[System[(EventID=1002) and TimeCreated[timediff(@SystemTime, $fileTime) >= 0 and timediff(@SystemTime, $fileTime) <= 2592000000]]]"
+    }
+
+    It 'writes CIM DATETIME text in UTC for the WQL filter' {
+        $value = [datetime]::new(2026, 1, 30, 12, 0, 5, [System.DateTimeKind]::Utc).AddTicks(1234560)
+        ConvertTo-WfDmtfDateTime -Value $value | Should -BeExactly '20260130120005.123456+000'
     }
 }
 
@@ -241,6 +249,8 @@ Describe 'measurement status of one source' {
         @{ Kind = 'access_denied'; Status = 'not_collected' }
         @{ Kind = 'preflight'; Status = 'not_collected' }
         @{ Kind = 'not_found'; Status = 'unsupported' }
+        @{ Kind = 'timeout'; Status = 'capture_failed' }
+        @{ Kind = 'incomplete'; Status = 'capture_failed' }
         @{ Kind = 'other'; Status = 'capture_failed' }
     ) {
         $r = Resolve-WfSourceStatus -ReadErrorKind $Kind -ReadErrorMessage 'the tool said no' -WindowStartUtc $script:WindowStart
@@ -252,6 +262,112 @@ Describe 'measurement status of one source' {
         $r = Resolve-WfSourceStatus -ReadErrorKind 'access_denied' -ReadErrorMessage 'denied' -RecordCount 0 -OldestRecordUtc $script:Older -WindowStartUtc $script:WindowStart
         $r['Status'] | Should -Not -Be 'observed_zero'
         $r['Status'] | Should -Not -Be 'observed'
+    }
+
+    It 'never reports a timed out read as observed, whatever it read' {
+        $r = Resolve-WfSourceStatus -ReadErrorKind 'timeout' -ReadErrorMessage 'deadline' -RecordCount 40 -OldestRecordUtc $script:Older -WindowStartUtc $script:WindowStart
+        $r['Status'] | Should -BeExactly 'capture_failed'
+        $r['Reason'] | Should -Match 'timed out'
+    }
+
+    It 'keeps a partial export only for a capped source' {
+        Test-WfKeepPartialExport -Status 'capture_failed' -Truncated $true -RecordCount 5 | Should -BeTrue
+        Test-WfKeepPartialExport -Status 'capture_failed' -Truncated $true -RecordCount 0 | Should -BeFalse
+        Test-WfKeepPartialExport -Status 'capture_failed' -Truncated $false -RecordCount 5 | Should -BeFalse
+        Test-WfKeepPartialExport -Status 'not_collected' -Truncated $false -RecordCount 0 | Should -BeFalse
+        Test-WfKeepPartialExport -Status 'observed_zero' -Truncated $false -RecordCount 0 | Should -BeTrue
+    }
+}
+
+Describe 'bounded reads' {
+    BeforeAll {
+        function New-ListReader {
+            param([object[]]$Items, [scriptblock]$Convert = { param($r) $r })
+            return @{ ReadNext = (New-WfSyntheticPull -Items $Items -Stuck $false); Convert = $Convert; Release = $null; Dispose = { } }
+        }
+        function New-Element {
+            param([int]$Id, [string]$Xml = '<Event/>')
+            return [ordered]@{ record_id = $Id; time_created_utc = '2026-02-20T00:00:00.0000000Z'; xml = $Xml }
+        }
+    }
+
+    It 'reads to the end of the stream within the deadline' {
+        Reset-WfSynthetic
+        $accumulator = New-WfRowAccumulator -MaxRows 10 -MaxBytes 1048576
+        $result = Invoke-WfBoundedEventRead -Reader (New-ListReader -Items @((New-Element -Id 1), (New-Element -Id 2))) -DeadlineUtc $global:WfSynthetic.Now.AddSeconds(60) -Accumulator $accumulator
+        $result['Ok'] | Should -BeTrue
+        $result['Count'] | Should -Be 2
+        $accumulator.Rows.Count | Should -Be 2
+    }
+
+    It 'gives up at the deadline when the reader never returns a record' {
+        Reset-WfSynthetic
+        $accumulator = New-WfRowAccumulator -MaxRows 10 -MaxBytes 1048576
+        $reader = @{ ReadNext = (New-WfSyntheticPull -Items @() -Stuck $true); Convert = { param($r) $r }; Release = $null; Dispose = { } }
+        $result = Invoke-WfBoundedEventRead -Reader $reader -DeadlineUtc $global:WfSynthetic.Now.AddSeconds(5) -Accumulator $accumulator
+        $result['Ok'] | Should -BeFalse
+        $result['TimedOut'] | Should -BeTrue
+        $result['ErrorKind'] | Should -BeExactly 'timeout'
+        $accumulator.Rows.Count | Should -Be 0
+    }
+
+    It 'gives up when the deadline has already passed' {
+        Reset-WfSynthetic
+        $accumulator = New-WfRowAccumulator -MaxRows 10 -MaxBytes 1048576
+        $result = Invoke-WfBoundedEventRead -Reader (New-ListReader -Items @((New-Element -Id 1))) -DeadlineUtc $global:WfSynthetic.Now.AddSeconds(-1) -Accumulator $accumulator
+        $result['ErrorKind'] | Should -BeExactly 'timeout'
+        $accumulator.Rows.Count | Should -Be 0
+    }
+
+    It 'stops at a record whose conversion fails or that has no XML' {
+        Reset-WfSynthetic
+        $accumulator = New-WfRowAccumulator -MaxRows 10 -MaxBytes 1048576
+        $result = Invoke-WfBoundedEventRead -Reader (New-ListReader -Items @((New-Element -Id 1)) -Convert { param($r) throw 'ToXml failed' }) -DeadlineUtc $global:WfSynthetic.Now.AddSeconds(60) -Accumulator $accumulator
+        $result['ErrorKind'] | Should -BeExactly 'incomplete'
+        $result['ErrorMessage'] | Should -Match 'ToXml failed'
+        $accumulator = New-WfRowAccumulator -MaxRows 10 -MaxBytes 1048576
+        $result = Invoke-WfBoundedEventRead -Reader (New-ListReader -Items @((New-Element -Id 1), (New-Element -Id 2 -Xml ''))) -DeadlineUtc $global:WfSynthetic.Now.AddSeconds(60) -Accumulator $accumulator
+        $result['ErrorKind'] | Should -BeExactly 'incomplete'
+        $result['ErrorMessage'] | Should -Match 'record 2 has no event XML'
+        $accumulator.Rows.Count | Should -Be 1
+    }
+
+    It 'enforces the row cap and the exact byte budget of the file it will write' {
+        Reset-WfSynthetic
+        $accumulator = New-WfRowAccumulator -MaxRows 2 -MaxBytes 1048576
+        $result = Invoke-WfBoundedEventRead -Reader (New-ListReader -Items @((New-Element -Id 1), (New-Element -Id 2), (New-Element -Id 3))) -DeadlineUtc $global:WfSynthetic.Now.AddSeconds(60) -Accumulator $accumulator
+        $result['Ok'] | Should -BeTrue
+        $accumulator.Truncated | Should -BeTrue
+        $accumulator.Rows.Count | Should -Be 2
+        $accumulator.Reason | Should -Match 'cap of 2 records'
+
+        $one = ConvertTo-WfJson -Value (New-Element -Id 1)
+        $budget = Get-WfJsonArrayBytes -LineCount 2 -LineBytes (2 * $one.Length)
+        $accumulator = New-WfRowAccumulator -MaxRows 10 -MaxBytes $budget
+        $result = Invoke-WfBoundedEventRead -Reader (New-ListReader -Items @((New-Element -Id 1), (New-Element -Id 2), (New-Element -Id 3))) -DeadlineUtc $global:WfSynthetic.Now.AddSeconds(60) -Accumulator $accumulator
+        $accumulator.Truncated | Should -BeTrue
+        $accumulator.Rows.Count | Should -Be 2
+        $accumulator.Reason | Should -Match 'exceed the cap of'
+        $path = Join-Path $TestDrive 'budget.json'
+        Write-WfJsonLinesFile -Path $path -Lines $accumulator.Lines.ToArray()
+        (Get-Item -LiteralPath $path).Length | Should -Be $budget
+        $empty = Join-Path $TestDrive 'empty.json'
+        Write-WfJsonLinesFile -Path $empty -Lines @()
+        (Get-Item -LiteralPath $empty).Length | Should -Be (Get-WfJsonArrayBytes -LineCount 0 -LineBytes 0)
+    }
+
+    It 'stops an unbounded producer at the caps and classifies producer failures' {
+        Reset-WfSynthetic
+        $accumulator = New-WfRowAccumulator -MaxRows 3 -MaxBytes 1048576
+        $result = Invoke-WfStreamingRead -Producer { while ($true) { [ordered]@{ a = 1 } } } -Convert { param($r) $r } -Accumulator $accumulator
+        $result['Ok'] | Should -BeTrue
+        $accumulator.Rows.Count | Should -Be 3
+        $accumulator.Truncated | Should -BeTrue
+        $accumulator = New-WfRowAccumulator -MaxRows 3 -MaxBytes 1048576
+        $result = Invoke-WfStreamingRead -Producer { [ordered]@{ a = 1 }; throw 'synthetic:access_denied: no' } -Convert { param($r) $r } -Accumulator $accumulator
+        $result['Ok'] | Should -BeFalse
+        $result['ErrorKind'] | Should -BeExactly 'access_denied'
+        $result['Count'] | Should -Be 1
     }
 }
 
@@ -296,10 +412,10 @@ Describe 'bundle files' {
 
     It 'writes a JSON array that stays an array for zero and for one element' {
         $empty = Join-Path $TestDrive 'empty.json'
-        Write-WfJsonArrayFile -Path $empty -Items @()
+        Write-WfJsonLinesFile -Path $empty -Lines @()
         [System.IO.File]::ReadAllText($empty) | Should -BeExactly "[]`n"
         $one = Join-Path $TestDrive 'one.json'
-        Write-WfJsonArrayFile -Path $one -Items @([ordered]@{ a = 1; b = @('x') })
+        Write-WfJsonLinesFile -Path $one -Lines @((ConvertTo-WfJson -Value ([ordered]@{ a = 1; b = @('x') })))
         [System.IO.File]::ReadAllText($one) | Should -BeExactly "[`n{`"a`":1,`"b`":[`"x`"]}`n]`n"
     }
 
@@ -366,6 +482,14 @@ Describe 'event record conversion' {
         $item = ConvertFrom-WfEventRecord -Record (New-FakeRecord -SystemTime '2026-02-26T06:00:00Z' -Describe { throw 'no metadata' })
         $item['message'] | Should -BeNullOrEmpty
         $item['time_created_utc'] | Should -BeExactly '2026-02-26T06:00:00Z'
+    }
+
+    It 'throws when the record has no XML, so the source can never be observed from it' {
+        $record = New-FakeRecord -SystemTime '2026-02-26T06:00:00Z'
+        $record | Add-Member -MemberType ScriptMethod -Name ToXml -Value { throw 'rendering failed' } -Force
+        { ConvertFrom-WfEventRecord -Record $record } | Should -Throw '*rendering failed*'
+        $record | Add-Member -MemberType ScriptMethod -Name ToXml -Value { '' } -Force
+        { ConvertFrom-WfEventRecord -Record $record } | Should -Throw '*no text*'
     }
 
     It 'falls back to TimeCreated when the XML has no usable SystemTime' {
@@ -490,8 +614,9 @@ Describe 'collectors, end to end against the synthetic backend' {
         $run.ExitCode | Should -Be 1
         $source = $run.Manifest.collectors[0]
         $source.status | Should -BeExactly 'capture_failed'
-        $source.status_reason | Should -Match 'cap is 2 records'
+        $source.status_reason | Should -Match 'cap of 2 records'
         $source.expectation.met | Should -BeFalse
+        $source.enabled.options.records_exported | Should -Be 2
         $events = Get-Content -LiteralPath (Join-Path $out 'raw/system_whea_events/events.json') -Raw | ConvertFrom-Json
         @($events | ForEach-Object { $_.record_id }) | Should -Be @(3, 4)
     }
@@ -608,7 +733,11 @@ Describe 'collectors, end to end against the synthetic backend' {
         $rows = Get-Content -LiteralPath (Join-Path $out 'raw/reliability_records/records.json') -Raw | ConvertFrom-Json
         @($rows | ForEach-Object { $_.RecordNumber }) | Should -Be @(4800, 5120)
         $rows[0].InsertionStrings | Should -Be @('Example Application', '1.0.0.0')
-        @($run.Manifest.collectors | Where-Object { $_.id -eq 'reliability_records' })[0].expectation.detail | Should -Match '2 of 3 instances'
+        $entry = @($run.Manifest.collectors | Where-Object { $_.id -eq 'reliability_records' })[0]
+        $entry.expectation.detail | Should -Match '2 instances inside the window; coverage probe found 1 record'
+        $entry.enabled.options.filter | Should -Match "^TimeGenerated >= '\d{14}\.\d{6}\+000' AND TimeGenerated <= '\d{14}\.\d{6}\+000'$"
+        $entry.command | Should -Contain '-Filter'
+        $entry.raw_time_range.start | Should -Not -BeNullOrEmpty
     }
 
     It 'treats an empty driver snapshot as a failed read, not as an observation' {
@@ -669,14 +798,213 @@ Describe 'collectors, end to end against the synthetic backend' {
         $source.raw_time_range.start | Should -Be $source.raw_time_range.end
     }
 
-    It 'turns an exception inside one source into capture_failed and still writes the bundle' {
+    It 'stops a source at a record without XML and leaves no export behind' {
         Reset-WfSynthetic
         $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90
-        Add-WfSyntheticQuery -Match 'EventID=41 or EventID=1001' -Events @([ordered]@{ record_id = 1 })
-        $run = Invoke-TestCollector -Collector 'tdr-events' -OutputDirectory (Join-Path $TestDrive 'source-raises')
+        Add-WfSyntheticQuery -Match 'EventID=41 or EventID=1001' -Events @((New-WfSyntheticEvent -RecordId 7 -Provider 'EventLog' -EventId 1001 -DaysAgo 1), [ordered]@{ record_id = 1; time_created_utc = '2026-02-20T00:00:00.0000000Z'; xml = $null })
+        $out = Join-Path $TestDrive 'no-xml'
+        $run = Invoke-TestCollector -Collector 'tdr-events' -OutputDirectory $out
         $bugchecks = @($run.Manifest.collectors | Where-Object { $_.id -eq 'system_bugcheck_events' })[0]
         $bugchecks.status | Should -BeExactly 'capture_failed'
-        $bugchecks.status_reason | Should -Match 'raised while reading'
+        $bugchecks.status_reason | Should -Match 'no event XML'
+        Test-Path -LiteralPath (Join-Path $out 'raw/system_bugcheck_events/events.json') | Should -BeFalse
         $run.Stdout.Count | Should -Be 1
+    }
+
+    It 'stops a source whose records cannot be converted' {
+        Reset-WfSynthetic
+        $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90
+        Add-WfSyntheticQuery -Match 'WHEA-Logger' -Events @((New-WfSyntheticEvent -RecordId 7 -Provider 'Microsoft-Windows-WHEA-Logger' -EventId 17 -DaysAgo 1)) -ConvertThrows 'ToXml failed'
+        $out = Join-Path $TestDrive 'convert-throws'
+        $run = Invoke-TestCollector -Collector 'whea-errors' -OutputDirectory $out
+        $run.ExitCode | Should -Be 1
+        $run.Manifest.collectors[0].status | Should -BeExactly 'capture_failed'
+        $run.Manifest.collectors[0].status_reason | Should -Match 'ToXml failed'
+        Test-Path -LiteralPath (Join-Path $out 'raw/system_whea_events/events.json') | Should -BeFalse
+    }
+
+    It 'fails the source when the main read never finishes, and keeps no export' {
+        Reset-WfSynthetic
+        $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90
+        Add-WfSyntheticQuery -Match 'WHEA-Logger' -Stuck $true
+        $out = Join-Path $TestDrive 'stuck-main'
+        $run = Invoke-TestCollector -Collector 'whea-errors' -OutputDirectory $out -Arguments @{ TimeoutSeconds = 30 }
+        $run.ExitCode | Should -Be 1
+        $source = $run.Manifest.collectors[0]
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match 'timed out'
+        $source.preflight.ok | Should -BeTrue
+        $source.enabled.options.timed_out | Should -BeTrue
+        $source.requested.options.timeout_seconds | Should -Be 30
+        Test-Path -LiteralPath (Join-Path $out 'raw/system_whea_events/events.json') | Should -BeFalse
+        # The synthetic clock advanced by the deadline, not further: the collector did not wait longer than it was told.
+        $global:WfSynthetic.Ticks | Should -BeLessThan 60
+    }
+
+    It 'does not claim a quiet window when the oldest record probe never finishes' {
+        Reset-WfSynthetic
+        $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90 -Stuck 'preflight'
+        $out = Join-Path $TestDrive 'stuck-probe'
+        $run = Invoke-TestCollector -Collector 'whea-errors' -OutputDirectory $out -Arguments @{ TimeoutSeconds = 30 }
+        $run.ExitCode | Should -Be 1
+        $source = $run.Manifest.collectors[0]
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match 'no proof'
+        $state = Get-Content -LiteralPath (Join-Path $out 'raw/system_whea_events/channel_state.json') -Raw | ConvertFrom-Json
+        $state.state.oldest_probe | Should -Match 'timed out|deadline'
+        $state.state.oldest_record_time_utc | Should -BeNullOrEmpty
+    }
+
+    It 'still reports records as observed when only the probe fails, covering from the earliest record' {
+        Reset-WfSynthetic
+        $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90 -Stuck 'preflight'
+        Add-WfSyntheticQuery -Match 'WHEA-Logger' -Events @((New-WfSyntheticEvent -RecordId 7 -Provider 'Microsoft-Windows-WHEA-Logger' -EventId 17 -DaysAgo 3))
+        $run = Invoke-TestCollector -Collector 'whea-errors' -OutputDirectory (Join-Path $TestDrive 'probe-fails-with-events') -Arguments @{ TimeoutSeconds = 30 }
+        $run.ExitCode | Should -Be 0
+        $source = $run.Manifest.collectors[0]
+        $source.status | Should -BeExactly 'observed'
+        Get-TestUtcText -Value $source.raw_time_range.start | Should -BeExactly (ConvertTo-WfUtcString -Value $global:WfSynthetic.Now.AddDays(-3))
+    }
+
+    It 'fixes the query interval before the read and reports it as the range end' {
+        Reset-WfSynthetic
+        $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90
+        $out = Join-Path $TestDrive 'interval'
+        $run = Invoke-TestCollector -Collector 'whea-errors' -OutputDirectory $out
+        $source = $run.Manifest.collectors[0]
+        $endText = Get-TestUtcText -Value $source.requested.options.window_end_utc
+        $startText = Get-TestUtcText -Value $source.requested.options.window_start_utc
+        ((ConvertFrom-WfUtcString -Text $endText) - (ConvertFrom-WfUtcString -Text $startText)).TotalDays | Should -Be 30
+        Get-TestUtcText -Value $source.raw_time_range.end | Should -BeExactly $endText
+        Get-TestUtcText -Value $source.raw_time_range.start | Should -BeExactly $startText
+        $query = [System.IO.File]::ReadAllText((Join-Path $out 'raw/system_whea_events/query.xml'))
+        $query | Should -Match ('timediff\(@SystemTime, ' + (ConvertFrom-WfUtcString -Text $endText).ToFileTimeUtc() + '\) &gt;= 0')
+        $query | Should -Not -Match 'timediff\(@SystemTime\)'
+    }
+
+    It 'never writes events.json larger than the cap and records the exact size' {
+        Reset-WfSynthetic
+        $global:WfSynthetic.Channels['Application'] = New-WfSyntheticChannelState -OldestDaysAgo 90
+        $big = ('caf' + [char]0xE9 + ' ') * 20000
+        $events = @()
+        for ($i = 1; $i -le 6; $i++) {
+            $events += New-WfSyntheticEvent -RecordId (100 + $i) -Channel 'Application' -Provider 'Application Error' -EventId 1000 -DaysAgo (7 - $i) -Properties @('example.exe', $big) -Message ('crash ' + $i)
+        }
+        Add-WfSyntheticQuery -Match 'Application Error' -Events $events
+        $out = Join-Path $TestDrive 'byte-cap'
+        $cap = 1048576
+        $run = Invoke-TestCollector -Collector 'application-errors' -OutputDirectory $out -Arguments @{ MaxArtifactBytes = $cap }
+        $run.ExitCode | Should -Be 1
+        $source = $run.Manifest.collectors[0]
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match 'exceed the cap of 1048576 bytes'
+        $file = Join-Path $out 'raw/application_error_events/events.json'
+        Test-Path -LiteralPath $file | Should -BeTrue
+        $size = (Get-Item -LiteralPath $file).Length
+        $size | Should -BeLessOrEqual $cap
+        $written = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
+        # One more record (the next older one) would not have fit, and what was written is the newest records, oldest first.
+        $written.Count | Should -BeGreaterThan 1
+        $written.Count | Should -BeLessThan 6
+        $oneMore = (ConvertTo-WfJson -Value $events[6 - $written.Count - 1]).Length
+        ($size + 2 + $oneMore) | Should -BeGreaterThan $cap
+        @($written | ForEach-Object { $_.record_id }) | Should -Be @((100 + 6 - $written.Count + 1)..106)
+        [System.IO.File]::ReadAllText($file) | Should -Match '^[\x20-\x7e\n]+$'
+        $artifact = @($source.artifacts | Where-Object { $_.path -eq 'raw/application_error_events/events.json' })[0]
+        $artifact.bytes | Should -Be $size
+        @($source.artifacts).Count | Should -Be 3
+    }
+
+    It 'leaves no primary export for a failed source that was not capped' {
+        Reset-WfSynthetic
+        $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90
+        $out = Join-Path $TestDrive 'display-empty'
+        $run = Invoke-TestCollector -Collector 'tdr-events' -OutputDirectory $out
+        $display = @($run.Manifest.collectors | Where-Object { $_.id -eq 'system_display_events' })[0]
+        $display.status | Should -BeExactly 'capture_failed'
+        Test-Path -LiteralPath (Join-Path $out 'raw/system_display_events/events.json') | Should -BeFalse
+        @($display.artifacts | ForEach-Object { $_.role }) | Should -Not -Contain 'primary'
+        $display.enabled.options.records_exported | Should -Be 0
+        $global:WfSynthetic.Cim['Win32_PnPSignedDriver'] = @{ Rows = @() }
+        $global:WfSynthetic.Cim['Win32_SystemDriver'] = @{ Rows = @([ordered]@{ Name = 'ACPI'; State = 'Running' }) }
+        $out2 = Join-Path $TestDrive 'pnp-empty'
+        $run2 = Invoke-TestCollector -Collector 'driver-inventory' -OutputDirectory $out2
+        Test-Path -LiteralPath (Join-Path $out2 'raw/pnp_signed_drivers/records.json') | Should -BeFalse
+        @(@($run2.Manifest.collectors | Where-Object { $_.id -eq 'pnp_signed_drivers' })[0].artifacts).Count | Should -Be 1
+    }
+
+    It 'fails closed when a WMI provider does not answer or never stops' {
+        Reset-WfSynthetic
+        $global:WfSynthetic.Cim['Win32_ReliabilityRecords'] = @{ Rows = @(); Stuck = $true }
+        $global:WfSynthetic.Cim['Win32_ReliabilityStabilityMetrics'] = @{ Rows = @([ordered]@{ SystemStabilityIndex = 5.0; TimeGenerated = (ConvertTo-WfUtcString -Value $global:WfSynthetic.Now.AddDays(-1)) }); Infinite = $true }
+        $out = Join-Path $TestDrive 'wmi-stuck'
+        $run = Invoke-TestCollector -Collector 'reliability-records' -OutputDirectory $out -Arguments @{ TimeoutSeconds = 20; MaxEvents = 50 }
+        $run.ExitCode | Should -Be 1
+        $records = @($run.Manifest.collectors | Where-Object { $_.id -eq 'reliability_records' })[0]
+        $records.status | Should -BeExactly 'capture_failed'
+        $records.status_reason | Should -Match 'timed out'
+        Test-Path -LiteralPath (Join-Path $out 'raw/reliability_records/records.json') | Should -BeFalse
+        $metrics = @($run.Manifest.collectors | Where-Object { $_.id -eq 'reliability_stability_metrics' })[0]
+        $metrics.status | Should -BeExactly 'capture_failed'
+        $metrics.status_reason | Should -Match 'cap of 50 records'
+        $metrics.enabled.options.records_exported | Should -Be 50
+        $rows = Get-Content -LiteralPath (Join-Path $out 'raw/reliability_stability_metrics/records.json') -Raw | ConvertFrom-Json
+        @($rows).Count | Should -Be 50
+        $global:WfSynthetic.Ticks | Should -BeLessThan 200
+    }
+
+    It 'requests only the documented properties and gets nulls for the rest' {
+        Reset-WfSynthetic
+        $case = @(Get-WfSyntheticCases | Where-Object { $_['Case'] -eq 'driver-inventory' })[0]
+        & $case['Setup']
+        $out = Join-Path $TestDrive 'properties'
+        $run = Invoke-TestCollector -Collector 'driver-inventory' -OutputDirectory $out
+        $rows = Get-Content -LiteralPath (Join-Path $out 'raw/system_drivers/records.json') -Raw | ConvertFrom-Json
+        @($rows[0].PSObject.Properties.Name) | Should -Be @('Name', 'DisplayName', 'Description', 'PathName', 'ServiceType', 'StartMode', 'State', 'Started', 'Status', 'ErrorControl', 'ExitCode', 'AcceptStop', 'TagId')
+        $entry = @($run.Manifest.collectors | Where-Object { $_.id -eq 'system_drivers' })[0]
+        $entry.command | Should -Contain '-OperationTimeoutSec'
+        $entry.command | Should -Contain '-Property'
+        @($entry.requested.options.properties).Count | Should -Be 13
+    }
+
+    It 'says in the manifest when machine.drivers was cut at its limit' {
+        Reset-WfSynthetic
+        $rows = @()
+        for ($i = 1; $i -le 2003; $i++) {
+            $rows += [ordered]@{ DeviceID = ('SYN\DEV' + $i); DeviceName = ('Synthetic device ' + $i); DeviceClass = 'SYSTEM'; DriverProviderName = 'Synthetic'; DriverVersion = '1.0.0.' + $i }
+        }
+        $global:WfSynthetic.Cim['Win32_PnPSignedDriver'] = @{ Rows = $rows }
+        $global:WfSynthetic.Cim['Win32_SystemDriver'] = @{ Rows = @([ordered]@{ Name = 'ACPI'; State = 'Running' }) }
+        $run = Invoke-TestCollector -Collector 'driver-inventory' -OutputDirectory (Join-Path $TestDrive 'many-drivers') -Arguments @{ MaxEvents = 5000 }
+        $run.ExitCode | Should -Be 0
+        @($run.Manifest.machine.drivers).Count | Should -Be 2000
+        @($run.Manifest.notes | Where-Object { $_ -match 'machine.drivers lists the first 2000 named drivers of 2003 from source pnp_signed_drivers; 3 were left out' }).Count | Should -Be 1
+        @($run.Manifest.collectors | Where-Object { $_.id -eq 'pnp_signed_drivers' })[0].enabled.options.records_exported | Should -Be 2003
+    }
+
+    It 'writes the failed summary and log under logs when the run fails after the layout exists' {
+        Reset-WfSynthetic
+        $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90
+        $realAccount = ${function:Get-WfAccountInfo}
+        $out = Join-Path $TestDrive 'late-failure'
+        try {
+            function Get-WfAccountInfo { throw 'identity broke' }
+            $run = Invoke-TestCollector -Collector 'whea-errors' -OutputDirectory $out
+        } finally {
+            Set-Item -Path function:Get-WfAccountInfo -Value $realAccount
+        }
+        $run.ExitCode | Should -Be 1
+        $run.Manifest | Should -BeNullOrEmpty
+        (Get-Content -LiteralPath (Join-Path $out 'logs/summary.json') -Raw).Trim() | Should -BeExactly $run.Stdout[0]
+        $log = [System.IO.File]::ReadAllText((Join-Path $out 'logs/collector.log'))
+        $log | Should -Match 'identity broke'
+        $log | Should -Match 'no manifest was written'
+        # A refused directory gets nothing at all.
+        $refused = Join-Path $TestDrive 'refused'
+        $null = New-Item -ItemType Directory -Path $refused
+        Set-Content -LiteralPath (Join-Path $refused 'manifest.json') -Value '{}'
+        $run2 = Invoke-TestCollector -Collector 'whea-errors' -OutputDirectory $refused
+        $run2.ExitCode | Should -Be 1
+        Test-Path -LiteralPath (Join-Path $refused 'logs') | Should -BeFalse
     }
 }

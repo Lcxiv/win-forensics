@@ -15,8 +15,13 @@
 #                          name, path, state, start mode
 # https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/aa394354(v=vs.85)
 # https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-systemdriver
+# Only the documented properties named below are requested, under an
+# operation timeout, so a provider that does not answer cannot hold the
+# collector:
+# https://learn.microsoft.com/en-us/powershell/module/cimcmdlets/get-ciminstance?view=powershell-5.1
 # The rows are shaped for the config_snapshot table (category driver), and
-# the manifest's machine.drivers list is filled from Win32_PnPSignedDriver.
+# the manifest's machine.drivers list is filled from Win32_PnPSignedDriver
+# (the first 2000 named drivers; the manifest says when that cut anything).
 #
 # Access: Authenticated Users have Enable Account (read) on WMI namespaces by
 # default, and a local read needs nothing more:
@@ -32,7 +37,10 @@ param(
     # Cap on instances per source (1 to 100000). Reaching it marks the source capture_failed.
     [int]$MaxEvents = 20000,
     # Cap on the size of one export, in bytes (1 MiB to 1 GiB).
-    [long]$MaxArtifactBytes = 67108864
+    [long]$MaxArtifactBytes = 67108864,
+    # Deadline for reading one source, in seconds (1 to 3600). A read that
+    # does not finish in time is recorded as capture_failed.
+    [int]$TimeoutSeconds = 300
 )
 
 Set-StrictMode -Version 2.0
@@ -67,6 +75,7 @@ $definition = @{
             Kind                = 'config_snapshot'
             Required            = $true
             ClassName           = 'Win32_PnPSignedDriver'
+            Properties          = @('DeviceID', 'DeviceName', 'DeviceClass', 'ClassGuid', 'Description', 'FriendlyName', 'Manufacturer', 'DriverProviderName', 'DriverVersion', 'DriverDate', 'DriverName', 'InfName', 'IsSigned', 'Signer', 'HardWareID', 'CompatID', 'Location', 'Started', 'StartMode', 'Status')
             FillsMachineDrivers = $true
         },
         @{
@@ -75,9 +84,10 @@ $definition = @{
             Kind      = 'config_snapshot'
             Required  = $true
             ClassName = 'Win32_SystemDriver'
+            Properties = @('Name', 'DisplayName', 'Description', 'PathName', 'ServiceType', 'StartMode', 'State', 'Started', 'Status', 'ErrorControl', 'ExitCode', 'AcceptStop', 'TagId')
         }
     )
 }
 
-$exitCode = @(Invoke-WfCollectorScript -Definition $definition -OutputDirectory $OutputDirectory -MaxEvents $MaxEvents -MaxArtifactBytes $MaxArtifactBytes -CollectorPath $PSCommandPath)[-1]
+$exitCode = @(Invoke-WfCollectorScript -Definition $definition -OutputDirectory $OutputDirectory -MaxEvents $MaxEvents -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -CollectorPath $PSCommandPath)[-1]
 exit $exitCode

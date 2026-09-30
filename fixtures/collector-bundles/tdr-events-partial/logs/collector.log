@@ -1,6 +1,7 @@
-2026-03-01T12:00:01.0000000Z collector tdr-events version 1.0.0, helper version 1.0.0, window 30 days
+2026-03-01T12:00:01.0000000Z collector tdr-events version 1.0.0, helper version 1.0.0, window 30 days, 300 s per source
 source system_display_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record
-source system_display_events: status capture_failed, 3 artifacts
+source system_display_events: the primary export was removed because the source is capture_failed and the export is not a capped set
+source system_display_events: status capture_failed, 2 artifacts
 source system_bugcheck_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record
 source system_bugcheck_events: status observed_zero, 3 artifacts
-2026-03-01T12:00:12.0000000Z manifest written: bundle 20260301T120001Z_tdr_events_ae3a76a9, status partial, 6 artifacts
+2026-03-01T12:00:20.0000000Z manifest written: bundle 20260301T120001Z_tdr_events_ae3a76a9, status partial, 5 artifacts

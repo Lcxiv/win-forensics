@@ -1,8 +1,35 @@
 {
   "class": "Win32_PnPSignedDriver",
   "namespace": "root/cimv2",
+  "properties": [
+    "DeviceID",
+    "DeviceName",
+    "DeviceClass",
+    "ClassGuid",
+    "Description",
+    "FriendlyName",
+    "Manufacturer",
+    "DriverProviderName",
+    "DriverVersion",
+    "DriverDate",
+    "DriverName",
+    "InfName",
+    "IsSigned",
+    "Signer",
+    "HardWareID",
+    "CompatID",
+    "Location",
+    "Started",
+    "StartMode",
+    "Status"
+  ],
+  "filter": null,
   "time_property": null,
   "window_days": null,
   "window_start_utc": null,
-  "max_records": 20000
+  "window_end_utc": null,
+  "coverage_probe_filter": null,
+  "max_records": 20000,
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 300
 }

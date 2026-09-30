@@ -1,6 +1,6 @@
 {
   "channel": "System",
-  "read_at_utc": "2026-03-01T12:00:03.0000000Z",
+  "read_at_utc": "2026-03-01T12:00:04.0000000Z",
   "state": {
     "found": true,
     "readable": false,
@@ -9,6 +9,7 @@
     "record_count": null,
     "oldest_record_number": null,
     "oldest_record_time_utc": null,
+    "oldest_probe": null,
     "file_size_bytes": null,
     "is_log_full": null,
     "last_write_time_utc": null,

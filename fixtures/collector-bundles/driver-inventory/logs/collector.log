@@ -1,4 +1,4 @@
-2026-03-01T12:00:01.0000000Z collector driver-inventory version 1.0.0, helper version 1.0.0, no time window (snapshot)
+2026-03-01T12:00:01.0000000Z collector driver-inventory version 1.0.0, helper version 1.0.0, no time window (snapshot), 300 s per source
 source pnp_signed_drivers: status observed, 2 artifacts
 source system_drivers: status observed, 2 artifacts
-2026-03-01T12:00:08.0000000Z manifest written: bundle 20260301T120001Z_driver_inventory_ae3a76a9, status ok, 4 artifacts
+2026-03-01T12:00:12.0000000Z manifest written: bundle 20260301T120001Z_driver_inventory_ae3a76a9, status ok, 4 artifacts

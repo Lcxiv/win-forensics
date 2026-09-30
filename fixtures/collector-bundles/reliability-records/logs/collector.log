@@ -1,4 +1,4 @@
-2026-03-01T12:00:01.0000000Z collector reliability-records version 1.0.0, helper version 1.0.0, window 30 days
+2026-03-01T12:00:01.0000000Z collector reliability-records version 1.0.0, helper version 1.0.0, window 30 days, 300 s per source
 source reliability_records: status observed, 2 artifacts
 source reliability_stability_metrics: status observed, 2 artifacts
-2026-03-01T12:00:08.0000000Z manifest written: bundle 20260301T120001Z_reliability_records_ae3a76a9, status ok, 4 artifacts
+2026-03-01T12:00:14.0000000Z manifest written: bundle 20260301T120001Z_reliability_records_ae3a76a9, status ok, 4 artifacts

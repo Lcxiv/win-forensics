@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.0.0",
   "bundle_id": "20260301T120001Z_tdr_events_ae3a76a9",
-  "created_utc": "2026-03-01T12:00:12.0000000Z",
+  "created_utc": "2026-03-01T12:00:20.0000000Z",
   "scenario": {
     "id": "tdr_events",
     "version": "1.0.0",
@@ -11,7 +11,7 @@
   },
   "capture": {
     "start_utc": "2026-03-01T12:00:01.0000000Z",
-    "stop_utc": "2026-03-01T12:00:12.0000000Z",
+    "stop_utc": "2026-03-01T12:00:20.0000000Z",
     "orchestrator": "wf-collector:tdr-events",
     "orchestrator_version": "1.0.0",
     "elevated": false,
@@ -68,7 +68,7 @@
       "status_reason": "zero matching records, but Microsoft does not document which provider logs this signal, so an empty result is not accepted as a quiet window until the verification step in collectors/windows/README.md has been done on this machine",
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:04.0000000Z",
+        "at_utc": "2026-03-01T12:00:08.0000000Z",
         "checks": [
           {
             "name": "channel_found",
@@ -88,11 +88,11 @@
         "raw/system_display_events/query.xml"
       ],
       "started_utc": "2026-03-01T12:00:02.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:06.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:10.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "74d048640736945ba5399dea2d0d1b0071b0b1afacabb07a89cfa9e710e1acf4"
+        "value": "672af4f6a9d377992bf5c6bc6edc39756bbbeb633787d032ad8b26519cc52608"
       },
       "filter_hash": null,
       "requested": {
@@ -106,11 +106,13 @@
           "channel": "System",
           "event_ids": [],
           "window_days": 30,
-          "window_start_utc": "2026-01-30T12:00:02.0000000Z",
+          "window_start_utc": "2026-01-30T12:00:03.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:03.0000000Z",
           "max_events": 5000,
           "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
           "evtx_export": true,
-          "query_sha256": "74d048640736945ba5399dea2d0d1b0071b0b1afacabb07a89cfa9e710e1acf4"
+          "query_sha256": "672af4f6a9d377992bf5c6bc6edc39756bbbeb633787d032ad8b26519cc52608"
         }
       },
       "enabled": {
@@ -123,10 +125,12 @@
         "options": {
           "channel": "System",
           "query_accepted": true,
-          "window_start_utc": "2026-01-30T12:00:02.0000000Z",
-          "window_end_utc": "2026-03-01T12:00:05.0000000Z",
+          "window_start_utc": "2026-01-30T12:00:03.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:03.0000000Z",
+          "records_read": 0,
           "records_exported": 0,
           "truncated": false,
+          "timed_out": false,
           "evtx_exported": false,
           "evtx_exit_code": null,
           "evtx_message": "synthetic backend: wevtutil does not exist off Windows",
@@ -139,33 +143,27 @@
       "artifacts": [
         {
           "path": "raw/system_display_events/channel_state.json",
-          "bytes": 771,
-          "sha256": "f8879c3a12d81c91ca05c1e77f4651542a5befcd96d3c79e0a72294e24a824f3",
+          "bytes": 799,
+          "sha256": "763872ade1931a8f5ffa9f879e4af8274a0c24bc6e09f4a1f9d28c2ef69b5367",
           "role": "report"
         },
         {
-          "path": "raw/system_display_events/events.json",
-          "bytes": 3,
-          "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
-          "role": "primary"
-        },
-        {
           "path": "raw/system_display_events/query.xml",
-          "bytes": 205,
-          "sha256": "74d048640736945ba5399dea2d0d1b0071b0b1afacabb07a89cfa9e710e1acf4",
+          "bytes": 279,
+          "sha256": "672af4f6a9d377992bf5c6bc6edc39756bbbeb633787d032ad8b26519cc52608",
           "role": "config"
         }
       ],
       "raw_time_range": {
-        "start": "2026-01-30T12:00:02.0000000Z",
-        "end": "2026-03-01T12:00:05.0000000Z",
+        "start": "2026-01-30T12:00:03.0000000Z",
+        "end": "2026-03-01T12:00:03.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
-        "declared": "every record matching query.xml inside the covered range is exported without truncation, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
+        "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
         "met": false,
-        "detail": "0 records exported; requested window starts 2026-01-30T12:00:02.0000000Z; covered range starts 2026-01-30T12:00:02.0000000Z"
+        "detail": "0 records read; requested window 2026-01-30T12:00:03.0000000Z to 2026-03-01T12:00:03.0000000Z; covered range starts 2026-01-30T12:00:03.0000000Z"
       },
       "target_process": null
     },
@@ -177,7 +175,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:09.0000000Z",
+        "at_utc": "2026-03-01T12:00:17.0000000Z",
         "checks": [
           {
             "name": "channel_found",
@@ -196,12 +194,12 @@
         "System",
         "raw/system_bugcheck_events/query.xml"
       ],
-      "started_utc": "2026-03-01T12:00:07.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:11.0000000Z",
+      "started_utc": "2026-03-01T12:00:11.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:19.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "ce6b9bbf8ac45137ada75d9079bb09a8b4ab357434a3000b7ee91c1ff3250b0f"
+        "value": "f9353b848bac114e04508040704f141ab650e9ec51cd0d5600e18e83f661e99c"
       },
       "filter_hash": null,
       "requested": {
@@ -216,11 +214,13 @@
             1001
           ],
           "window_days": 30,
-          "window_start_utc": "2026-01-30T12:00:07.0000000Z",
+          "window_start_utc": "2026-01-30T12:00:12.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:12.0000000Z",
           "max_events": 5000,
           "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
           "evtx_export": true,
-          "query_sha256": "ce6b9bbf8ac45137ada75d9079bb09a8b4ab357434a3000b7ee91c1ff3250b0f"
+          "query_sha256": "f9353b848bac114e04508040704f141ab650e9ec51cd0d5600e18e83f661e99c"
         }
       },
       "enabled": {
@@ -231,10 +231,12 @@
         "options": {
           "channel": "System",
           "query_accepted": true,
-          "window_start_utc": "2026-01-30T12:00:07.0000000Z",
-          "window_end_utc": "2026-03-01T12:00:10.0000000Z",
+          "window_start_utc": "2026-01-30T12:00:12.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:12.0000000Z",
+          "records_read": 0,
           "records_exported": 0,
           "truncated": false,
+          "timed_out": false,
           "evtx_exported": false,
           "evtx_exit_code": null,
           "evtx_message": "synthetic backend: wevtutil does not exist off Windows",
@@ -247,8 +249,8 @@
       "artifacts": [
         {
           "path": "raw/system_bugcheck_events/channel_state.json",
-          "bytes": 748,
-          "sha256": "61827bb6f3f9267c4bbb595e6350992c91a375da2cac91b94106844ef271f771",
+          "bytes": 776,
+          "sha256": "24306c8c25efa03ed51849075621f6e9eed9b872a34bc162ea3309fbf424b9ca",
           "role": "report"
         },
         {
@@ -259,21 +261,21 @@
         },
         {
           "path": "raw/system_bugcheck_events/query.xml",
-          "bytes": 198,
-          "sha256": "ce6b9bbf8ac45137ada75d9079bb09a8b4ab357434a3000b7ee91c1ff3250b0f",
+          "bytes": 272,
+          "sha256": "f9353b848bac114e04508040704f141ab650e9ec51cd0d5600e18e83f661e99c",
           "role": "config"
         }
       ],
       "raw_time_range": {
-        "start": "2026-01-30T12:00:07.0000000Z",
-        "end": "2026-03-01T12:00:10.0000000Z",
+        "start": "2026-01-30T12:00:12.0000000Z",
+        "end": "2026-03-01T12:00:12.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
-        "declared": "every record matching query.xml inside the covered range is exported without truncation, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
+        "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
         "met": true,
-        "detail": "0 records exported; requested window starts 2026-01-30T12:00:07.0000000Z; covered range starts 2026-01-30T12:00:07.0000000Z"
+        "detail": "0 records read; requested window 2026-01-30T12:00:12.0000000Z to 2026-03-01T12:00:12.0000000Z; covered range starts 2026-01-30T12:00:12.0000000Z"
       },
       "target_process": null
     }
@@ -327,7 +329,7 @@
     "Read only collector tdr-events version 1.0.0: Did the GPU driver time out, and did Windows recover the display or stop with a bug check?",
     "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
-    "Windows are bounded with timediff, which the Event Log service evaluates when each query runs, so a window starts at most the run time of the collector later than the recorded window_start_utc.",
+    "Each event log query selects a fixed interval, window_end_utc minus the window to window_end_utc, so records raised while the query ran are not part of the result.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
     "source system_display_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record",
     "source system_bugcheck_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record"

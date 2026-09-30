@@ -251,35 +251,87 @@ function Write-WfJsonFile {
     Write-WfTextFile -Path $Path -Text ((ConvertTo-WfJson -Value $Object -Indent 0) + "`n")
 }
 
-function Write-WfJsonArrayFile {
-    # Writes a JSON array with one element per line. Each element is
-    # serialised on its own so that a single element stays inside an array
-    # (the pipeline would unwrap it) and so that the file has a stable shape:
-    # element n of the array is what a decoder cites as index:<n>.
-    param([string]$Path, $Items)
-    $lines = New-Object 'System.Collections.Generic.List[string]'
-    foreach ($item in @($Items)) { $lines.Add((ConvertTo-WfJson -Value $item)) }
-    if ($lines.Count -eq 0) {
+function Get-WfJsonArrayBytes {
+    # Size of the file Write-WfJsonLinesFile writes for these lines. The
+    # writer emits plain ASCII, so one character is one byte:
+    # "[\n" + lines joined by ",\n" + "\n]\n", or "[]\n" for no lines.
+    param([int]$LineCount, [int64]$LineBytes)
+    if ($LineCount -eq 0) { return [int64]3 }
+    return [int64](5 + $LineBytes + 2 * ($LineCount - 1))
+}
+
+function Write-WfJsonLinesFile {
+    # Writes a JSON array with one already serialised element per line, so
+    # that element n of the array is what a decoder cites as index:<n> and a
+    # single element stays inside an array.
+    param([string]$Path, [string[]]$Lines)
+    $all = @($Lines)
+    if ($all.Count -eq 0) {
         Write-WfTextFile -Path $Path -Text "[]`n"
     } else {
-        Write-WfTextFile -Path $Path -Text ("[`n" + ($lines.ToArray() -join ",`n") + "`n]`n")
+        Write-WfTextFile -Path $Path -Text ("[`n" + ($all -join ",`n") + "`n]`n")
     }
+}
+
+function New-WfRowAccumulator {
+    # Collects rows for one export while enforcing the two caps exactly: the
+    # row count and the size of the file the rows will become. Every row is
+    # serialised when it arrives, so the byte budget is the real one.
+    param([int]$MaxRows, [int64]$MaxBytes)
+    return @{
+        MaxRows   = $MaxRows
+        MaxBytes  = $MaxBytes
+        Rows      = New-Object 'System.Collections.Generic.List[object]'
+        Lines     = New-Object 'System.Collections.Generic.List[string]'
+        LineBytes = [int64]0
+        Truncated = $false
+        Reason    = $null
+    }
+}
+
+function Add-WfRow {
+    # Returns $true when the row was kept and reading may continue, $false
+    # when a cap was reached (the row is dropped and the accumulator records
+    # why). The file size check counts the row's own bytes plus the separator
+    # and wrapper the writer will add.
+    param([hashtable]$Accumulator, $Row)
+    if ($Accumulator.Rows.Count -ge $Accumulator.MaxRows) {
+        $Accumulator.Truncated = $true
+        $Accumulator.Reason = ('the cap of ' + $Accumulator.MaxRows + ' records was reached')
+        return $false
+    }
+    $line = ConvertTo-WfJson -Value $Row
+    $projected = Get-WfJsonArrayBytes -LineCount ($Accumulator.Lines.Count + 1) -LineBytes ($Accumulator.LineBytes + $line.Length)
+    if ($projected -gt $Accumulator.MaxBytes) {
+        $Accumulator.Truncated = $true
+        $Accumulator.Reason = ('the export would exceed the cap of ' + $Accumulator.MaxBytes + ' bytes')
+        return $false
+    }
+    $Accumulator.Rows.Add($Row)
+    $Accumulator.Lines.Add($line)
+    $Accumulator.LineBytes += $line.Length
+    return $true
 }
 
 function Build-WfEventQueryXml {
     # A structured XML query with one Select per predicate. Each predicate is
-    # the inside of a System[...] test. The time bound uses timediff, which
-    # Microsoft documents as the way to select "the last N milliseconds":
+    # the inside of a System[...] test. The time bound is a fixed interval
+    # ending at -EndUtc: timediff(@SystemTime, <FILETIME literal>) is the
+    # documented form with a literal second argument, positive when the
+    # literal is the later time, so 0 <= timediff <= window selects exactly
+    # [end - window, end] and a record raised after the query started cannot
+    # join the result:
     # https://learn.microsoft.com/en-us/windows/win32/wes/consuming-events
     # The same text is given to EventLogQuery and, as a file, to
     # wevtutil epl /sq:true, so both exports come from one query.
-    param([string]$Channel, [string[]]$Predicates, [int64]$WindowMilliseconds)
+    param([string]$Channel, [string[]]$Predicates, [datetime]$EndUtc, [int64]$WindowMilliseconds)
     $channelText = [System.Security.SecurityElement]::Escape($Channel)
+    $endFileTime = $EndUtc.ToUniversalTime().ToFileTimeUtc()
     $lines = New-Object 'System.Collections.Generic.List[string]'
     $lines.Add('<QueryList>')
     $lines.Add(('  <Query Id="0" Path="{0}">' -f $channelText))
     foreach ($predicate in $Predicates) {
-        $xpath = '*[System[{0} and TimeCreated[timediff(@SystemTime) <= {1}]]]' -f $predicate, $WindowMilliseconds
+        $xpath = '*[System[{0} and TimeCreated[timediff(@SystemTime, {1}) >= 0 and timediff(@SystemTime, {1}) <= {2}]]]' -f $predicate, $endFileTime, $WindowMilliseconds
         $lines.Add(('    <Select Path="{0}">{1}</Select>' -f $channelText, [System.Security.SecurityElement]::Escape($xpath)))
     }
     $lines.Add('  </Query>')
@@ -287,21 +339,229 @@ function Build-WfEventQueryXml {
     return (($lines.ToArray() -join "`n") + "`n")
 }
 
+function ConvertTo-WfDmtfDateTime {
+    # CIM DATETIME text, yyyymmddHHMMSS.mmmmmmsUTC, in UTC:
+    # https://learn.microsoft.com/en-us/windows/win32/wmisdk/cim-datetime
+    param([datetime]$Value)
+    return ($Value.ToUniversalTime().ToString('yyyyMMddHHmmss.ffffff', [System.Globalization.CultureInfo]::InvariantCulture) + '+000')
+}
+
+function Get-WfRemainingSeconds {
+    param([datetime]$DeadlineUtc)
+    $remaining = ($DeadlineUtc - (Get-WfUtcNow)).TotalSeconds
+    if ($remaining -lt 0) { return [double]0 }
+    return [double]$remaining
+}
+
+function Invoke-WfBoundedEventRead {
+    # Pulls records from an open reader until end of stream, a cap, or the
+    # deadline. Every pull carries the time left, so a reader that stalls
+    # returns by the deadline. A pull that returns nothing after the deadline
+    # has passed is treated as a timeout, not as end of stream, because the
+    # two cannot be told apart. A record whose conversion fails stops the
+    # read: an export with a hole in it is not an export.
+    param([hashtable]$Reader, [datetime]$DeadlineUtc, [hashtable]$Accumulator)
+    $result = [ordered]@{ Ok = $false; ErrorKind = $null; ErrorMessage = $null; TimedOut = $false; Count = 0 }
+    try {
+        while ($true) {
+            $remaining = $DeadlineUtc - (Get-WfUtcNow)
+            if ($remaining.TotalMilliseconds -le 0) {
+                $result.TimedOut = $true
+                $result.ErrorKind = 'timeout'
+                $result.ErrorMessage = ('the read did not finish before the deadline ' + (ConvertTo-WfUtcString -Value $DeadlineUtc) + '; ' + $result.Count + ' records had been read')
+                return $result
+            }
+            $record = & $Reader['ReadNext'] $remaining
+            if ($null -eq $record) {
+                if ((Get-WfUtcNow) -ge $DeadlineUtc) {
+                    $result.TimedOut = $true
+                    $result.ErrorKind = 'timeout'
+                    $result.ErrorMessage = ('the reader returned nothing at the deadline ' + (ConvertTo-WfUtcString -Value $DeadlineUtc) + ', which is a timeout or an end of stream that arrived too late; ' + $result.Count + ' records had been read')
+                    return $result
+                }
+                break
+            }
+            $item = $null
+            try {
+                $item = & $Reader['Convert'] $record
+            } catch {
+                $result.ErrorKind = 'incomplete'
+                $result.ErrorMessage = ('record ' + ($result.Count + 1) + ' could not be converted completely: ' + $_.Exception.Message)
+                return $result
+            } finally {
+                if ($null -ne $Reader['Release']) { & $Reader['Release'] $record }
+            }
+            if ($null -eq $item -or -not $item['xml']) {
+                $result.ErrorKind = 'incomplete'
+                $result.ErrorMessage = ('record ' + ($result.Count + 1) + ' has no event XML; the export would not be complete')
+                return $result
+            }
+            $result.Count += 1
+            if (-not (Add-WfRow -Accumulator $Accumulator -Row $item)) { break }
+        }
+        $result.Ok = $true
+    } catch {
+        if ((Get-WfUtcNow) -ge $DeadlineUtc) {
+            $result.TimedOut = $true
+            $result.ErrorKind = 'timeout'
+            $result.ErrorMessage = ('the read failed at the deadline: ' + $_.Exception.Message)
+        } else {
+            $result.ErrorKind = 'other'
+            $result.ErrorMessage = $_.Exception.Message
+        }
+    }
+    return $result
+}
+
+function Read-WfEventRecords {
+    # Opens the query (newest first, so a cap keeps the most recent records)
+    # and reads it under the deadline. Stage says where a failure happened:
+    # "open" failures are preflight failures, "read" failures happened after
+    # the channel was opened.
+    param([string]$Channel, [string]$QueryXml, [datetime]$DeadlineUtc, [hashtable]$Accumulator)
+    $result = [ordered]@{ Ok = $false; Stage = 'open'; ErrorKind = $null; ErrorMessage = $null; TimedOut = $false; Count = 0 }
+    $reader = Open-WfEventReader -Channel $Channel -QueryXml $QueryXml -Reverse $true
+    if (-not $reader['Ok']) {
+        $result.ErrorKind = $reader['ErrorKind']
+        $result.ErrorMessage = $reader['ErrorMessage']
+        return $result
+    }
+    $result.Stage = 'read'
+    try {
+        $read = Invoke-WfBoundedEventRead -Reader $reader -DeadlineUtc $DeadlineUtc -Accumulator $Accumulator
+        $result.Ok = $read['Ok']
+        $result.ErrorKind = $read['ErrorKind']
+        $result.ErrorMessage = $read['ErrorMessage']
+        $result.TimedOut = $read['TimedOut']
+        $result.Count = $read['Count']
+    } finally {
+        if ($null -ne $reader['Dispose']) { & $reader['Dispose'] }
+    }
+    return $result
+}
+
+function Get-WfChannelState {
+    # What the channel holds right now. The oldest retained record is what
+    # lets a later reader tell a quiet log from one that wrapped or was
+    # cleared; it is read with one bounded pull of a "*" query in forward
+    # order, after the main read, so that a wrap during the main read can
+    # only make the proof more conservative. The configuration values are
+    # recorded when the account may read them and are null otherwise.
+    param([string]$Channel, [datetime]$DeadlineUtc)
+    $state = [ordered]@{
+        found = $null; readable = $false; error = $null; error_kind = $null
+        record_count = $null; oldest_record_number = $null; oldest_record_time_utc = $null; oldest_probe = $null
+        file_size_bytes = $null; is_log_full = $null; last_write_time_utc = $null
+        is_enabled = $null; log_mode = $null; maximum_size_bytes = $null; isolation = $null; security_descriptor = $null
+        configuration_error = $null
+    }
+    $reader = Open-WfEventReader -Channel $Channel -QueryXml '*' -Reverse $false
+    if (-not $reader['Ok']) {
+        $state.error = $reader['ErrorMessage']
+        $state.error_kind = $reader['ErrorKind']
+        if ($reader['ErrorKind'] -eq 'not_found') { $state.found = $false } elseif ($reader['ErrorKind'] -eq 'access_denied') { $state.found = $true }
+        return $state
+    }
+    $state.found = $true
+    $state.readable = $true
+    try {
+        $remaining = $DeadlineUtc - (Get-WfUtcNow)
+        if ($remaining.TotalMilliseconds -le 0) {
+            $state.oldest_probe = 'not attempted: the deadline had passed'
+        } else {
+            $record = & $reader['ReadNext'] $remaining
+            if ($null -eq $record) {
+                if ((Get-WfUtcNow) -ge $DeadlineUtc) { $state.oldest_probe = 'timed out: the probe returned nothing at the deadline' }
+                else { $state.oldest_probe = 'the channel holds no records' }
+            } else {
+                try {
+                    $item = & $reader['Convert'] $record
+                    $state.oldest_record_number = $item['record_id']
+                    $state.oldest_record_time_utc = $item['time_created_utc']
+                    $state.oldest_probe = 'read'
+                } finally {
+                    if ($null -ne $reader['Release']) { & $reader['Release'] $record }
+                }
+            }
+        }
+    } catch {
+        $state.oldest_probe = 'failed: ' + $_.Exception.Message
+    } finally {
+        if ($null -ne $reader['Dispose']) { & $reader['Dispose'] }
+    }
+    $configuration = Get-WfChannelConfiguration -Channel $Channel
+    foreach ($key in @('record_count', 'file_size_bytes', 'is_log_full', 'last_write_time_utc', 'is_enabled', 'log_mode', 'maximum_size_bytes', 'isolation', 'security_descriptor', 'configuration_error')) {
+        if ($configuration.Contains($key)) { $state[$key] = $configuration[$key] }
+    }
+    return $state
+}
+
+function Invoke-WfStreamingRead {
+    # Runs a producer pipeline and feeds every object through the converter
+    # into the accumulator. The accumulator's caps end the pipeline early by
+    # a terminating error, which stops the producer as well, so an unbounded
+    # producer cannot run past the caps.
+    param([scriptblock]$Producer, [scriptblock]$Convert, [hashtable]$Accumulator)
+    $result = [ordered]@{ Ok = $false; ErrorKind = $null; ErrorMessage = $null; Count = 0 }
+    $stopToken = 'WF_STOP_ENUMERATION'
+    try {
+        & $Producer | ForEach-Object {
+            $row = & $Convert $_
+            $result.Count += 1
+            if (-not (Add-WfRow -Accumulator $Accumulator -Row $row)) { throw $stopToken }
+        }
+        $result.Ok = $true
+    } catch {
+        if ($_.Exception.Message -eq $stopToken) {
+            $result.Ok = $true
+        } else {
+            $result.ErrorKind = Get-WfCimErrorKind -Exception $_.Exception
+            $result.ErrorMessage = $_.Exception.Message
+        }
+    }
+    return $result
+}
+
+function Get-WfCimRows {
+    # Every instance of a class that matches the filter, streamed through the
+    # caps, each as an ordered map of the requested properties with dates as
+    # UTC text.
+    param([string]$Namespace, [string]$ClassName, [string[]]$Properties, $Filter, [int]$MaxRows, [int64]$MaxBytes, [double]$TimeoutSeconds)
+    $accumulator = New-WfRowAccumulator -MaxRows $MaxRows -MaxBytes $MaxBytes
+    $result = [ordered]@{ Ok = $false; ErrorKind = $null; ErrorMessage = $null; Rows = @(); Lines = @(); Truncated = $false; TruncationReason = $null }
+    if ($TimeoutSeconds -le 0) {
+        $result.ErrorKind = 'timeout'
+        $result.ErrorMessage = 'the deadline had passed before the class was read'
+        return $result
+    }
+    $producer = New-WfCimProducer -Namespace $Namespace -ClassName $ClassName -Properties $Properties -Filter $Filter -TimeoutSeconds $TimeoutSeconds
+    $read = Invoke-WfStreamingRead -Producer $producer['Producer'] -Convert $producer['Convert'] -Accumulator $accumulator
+    $result.Ok = $read['Ok']
+    $result.ErrorKind = $read['ErrorKind']
+    $result.ErrorMessage = $read['ErrorMessage']
+    $result.Rows = $accumulator.Rows.ToArray()
+    $result.Lines = $accumulator.Lines.ToArray()
+    $result.Truncated = $accumulator.Truncated
+    $result.TruncationReason = $accumulator.Reason
+    return $result
+}
+
 function Resolve-WfSourceStatus {
     # The measurement status of one source, decided from what the collector
     # itself saw (docs/contracts/measurement-status.md section 2, rule 3).
     #
     # The one rule that needs care is the quiet window. Zero matching records
-    # is reported as observed_zero only when the oldest record the source
-    # still holds is known, because a log that wrapped or was cleared looks
-    # exactly like a quiet one. The range the claim covers starts at the later
-    # of the requested window start and that oldest record, and is returned
-    # as CoveredStartUtc so the manifest can state it. When the oldest record
-    # is unknown there is no proof of coverage and the status is
-    # capture_failed. A source whose query rests on a provider name that
+    # is reported as observed_zero only when a record at or before the
+    # window start is known to be retained, because a log that wrapped or
+    # was cleared looks exactly like a quiet one. The range the claim covers
+    # starts at the later of the requested window start and that record,
+    # and is returned as CoveredStartUtc so the manifest can state it. When
+    # no such record is known there is no proof of coverage and the status
+    # is capture_failed. A source whose query rests on a provider name that
     # Microsoft does not document (QuietClaimVerified false) never reports
     # observed_zero either: records it finds are evidence, an empty result
-    # is not.
+    # is not. A read that timed out, hit a cap, or stopped at an incomplete
+    # record is capture_failed whatever it read.
     param(
         [string]$ReadErrorKind,
         [string]$ReadErrorMessage,
@@ -320,6 +580,8 @@ function Resolve-WfSourceStatus {
             'not_found' { $result.Status = 'unsupported'; $result.Reason = 'the source does not exist on this machine: ' + $ReadErrorMessage }
             'access_denied' { $result.Status = 'not_collected'; $result.Reason = 'preflight failed, the account cannot read the source: ' + $ReadErrorMessage }
             'preflight' { $result.Status = 'not_collected'; $result.Reason = 'preflight failed, the source could not be opened: ' + $ReadErrorMessage }
+            'timeout' { $result.Status = 'capture_failed'; $result.Reason = 'the read timed out, so the export is not the complete set of matching records: ' + $ReadErrorMessage }
+            'incomplete' { $result.Status = 'capture_failed'; $result.Reason = 'the read stopped at a record it could not export completely: ' + $ReadErrorMessage }
             default { $result.Status = 'capture_failed'; $result.Reason = 'the read started and then failed: ' + $ReadErrorMessage }
         }
         return $result
@@ -344,7 +606,7 @@ function Resolve-WfSourceStatus {
     }
     if ($null -eq $OldestRecordUtc) {
         $result.Status = 'capture_failed'
-        $result.Reason = 'zero matching records, and the oldest record the source still holds could not be established, so there is no proof that the source covers any part of the window'
+        $result.Reason = 'zero matching records, and no record at or before the window start could be established, so there is no proof that the source covers any part of the window'
         $result.ExpectationMet = $false
         return $result
     }
@@ -357,6 +619,16 @@ function Resolve-WfSourceStatus {
     $result.Status = 'observed_zero'
     $result.ExpectationMet = $true
     return $result
+}
+
+function Test-WfKeepPartialExport {
+    # A source that is not observed keeps its primary export only when the
+    # export is a capped, complete-as-far-as-it-goes set: the status reason
+    # says so. Any other failed source leaves no primary, so nothing can be
+    # read as an empty result.
+    param([string]$Status, [bool]$Truncated, [int]$RecordCount)
+    if (Test-WfObservedStatus -Status $Status) { return $true }
+    return ($Truncated -and $RecordCount -gt 0)
 }
 
 function Get-WfSummaryStatus {
@@ -475,6 +747,15 @@ function New-WfTimeRange {
     }
 }
 
+function Remove-WfPrimaryUnlessKept {
+    # Applies Test-WfKeepPartialExport to the file on disk.
+    param([string]$Path, [string]$Status, [bool]$Truncated, [int]$RecordCount, [System.Collections.Generic.List[string]]$Log, [string]$SourceId)
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    if (Test-WfKeepPartialExport -Status $Status -Truncated $Truncated -RecordCount $RecordCount) { return }
+    Remove-Item -LiteralPath $Path -Force
+    $Log.Add('source ' + $SourceId + ': the primary export was removed because the source is ' + $Status + ' and the export is not a capped set')
+}
+
 function Invoke-WfEventSource {
     # Reads one event log channel through one structured query and writes,
     # under raw/<id>/:
@@ -482,12 +763,16 @@ function Invoke-WfEventSource {
     #   channel_state.json  what the channel held and how it is configured (role report)
     #   events.json         the structured export, oldest first (role primary)
     #   events.evtx         the binary export from wevtutil epl (role other), when it succeeds
+    # The query interval is fixed: it ends at the moment the query was built
+    # and starts WindowDays earlier. Every read runs under one deadline,
+    # TimeoutSeconds after the source started.
     param(
         [hashtable]$Source,
         [string]$BundleRoot,
         [int]$WindowDays,
         [int]$MaxEvents,
         [int64]$MaxArtifactBytes,
+        [int]$TimeoutSeconds,
         [bool]$SkipEvtx,
         [System.Collections.Generic.List[string]]$Log,
         [System.Collections.Generic.List[string]]$Notes
@@ -502,12 +787,16 @@ function Invoke-WfEventSource {
     $relativeDir = 'raw/' + $id
     $dir = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath $relativeDir
     $started = Get-WfUtcNow
+    $deadline = $started.AddSeconds($TimeoutSeconds)
     $entry.started_utc = ConvertTo-WfUtcString -Value $started
+    $eventsPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/events.json')
     try {
         $null = New-Item -ItemType Directory -Force -Path $dir
         $windowMs = [int64]$WindowDays * 86400000
-        $windowStart = $started.AddDays(-1 * $WindowDays)
-        $queryXml = Build-WfEventQueryXml -Channel $channel -Predicates (Get-WfList -Value $Source['Predicates']) -WindowMilliseconds $windowMs
+        # The interval is fixed here, immediately before the query is built.
+        $windowEnd = Get-WfUtcNow
+        $windowStart = $windowEnd.AddMilliseconds(-1 * [double]$windowMs)
+        $queryXml = Build-WfEventQueryXml -Channel $channel -Predicates (Get-WfList -Value $Source['Predicates']) -EndUtc $windowEnd -WindowMilliseconds $windowMs
         $queryPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/query.xml')
         Write-WfTextFile -Path $queryPath -Text $queryXml
         $queryHash = Get-WfSha256OfFile -Path $queryPath
@@ -523,14 +812,18 @@ function Invoke-WfEventSource {
                 event_ids          = Get-WfList -Value $Source['EventIds']
                 window_days        = $WindowDays
                 window_start_utc   = ConvertTo-WfUtcString -Value $windowStart
+                window_end_utc     = ConvertTo-WfUtcString -Value $windowEnd
                 max_events         = $MaxEvents
                 max_artifact_bytes = $MaxArtifactBytes
+                timeout_seconds    = $TimeoutSeconds
                 evtx_export        = (-not $SkipEvtx)
                 query_sha256       = $queryHash
             }
         }
 
-        $state = Get-WfChannelState -Channel $channel
+        $accumulator = New-WfRowAccumulator -MaxRows $MaxEvents -MaxBytes $MaxArtifactBytes
+        $read = Read-WfEventRecords -Channel $channel -QueryXml $queryXml -DeadlineUtc $deadline -Accumulator $accumulator
+        $state = Get-WfChannelState -Channel $channel -DeadlineUtc $deadline
         $registered = Get-WfRegisteredProviderNames
         $providerState = [ordered]@{}
         $enabledProviders = $null
@@ -551,44 +844,45 @@ function Invoke-WfEventSource {
         }
         Write-WfJsonFile -Path (Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/channel_state.json')) -Object $stateReport
 
-        $found = $state['found']
-        $readable = [bool]$state['readable']
+        $opened = ($read['Stage'] -eq 'read')
+        $found = $opened -or ($read['ErrorKind'] -ne 'not_found')
         $checks = @(
-            [ordered]@{ name = 'channel_found'; ok = ($found -ne $false); detail = ('channel ' + $channel) },
-            [ordered]@{ name = 'channel_readable'; ok = $readable; detail = $state['error'] }
+            [ordered]@{ name = 'channel_found'; ok = $found; detail = ('channel ' + $channel) },
+            [ordered]@{ name = 'channel_readable'; ok = $opened; detail = $(if ($opened) { $null } else { [string]$read['ErrorMessage'] }) }
         )
-        $preflightOk = ($found -ne $false) -and $readable
-        $entry.preflight = [ordered]@{ ok = $preflightOk; at_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow); checks = $checks }
+        $entry.preflight = [ordered]@{ ok = $opened; at_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow); checks = $checks }
 
-        $oldest = $null
-        if ($state['oldest_record_time_utc']) { $oldest = ConvertFrom-WfUtcString -Text ([string]$state['oldest_record_time_utc']) }
-        $read = $null
-        $events = @()
         $readErrorKind = ''
         $readErrorMessage = ''
-        if (-not $preflightOk) {
-            if ($found -eq $false) { $readErrorKind = 'not_found' } elseif ($state['error_kind'] -eq 'access_denied') { $readErrorKind = 'access_denied' } else { $readErrorKind = 'preflight' }
-            $readErrorMessage = [string]$state['error']
-        } else {
-            $read = Read-WfEventRecords -Channel $channel -QueryXml $queryXml -MaxEvents $MaxEvents -MaxBytes $MaxArtifactBytes
-            if (-not $read['Ok']) {
-                $readErrorKind = [string]$read['ErrorKind']
-                if (-not $readErrorKind) { $readErrorKind = 'other' }
-                $readErrorMessage = [string]$read['ErrorMessage']
-            } else {
-                # The reader returns newest first so that a cap keeps the most
-                # recent records; the file is written oldest first.
-                $events = Get-WfList -Value $read['Events']
-                [array]::Reverse($events)
-                Write-WfJsonArrayFile -Path (Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/events.json')) -Items $events
+        if (-not $read['Ok']) {
+            $readErrorKind = [string]$read['ErrorKind']
+            if (-not $readErrorKind) { $readErrorKind = 'other' }
+            if (-not $opened -and $readErrorKind -ne 'not_found' -and $readErrorKind -ne 'access_denied') { $readErrorKind = 'preflight' }
+            $readErrorMessage = [string]$read['ErrorMessage']
+        }
+        $recordCount = $accumulator.Rows.Count
+        $truncated = [bool]$accumulator.Truncated
+        $written = $false
+        if ($read['Ok']) {
+            # The reader returns newest first; the file is written oldest first.
+            $lines = $accumulator.Lines.ToArray()
+            [array]::Reverse($lines)
+            Write-WfJsonLinesFile -Path $eventsPath -Lines $lines
+            $written = $true
+            $size = (Get-Item -LiteralPath $eventsPath).Length
+            if ($size -gt $MaxArtifactBytes) {
+                # The accumulator enforces the budget exactly; this is the check of that claim.
+                Remove-Item -LiteralPath $eventsPath -Force
+                $written = $false
+                $readErrorKind = 'other'
+                $readErrorMessage = ('events.json was ' + $size + ' bytes, above the cap of ' + $MaxArtifactBytes + ', and was removed')
             }
         }
-        $queriedAt = Get-WfUtcNow
 
         $evtx = [ordered]@{ Attempted = $false; Ok = $false; ExitCode = $null; Message = 'not attempted'; Command = $null }
-        if ($preflightOk -and -not $readErrorKind -and -not $SkipEvtx) {
+        if ($written -and -not $readErrorKind -and -not $truncated -and -not $SkipEvtx) {
             $evtxPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/events.evtx')
-            $evtx = Export-WfEvtx -QueryPath $queryPath -TargetPath $evtxPath -MaxBytes $MaxArtifactBytes
+            $evtx = Export-WfEvtx -QueryPath $queryPath -TargetPath $evtxPath -MaxBytes $MaxArtifactBytes -TimeoutSeconds ([int](Get-WfRemainingSeconds -DeadlineUtc $deadline))
             if (-not $evtx['Ok']) {
                 if (Test-Path -LiteralPath $evtxPath) { Remove-Item -LiteralPath $evtxPath -Force }
                 $message = ('source ' + $id + ': the binary .evtx export was not produced (' + [string]$evtx['Message'] + '); events.json carries the full XML of every record')
@@ -599,18 +893,18 @@ function Invoke-WfEventSource {
             $evtx['Message'] = 'skipped by -SkipEvtx'
         }
 
+        $oldest = $null
+        if ($state['oldest_record_time_utc']) { $oldest = ConvertFrom-WfUtcString -Text ([string]$state['oldest_record_time_utc']) }
         $earliest = $null
-        if (@($events).Count -gt 0) { $earliest = ConvertFrom-WfUtcString -Text ([string]$events[0]['time_created_utc']) }
-        $truncated = $false
-        if ($null -ne $read -and $read['Ok']) { $truncated = [bool]$read['Truncated'] }
+        if ($recordCount -gt 0) { $earliest = ConvertFrom-WfUtcString -Text ([string]$accumulator.Rows[$recordCount - 1]['time_created_utc']) }
         $resolved = Resolve-WfSourceStatus -ReadErrorKind $readErrorKind -ReadErrorMessage $readErrorMessage `
-            -RecordCount (@($events).Count) -Truncated $truncated -OldestRecordUtc $oldest -EarliestExportedUtc $earliest `
-            -WindowStartUtc $windowStart -QuietClaimVerified $quietVerified `
-            -TruncationDetail ('cap is ' + $MaxEvents + ' records or ' + $MaxArtifactBytes + ' bytes; the newest records were kept')
+            -RecordCount $recordCount -Truncated $truncated -OldestRecordUtc $oldest -EarliestExportedUtc $earliest `
+            -WindowStartUtc $windowStart -QuietClaimVerified $quietVerified -TruncationDetail ([string]$accumulator.Reason + '; the newest records were kept')
         $entry.status = $resolved['Status']
         $entry.status_reason = $resolved['Reason']
+        Remove-WfPrimaryUnlessKept -Path $eventsPath -Status $entry.status -Truncated $truncated -RecordCount $recordCount -Log $Log -SourceId $id
         $covered = $resolved['CoveredStartUtc']
-        $entry.raw_time_range = New-WfTimeRange -StartUtc $covered -EndUtc $queriedAt
+        $entry.raw_time_range = New-WfTimeRange -StartUtc $covered -EndUtc $windowEnd
         $coveredText = $null
         if ($null -ne $covered) { $coveredText = ConvertTo-WfUtcString -Value ([datetime]$covered) }
         $entry.enabled = [ordered]@{
@@ -620,11 +914,13 @@ function Invoke-WfEventSource {
             counters    = @()
             options     = [ordered]@{
                 channel           = $channel
-                query_accepted    = ($preflightOk -and -not $readErrorKind)
+                query_accepted    = $opened
                 window_start_utc  = $coveredText
-                window_end_utc    = ConvertTo-WfUtcString -Value $queriedAt
-                records_exported  = @($events).Count
+                window_end_utc    = ConvertTo-WfUtcString -Value $windowEnd
+                records_read      = [int]$read['Count']
+                records_exported  = $(if (Test-Path -LiteralPath $eventsPath) { $recordCount } else { 0 })
                 truncated         = $truncated
+                timed_out         = [bool]$read['TimedOut']
                 evtx_exported     = [bool]$evtx['Ok']
                 evtx_exit_code    = $evtx['ExitCode']
                 evtx_message      = $evtx['Message']
@@ -632,14 +928,14 @@ function Invoke-WfEventSource {
             }
             verified_by = 'EventLogReader accepted the query in query.xml; the oldest retained record and the provider list are in channel_state.json'
         }
-        $detail = ('{0} records exported; requested window starts {1}; covered range starts {2}' -f @($events).Count, (ConvertTo-WfUtcString -Value $windowStart), $coveredText)
+        $detail = ('{0} records read; requested window {1} to {2}; covered range starts {3}' -f $recordCount, (ConvertTo-WfUtcString -Value $windowStart), (ConvertTo-WfUtcString -Value $windowEnd), $coveredText)
         if ($null -ne $oldest -and $oldest -gt $windowStart) {
             $message = ('source ' + $id + ': channel ' + $channel + ' only holds records from ' + $coveredText + ', later than the requested window start; nothing is claimed before that time')
             $Notes.Add($message)
             $Log.Add($message)
         }
         $entry.expectation = [ordered]@{
-            declared = 'every record matching query.xml inside the covered range is exported without truncation, and an empty export is only called a quiet window when the oldest retained record proves the range was covered'
+            declared = 'every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered'
             met      = $resolved['ExpectationMet']
             detail   = $detail
         }
@@ -647,6 +943,7 @@ function Invoke-WfEventSource {
         $entry.status = 'capture_failed'
         $entry.status_reason = 'the collector raised while reading this source: ' + $_.Exception.Message
         $Log.Add('source ' + $id + ' raised: ' + $_.Exception.Message)
+        if (Test-Path -LiteralPath $eventsPath) { Remove-Item -LiteralPath $eventsPath -Force }
     }
     $entry.stopped_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
     $entry.artifacts = Get-WfArtifactRecords -BundleRoot $BundleRoot -SourceId $id -Roles $roles
@@ -655,18 +952,21 @@ function Invoke-WfEventSource {
 }
 
 function Invoke-WfCimSource {
-    # Reads every instance of one WMI class and writes, under raw/<id>/:
-    #   query.json    class, namespace and window (role config, hashed as config_hash)
+    # Reads the instances of one WMI class and writes, under raw/<id>/:
+    #   query.json    class, namespace, properties, filter and window (role config, hashed as config_hash)
     #   records.json  the instances as a JSON array (role primary)
-    # A source with a TimeProperty is a history: instances inside the window
-    # are exported and the oldest instance bounds the covered range. A source
-    # without one is a snapshot taken at collection time.
+    # A source with a TimeProperty is a history: the window is pushed into
+    # the WQL filter, and a separate one row probe for a record at or before
+    # the window start is the proof that a quiet window was covered. A source
+    # without one is a snapshot taken at collection time. Both run under the
+    # deadline and the caps.
     param(
         [hashtable]$Source,
         [string]$BundleRoot,
         [int]$WindowDays,
         [int]$MaxEvents,
         [int64]$MaxArtifactBytes,
+        [int]$TimeoutSeconds,
         [System.Collections.Generic.List[string]]$Log,
         [System.Collections.Generic.List[string]]$Notes
     )
@@ -676,6 +976,7 @@ function Invoke-WfCimSource {
     if ($Source['Namespace']) { $namespace = [string]$Source['Namespace'] }
     $timeProperty = $null
     if ($Source['TimeProperty']) { $timeProperty = [string]$Source['TimeProperty'] }
+    $properties = Get-WfList -Value $Source['Properties']
     $kind = 'other'
     if ($Source['Kind']) { $kind = [string]$Source['Kind'] }
     $entry = New-WfCollectorEntry -Id $id -Kind $kind -Required ([bool]$Source['Required'])
@@ -683,33 +984,48 @@ function Invoke-WfCimSource {
     $relativeDir = 'raw/' + $id
     $dir = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath $relativeDir
     $started = Get-WfUtcNow
+    $deadline = $started.AddSeconds($TimeoutSeconds)
     $entry.started_utc = ConvertTo-WfUtcString -Value $started
+    $recordsPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/records.json')
     $exported = @()
+    $sourceRowCount = $null
     try {
         $null = New-Item -ItemType Directory -Force -Path $dir
-        $windowStart = $started.AddDays(-1 * $WindowDays)
-        $query = [ordered]@{ class = $className; namespace = $namespace; time_property = $timeProperty; window_days = $null; window_start_utc = $null; max_records = $MaxEvents }
+        $windowEnd = Get-WfUtcNow
+        $windowStart = $windowEnd.AddDays(-1 * $WindowDays)
+        $filter = $null
+        $probeFilter = $null
+        if ($timeProperty) {
+            $filter = ("{0} >= '{1}' AND {0} <= '{2}'" -f $timeProperty, (ConvertTo-WfDmtfDateTime -Value $windowStart), (ConvertTo-WfDmtfDateTime -Value $windowEnd))
+            $probeFilter = ("{0} < '{1}'" -f $timeProperty, (ConvertTo-WfDmtfDateTime -Value $windowStart))
+        }
+        $query = [ordered]@{
+            class = $className; namespace = $namespace; properties = @($properties); filter = $filter; time_property = $timeProperty
+            window_days = $null; window_start_utc = $null; window_end_utc = $null; coverage_probe_filter = $probeFilter
+            max_records = $MaxEvents; max_artifact_bytes = $MaxArtifactBytes; timeout_seconds = $TimeoutSeconds
+        }
         if ($timeProperty) {
             $query.window_days = $WindowDays
             $query.window_start_utc = ConvertTo-WfUtcString -Value $windowStart
+            $query.window_end_utc = ConvertTo-WfUtcString -Value $windowEnd
         }
         $queryPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/query.json')
         Write-WfJsonFile -Path $queryPath -Object $query
         $entry.config_hash = [ordered]@{ algorithm = 'sha256'; value = (Get-WfSha256OfFile -Path $queryPath) }
-        $entry.command = @('Get-CimInstance', '-Namespace', $namespace, '-ClassName', $className)
+        $command = @('Get-CimInstance', '-Namespace', $namespace, '-ClassName', $className, '-Property', (@($properties) -join ','), '-OperationTimeoutSec', [string]$TimeoutSeconds)
+        if ($filter) { $command += @('-Filter', $filter) }
+        $entry.command = $command
         $entry.requested = [ordered]@{ providers = @(); keywords = @(); stack_walk = @(); counters = @(); options = $query }
 
-        $read = Get-WfCimRows -Namespace $namespace -ClassName $className
+        $read = Get-WfCimRows -Namespace $namespace -ClassName $className -Properties $properties -Filter $filter `
+            -MaxRows $MaxEvents -MaxBytes $MaxArtifactBytes -TimeoutSeconds (Get-WfRemainingSeconds -DeadlineUtc $deadline)
         $readAt = Get-WfUtcNow
         $readErrorKind = ''
         $readErrorMessage = ''
-        $rows = @()
         if (-not $read['Ok']) {
             $readErrorKind = [string]$read['ErrorKind']
             if (-not $readErrorKind) { $readErrorKind = 'other' }
             $readErrorMessage = [string]$read['ErrorMessage']
-        } else {
-            $rows = Get-WfList -Value $read['Rows']
         }
         $entry.preflight = [ordered]@{
             ok     = (-not $readErrorKind)
@@ -717,77 +1033,100 @@ function Invoke-WfCimSource {
             checks = @([ordered]@{ name = 'class_readable'; ok = (-not $readErrorKind); detail = $(if ($readErrorKind) { $readErrorMessage } else { $namespace + ':' + $className }) })
         }
 
+        $rows = Get-WfList -Value $read['Rows']
+        $lines = Get-WfList -Value $read['Lines']
+        $truncated = [bool]$read['Truncated']
+        $sourceRowCount = @($rows).Count
         $oldest = $null
-        $truncated = $false
+        $probe = $null
         if (-not $readErrorKind) {
             if ($timeProperty) {
-                $inWindow = New-Object 'System.Collections.Generic.List[object]'
-                $index = 0
-                foreach ($row in $rows) {
-                    $index += 1
-                    $text = $row[$timeProperty]
-                    if (-not $text) { continue }
-                    $when = ConvertFrom-WfUtcString -Text ([string]$text)
-                    if ($null -eq $oldest -or $when -lt $oldest) { $oldest = $when }
-                    if ($when -ge $windowStart) { $inWindow.Add([pscustomobject]@{ When = $when; Index = $index; Row = $row }) }
+                # Order oldest first by the time property, keeping arrival
+                # order for equal times, and reorder the serialised lines the
+                # same way so the file still costs exactly what was budgeted.
+                $keyed = New-Object 'System.Collections.Generic.List[object]'
+                for ($index = 0; $index -lt @($rows).Count; $index++) {
+                    $text = $rows[$index][$timeProperty]
+                    $when = $windowEnd
+                    if ($text) { $when = ConvertFrom-WfUtcString -Text ([string]$text) }
+                    $keyed.Add([pscustomobject]@{ When = $when; Index = $index })
                 }
-                $exported = @($inWindow.ToArray() | Sort-Object -Property When, Index | ForEach-Object { $_.Row })
+                $order = @($keyed.ToArray() | Sort-Object -Property When, Index | ForEach-Object { $_.Index })
+                $exported = @($order | ForEach-Object { $rows[$_] })
+                $lines = @($order | ForEach-Object { $lines[$_] })
+                # The coverage proof: one bounded read for any record at or
+                # before the window start. Finding one shows the source still
+                # reaches back to the start; a probe that cannot complete
+                # proves nothing.
+                $probe = Get-WfCimRows -Namespace $namespace -ClassName $className -Properties @($timeProperty) -Filter $probeFilter `
+                    -MaxRows 1 -MaxBytes 1048576 -TimeoutSeconds (Get-WfRemainingSeconds -DeadlineUtc $deadline)
+                if ($probe['Ok'] -and @($probe['Rows']).Count -gt 0 -and $probe['Rows'][0][$timeProperty]) {
+                    $oldest = ConvertFrom-WfUtcString -Text ([string]$probe['Rows'][0][$timeProperty])
+                }
             } else {
                 $exported = $rows
                 $oldest = $started
             }
-            if (@($exported).Count -gt $MaxEvents) {
-                # Keep the newest records (a history is sorted oldest first).
-                $truncated = $true
-                $exported = @($exported | Select-Object -Last $MaxEvents)
-            }
-            $recordsPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/records.json')
-            Write-WfJsonArrayFile -Path $recordsPath -Items $exported
-            if ((Get-Item -LiteralPath $recordsPath).Length -gt $MaxArtifactBytes) {
-                $truncated = $true
+            Write-WfJsonLinesFile -Path $recordsPath -Lines @($lines)
+            $size = (Get-Item -LiteralPath $recordsPath).Length
+            if ($size -gt $MaxArtifactBytes) {
                 Remove-Item -LiteralPath $recordsPath -Force
                 $exported = @()
-                $Log.Add('source ' + $id + ': records.json exceeded the byte cap and was removed')
+                $readErrorKind = 'other'
+                $readErrorMessage = ('records.json was ' + $size + ' bytes, above the cap of ' + $MaxArtifactBytes + ', and was removed')
             }
         }
 
+        $earliest = $null
+        if ($timeProperty -and @($exported).Count -gt 0 -and $exported[0][$timeProperty]) { $earliest = ConvertFrom-WfUtcString -Text ([string]$exported[0][$timeProperty]) }
         if (-not $readErrorKind -and -not $timeProperty -and @($exported).Count -eq 0 -and -not $truncated) {
             $entry.status = 'capture_failed'
             $entry.status_reason = 'the class returned no instances; a snapshot of this class is never empty on a working machine, so this is treated as a failed read and not as an observation'
             $entry.expectation = [ordered]@{ declared = 'the class returns at least one instance'; met = $false; detail = '0 instances' }
             $entry.raw_time_range = $null
+            Remove-WfPrimaryUnlessKept -Path $recordsPath -Status $entry.status -Truncated $truncated -RecordCount 0 -Log $Log -SourceId $id
         } else {
             $resolved = Resolve-WfSourceStatus -ReadErrorKind $readErrorKind -ReadErrorMessage $readErrorMessage `
-                -RecordCount (@($exported).Count) -Truncated $truncated -OldestRecordUtc $oldest `
-                -WindowStartUtc $windowStart -QuietClaimVerified $true `
-                -TruncationDetail ('cap is ' + $MaxEvents + ' records or ' + $MaxArtifactBytes + ' bytes; the newest records were kept')
+                -RecordCount (@($exported).Count) -Truncated $truncated -OldestRecordUtc $oldest -EarliestExportedUtc $earliest `
+                -WindowStartUtc $windowStart -QuietClaimVerified $true -TruncationDetail ([string]$read['TruncationReason'] + '; the records read before the cap were kept')
             $entry.status = $resolved['Status']
             $entry.status_reason = $resolved['Reason']
             $covered = $resolved['CoveredStartUtc']
             if (-not $timeProperty -and -not $readErrorKind) { $covered = $readAt }
-            $entry.raw_time_range = New-WfTimeRange -StartUtc $covered -EndUtc $readAt
+            $entry.raw_time_range = New-WfTimeRange -StartUtc $covered -EndUtc $(if ($timeProperty) { $windowEnd } else { $readAt })
             $coveredText = $null
             if ($null -ne $covered) { $coveredText = ConvertTo-WfUtcString -Value ([datetime]$covered) }
             if ($timeProperty) {
-                $entry.expectation = [ordered]@{
-                    declared = 'every instance inside the covered range is exported without truncation, and an empty export is only called a quiet window when the oldest instance proves the range was covered'
-                    met      = $resolved['ExpectationMet']
-                    detail   = ('{0} of {1} instances fall inside the window; covered range starts {2}' -f @($exported).Count, @($rows).Count, $coveredText)
+                $probeText = 'not run'
+                if ($null -ne $probe) {
+                    if ($probe['Ok']) { $probeText = ('found ' + @($probe['Rows']).Count + ' record at or before the window start') } else { $probeText = 'failed: ' + [string]$probe['ErrorMessage'] }
                 }
-                if ($null -ne $oldest -and $oldest -gt $windowStart) {
-                    $message = ('source ' + $id + ': ' + $className + ' only holds instances from ' + $coveredText + ', later than the requested window start; nothing is claimed before that time')
+                $entry.expectation = [ordered]@{
+                    declared = 'every instance inside the window is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when a record at or before the window start proves the range was covered'
+                    met      = $resolved['ExpectationMet']
+                    detail   = ('{0} instances inside the window; coverage probe {1}; covered range starts {2}' -f @($exported).Count, $probeText, $coveredText)
+                }
+                if ($null -eq $oldest -and $null -ne $earliest -and $earliest -gt $windowStart) {
+                    $message = ('source ' + $id + ': ' + $className + ' holds no instance at or before the requested window start; the covered range starts at the earliest exported instance, ' + $coveredText + ', and nothing is claimed before that time')
                     $Notes.Add($message)
                     $Log.Add($message)
                 }
             } else {
                 $entry.expectation = [ordered]@{ declared = 'the class returns at least one instance'; met = $resolved['ExpectationMet']; detail = ('{0} instances' -f @($exported).Count) }
             }
-            $enabledOptions = [ordered]@{ class = $className; namespace = $namespace; time_property = $timeProperty; window_days = $query.window_days; window_start_utc = $null; records_exported = @($exported).Count; truncated = $truncated }
+            Remove-WfPrimaryUnlessKept -Path $recordsPath -Status $entry.status -Truncated $truncated -RecordCount (@($exported).Count) -Log $Log -SourceId $id
+            if (-not (Test-Path -LiteralPath $recordsPath)) { $exported = @() }
+            $enabledOptions = [ordered]@{
+                class = $className; namespace = $namespace; properties = @($properties); filter = $filter; time_property = $timeProperty
+                window_days = $query.window_days; window_start_utc = $null; window_end_utc = $query.window_end_utc
+                records_read = $sourceRowCount; records_exported = @($exported).Count; truncated = $truncated
+                coverage_probe = $(if ($null -ne $probe) { [bool]$probe['Ok'] } else { $null })
+            }
             if ($timeProperty) { $enabledOptions.window_start_utc = $coveredText }
             $entry.enabled = [ordered]@{
                 providers = @(); keywords = @(); stack_walk = @(); counters = @()
                 options = $enabledOptions
-                verified_by = 'Get-CimInstance returned without error; the instance count and oldest instance are in the expectation detail'
+                verified_by = 'Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail'
             }
         }
     } catch {
@@ -795,23 +1134,28 @@ function Invoke-WfCimSource {
         $entry.status_reason = 'the collector raised while reading this source: ' + $_.Exception.Message
         $Log.Add('source ' + $id + ' raised: ' + $_.Exception.Message)
         $exported = @()
+        if (Test-Path -LiteralPath $recordsPath) { Remove-Item -LiteralPath $recordsPath -Force }
     }
     $entry.stopped_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
     $entry.artifacts = Get-WfArtifactRecords -BundleRoot $BundleRoot -SourceId $id -Roles $roles
     $Log.Add(('source {0}: status {1}, {2} artifacts' -f $id, $entry.status, @($entry.artifacts).Count))
-    return [ordered]@{ Entry = $entry; Rows = @($exported) }
+    return [ordered]@{ Entry = $entry; Rows = @($exported); SourceRowCount = $sourceRowCount }
 }
 
 function ConvertTo-WfMachineDrivers {
     # manifest.machine.drivers from Win32_PnPSignedDriver rows. Property names
     # are the documented ones:
     # https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/aa394354(v=vs.85)
+    # The list is a convenience summary with its own limit; the raw export
+    # is the complete record. Returns the drivers and how many rows with a
+    # device name were left out.
     param($Rows, [int]$Limit = 2000)
     $drivers = New-Object 'System.Collections.Generic.List[object]'
+    $skipped = 0
     foreach ($row in @($Rows)) {
-        if ($drivers.Count -ge $Limit) { break }
         $name = $row['DeviceName']
         if (-not $name) { continue }
+        if ($drivers.Count -ge $Limit) { $skipped += 1; continue }
         $drivers.Add([ordered]@{
                 name     = [string]$name
                 version  = $row['DriverVersion']
@@ -819,7 +1163,7 @@ function ConvertTo-WfMachineDrivers {
                 class    = $row['DeviceClass']
             })
     }
-    return , $drivers.ToArray()
+    return [ordered]@{ Drivers = $drivers.ToArray(); Skipped = $skipped; Limit = $Limit }
 }
 
 function Get-WfFallbackMachineInfo {
@@ -853,26 +1197,33 @@ function Get-WfFallbackMachineInfo {
 function Invoke-WfCollector {
     # Runs one collector definition and writes the whole bundle. Returns the
     # summary fields. Throws only when the bundle cannot be written at all.
+    # $State is filled as the run progresses so that the caller can still
+    # write the failure logs when this function throws.
     param(
         [hashtable]$Definition,
         [string]$OutputDirectory,
         [int]$WindowDays = 30,
         [int]$MaxEvents = 5000,
         [int64]$MaxArtifactBytes = 67108864,
+        [int]$TimeoutSeconds = 300,
         [bool]$SkipEvtx = $false,
-        [string]$CollectorPath = ''
+        [string]$CollectorPath = '',
+        [hashtable]$State = @{}
     )
     $name = [string]$Definition['Name']
     if (-not (Test-WfCollectorName -Name $name)) { throw ('collector name does not match ' + (Get-WfCollectorNamePattern) + ': ' + $name) }
     if ($WindowDays -lt 1 -or $WindowDays -gt 365) { throw 'WindowDays must be between 1 and 365' }
     if ($MaxEvents -lt 1 -or $MaxEvents -gt 100000) { throw 'MaxEvents must be between 1 and 100000' }
     if ($MaxArtifactBytes -lt 1048576 -or $MaxArtifactBytes -gt 1073741824) { throw 'MaxArtifactBytes must be between 1 MiB and 1 GiB' }
+    if ($TimeoutSeconds -lt 1 -or $TimeoutSeconds -gt 3600) { throw 'TimeoutSeconds must be between 1 and 3600' }
     $sources = Get-WfList -Value $Definition['Sources']
     if ($sources.Count -lt 1) { throw 'a collector definition needs at least one source' }
 
     $bundleRoot = Resolve-WfBundleRoot -OutputDirectory $OutputDirectory
     New-WfBundleLayout -BundleRoot $bundleRoot
     $log = New-Object 'System.Collections.Generic.List[string]'
+    $State['BundleRoot'] = $bundleRoot
+    $State['Log'] = $log
     $notes = New-Object 'System.Collections.Generic.List[string]'
     $start = Get-WfUtcNow
     $scenarioId = ConvertTo-WfIdentifier -Name $name
@@ -885,7 +1236,7 @@ function Invoke-WfCollector {
     }
     $windowText = 'no time window (snapshot)'
     if ($windowed) { $windowText = ('window {0} days' -f $WindowDays) }
-    $log.Add(('{0} collector {1} version {2}, helper version {3}, {4}' -f (ConvertTo-WfUtcString -Value $start), $name, [string]$Definition['Version'], (Get-WfCollectorsVersion), $windowText))
+    $log.Add(('{0} collector {1} version {2}, helper version {3}, {4}, {5} s per source' -f (ConvertTo-WfUtcString -Value $start), $name, [string]$Definition['Version'], (Get-WfCollectorsVersion), $windowText, $TimeoutSeconds))
 
     $machineInfo = $null
     try {
@@ -898,16 +1249,16 @@ function Invoke-WfCollector {
     }
     $account = Get-WfAccountInfo
     $entries = New-Object 'System.Collections.Generic.List[object]'
-    $driverRows = $null
+    $driverResult = $null
     foreach ($source in $sources) {
         $type = [string]$source['Type']
         if ($type -eq 'eventlog') {
             $result = Invoke-WfEventSource -Source $source -BundleRoot $bundleRoot -WindowDays $WindowDays -MaxEvents $MaxEvents `
-                -MaxArtifactBytes $MaxArtifactBytes -SkipEvtx $SkipEvtx -Log $log -Notes $notes
+                -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -SkipEvtx $SkipEvtx -Log $log -Notes $notes
         } elseif ($type -eq 'cim') {
             $result = Invoke-WfCimSource -Source $source -BundleRoot $bundleRoot -WindowDays $WindowDays -MaxEvents $MaxEvents `
-                -MaxArtifactBytes $MaxArtifactBytes -Log $log -Notes $notes
-            if ($source['FillsMachineDrivers']) { $driverRows = $result['Rows'] }
+                -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes
+            if ($source['FillsMachineDrivers']) { $driverResult = $result }
         } else {
             throw ('unknown source type: ' + $type)
         }
@@ -916,7 +1267,13 @@ function Invoke-WfCollector {
     $stop = Get-WfUtcNow
 
     $machine = $machineInfo['machine']
-    if ($null -ne $driverRows) { $machine['drivers'] = ConvertTo-WfMachineDrivers -Rows $driverRows }
+    if ($null -ne $driverResult) {
+        $summary = ConvertTo-WfMachineDrivers -Rows $driverResult['Rows']
+        $machine['drivers'] = $summary['Drivers']
+        if ($summary['Skipped'] -gt 0) {
+            $notes.Add(('machine.drivers lists the first {0} named drivers of {1} from source {2}; {3} were left out of this summary, and the raw export is the complete record' -f $summary['Limit'], ($summary['Limit'] + $summary['Skipped']), [string]$driverResult['Entry']['id'], $summary['Skipped']))
+        }
+    }
     $statuses = @($entries.ToArray() | ForEach-Object { [string]$_['status'] })
     $summaryStatus = Get-WfSummaryStatus -Statuses $statuses
     $artifactCount = 0
@@ -936,7 +1293,7 @@ function Invoke-WfCollector {
     $allNotes.Add(('Ran as {0}; elevated: {1}; member of Event Log Readers (S-1-5-32-573): {2}.' -f $account['name'], $account['elevated'], $account['event_log_readers']))
     $allNotes.Add('The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.')
     if ($readsEventLog) {
-        $allNotes.Add('Windows are bounded with timediff, which the Event Log service evaluates when each query runs, so a window starts at most the run time of the collector later than the recorded window_start_utc.')
+        $allNotes.Add('Each event log query selects a fixed interval, window_end_utc minus the window to window_end_utc, so records raised while the query ran are not part of the result.')
     }
     $allNotes.Add('This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.')
     foreach ($note in $notes) { $allNotes.Add($note) }
@@ -983,6 +1340,7 @@ function Invoke-WfCollector {
     $summaryLine = ConvertTo-WfSummaryLine -Collector $name -Status $summaryStatus -Bundle $OutputDirectory -Artifacts $artifactCount
     Write-WfTextFile -Path (Join-WfBundlePath -BundleRoot $bundleRoot -RelativePath 'logs/summary.json') -Text ($summaryLine + "`n")
     Write-WfTextFile -Path (Join-WfBundlePath -BundleRoot $bundleRoot -RelativePath 'logs/collector.log') -Text (($log.ToArray() -join "`n") + "`n")
+    $State['Written'] = $true
     foreach ($note in $notes) { Write-WfStderrLine -Text $note }
     return [ordered]@{ Status = $summaryStatus; Artifacts = $artifactCount; SummaryLine = $summaryLine; BundleId = $manifest.bundle_id }
 }
@@ -991,30 +1349,50 @@ function Invoke-WfCollectorScript {
     # The entry point every collector script calls. Prints exactly one JSON
     # line on stdout, sends diagnostics to stderr, and returns the exit code:
     # 0 when the bundle is complete (status ok or partial), 1 otherwise.
+    # When the run fails after the bundle directory was laid out, the failed
+    # summary and the log are still written under logs/ there.
     param(
         [hashtable]$Definition,
         [string]$OutputDirectory,
         [int]$WindowDays = 30,
         [int]$MaxEvents = 5000,
         [int64]$MaxArtifactBytes = 67108864,
+        [int]$TimeoutSeconds = 300,
         [bool]$SkipEvtx = $false,
         [string]$CollectorPath = ''
     )
     $name = [string]$Definition['Name']
     $exitCode = 1
     $line = $null
+    $state = @{}
     try {
         # Anything a callee writes to the success stream by accident is kept
         # away from stdout: only the last object, the result, is used.
         $output = @(Invoke-WfCollector -Definition $Definition -OutputDirectory $OutputDirectory -WindowDays $WindowDays `
-                -MaxEvents $MaxEvents -MaxArtifactBytes $MaxArtifactBytes -SkipEvtx $SkipEvtx -CollectorPath $CollectorPath)
+                -MaxEvents $MaxEvents -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -SkipEvtx $SkipEvtx `
+                -CollectorPath $CollectorPath -State $state)
         $result = $output[$output.Count - 1]
         $line = [string]$result['SummaryLine']
         if ($result['Status'] -ne 'failed') { $exitCode = 0 }
     } catch {
-        Write-WfStderrLine -Text ('collector ' + $name + ' failed: ' + $_.Exception.Message)
+        $message = 'collector ' + $name + ' failed: ' + $_.Exception.Message
+        Write-WfStderrLine -Text $message
         $line = ConvertTo-WfSummaryLine -Collector $name -Status 'failed' -Bundle $OutputDirectory -Artifacts 0
         $exitCode = 1
+        if ($state.ContainsKey('BundleRoot') -and -not $state.ContainsKey('Written')) {
+            try {
+                $logs = Join-WfBundlePath -BundleRoot $state['BundleRoot'] -RelativePath 'logs'
+                $null = New-Item -ItemType Directory -Force -Path $logs
+                $log = New-Object 'System.Collections.Generic.List[string]'
+                if ($state.ContainsKey('Log')) { foreach ($item in $state['Log']) { $log.Add($item) } }
+                $log.Add((ConvertTo-WfUtcString -Value (Get-WfUtcNow)) + ' ' + $message)
+                $log.Add('no manifest was written; the raw directory holds whatever was collected before the failure and is not a bundle')
+                Write-WfTextFile -Path (Join-WfBundlePath -BundleRoot $state['BundleRoot'] -RelativePath 'logs/summary.json') -Text ($line + "`n")
+                Write-WfTextFile -Path (Join-WfBundlePath -BundleRoot $state['BundleRoot'] -RelativePath 'logs/collector.log') -Text (($log.ToArray() -join "`n") + "`n")
+            } catch {
+                Write-WfStderrLine -Text ('the failure log could not be written: ' + $_.Exception.Message)
+            }
+        }
     }
     Write-WfStdoutLine -Text $line
     return $exitCode
@@ -1045,9 +1423,11 @@ function Get-WfCimFirst {
     # One instance of a Win32 class, or $null when the class cannot be read.
     # Local WMI read access is granted to Authenticated Users by default:
     # https://learn.microsoft.com/en-us/windows/win32/wmisdk/access-to-wmi-namespaces
-    param([string]$ClassName)
+    # The operation timeout bounds a provider that does not answer:
+    # https://learn.microsoft.com/en-us/powershell/module/cimcmdlets/get-ciminstance?view=powershell-5.1
+    param([string]$ClassName, [int]$TimeoutSeconds = 60)
     try {
-        return @(Get-CimInstance -ClassName $ClassName -ErrorAction Stop)[0]
+        return @(Get-CimInstance -ClassName $ClassName -OperationTimeoutSec $TimeoutSeconds -ErrorAction Stop)[0]
     } catch {
         return $null
     }
@@ -1075,9 +1455,9 @@ function Get-WfMachineInfo {
     $bios = Get-WfCimFirst -ClassName 'Win32_BIOS'
     $board = Get-WfCimFirst -ClassName 'Win32_BaseBoard'
     $processors = @()
-    try { $processors = @(Get-CimInstance -ClassName 'Win32_Processor' -ErrorAction Stop) } catch { $processors = @() }
+    try { $processors = @(Get-CimInstance -ClassName 'Win32_Processor' -OperationTimeoutSec 60 -ErrorAction Stop) } catch { $processors = @() }
     $videoControllers = @()
-    try { $videoControllers = @(Get-CimInstance -ClassName 'Win32_VideoController' -ErrorAction Stop) } catch { $videoControllers = @() }
+    try { $videoControllers = @(Get-CimInstance -ClassName 'Win32_VideoController' -OperationTimeoutSec 60 -ErrorAction Stop) } catch { $videoControllers = @() }
 
     $hostname = [System.Environment]::MachineName
     $seed = $hostname
@@ -1229,102 +1609,43 @@ function Get-WfEventReadErrorKind {
     return 'other'
 }
 
-function Get-WfChannelState {
-    # What the channel holds right now. The oldest retained record is what
-    # lets a later reader tell a quiet log from one that wrapped or was
-    # cleared. The configuration values (log mode, maximum size, security
-    # descriptor) are recorded when the account may read them and are null
-    # otherwise; only the oldest record read decides found and readable.
-    # EventLogSession.GetLogInformation and EventLogConfiguration:
-    # https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.eventing.reader.eventlogsession.getloginformation
-    # https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.eventing.reader.eventlogconfiguration
-    param([string]$Channel)
-    $state = [ordered]@{
-        found = $null; readable = $false; error = $null; error_kind = $null
-        record_count = $null; oldest_record_number = $null; oldest_record_time_utc = $null
-        file_size_bytes = $null; is_log_full = $null; last_write_time_utc = $null
-        is_enabled = $null; log_mode = $null; maximum_size_bytes = $null; isolation = $null; security_descriptor = $null
-        configuration_error = $null
-    }
-    $pathType = $null
-    $reader = $null
-    try {
-        $pathType = [System.Diagnostics.Eventing.Reader.PathType]::LogName
-        # A plain "*" query read forward returns the oldest record first.
-        $query = New-Object System.Diagnostics.Eventing.Reader.EventLogQuery($Channel, $pathType, '*')
-        $reader = New-Object System.Diagnostics.Eventing.Reader.EventLogReader($query)
-        $record = $reader.ReadEvent()
-        $state.found = $true
-        $state.readable = $true
-        if ($null -ne $record) {
-            try {
-                if ($null -ne $record.RecordId) { $state.oldest_record_number = [int64]$record.RecordId }
-                if ($null -ne $record.TimeCreated) { $state.oldest_record_time_utc = ConvertTo-WfUtcString -Value $record.TimeCreated }
-            } finally {
-                $record.Dispose()
-            }
+function Get-WfCimErrorKind {
+    # CimException.NativeErrorCode names the failure:
+    # https://learn.microsoft.com/en-us/dotnet/api/microsoft.management.infrastructure.cimexception.nativeerrorcode
+    param($Exception)
+    $current = $Exception
+    while ($null -ne $current) {
+        if ($current -is [System.UnauthorizedAccessException]) { return 'access_denied' }
+        $typeName = $current.GetType().FullName
+        if ($typeName -eq 'Microsoft.Management.Infrastructure.CimException') {
+            $code = [string]$current.NativeErrorCode
+            if ($code -eq 'AccessDenied') { return 'access_denied' }
+            if ($code -eq 'InvalidClass' -or $code -eq 'InvalidNamespace' -or $code -eq 'NotFound') { return 'not_found' }
+            return 'other'
         }
-    } catch {
-        $kind = Get-WfEventReadErrorKind -Exception $_.Exception
-        $state.error = $_.Exception.Message
-        $state.error_kind = $kind
-        if ($kind -eq 'not_found') { $state.found = $false } elseif ($kind -eq 'access_denied') { $state.found = $true }
-        return $state
-    } finally {
-        if ($null -ne $reader) { $reader.Dispose() }
+        $current = $current.InnerException
     }
-    try {
-        $info = [System.Diagnostics.Eventing.Reader.EventLogSession]::GlobalSession.GetLogInformation($Channel, $pathType)
-        if ($null -ne $info.RecordCount) { $state.record_count = [int64]$info.RecordCount }
-        if ($null -ne $info.FileSize) { $state.file_size_bytes = [int64]$info.FileSize }
-        if ($null -ne $info.IsLogFull) { $state.is_log_full = [bool]$info.IsLogFull }
-        if ($null -ne $info.LastWriteTime) { $state.last_write_time_utc = ConvertTo-WfUtcString -Value $info.LastWriteTime }
-    } catch {
-        $state.configuration_error = $_.Exception.Message
-    }
-    $configuration = $null
-    try {
-        $configuration = New-Object System.Diagnostics.Eventing.Reader.EventLogConfiguration($Channel)
-        $state.is_enabled = [bool]$configuration.IsEnabled
-        $state.log_mode = [string]$configuration.LogMode
-        $state.maximum_size_bytes = [int64]$configuration.MaximumSizeInBytes
-        $state.isolation = [string]$configuration.LogIsolation
-        $state.security_descriptor = [string]$configuration.SecurityDescriptor
-    } catch {
-        $state.configuration_error = $_.Exception.Message
-    } finally {
-        if ($null -ne $configuration) { $configuration.Dispose() }
-    }
-    return $state
-}
-
-function Get-WfRegisteredProviderNames {
-    # Every provider registered on the machine, or $null when the list cannot
-    # be read. EventLogSession.GetProviderNames:
-    # https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.eventing.reader.eventlogsession.getprovidernames
-    try {
-        return , @([System.Diagnostics.Eventing.Reader.EventLogSession]::GlobalSession.GetProviderNames())
-    } catch {
-        return $null
-    }
+    return 'other'
 }
 
 function ConvertFrom-WfEventRecord {
     # One EventRecord as the element written to events.json. The field names
     # are the columns of schemas/decoded/eventlog_events.schema.json, plus
-    # "xml", the complete event XML from EventRecord.ToXml(). The rendered
-    # message and the level and task names depend on publisher metadata and
-    # locale and may be unavailable, in which case they are null.
+    # "xml", the complete event XML from EventRecord.ToXml(). The XML is the
+    # record; when it cannot be produced this throws, and the caller stops
+    # the export rather than writing a record with a hole in it. The
+    # rendered message and the level and task names depend on publisher
+    # metadata and locale and may be unavailable, in which case they are
+    # null.
     # EventRecord: https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.eventing.reader.eventrecord
     param($Record)
-    $xmlText = $null
-    try { $xmlText = $Record.ToXml() } catch { $xmlText = $null }
+    $xmlText = $Record.ToXml()
+    if (-not $xmlText) { throw 'EventRecord.ToXml() returned no text' }
     $timeText = $null
-    if ($xmlText) {
-        $m = [regex]::Match($xmlText, 'TimeCreated\s+SystemTime\s*=\s*[''"]([^''"]+)[''"]')
-        if ($m.Success) { $timeText = Format-WfSystemTime -Text $m.Groups[1].Value }
-    }
+    $m = [regex]::Match($xmlText, 'TimeCreated\s+SystemTime\s*=\s*[''"]([^''"]+)[''"]')
+    if ($m.Success) { $timeText = Format-WfSystemTime -Text $m.Groups[1].Value }
     if (-not $timeText -and $null -ne $Record.TimeCreated) { $timeText = ConvertTo-WfUtcString -Value $Record.TimeCreated }
+    if (-not $timeText) { throw 'the record carries no creation time' }
     $message = $null
     try { $message = $Record.FormatDescription() } catch { $message = $null }
     $levelDisplay = $null
@@ -1362,49 +1683,79 @@ function ConvertFrom-WfEventRecord {
     }
 }
 
-function Read-WfEventRecords {
-    # Runs the structured query and returns the records newest first, so that
-    # a cap keeps the most recent ones. ReadEvent returns null when the query
-    # has no more records, as in Microsoft's example:
-    # https://learn.microsoft.com/en-us/previous-versions/bb671200(v=vs.90)
+function Open-WfEventReader {
+    # Opens an EventLogReader over a channel and returns the pull interface
+    # the portable read loop uses: ReadNext takes the time left and returns
+    # the next record or null, Convert turns a record into an export element,
+    # Release disposes a record, Dispose closes the reader.
+    # EventLogReader.ReadEvent(TimeSpan) takes "the maximum time to allow the
+    # read operation to run before canceling the operation":
+    # https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.eventing.reader.eventlogreader.readevent
     # EventLogQuery.ReverseDirection:
     # https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.eventing.reader.eventlogquery.reversedirection
-    param([string]$Channel, [string]$QueryXml, [int]$MaxEvents, [int64]$MaxBytes)
-    $result = [ordered]@{ Ok = $false; ErrorKind = $null; ErrorMessage = $null; Events = @(); Truncated = $false }
-    $events = New-Object 'System.Collections.Generic.List[object]'
-    $reader = $null
-    $approximateBytes = [int64]0
+    param([string]$Channel, [string]$QueryXml, [bool]$Reverse)
+    $result = [ordered]@{ Ok = $false; ErrorKind = $null; ErrorMessage = $null; ReadNext = $null; Convert = $null; Release = $null; Dispose = $null }
     try {
         $query = New-Object System.Diagnostics.Eventing.Reader.EventLogQuery($Channel, [System.Diagnostics.Eventing.Reader.PathType]::LogName, $QueryXml)
-        $query.ReverseDirection = $true
+        $query.ReverseDirection = $Reverse
         $reader = New-Object System.Diagnostics.Eventing.Reader.EventLogReader($query)
-        while ($true) {
-            $record = $reader.ReadEvent()
-            if ($null -eq $record) { break }
-            try {
-                if ($events.Count -ge $MaxEvents) { $result.Truncated = $true; break }
-                $item = ConvertFrom-WfEventRecord -Record $record
-                # The XML is the bulk of an element; twice its length is a
-                # generous estimate of the element's size in events.json.
-                $length = 512
-                if ($item['xml']) { $length += 2 * ([string]$item['xml']).Length }
-                if ($item['message']) { $length += ([string]$item['message']).Length }
-                if (($approximateBytes + $length) -gt $MaxBytes) { $result.Truncated = $true; break }
-                $approximateBytes += $length
-                $events.Add($item)
-            } finally {
-                $record.Dispose()
-            }
-        }
+        $result.ReadNext = { param([timespan]$Remaining) return $reader.ReadEvent($Remaining) }.GetNewClosure()
+        $result.Convert = { param($Record) return (ConvertFrom-WfEventRecord -Record $Record) }
+        $result.Release = { param($Record) $Record.Dispose() }
+        $result.Dispose = { $reader.Dispose() }.GetNewClosure()
         $result.Ok = $true
-        $result.Events = $events.ToArray()
     } catch {
         $result.ErrorKind = Get-WfEventReadErrorKind -Exception $_.Exception
         $result.ErrorMessage = $_.Exception.Message
-    } finally {
-        if ($null -ne $reader) { $reader.Dispose() }
     }
     return $result
+}
+
+function Get-WfChannelConfiguration {
+    # Channel configuration and log information, each null when the account
+    # may not read it. Nothing here decides a status.
+    # https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.eventing.reader.eventlogsession.getloginformation
+    # https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.eventing.reader.eventlogconfiguration
+    param([string]$Channel)
+    $state = [ordered]@{
+        record_count = $null; file_size_bytes = $null; is_log_full = $null; last_write_time_utc = $null
+        is_enabled = $null; log_mode = $null; maximum_size_bytes = $null; isolation = $null; security_descriptor = $null
+        configuration_error = $null
+    }
+    try {
+        $info = [System.Diagnostics.Eventing.Reader.EventLogSession]::GlobalSession.GetLogInformation($Channel, [System.Diagnostics.Eventing.Reader.PathType]::LogName)
+        if ($null -ne $info.RecordCount) { $state.record_count = [int64]$info.RecordCount }
+        if ($null -ne $info.FileSize) { $state.file_size_bytes = [int64]$info.FileSize }
+        if ($null -ne $info.IsLogFull) { $state.is_log_full = [bool]$info.IsLogFull }
+        if ($null -ne $info.LastWriteTime) { $state.last_write_time_utc = ConvertTo-WfUtcString -Value $info.LastWriteTime }
+    } catch {
+        $state.configuration_error = $_.Exception.Message
+    }
+    $configuration = $null
+    try {
+        $configuration = New-Object System.Diagnostics.Eventing.Reader.EventLogConfiguration($Channel)
+        $state.is_enabled = [bool]$configuration.IsEnabled
+        $state.log_mode = [string]$configuration.LogMode
+        $state.maximum_size_bytes = [int64]$configuration.MaximumSizeInBytes
+        $state.isolation = [string]$configuration.LogIsolation
+        $state.security_descriptor = [string]$configuration.SecurityDescriptor
+    } catch {
+        $state.configuration_error = $_.Exception.Message
+    } finally {
+        if ($null -ne $configuration) { $configuration.Dispose() }
+    }
+    return $state
+}
+
+function Get-WfRegisteredProviderNames {
+    # Every provider registered on the machine, or $null when the list cannot
+    # be read. EventLogSession.GetProviderNames:
+    # https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.eventing.reader.eventlogsession.getprovidernames
+    try {
+        return , @([System.Diagnostics.Eventing.Reader.EventLogSession]::GlobalSession.GetProviderNames())
+    } catch {
+        return $null
+    }
 }
 
 function Export-WfEvtx {
@@ -1420,6 +1771,10 @@ function Export-WfEvtx {
     $wevtutil = Get-WfWevtutilPath
     $arguments = 'epl "{0}" "{1}" /sq:true /ow:true' -f $QueryPath, $TargetPath
     $result = [ordered]@{ Attempted = $true; Ok = $false; ExitCode = $null; Message = $null; Command = @($wevtutil, 'epl', $QueryPath, $TargetPath, '/sq:true', '/ow:true') }
+    if ($TimeoutSeconds -lt 1) {
+        $result.Message = 'not started: the source deadline had passed'
+        return $result
+    }
     $process = $null
     try {
         $startInfo = New-Object System.Diagnostics.ProcessStartInfo
@@ -1465,34 +1820,33 @@ function Export-WfEvtx {
     return $result
 }
 
-function Get-WfCimRows {
-    # Every instance of a class, each as an ordered map of its properties with
-    # dates as UTC text. CimException.NativeErrorCode names the failure:
-    # https://learn.microsoft.com/en-us/dotnet/api/microsoft.management.infrastructure.cimexception.nativeerrorcode
-    param([string]$Namespace, [string]$ClassName)
-    $result = [ordered]@{ Ok = $false; ErrorKind = $null; ErrorMessage = $null; Rows = @() }
-    try {
-        $instances = @(Get-CimInstance -Namespace $Namespace -ClassName $ClassName -ErrorAction Stop)
-        $rows = New-Object 'System.Collections.Generic.List[object]'
-        foreach ($instance in $instances) {
-            $row = [ordered]@{}
-            foreach ($property in $instance.CimInstanceProperties) { $row[$property.Name] = ConvertTo-WfJsonValue -Value $property.Value }
-            $rows.Add($row)
-        }
-        $result.Ok = $true
-        $result.Rows = $rows.ToArray()
-    } catch {
-        $kind = 'other'
-        $exception = $_.Exception
-        if ($exception -is [Microsoft.Management.Infrastructure.CimException]) {
-            $code = [string]$exception.NativeErrorCode
-            if ($code -eq 'AccessDenied') { $kind = 'access_denied' }
-            elseif ($code -eq 'InvalidClass' -or $code -eq 'InvalidNamespace' -or $code -eq 'NotFound') { $kind = 'not_found' }
-        } elseif ($exception -is [System.UnauthorizedAccessException]) {
-            $kind = 'access_denied'
-        }
-        $result.ErrorKind = $kind
-        $result.ErrorMessage = $exception.Message
+function ConvertFrom-WfCimInstance {
+    # The requested properties of one instance as an ordered map, dates as
+    # UTC text; a property the instance lacks is null.
+    param($Instance, [string[]]$Properties)
+    $row = [ordered]@{}
+    foreach ($name in $Properties) {
+        $property = $Instance.CimInstanceProperties[$name]
+        if ($null -eq $property) { $row[$name] = $null } else { $row[$name] = ConvertTo-WfJsonValue -Value $property.Value }
     }
-    return $result
+    return $row
+}
+
+function New-WfCimProducer {
+    # A pipeline that streams the instances of one class, with the WQL
+    # filter and the property list pushed to WMI and an operation timeout so
+    # that a provider that does not answer cannot hold the collector. The
+    # producer emits one instance at a time; the portable read loop stops
+    # it at the caps. Get-CimInstance -Filter, -Property, -OperationTimeoutSec:
+    # https://learn.microsoft.com/en-us/powershell/module/cimcmdlets/get-ciminstance?view=powershell-5.1
+    param([string]$Namespace, [string]$ClassName, [string[]]$Properties, $Filter, [double]$TimeoutSeconds)
+    $seconds = [int][math]::Ceiling($TimeoutSeconds)
+    if ($seconds -lt 1) { $seconds = 1 }
+    $parameters = @{ Namespace = $Namespace; ClassName = $ClassName; Property = @($Properties); OperationTimeoutSec = $seconds; ErrorAction = 'Stop' }
+    if ($Filter) { $parameters['Filter'] = [string]$Filter }
+    $names = @($Properties)
+    return @{
+        Producer = { Get-CimInstance @parameters }.GetNewClosure()
+        Convert  = { param($Instance) return (ConvertFrom-WfCimInstance -Instance $Instance -Properties $names) }.GetNewClosure()
+    }
 }

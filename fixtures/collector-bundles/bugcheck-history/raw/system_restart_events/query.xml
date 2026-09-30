@@ -1,5 +1,5 @@
 <QueryList>
   <Query Id="0" Path="System">
-    <Select Path="System">*[System[(EventID=41 or EventID=46 or EventID=1001 or EventID=1074 or EventID=6006 or EventID=6008 or EventID=6009 or EventID=7045) and TimeCreated[timediff(@SystemTime) &lt;= 2592000000]]]</Select>
+    <Select Path="System">*[System[(EventID=41 or EventID=46 or EventID=1001 or EventID=1074 or EventID=6006 or EventID=6008 or EventID=6009 or EventID=7045) and TimeCreated[timediff(@SystemTime, 134168400030000000) &gt;= 0 and timediff(@SystemTime, 134168400030000000) &lt;= 2592000000]]]</Select>
   </Query>
 </QueryList>

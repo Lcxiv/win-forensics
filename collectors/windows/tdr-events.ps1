@@ -52,6 +52,9 @@ param(
     [int]$MaxEvents = 5000,
     # Cap on the size of one export, in bytes (1 MiB to 1 GiB).
     [long]$MaxArtifactBytes = 67108864,
+    # Deadline for reading one source, in seconds (1 to 3600). A read that
+    # does not finish in time is recorded as capture_failed.
+    [int]$TimeoutSeconds = 300,
     # Skip the binary wevtutil export and keep only the structured one.
     [switch]$SkipEvtx
 )
@@ -104,5 +107,5 @@ $definition = @{
     )
 }
 
-$exitCode = @(Invoke-WfCollectorScript -Definition $definition -OutputDirectory $OutputDirectory -WindowDays $WindowDays -MaxEvents $MaxEvents -MaxArtifactBytes $MaxArtifactBytes -SkipEvtx $SkipEvtx.IsPresent -CollectorPath $PSCommandPath)[-1]
+$exitCode = @(Invoke-WfCollectorScript -Definition $definition -OutputDirectory $OutputDirectory -WindowDays $WindowDays -MaxEvents $MaxEvents -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -SkipEvtx $SkipEvtx.IsPresent -CollectorPath $PSCommandPath)[-1]
 exit $exitCode

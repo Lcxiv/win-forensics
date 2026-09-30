@@ -16,7 +16,11 @@
 # https://learn.microsoft.com/en-us/previous-versions/windows/desktop/racwmiprov/win32-reliabilitystabilitymetrics
 # TimeGenerated is UTC in both classes. The classes need the policy
 # "Configure Reliability WMI Providers", which is enabled by default on
-# Windows client systems.
+# Windows client systems. The window is pushed into the WQL filter as a
+# CIM DATETIME comparison and only the documented properties are requested,
+# so the provider never has to hand over more than the collector keeps:
+# https://learn.microsoft.com/en-us/powershell/module/cimcmdlets/get-ciminstance?view=powershell-5.1
+# https://learn.microsoft.com/en-us/windows/win32/wmisdk/cim-datetime
 #
 # Access: Authenticated Users have Enable Account (read) on WMI namespaces by
 # default, and a local read needs nothing more:
@@ -38,7 +42,10 @@ param(
     # Cap on records per source (1 to 100000). Reaching it marks the source capture_failed.
     [int]$MaxEvents = 5000,
     # Cap on the size of one export, in bytes (1 MiB to 1 GiB).
-    [long]$MaxArtifactBytes = 67108864
+    [long]$MaxArtifactBytes = 67108864,
+    # Deadline for reading one source, in seconds (1 to 3600). A read that
+    # does not finish in time is recorded as capture_failed.
+    [int]$TimeoutSeconds = 300
 )
 
 Set-StrictMode -Version 2.0
@@ -73,6 +80,7 @@ $definition = @{
             Kind         = 'other'
             Required     = $true
             ClassName    = 'Win32_ReliabilityRecords'
+            Properties   = @('ComputerName', 'EventIdentifier', 'InsertionStrings', 'Logfile', 'Message', 'ProductName', 'RecordNumber', 'SourceName', 'TimeGenerated', 'User')
             TimeProperty = 'TimeGenerated'
         },
         @{
@@ -81,10 +89,11 @@ $definition = @{
             Kind         = 'other'
             Required     = $false
             ClassName    = 'Win32_ReliabilityStabilityMetrics'
+            Properties   = @('EndMeasurementDate', 'RelID', 'StartMeasurementDate', 'SystemStabilityIndex', 'TimeGenerated')
             TimeProperty = 'TimeGenerated'
         }
     )
 }
 
-$exitCode = @(Invoke-WfCollectorScript -Definition $definition -OutputDirectory $OutputDirectory -WindowDays $WindowDays -MaxEvents $MaxEvents -MaxArtifactBytes $MaxArtifactBytes -CollectorPath $PSCommandPath)[-1]
+$exitCode = @(Invoke-WfCollectorScript -Definition $definition -OutputDirectory $OutputDirectory -WindowDays $WindowDays -MaxEvents $MaxEvents -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -CollectorPath $PSCommandPath)[-1]
 exit $exitCode

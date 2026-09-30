@@ -73,9 +73,12 @@ def test_shipped_scripts_are_read_only(path):
     code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
     for token in FORBIDDEN:
         assert token.lower() not in code.lower(), f"{path.name} uses {token.strip()}"
-    # The only deletions are of the collector's own export inside the output directory.
+    # The only deletions are of the collector's own exports inside the output directory: a failed or
+    # over-cap .evtx, and a primary export that must not be left behind ($Path is the primary passed to
+    # Remove-WfPrimaryUnlessKept).
     removals = [line.strip() for line in code.splitlines() if "Remove-Item" in line]
-    assert all("-LiteralPath $evtxPath" in r or "-LiteralPath $recordsPath" in r for r in removals), removals
+    own = ("-LiteralPath $evtxPath", "-LiteralPath $recordsPath", "-LiteralPath $eventsPath", "-LiteralPath $Path -Force")
+    assert all(any(marker in r for marker in own) for r in removals), removals
     # The only process started is wevtutil, with the export verb and nothing else.
     if path.name == HELPER:
         assert code.count("System.Diagnostics.ProcessStartInfo") == 1

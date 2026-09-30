@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.0.0",
   "bundle_id": "20260301T120001Z_driver_inventory_ae3a76a9",
-  "created_utc": "2026-03-01T12:00:08.0000000Z",
+  "created_utc": "2026-03-01T12:00:12.0000000Z",
   "scenario": {
     "id": "driver_inventory",
     "version": "1.0.0",
@@ -11,7 +11,7 @@
   },
   "capture": {
     "start_utc": "2026-03-01T12:00:01.0000000Z",
-    "stop_utc": "2026-03-01T12:00:08.0000000Z",
+    "stop_utc": "2026-03-01T12:00:12.0000000Z",
     "orchestrator": "wf-collector:driver-inventory",
     "orchestrator_version": "1.0.0",
     "elevated": false,
@@ -81,7 +81,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:03.0000000Z",
+        "at_utc": "2026-03-01T12:00:05.0000000Z",
         "checks": [
           {
             "name": "class_readable",
@@ -95,14 +95,18 @@
         "-Namespace",
         "root/cimv2",
         "-ClassName",
-        "Win32_PnPSignedDriver"
+        "Win32_PnPSignedDriver",
+        "-Property",
+        "DeviceID,DeviceName,DeviceClass,ClassGuid,Description,FriendlyName,Manufacturer,DriverProviderName,DriverVersion,DriverDate,DriverName,InfName,IsSigned,Signer,HardWareID,CompatID,Location,Started,StartMode,Status",
+        "-OperationTimeoutSec",
+        "300"
       ],
       "started_utc": "2026-03-01T12:00:02.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:04.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:06.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "421b318d62b6837dd47931a35334e749943513cfaf012cb43c321843f90af8f8"
+        "value": "43f56d83d7c7b57ec4b88edbbc64957655353f70be0cc0fdb043bb0a779f6bfd"
       },
       "filter_hash": null,
       "requested": {
@@ -113,10 +117,37 @@
         "options": {
           "class": "Win32_PnPSignedDriver",
           "namespace": "root/cimv2",
+          "properties": [
+            "DeviceID",
+            "DeviceName",
+            "DeviceClass",
+            "ClassGuid",
+            "Description",
+            "FriendlyName",
+            "Manufacturer",
+            "DriverProviderName",
+            "DriverVersion",
+            "DriverDate",
+            "DriverName",
+            "InfName",
+            "IsSigned",
+            "Signer",
+            "HardWareID",
+            "CompatID",
+            "Location",
+            "Started",
+            "StartMode",
+            "Status"
+          ],
+          "filter": null,
           "time_property": null,
           "window_days": null,
           "window_start_utc": null,
-          "max_records": 20000
+          "window_end_utc": null,
+          "coverage_probe_filter": null,
+          "max_records": 20000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300
         }
       },
       "enabled": {
@@ -127,33 +158,59 @@
         "options": {
           "class": "Win32_PnPSignedDriver",
           "namespace": "root/cimv2",
+          "properties": [
+            "DeviceID",
+            "DeviceName",
+            "DeviceClass",
+            "ClassGuid",
+            "Description",
+            "FriendlyName",
+            "Manufacturer",
+            "DriverProviderName",
+            "DriverVersion",
+            "DriverDate",
+            "DriverName",
+            "InfName",
+            "IsSigned",
+            "Signer",
+            "HardWareID",
+            "CompatID",
+            "Location",
+            "Started",
+            "StartMode",
+            "Status"
+          ],
+          "filter": null,
           "time_property": null,
           "window_days": null,
           "window_start_utc": null,
+          "window_end_utc": null,
+          "records_read": 3,
           "records_exported": 3,
-          "truncated": false
+          "truncated": false,
+          "coverage_probe": null
         },
-        "verified_by": "Get-CimInstance returned without error; the instance count and oldest instance are in the expectation detail"
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
       },
       "events_lost": null,
       "buffers": null,
       "artifacts": [
         {
           "path": "raw/pnp_signed_drivers/query.json",
-          "bytes": 168,
-          "sha256": "421b318d62b6837dd47931a35334e749943513cfaf012cb43c321843f90af8f8",
+          "bytes": 680,
+          "sha256": "43f56d83d7c7b57ec4b88edbbc64957655353f70be0cc0fdb043bb0a779f6bfd",
           "role": "config"
         },
         {
           "path": "raw/pnp_signed_drivers/records.json",
-          "bytes": 1900,
-          "sha256": "96afc2ec9bef32352390f6106c0c5284ad63e68e0436a492e1dcb4500f89141c",
+          "bytes": 1539,
+          "sha256": "5d0e6d4bf573db0a12631cf4e559ac98bde5cf8b5f25b27ce68ae6072629f493",
           "role": "primary"
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:00:03.0000000Z",
-        "end": "2026-03-01T12:00:03.0000000Z",
+        "start": "2026-03-01T12:00:05.0000000Z",
+        "end": "2026-03-01T12:00:05.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -172,7 +229,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:06.0000000Z",
+        "at_utc": "2026-03-01T12:00:10.0000000Z",
         "checks": [
           {
             "name": "class_readable",
@@ -186,14 +243,18 @@
         "-Namespace",
         "root/cimv2",
         "-ClassName",
-        "Win32_SystemDriver"
+        "Win32_SystemDriver",
+        "-Property",
+        "Name,DisplayName,Description,PathName,ServiceType,StartMode,State,Started,Status,ErrorControl,ExitCode,AcceptStop,TagId",
+        "-OperationTimeoutSec",
+        "300"
       ],
-      "started_utc": "2026-03-01T12:00:05.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:07.0000000Z",
+      "started_utc": "2026-03-01T12:00:07.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:11.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "8fc330b48932f2e7a691e2947cf69bf96833c2759807fa056c652a02a8d4bf96"
+        "value": "085779de5ebed5ff1c046ef23f4107eea2f478f77e84d5b3d09bc8a616f1a23a"
       },
       "filter_hash": null,
       "requested": {
@@ -204,10 +265,30 @@
         "options": {
           "class": "Win32_SystemDriver",
           "namespace": "root/cimv2",
+          "properties": [
+            "Name",
+            "DisplayName",
+            "Description",
+            "PathName",
+            "ServiceType",
+            "StartMode",
+            "State",
+            "Started",
+            "Status",
+            "ErrorControl",
+            "ExitCode",
+            "AcceptStop",
+            "TagId"
+          ],
+          "filter": null,
           "time_property": null,
           "window_days": null,
           "window_start_utc": null,
-          "max_records": 20000
+          "window_end_utc": null,
+          "coverage_probe_filter": null,
+          "max_records": 20000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300
         }
       },
       "enabled": {
@@ -218,33 +299,52 @@
         "options": {
           "class": "Win32_SystemDriver",
           "namespace": "root/cimv2",
+          "properties": [
+            "Name",
+            "DisplayName",
+            "Description",
+            "PathName",
+            "ServiceType",
+            "StartMode",
+            "State",
+            "Started",
+            "Status",
+            "ErrorControl",
+            "ExitCode",
+            "AcceptStop",
+            "TagId"
+          ],
+          "filter": null,
           "time_property": null,
           "window_days": null,
           "window_start_utc": null,
+          "window_end_utc": null,
+          "records_read": 2,
           "records_exported": 2,
-          "truncated": false
+          "truncated": false,
+          "coverage_probe": null
         },
-        "verified_by": "Get-CimInstance returned without error; the instance count and oldest instance are in the expectation detail"
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
       },
       "events_lost": null,
       "buffers": null,
       "artifacts": [
         {
           "path": "raw/system_drivers/query.json",
-          "bytes": 165,
-          "sha256": "8fc330b48932f2e7a691e2947cf69bf96833c2759807fa056c652a02a8d4bf96",
+          "bytes": 535,
+          "sha256": "085779de5ebed5ff1c046ef23f4107eea2f478f77e84d5b3d09bc8a616f1a23a",
           "role": "config"
         },
         {
           "path": "raw/system_drivers/records.json",
-          "bytes": 1142,
-          "sha256": "1c2189b6475b5996d307210181265cee9d9c84538dcfd177bca5a4f401c78d7d",
+          "bytes": 629,
+          "sha256": "1db1c8e1280eb26cb6a2774b5bee2d3d01cdfadad521134a377c2688a89c2bac",
           "role": "primary"
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:00:06.0000000Z",
-        "end": "2026-03-01T12:00:06.0000000Z",
+        "start": "2026-03-01T12:00:10.0000000Z",
+        "end": "2026-03-01T12:00:10.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },

@@ -123,6 +123,20 @@ def test_status_and_evidence_stay_separate(case):
         if collector["status"] in ("not_collected", "unsupported"):
             assert primary == [], "a source that was not read leaves no export, not an empty one"
             assert collector["raw_time_range"] is None
+        if collector["status"] not in OBSERVED:
+            # Only a capped export may survive a failed source, and it says so.
+            assert primary == [] or "cap" in collector["status_reason"], collector["id"]
+        if collector["kind"] == "eventlog":
+            options = collector["requested"]["options"]
+            assert options["timeout_seconds"] == 300 and options["window_end_utc"] > options["window_start_utc"]
+            query = (BUNDLES / case / "raw" / collector["id"] / "query.xml").read_text(encoding="utf-8")
+            assert "timediff(@SystemTime, " in query and "timediff(@SystemTime)" not in query, "the interval is fixed, not relative to now"
+            if collector["raw_time_range"] is not None:
+                assert collector["raw_time_range"]["end"] == options["window_end_utc"]
+        else:
+            assert "-OperationTimeoutSec" in collector["command"] and "-Property" in collector["command"]
+            if collector["requested"]["options"]["time_property"]:
+                assert "-Filter" in collector["command"] and collector["requested"]["options"]["filter"].startswith("TimeGenerated >= '")
         config = [a for a in collector["artifacts"] if a["role"] == "config"]
         assert len(config) == 1 and collector["config_hash"] == {"algorithm": "sha256", "value": config[0]["sha256"]}
 
@@ -172,6 +186,26 @@ def test_the_undocumented_display_provider_never_yields_a_quiet_window():
     assert display["status"] == "capture_failed" and display["required"] is False
     assert "verification step" in display["status_reason"]
     assert display["expectation"]["met"] is False
+    assert sorted(a["role"] for a in display["artifacts"]) == ["config", "report"], "no empty events.json is left behind"
+    assert not (BUNDLES / "tdr-events-partial" / "raw" / "system_display_events" / "events.json").exists()
+
+
+def dmtf(iso: str) -> str:
+    return iso[:4] + iso[5:7] + iso[8:10] + iso[11:13] + iso[14:16] + iso[17:19] + "." + iso[20:26] + "+000"
+
+
+def test_reliability_window_is_pushed_into_the_filter_with_a_coverage_probe():
+    manifest = load_manifest("reliability-records")
+    records = next(c for c in manifest["collectors"] if c["id"] == "reliability_records")
+    options = records["requested"]["options"]
+    assert options["filter"] == f"TimeGenerated >= '{dmtf(options['window_start_utc'])}' AND TimeGenerated <= '{dmtf(options['window_end_utc'])}'"
+    assert options["coverage_probe_filter"] == f"TimeGenerated < '{dmtf(options['window_start_utc'])}'"
+    assert records["enabled"]["options"]["coverage_probe"] is True
+    assert "coverage probe found 1 record" in records["expectation"]["detail"]
+    assert records["raw_time_range"]["start"] == options["window_start_utc"]
+    query = json.loads((BUNDLES / "reliability-records" / "raw" / "reliability_records" / "query.json").read_text(encoding="utf-8"))
+    assert query["properties"] == ["ComputerName", "EventIdentifier", "InsertionStrings", "Logfile", "Message", "ProductName",
+                                   "RecordNumber", "SourceName", "TimeGenerated", "User"]
 
 
 # ---------------------------------------------------------------- decoding
@@ -231,6 +265,67 @@ def test_decoder_refuses_an_export_whose_xml_disagrees(bundle_copy):
     result = decode_eventlog.decode(bundle, sources=["raw/system_restart_events/events.json"], decoded_at="2026-09-03T00:00:00Z")
     assert result["status"] == "decode_failed" and "its XML says" in result["reason"]
     assert wf_schema.read_jsonl(bundle / "decoded" / "eventlog_events.jsonl") == []
+
+
+def test_decoder_refuses_inputs_it_cannot_vouch_for(bundle_copy):
+    bundle = bundle_copy("tdr-events-partial")
+    good = "raw/system_bugcheck_events/events.json"
+    assert decode_eventlog.decode(bundle, sources=[good], decoded_at="2026-09-03T00:00:00Z")["status"] == "observed_zero"
+    shutil.rmtree(bundle / "decoded")
+    (bundle / "raw" / "system_bugcheck_events" / "unlisted.json").write_text("[]", encoding="utf-8")
+    cases = {
+        "raw/system_bugcheck_events/missing.json": "not listed",
+        "raw/../raw/system_bugcheck_events/events.json": "not a normalised path",
+        "../outside.json": "not a normalised path",
+        "/etc/passwd": "not a bundle relative path",
+        "raw/system_bugcheck_events/channel_state.json": "not listed",
+        "raw/system_display_events/events.json": "not listed",
+        "raw/system_bugcheck_events/unlisted.json": "not listed",
+    }
+    for source, reason in cases.items():
+        result = decode_eventlog.decode(bundle, sources=[source], decoded_at="2026-09-03T00:00:00Z")
+        assert result["status"] == "decode_failed" and reason in result["reason"], (source, result)
+        assert not (bundle / "decoded").exists(), source
+    # A listed primary that the bundle lacks fails too, whether named explicitly or found through the manifest.
+    (bundle / good).unlink()
+    for sources in ([good], None):
+        result = decode_eventlog.decode(bundle, sources=sources, decoded_at="2026-09-03T00:00:00Z")
+        assert result["status"] == "decode_failed" and "missing from the bundle" in result["reason"]
+        assert not (bundle / "decoded").exists()
+    nowhere = bundle / "nowhere"
+    assert decode_eventlog.decode(nowhere, decoded_at="2026-09-03T00:00:00Z")["status"] == "decode_failed"
+    assert not nowhere.exists()
+
+
+def test_decoder_orders_the_native_range_by_parsed_time(bundle_copy):
+    bundle = bundle_copy("bugcheck-history")
+    path = bundle / "raw" / "system_restart_events" / "events.json"
+    events = json.loads(path.read_text(encoding="utf-8"))
+    # As text "...00Z" sorts after "...00.5Z"; as time it is earlier.
+    events[0]["time_created_utc"] = "2026-02-17T00:00:00Z"
+    events[1]["time_created_utc"] = "2026-02-17T00:00:00.5Z"
+    events[2]["time_created_utc"] = "2026-02-17T00:00:00.4999999Z"
+    events[3]["time_created_utc"] = "2026-02-17T00:00:00.5000001Z"
+    path.write_text(json.dumps(events), encoding="utf-8")
+    manifest_path = bundle / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for artifact in manifest["collectors"][0]["artifacts"]:
+        if artifact["path"].endswith("events.json"):
+            artifact["bytes"], artifact["sha256"] = path.stat().st_size, wf_schema.sha256_of(path)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    result = decode_eventlog.decode(bundle, decoded_at="2026-09-03T00:00:00Z")
+    assert result["status"] == "observed", result
+    meta = json.loads((bundle / "decoded" / "eventlog_events.meta.json").read_text(encoding="utf-8"))
+    assert meta["native_time_range"]["start"] == "2026-02-17T00:00:00Z"
+    assert meta["native_time_range"]["end"] == "2026-02-17T00:00:00.5000001Z"
+    events[0]["time_created_utc"] = "17/02/2026 00:00"
+    path.write_text(json.dumps(events), encoding="utf-8")
+    for artifact in manifest["collectors"][0]["artifacts"]:
+        if artifact["path"].endswith("events.json"):
+            artifact["bytes"], artifact["sha256"] = path.stat().st_size, wf_schema.sha256_of(path)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    result = decode_eventlog.decode(bundle, sources=["raw/system_restart_events/events.json"], decoded_at="2026-09-03T00:00:00Z")
+    assert result["status"] == "decode_failed" and "not ISO 8601 UTC" in result["reason"]
 
 
 def test_decoder_cli_exit_codes(bundle_copy, capsys):

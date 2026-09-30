@@ -1,8 +1,20 @@
 {
   "class": "Win32_ReliabilityStabilityMetrics",
   "namespace": "root/cimv2",
+  "properties": [
+    "EndMeasurementDate",
+    "RelID",
+    "StartMeasurementDate",
+    "SystemStabilityIndex",
+    "TimeGenerated"
+  ],
+  "filter": "TimeGenerated >= '20260130120009.000000+000' AND TimeGenerated <= '20260301120009.000000+000'",
   "time_property": "TimeGenerated",
   "window_days": 30,
-  "window_start_utc": "2026-01-30T12:00:05.0000000Z",
-  "max_records": 5000
+  "window_start_utc": "2026-01-30T12:00:09.0000000Z",
+  "window_end_utc": "2026-03-01T12:00:09.0000000Z",
+  "coverage_probe_filter": "TimeGenerated < '20260130120009.000000+000'",
+  "max_records": 5000,
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 300
 }

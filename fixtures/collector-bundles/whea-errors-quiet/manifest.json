@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.0.0",
   "bundle_id": "20260301T120001Z_whea_errors_ae3a76a9",
-  "created_utc": "2026-03-01T12:00:07.0000000Z",
+  "created_utc": "2026-03-01T12:00:11.0000000Z",
   "scenario": {
     "id": "whea_errors",
     "version": "1.0.0",
@@ -11,7 +11,7 @@
   },
   "capture": {
     "start_utc": "2026-03-01T12:00:01.0000000Z",
-    "stop_utc": "2026-03-01T12:00:07.0000000Z",
+    "stop_utc": "2026-03-01T12:00:11.0000000Z",
     "orchestrator": "wf-collector:whea-errors",
     "orchestrator_version": "1.0.0",
     "elevated": false,
@@ -68,7 +68,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:04.0000000Z",
+        "at_utc": "2026-03-01T12:00:08.0000000Z",
         "checks": [
           {
             "name": "channel_found",
@@ -88,11 +88,11 @@
         "raw/system_whea_events/query.xml"
       ],
       "started_utc": "2026-03-01T12:00:02.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:06.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:10.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "cf3cd8cb870a1441027781e7d45de0ec4a5b78383f015e52d08f0672a59c9045"
+        "value": "0d9f25d965f6fb6f74a963a3ff19fe896d6c6baded14a2e21f51d2ba1eadd43e"
       },
       "filter_hash": null,
       "requested": {
@@ -106,11 +106,13 @@
           "channel": "System",
           "event_ids": [],
           "window_days": 30,
-          "window_start_utc": "2026-01-30T12:00:02.0000000Z",
+          "window_start_utc": "2026-01-30T12:00:03.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:03.0000000Z",
           "max_events": 5000,
           "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
           "evtx_export": true,
-          "query_sha256": "cf3cd8cb870a1441027781e7d45de0ec4a5b78383f015e52d08f0672a59c9045"
+          "query_sha256": "0d9f25d965f6fb6f74a963a3ff19fe896d6c6baded14a2e21f51d2ba1eadd43e"
         }
       },
       "enabled": {
@@ -123,10 +125,12 @@
         "options": {
           "channel": "System",
           "query_accepted": true,
-          "window_start_utc": "2026-01-30T12:00:02.0000000Z",
-          "window_end_utc": "2026-03-01T12:00:05.0000000Z",
+          "window_start_utc": "2026-01-30T12:00:03.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:03.0000000Z",
+          "records_read": 0,
           "records_exported": 0,
           "truncated": false,
+          "timed_out": false,
           "evtx_exported": false,
           "evtx_exit_code": null,
           "evtx_message": "synthetic backend: wevtutil does not exist off Windows",
@@ -139,8 +143,8 @@
       "artifacts": [
         {
           "path": "raw/system_whea_events/channel_state.json",
-          "bytes": 793,
-          "sha256": "400eba3db10bd61be0b36cf755030df58aa19cbbe954d65db61952b5ce9be61d",
+          "bytes": 821,
+          "sha256": "801d7401b85c626134145bbd9a82920822b42d4a76fe76fe5a7d6173c5fe1e12",
           "role": "report"
         },
         {
@@ -151,21 +155,21 @@
         },
         {
           "path": "raw/system_whea_events/query.xml",
-          "bytes": 227,
-          "sha256": "cf3cd8cb870a1441027781e7d45de0ec4a5b78383f015e52d08f0672a59c9045",
+          "bytes": 301,
+          "sha256": "0d9f25d965f6fb6f74a963a3ff19fe896d6c6baded14a2e21f51d2ba1eadd43e",
           "role": "config"
         }
       ],
       "raw_time_range": {
-        "start": "2026-01-30T12:00:02.0000000Z",
-        "end": "2026-03-01T12:00:05.0000000Z",
+        "start": "2026-01-30T12:00:03.0000000Z",
+        "end": "2026-03-01T12:00:03.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
-        "declared": "every record matching query.xml inside the covered range is exported without truncation, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
+        "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
         "met": true,
-        "detail": "0 records exported; requested window starts 2026-01-30T12:00:02.0000000Z; covered range starts 2026-01-30T12:00:02.0000000Z"
+        "detail": "0 records read; requested window 2026-01-30T12:00:03.0000000Z to 2026-03-01T12:00:03.0000000Z; covered range starts 2026-01-30T12:00:03.0000000Z"
       },
       "target_process": null
     }
@@ -219,7 +223,7 @@
     "Read only collector whea-errors version 1.0.0: Did the Windows Hardware Error Architecture report corrected or uncorrected hardware errors?",
     "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
-    "Windows are bounded with timediff, which the Event Log service evaluates when each query runs, so a window starts at most the run time of the collector later than the recorded window_start_utc.",
+    "Each event log query selects a fixed interval, window_end_utc minus the window to window_end_utc, so records raised while the query ran are not part of the result.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
     "source system_whea_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record"
   ]

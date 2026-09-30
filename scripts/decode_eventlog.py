@@ -13,7 +13,13 @@ Without ``--source`` the decoder reads the manifest and takes the primary
 artifact of every collector of kind ``eventlog`` whose status is ``observed``
 or ``observed_zero``. A collector that could not read its channel has no such
 artifact, and the decoder then reports ``not_collected``: an input that is
-absent is never decoded into zero rows.
+absent is never decoded into zero rows. A primary artifact the manifest names
+but the bundle lacks is ``decode_failed``.
+
+Every ``--source`` must be a normalised bundle relative path, inside the
+bundle, listed in the manifest as a primary JSON artifact of an event log
+collector that is ``observed`` or ``observed_zero``, and present on disk;
+anything else is ``decode_failed`` and nothing is written.
 
 Usage::
 
@@ -42,20 +48,64 @@ COLUMNS = ["record_id", "log_name", "provider_name", "event_id", "version", "lev
            "thread_id", "message", "properties"]
 OBSERVED = ("observed", "observed_zero")
 RE_XML_RECORD_ID = re.compile(r"<EventRecordID>(\d+)</EventRecordID>")
+RE_TIME = re.compile(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,7}))?Z")
 
 
 class DecodeError(Exception):
     pass
 
 
-def sources_from_manifest(bundle: Path) -> list[str]:
-    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+def load_manifest(bundle: Path) -> dict[str, Any]:
+    path = bundle / "manifest.json"
+    if not path.is_file():
+        raise DecodeError("the bundle has no manifest.json")
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DecodeError(f"manifest.json: {exc}") from exc
+
+
+def decodable_primaries(manifest: dict[str, Any]) -> list[str]:
+    """The primary JSON artifacts of every event log collector that is observed or observed_zero."""
     out = []
     for collector in manifest["collectors"]:
         if collector["kind"] != "eventlog" or collector["status"] not in OBSERVED:
             continue
         out += [a["path"] for a in collector["artifacts"] if a["role"] == "primary" and a["path"].endswith(".json")]
     return out
+
+
+def check_source_path(bundle: Path, source: str, allowed: list[str]) -> None:
+    """A source must be a normalised relative path inside the bundle, listed as decodable, and present."""
+    if source != source.strip() or source.startswith(("/", "\\")) or "\\" in source:
+        raise DecodeError(f"{source}: not a bundle relative path")
+    parts = source.split("/")
+    if any(part in ("", ".", "..") for part in parts) or not source.startswith("raw/"):
+        raise DecodeError(f"{source}: not a normalised path under raw/")
+    root = bundle.resolve()
+    target = (bundle / source).resolve()
+    if root not in target.parents:
+        raise DecodeError(f"{source}: resolves outside the bundle")
+    if source not in allowed:
+        raise DecodeError(f"{source}: not listed in the manifest as the primary JSON artifact of an observed event log collector")
+    if not target.is_file():
+        raise DecodeError(f"{source}: listed in the manifest but missing from the bundle")
+
+
+def parse_time(text: str) -> datetime:
+    """``time_created_utc`` as an aware UTC datetime; the fraction may be absent or up to seven digits."""
+    m = RE_TIME.fullmatch(text)
+    if not m:
+        raise DecodeError(f"time_created_utc {text!r} is not ISO 8601 UTC")
+    base = datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+    fraction = (m.group(2) or "")[:6].ljust(6, "0")
+    return base.replace(microsecond=int(fraction))
+
+
+def time_key(text: str) -> tuple[datetime, str]:
+    """Sort key at the full 100 ns precision: the parsed time, then the fraction padded to seven digits."""
+    m = RE_TIME.fullmatch(text)
+    return parse_time(text), ((m.group(2) if m else "") or "").ljust(7, "0")
 
 
 def decode_source(bundle: Path, source: str, schema_version: str) -> tuple[list[dict[str, Any]], int]:
@@ -82,6 +132,9 @@ def decode_source(bundle: Path, source: str, schema_version: str) -> tuple[list[
             if m and int(m.group(1)) != record_id:
                 raise DecodeError(f"{source}: element {index} says record {record_id}, its XML says {m.group(1)}")
             xml_agree += 1 if m else 0
+        if not isinstance(element["time_created_utc"], str):
+            raise DecodeError(f"{source}: element {index} has no time_created_utc text")
+        parse_time(element["time_created_utc"])
         row = {c: element[c] for c in COLUMNS}
         row["provenance"] = {
             "source_file": source,
@@ -97,13 +150,24 @@ def decode_source(bundle: Path, source: str, schema_version: str) -> tuple[list[
 def decode(bundle: Path, sources: list[str] | None = None, decoded_at: str | None = None) -> dict[str, Any]:
     decoded_at = decoded_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     schema_version = wf_schema.table_schema_version(TABLE)
-    if sources is None:
-        sources = sources_from_manifest(bundle)
-    sources = [s for s in sources if (bundle / s).is_file()]
-    if not sources:
-        # Nothing is written: a sidecar must name at least one source file, and
-        # a table with no input does not exist for this bundle.
-        return {"status": "not_collected", "reason": "the bundle holds no event log export to decode", "rows": 0, "sources": 0}
+    try:
+        manifest = load_manifest(bundle)
+        allowed = decodable_primaries(manifest)
+        if sources is None:
+            sources = allowed
+            if not sources:
+                # Nothing is written: a sidecar must name at least one source
+                # file, and a table with no input does not exist for this bundle.
+                return {"status": "not_collected", "reason": "the bundle holds no event log export to decode", "rows": 0, "sources": 0}
+        if not sources:
+            raise DecodeError("no source was named")
+        for source in sources:
+            check_source_path(bundle, source, allowed)
+    except DecodeError as exc:
+        # Nothing is written either: an input that is missing, unlisted, or
+        # outside the bundle must not become a table, and the sidecar could
+        # not name the source files honestly.
+        return {"status": "decode_failed", "reason": str(exc), "rows": 0, "sources": 0}
 
     decoded_dir = bundle / "decoded"
     decoded_dir.mkdir(parents=True, exist_ok=True)
@@ -128,8 +192,10 @@ def decode(bundle: Path, sources: list[str] | None = None, decoded_at: str | Non
 
     native_range = None
     if rows:
-        stamps = [r["time_created_utc"] for r in rows]
-        native_range = {"start": min(stamps), "end": max(stamps), "domain": "system_time", "unit": "iso_utc"}
+        # Compare parsed times: as text, a whole second timestamp would sort
+        # after a fractional one at the same second.
+        stamps = sorted((r["time_created_utc"] for r in rows), key=time_key)
+        native_range = {"start": stamps[0], "end": stamps[-1], "domain": "system_time", "unit": "iso_utc"}
     wf_schema.write_jsonl(decoded_dir / f"{TABLE}.jsonl", rows)
     meta = {
         "decoded_table": TABLE,
