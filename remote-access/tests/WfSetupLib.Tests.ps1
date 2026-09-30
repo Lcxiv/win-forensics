@@ -318,6 +318,15 @@ Describe 'Get-WfDefaultShellDecision' {
 }
 
 Describe 'Firewall decisions' {
+    BeforeAll {
+        function New-Rule {
+            param([hashtable]$Overrides)
+            $rule = @{ Name = 'rule'; Enabled = $true; Direction = 'Inbound'; Action = 'Allow'; Profile = 'Any'; Protocol = 'TCP'; LocalPort = @('22'); Program = 'Any'; Package = ''; Service = 'Any'; RemoteAddress = @('Any'); PolicyStoreSourceType = 'Local'; Unclassified = '' }
+            foreach ($key in $Overrides.Keys) { $rule[$key] = $Overrides[$key] }
+            return $rule
+        }
+    }
+
     It 'knows which port specifications include 22' {
         Test-WfPortSpecIncludes -Spec @('22') -Port 22 | Should -BeTrue
         Test-WfPortSpecIncludes -Spec @('80', '20-25') -Port 22 | Should -BeTrue
@@ -327,32 +336,65 @@ Describe 'Firewall decisions' {
         Test-WfPortSpecIncludes -Spec $null -Port 22 | Should -BeFalse
     }
 
-    It 'disables the default rule and any other rule that opens 22, and never its own' {
+    It 'disables every rule that admits TCP 22 to sshd, whatever its name, and never its own' {
         $rules = @(
-            @{ Name = 'OpenSSH-Server-In-TCP'; Enabled = $true; Direction = 'Inbound'; Action = 'Allow'; Protocol = 'TCP'; LocalPort = @('22'); Program = 'C:\Windows\System32\OpenSSH\sshd.exe' }
-            @{ Name = '{renamed-guid}'; Enabled = $true; Direction = 'Inbound'; Action = 'Allow'; Protocol = 'TCP'; LocalPort = @('20-25'); Program = 'Any' }
-            @{ Name = 'sshd-any-port'; Enabled = $true; Direction = 'Inbound'; Action = 'Allow'; Protocol = 'Any'; LocalPort = @('Any'); Program = 'C:\Windows\System32\OpenSSH\sshd.exe' }
-            @{ Name = 'win-forensics-ssh-in'; Enabled = $true; Direction = 'Inbound'; Action = 'Allow'; Protocol = 'TCP'; LocalPort = @('22'); Program = 'Any' }
-            @{ Name = 'already-off'; Enabled = $false; Direction = 'Inbound'; Action = 'Allow'; Protocol = 'TCP'; LocalPort = @('22'); Program = 'Any' }
-            @{ Name = 'a-block-rule'; Enabled = $true; Direction = 'Inbound'; Action = 'Block'; Protocol = 'TCP'; LocalPort = @('22'); Program = 'Any' }
-            @{ Name = 'outbound'; Enabled = $true; Direction = 'Outbound'; Action = 'Allow'; Protocol = 'TCP'; LocalPort = @('22'); Program = 'Any' }
-            @{ Name = 'a-game'; Enabled = $true; Direction = 'Inbound'; Action = 'Allow'; Protocol = 'Any'; LocalPort = @('Any'); Program = 'C:\Games\game.exe' }
-            @{ Name = 'udp-22'; Enabled = $true; Direction = 'Inbound'; Action = 'Allow'; Protocol = 'UDP'; LocalPort = @('22'); Program = 'Any' }
+            (New-Rule @{ Name = 'OpenSSH-Server-In-TCP'; Program = 'C:\Windows\System32\OpenSSH\sshd.exe' })
+            (New-Rule @{ Name = '{renamed-default-rule}'; LocalPort = @('20-25'); Program = 'C:\Windows\System32\OpenSSH\sshd.exe' })
+            (New-Rule @{ Name = 'sshd-any-port'; Protocol = 'Any'; LocalPort = @('Any'); Program = 'C:\Windows\System32\OpenSSH\sshd.exe' })
+            (New-Rule @{ Name = 'broad-any-any'; Protocol = 'Any'; LocalPort = @('Any') })
+            (New-Rule @{ Name = 'broad-tcp-any-port'; LocalPort = @('Any') })
+            (New-Rule @{ Name = 'broad-any-protocol-port-22'; Protocol = 'Any' })
+            (New-Rule @{ Name = 'sshd-service-any'; Protocol = 'Any'; LocalPort = @('Any'); Service = 'sshd' })
+            (New-Rule @{ Name = 'win-forensics-ssh-in'; Profile = 'Private'; RemoteAddress = @('192.0.2.10') })
         )
-        $plan = @(Get-WfFirewallPlan -Rules $rules -OwnRuleName 'win-forensics-ssh-in' | Sort-Object)
-        $plan | Should -Be @('{renamed-guid}', 'OpenSSH-Server-In-TCP', 'sshd-any-port')
+        $plan = Get-WfFirewallPlan -Rules $rules -OwnRuleName 'win-forensics-ssh-in'
+        @($plan.Disable | Sort-Object) | Should -Be @('{renamed-default-rule}', 'broad-any-any', 'broad-any-protocol-port-22', 'broad-tcp-any-port', 'OpenSSH-Server-In-TCP', 'sshd-any-port', 'sshd-service-any')
+        @($plan.FailClosed).Count | Should -Be 0
+    }
+
+    It 'leaves alone rules that cannot admit sshd traffic' {
+        $rules = @(
+            (New-Rule @{ Name = 'already-off'; Enabled = $false })
+            (New-Rule @{ Name = 'a-block-rule'; Action = 'Block' })
+            (New-Rule @{ Name = 'outbound'; Direction = 'Outbound' })
+            (New-Rule @{ Name = 'a-game'; Protocol = 'Any'; LocalPort = @('Any'); Program = 'C:\Games\game.exe' })
+            (New-Rule @{ Name = 'a-store-app'; Protocol = 'Any'; LocalPort = @('Any'); Package = 'S-1-15-2-1-2-3-4-5-6-7' })
+            (New-Rule @{ Name = 'another-service'; Protocol = 'Any'; LocalPort = @('Any'); Service = 'Dnscache' })
+            (New-Rule @{ Name = 'udp-22'; Protocol = 'UDP' })
+            (New-Rule @{ Name = 'icmp'; Protocol = 'ICMPv4'; LocalPort = @('Any') })
+            (New-Rule @{ Name = 'other-tcp-port'; LocalPort = @('3389') })
+        )
+        $plan = Get-WfFirewallPlan -Rules $rules -OwnRuleName 'win-forensics-ssh-in'
+        @($plan.Disable).Count | Should -Be 0
+        @($plan.FailClosed).Count | Should -Be 0
+    }
+
+    It 'fails closed on a rule it cannot read and on a policy delivered rule that admits SSH' {
+        $rules = @(
+            (New-Rule @{ Name = 'unreadable'; Unclassified = 'missing port filter' })
+            (New-Rule @{ Name = 'from-group-policy'; Protocol = 'Any'; LocalPort = @('Any'); PolicyStoreSourceType = 'GroupPolicy' })
+            (New-Rule @{ Name = 'policy-but-harmless'; LocalPort = @('3389'); PolicyStoreSourceType = 'GroupPolicy' })
+            (New-Rule @{ Name = 'local-broad'; Protocol = 'Any'; LocalPort = @('Any') })
+        )
+        $plan = Get-WfFirewallPlan -Rules $rules -OwnRuleName 'win-forensics-ssh-in'
+        @($plan.Disable) | Should -Be @('local-broad')
+        @($plan.FailClosed).Count | Should -Be 2
+        ($plan.FailClosed -join ' ') | Should -Match "unreadable.*could not be read"
+        ($plan.FailClosed -join ' ') | Should -Match "from-group-policy.*GroupPolicy"
     }
 
     It 'has nothing to do on a second run' {
         $rules = @(
-            @{ Name = 'OpenSSH-Server-In-TCP'; Enabled = $false; Direction = 'Inbound'; Action = 'Allow'; Protocol = 'TCP'; LocalPort = @('22'); Program = 'x\sshd.exe' }
-            @{ Name = 'win-forensics-ssh-in'; Enabled = $true; Direction = 'Inbound'; Action = 'Allow'; Protocol = 'TCP'; LocalPort = @('22'); Program = 'Any' }
+            (New-Rule @{ Name = 'OpenSSH-Server-In-TCP'; Enabled = $false; Program = 'x\sshd.exe' })
+            (New-Rule @{ Name = 'win-forensics-ssh-in'; Profile = 'Private'; RemoteAddress = @('192.0.2.10') })
         )
-        @(Get-WfFirewallPlan -Rules $rules -OwnRuleName 'win-forensics-ssh-in').Count | Should -Be 0
+        $plan = Get-WfFirewallPlan -Rules $rules -OwnRuleName 'win-forensics-ssh-in'
+        @($plan.Disable).Count | Should -Be 0
+        @($plan.FailClosed).Count | Should -Be 0
     }
 
     It 'accepts its own rule only when scoped to the Mac and the Private profile' {
-        $good = @{ Name = 'win-forensics-ssh-in'; Enabled = $true; Direction = 'Inbound'; Action = 'Allow'; Profile = 'Private'; Protocol = 'TCP'; LocalPort = @('22'); RemoteAddress = @('192.0.2.10') }
+        $good = New-Rule @{ Name = 'win-forensics-ssh-in'; Profile = 'Private'; RemoteAddress = @('192.0.2.10') }
         @(Test-WfOwnFirewallRule -Rule $good -MacAddress '192.0.2.10').Count | Should -Be 0
         $masked = $good.Clone(); $masked.RemoteAddress = @('192.0.2.10/255.255.255.255')
         @(Test-WfOwnFirewallRule -Rule $masked -MacAddress '192.0.2.10').Count | Should -Be 0
@@ -361,6 +403,64 @@ Describe 'Firewall decisions' {
             foreach ($key in $change.Keys) { $bad[$key] = $change[$key] }
             @(Test-WfOwnFirewallRule -Rule $bad -MacAddress '192.0.2.10').Count | Should -BeGreaterThan 0
         }
+    }
+}
+
+Describe 'Test-WfAccountGroupBaseline' {
+    BeforeAll {
+        $script:Account = 'S-1-5-21-1-2-3-1001'
+        $script:Owner = 'S-1-5-21-1-2-3-1000'
+        function New-Groups {
+            param([hashtable]$Extra = @{}, [string[]]$ReadersMembers = @($script:Account))
+            $groups = @(
+                @{ Sid = 'S-1-5-32-544'; MemberSids = @($script:Owner) }
+                @{ Sid = 'S-1-5-32-545'; MemberSids = @('S-1-5-11', 'S-1-5-4') }
+                @{ Sid = 'S-1-5-32-546'; MemberSids = @('S-1-5-21-1-2-3-501') }
+                @{ Sid = 'S-1-5-32-573'; MemberSids = $ReadersMembers }
+                @{ Sid = 'S-1-5-32-559'; MemberSids = @() }
+            )
+            foreach ($sid in $Extra.Keys) { $groups += @{ Sid = $sid; MemberSids = $Extra[$sid] } }
+            return $groups
+        }
+    }
+
+    It 'accepts the exact baseline: Event Log Readers directly, Users through Authenticated Users' {
+        @(Test-WfAccountGroupBaseline -Groups (New-Groups) -AccountSid $script:Account).Count | Should -Be 0
+    }
+
+    It 'rejects a missing Event Log Readers membership' {
+        $groups = New-Groups -ReadersMembers @()
+        @(Test-WfAccountGroupBaseline -Groups $groups -AccountSid $script:Account) | Should -Match 'not a member of Event Log Readers'
+    }
+
+    It 'rejects Administrators' {
+        $groups = New-Groups -Extra @{ 'S-1-5-32-544' = @($script:Owner, $script:Account) }
+        $groups = @($groups | Where-Object { -not ($_.Sid -eq 'S-1-5-32-544' -and $_.MemberSids.Count -eq 1) })
+        @(Test-WfAccountGroupBaseline -Groups $groups -AccountSid $script:Account) | Should -Match 'Administrators'
+    }
+
+    It 'rejects any other direct membership, not just Administrators' {
+        $groups = New-Groups -Extra @{ 'S-1-5-32-559' = @($script:Account) }
+        $groups = @($groups | Where-Object { -not ($_.Sid -eq 'S-1-5-32-559' -and $_.MemberSids.Count -eq 0) })
+        $violations = @(Test-WfAccountGroupBaseline -Groups $groups -AccountSid $script:Account)
+        $violations.Count | Should -Be 1
+        $violations[0] | Should -Match 'S-1-5-32-559'
+    }
+
+    It 'rejects a group other than Users that grants through a well known SID' {
+        $groups = New-Groups -Extra @{ 'S-1-5-32-580' = @('S-1-1-0') }
+        $violations = @(Test-WfAccountGroupBaseline -Groups $groups -AccountSid $script:Account)
+        $violations.Count | Should -Be 1
+        $violations[0] | Should -Match 'S-1-5-32-580.*S-1-1-0'
+    }
+
+    It 'rejects Administrators holding Authenticated Users even when the account is not listed there' {
+        $groups = @(@{ Sid = 'S-1-5-32-544'; MemberSids = @('S-1-5-11') }, @{ Sid = 'S-1-5-32-573'; MemberSids = @($script:Account) })
+        @(Test-WfAccountGroupBaseline -Groups $groups -AccountSid $script:Account).Count | Should -Be 1
+    }
+
+    It 'rejects an empty group list, which means nothing was enumerated' {
+        @(Test-WfAccountGroupBaseline -Groups @() -AccountSid $script:Account).Count | Should -BeGreaterThan 0
     }
 }
 
@@ -470,6 +570,15 @@ Describe 'Test-WfAclRule' {
         $rules = $script:Base + @(@{ Sid = 'S-1-5-32-545'; Rights = 0x1200AF })
         @(Test-WfAclRule -Rules $rules -AccountSid $script:Account -OthersMayRead).Count | Should -Be 1
     }
+
+    It 'uses a mask that is the upstream write mask plus DeleteSubdirectoriesAndFiles and the generic bits' {
+        $upstream = Get-WfUpstreamWriteRightsMask
+        $upstream | Should -Be 0xD0116
+        (Get-WfWriteRightsMask) | Should -Be ($upstream -bor 0x40 -bor 0x40000000 -bor 0x10000000)
+        # The extra directory right counts as write here, so a rule granting only it is rejected.
+        $rules = $script:Base + @(@{ Sid = $script:Account; Rights = 0x40 })
+        @(Test-WfAclRule -Rules $rules -AccountSid $script:Account).Count | Should -Be 1
+    }
 }
 
 Describe 'New-WfRandomPassword' {
@@ -506,5 +615,13 @@ Describe 'Get-WfSummaryResult' {
         $r.Result | Should -BeExactly 'FAIL'
         $r.ExitCode | Should -Be 1
         $r.Skipped | Should -Be 1
+    }
+
+    It 'is INCOMPLETE, exit code 2, when a verification could not run, and FAIL still wins' {
+        $r = Get-WfSummaryResult -Steps @(@{ Status = 'PASS' }, @{ Status = 'INCOMPLETE' }, @{ Status = 'WARN' })
+        $r.Result | Should -BeExactly 'INCOMPLETE'
+        $r.ExitCode | Should -Be 2
+        $r.Incomplete | Should -Be 1
+        (Get-WfSummaryResult -Steps @(@{ Status = 'INCOMPLETE' }, @{ Status = 'FAIL' })).Result | Should -BeExactly 'FAIL'
     }
 }

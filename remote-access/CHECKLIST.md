@@ -132,19 +132,19 @@ It works through thirteen steps, printing `ok`, a warning, or `FAILED` for each,
 |---|---|---|
 | S1 | Checks before changing anything: administrator, Windows PowerShell 5.1, a valid address and public key, the network is Private, the firewall is on | Nothing was changed yet, and nothing will be unless these hold |
 | S2 | Installs the OpenSSH Server feature if it is missing | The `sshd` service exists |
-| S3 | Creates one firewall rule: SSH from `<MAC_LAN_ADDRESS>` only, Private networks only. Disables the rule the install created, which is open to everyone, under whatever name it has | Read back from the firewall: no other rule lets SSH in |
-| S4 | Starts `sshd` and sets it to start with Windows | Running, automatic, host key created |
+| S3 | Creates one firewall rule: SSH from `<MAC_LAN_ADDRESS>` only, Private networks only. Then looks at every enabled inbound allow rule on the PC and disables each one that would let SSH in from anywhere else, whatever it is called (the install creates one that is open to everyone) | Read back from the firewall: no other rule lets SSH in. If a rule cannot be disabled, the script stops with `sshd` switched off |
+| S4 | Starts `sshd` once so it creates its identity key and its default settings file, then stops it again. Nothing listens until step S9 | Host key and settings file exist, `sshd` is stopped |
 | S5 | Makes sure `sshd` hands the forced command to `cmd.exe` | The default shell setting is absent or names `cmd.exe` |
-| S6 | Creates the standard account `wfcollector`, adds it to Event Log Readers and nothing else | Enabled, not an administrator, password never expires |
+| S6 | Creates the standard account `wfcollector`, adds it to Event Log Readers, and checks every group on the PC: the account must be in that one group and no other | Enabled, not an administrator, in no unexpected group, password never expires |
 | S7 | Copies the dispatcher and collectors to `C:\ProgramData\win-forensics` and locks the folders | Only Administrators and SYSTEM can change what the account runs |
 | S8 | Installs your Mac's public key, limited to the dispatcher and to the Mac's address | One key line, read back exactly, with strict permissions |
-| S9 | Edits `sshd_config`: keys only, only this account may connect, forced command, file logging. Validates before applying, restores the old file if validation fails | `sshd` itself confirms the settings that apply to this account |
+| S9 | Edits `sshd_config`: keys only, only this account may connect, forced command, file logging. Validates before applying, restores the old file if validation fails, asks `sshd` what now applies to the account, and only then starts `sshd` and sets it to start with Windows | `sshd` itself confirms the settings, is running, and starts with Windows |
 | S10 | Sets "sleep when plugged in" to never | Read back as never |
 | S11 | Reads the Security log's access settings, for the record | Shown, nothing changed |
 | S12 | Shows the PC's host key fingerprint | You will copy this line |
-| S13 | Self test: connects to the PC from the PC itself as `wfcollector` with a throwaway key, asks for the health check, asks for `whoami`, then removes the throwaway key | The health check came back and `whoami` was refused |
+| S13 | Self test: connects to the PC from the PC itself as `wfcollector` with a throwaway key, asks for the health check, asks for `whoami`, asks for a terminal, then removes the throwaway key | The health check came back, `whoami` was refused, and the terminal request got neither a terminal nor a shell |
 
-The last lines are either `RESULT: PASS` or `RESULT: FAIL`.
+The last lines say `RESULT: PASS`, `RESULT: INCOMPLETE`, or `RESULT: FAIL`. Only PASS means done. INCOMPLETE means nothing failed but something essential could not be checked (the summary says which "not verified" line); it is not a pass, so do not go on to the Mac steps: fix what it names and run the script again. FAIL means a step failed and the ones after it were not run; when the failed step concerns the firewall or `sshd`, the script leaves `sshd` switched off, so the PC is not reachable until you fix the step and run again.
 
 On PASS, the summary shows a line starting with `SHA256:`. That is the PC's host key fingerprint. It is public, not a secret. Get it to the Mac any way you like: type it, photograph it, or take the file `wf-frontdoor-report.txt` (saved in the kit folder under `remote-access\windows`) back on the USB stick.
 
@@ -183,7 +183,7 @@ Each line starts with PASS, FAIL, WARN, INFO, or TODO, and the last line is the 
 |---|---|
 | A1 | The Mac will only talk to the pinned PC: strict checking is on and an Ed25519 key is pinned |
 | A2 | `ping` returns the dispatcher's health report. The PC's name appears only as a hash. It also confirms the dispatcher on the PC is the same file as in your checkout |
-| A3 | Anything outside the allowlist is refused rather than run: `whoami`, commands chained after `ping`, PowerShell, `cmd`, path tricks, an interactive shell, and file transfer |
+| A3 | Anything outside the allowlist is refused rather than run: `whoami`, commands chained after `ping`, PowerShell, `cmd`, path tricks, an interactive shell, file transfer, and a forced terminal request (`-tt`), which must get neither a terminal nor a shell. A refusal that arrives with the wrong exit code (even zero) is a warning about the transport, not a failure |
 | A4 | The PC refuses password sign in; it offers key sign in only |
 | A5 | If the PC's identity does not match the pinned key, or no key is pinned, the connection stops before anything is sent |
 | A6 | `collect-<name>` answers "unknown collector". That is the expected answer until the collectors are installed by a later kit; after that, `ping` lists them |
@@ -219,7 +219,9 @@ Some behaviour could not be tested before you ran this, because no Windows machi
 | Question | Settled by | If it turns out wrong |
 |---|---|---|
 | Does key sign in work for an account that has never signed in and has no profile folder? The key file is deliberately kept under `C:\ProgramData`, not in a profile, for this reason | S13 and A2 | S13 fails with "Permission denied". Send `wf-frontdoor-report.txt`; the last lines of the sshd log are in it |
-| Can the account start Windows PowerShell without being a member of the Users group? It should, because Windows counts every signed in account as a user | S13 and A2 | S13 fails and the log mentions access denied. At the PC: `Add-LocalGroupMember -SID S-1-5-32-545 -Member wfcollector`, then run the setup script again, and report it |
+| Can the account start Windows PowerShell without being added to the Users group? It should: Windows puts every signed in account into Users through "Authenticated Users", and the setup checks that this is the only group the account gets beyond Event Log Readers | S13 and A2 | S13 fails and the log mentions access denied. Do not add the account to any group; send the report |
+| Is the account allowed to sign in over the network at all? Windows grants that through the user right "Access this computer from the network", normally held by Everyone and Users, and refuses it to anyone named under "Deny access to this computer from the network" | S13 | S13 fails with "Permission denied" and prints both rights. Follow row S13 in "If a step fails" |
+| Does `PermitTTY no` really refuse a terminal on this Windows build? | S13 and A3 (the `-tt` checks) | S13 or A3 fails with "granted a terminal" or "reached a shell". Stop, run `Stop-Service sshd` at the PC, and report it |
 | Do the dispatcher's exit codes reach the Mac? | S13 and A3 (a WARN, not a FAIL) | Nothing to do; the answer is also in the JSON |
 | Does `sshd -T` print the effective settings on Windows? | S9 (a warning if not) | S13 is the check that counts |
 | Does the firewall read its rule back in the form the script expects? | S3 | S3 fails although the rule is right. Send the report |
@@ -241,22 +243,29 @@ The summary names the step. Find its row. After fixing, run the same command aga
 | S1 | "PRIVATE key" | The wrong file reached the PC. Delete that copy everywhere except the Mac, make a new key on the Mac (delete the two key files, redo step 1), and rebuild the kit. Tell firstmate |
 | S1 | "no network route" | The address is wrong or the Mac is on another network (guest Wi-Fi, for example) |
 | S2 | The feature will not install | The PC needs internet access to Windows Update. Check Settings, Windows Update works, restart, and run again. If Windows asks for a restart, restart and run again |
-| S3 | "still allow inbound SSH" or "not as intended" | Send `wf-frontdoor-report.txt`. Until it is fixed, run `Stop-Service sshd` so nothing is listening |
-| S4 | `sshd` is not running | Restart the PC and run again |
+| S3 | "cannot be limited to the Mac", "still admit inbound SSH", or "not as intended" | The script switched `sshd` off before stopping. The message names the rule. If it is a rule you or a program added, disable it in Windows Security, Firewall & network protection, Advanced settings, and run again. If it says the rule comes from policy, this PC is managed in a way this setup does not handle: stop and ask firstmate. Send `wf-frontdoor-report.txt` either way |
+| S4 | `sshd` did not create its key or settings, or would not stop | Restart the PC and run again. `sshd` is left stopped, so nothing is reachable meanwhile |
 | S5 | Cannot remove the default shell value | Send the report |
-| S6 | "already exists and was not created by this script" | Another account has that name. Run again adding `-AccountName wfcollector2` to the command, and use `--account wfcollector2` in step 1 on the Mac |
+| S6 | "already exists and was not created by this script" | Another account has that name. On the Mac, redo step 1 with `--account wfcollector2` and step 3 with `--account wfcollector2` (the kit's `RUN-AT-PC.txt` then carries `-AccountName wfcollector2`), bring the new kit over, and run again |
 | S6 | "is a member of Administrators" | Somebody added it to that group. Remove it from Administrators and run again |
+| S6 | "does not match the group baseline" naming another group | The account, or a well known name such as Everyone or Authenticated Users, is in a group the design does not allow. The message names the group by its SID. Open Computer Management, Local Users and Groups, Groups, find the group whose properties show that SID (or run `Get-LocalGroup` and look for it), remove the entry the message names, and run again. Do not add the account anywhere |
+| S6 | "could not be enumerated" or "Failed to compare" | Windows could not list one group's members (a group holding an entry for a deleted account does this). Send the report. The setup will not continue on a partial list |
 | S7 | "unsafe permissions" | Send the report. Run `Stop-Service sshd` meanwhile |
 | S8 | Key line or permissions wrong | Run again. If it repeats, send the report |
-| S9 | "sshd rejected the new configuration" | Your old `sshd_config` is untouched or was restored. Send the report, which holds sshd's message |
-| S9 | "effective sshd configuration ... is not as intended" | Something else in `sshd_config` overrides the settings. Send the report |
-| S10 | Sleep timeout not zero | Set "When plugged in, put my device to sleep after" to Never in Settings, System, Power, and run again |
+| S9 | "sshd rejected the new configuration" | Your old `sshd_config` is untouched, and `sshd` is still stopped. Send the report, which holds sshd's message |
+| S9 | "effective sshd configuration ... is not as intended" | Something else in `sshd_config` overrides the settings. `sshd` was not started. Send the report |
+| S9 | "did not start" | The previous settings file was put back and `sshd` is left stopped. Restart the PC, run again, and send the report if it repeats |
+| S9 | INCOMPLETE, "sshd -T did not report" | `sshd` could not print what applies to the account, so that check did not run. `sshd` is running with the new settings, but the run is not a pass. Send the report; S13's result says whether the door works |
+| S10 | Sleep timeout not zero, or INCOMPLETE "could not be read back" | Set "When plugged in, put my device to sleep after" to Never in Settings, System, Power, and run again |
 | S11 | A warning only | Nothing to do |
 | S12 | No Ed25519 host key | Restart the PC and run again |
-| S13 | "did not return the health JSON" | The report holds ssh's message and the last lines of the sshd log. Send it. The throwaway key is already removed |
+| S13 | INCOMPLETE, "ssh.exe or ssh-keygen.exe was not found" or "skipped" | The self test could not run, so nothing proved the door works. Install the OpenSSH Client feature (Settings, System, Optional features) and run again without `-SkipSelfTest` |
+| S13 | "did not return the health JSON" with "Permission denied" | The report holds ssh's message, the last lines of the sshd log, and the two user rights `SeNetworkLogonRight` and `SeDenyNetworkLogonRight` as lists of SIDs, with the account's own SID. Windows allows a network sign in (which is what a key sign in is) only to accounts covered by the first and not named in the second. By default the first holds Everyone (S-1-1-0), Users (S-1-5-32-545), Administrators, and Backup Operators, and the second holds only Guest. If the account is not covered, or is named in the deny list, a security setting on this PC changed them. To inspect and repair: on Windows Pro, open `secpol.msc`, Local Policies, User Rights Assignment, and edit "Access this computer from the network" (add the `wfcollector` account itself) and "Deny access to this computer from the network" (remove anything covering it). On Windows Home, which has no `secpol.msc`, run `secedit /export /cfg $env:TEMP\rights.inf /areas USER_RIGHTS` to see the lines, and send the report; do not add the account to any group as a workaround. Otherwise, if the rights look normal, send the report |
+| S13 | "did not return the health JSON" without "Permission denied" | The report holds ssh's message and the last lines of the sshd log. Send it. The throwaway key is already removed |
 | S13 | "was NOT refused" | Stop. Run `Stop-Service sshd` and send the report. This must not happen |
+| S13 | "granted a terminal" | The setting that refuses terminals is not in effect on this build. Stop. Run `Stop-Service sshd` and send the report |
 
-If something goes wrong in a way the table does not cover, `Stop-Service sshd` closes the door until it is sorted out, and harms nothing.
+If something goes wrong in a way the table does not cover, `Stop-Service sshd` closes the door until it is sorted out, and harms nothing. Between steps S4 and S9 the script keeps `sshd` stopped itself, and it stops it again whenever a firewall or `sshd` check fails, so a run that stops halfway leaves nothing listening.
 
 ## If a Mac side check fails
 
@@ -268,7 +277,8 @@ If something goes wrong in a way the table does not cover, `Stop-Service sshd` c
 | A2, exit code 255, "Permission denied (publickey)" | The key in the kit is not the key the Mac uses, or the Mac's address differs from the one the PC was given | On the Mac: `ssh-add -l` should list the key. Then rebuild the kit and rerun step 6 |
 | A2, exit code 255, "timed out" | PC asleep, on another network, or its address changed | See "Housekeeping" |
 | A2 WARN "differs from this checkout" | The checkout changed after the kit was made | Make a new kit and rerun step 6 when convenient |
-| A3 FAIL | The forced command is not in effect | Stop. At the PC run `Stop-Service sshd`, then the setup script again, and tell firstmate |
+| A3 FAIL | The forced command is not in effect, or a terminal request got a terminal or a shell | Stop. At the PC run `Stop-Service sshd`, then the setup script again, and tell firstmate |
+| A3 WARN "instead of 64" | The refusal arrived, but its exit code did not | Nothing to do; the answer is in the JSON. Mention it to firstmate |
 | A4 FAIL | Password sign in is still offered | Rerun the setup script at the PC |
 | A5 FAIL | The Mac accepted an unknown host | Redo step 1 so the host entry is first in `~/.ssh/config` |
 | A10 FAIL | The PC was not restarted recently, or somebody is signed in | Restart, do not sign in, and rerun within 30 minutes |

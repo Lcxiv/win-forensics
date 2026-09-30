@@ -16,7 +16,14 @@ BeforeAll {
     function Add-LocalGroupMember { [CmdletBinding()] param($SID, $Member) }
     function Get-Service { [CmdletBinding()] param($Name) }
     function Start-Service { [CmdletBinding()] param($Name) }
-    function Restart-Service { [CmdletBinding()] param($Name, [switch]$Force) }
+    function Stop-Service { [CmdletBinding()] param($Name, [switch]$Force) }
+    function Set-Service { [CmdletBinding()] param($Name, $StartupType) }
+    function Get-LocalGroup { [CmdletBinding()] param() }
+    function Get-LocalGroupMember { [CmdletBinding()] param($SID, $Member) }
+    function Get-NetFirewallPortFilter { [CmdletBinding()] param($PolicyStore, [switch]$All) }
+    function Get-NetFirewallApplicationFilter { [CmdletBinding()] param($PolicyStore, [switch]$All) }
+    function Get-NetFirewallServiceFilter { [CmdletBinding()] param($PolicyStore, [switch]$All) }
+    function Get-NetFirewallAddressFilter { [CmdletBinding()] param($PolicyStore, [switch]$All) }
 
     # The steps narrate to the console; keep the test output readable.
     Mock Write-Host { }
@@ -198,12 +205,14 @@ Describe 'Set-WfSshdConfig' {
             "forcecommand $($script:Ctx.ForcedCommand)", 'authorizedkeysfile __PROGRAMDATA__/win-forensics/remote/authorized_keys',
             'allowusers wfcollector'
         ) -join "`n"
-        Mock Get-Service { [pscustomobject]@{ Status = 'Running' } }
-        Mock Restart-Service { }
-        Mock Start-Service { }
+        $script:Service = [pscustomobject]@{ Status = 'Stopped'; StartType = 'Manual' }
+        Mock Get-Service { $script:Service }
+        Mock Start-Service { $script:Service.Status = 'Running' }
+        Mock Stop-Service { $script:Service.Status = 'Stopped' }
+        Mock Set-Service { $script:Service.StartType = [string]$StartupType }
     }
 
-    It 'writes both managed blocks, restarts sshd, and confirms the effective configuration' {
+    It 'writes both managed blocks, confirms the effective configuration, then starts sshd for the first time and makes it automatic' {
         Mock Invoke-WfNative { if ($ArgumentList[0] -ceq '-T') { Get-NativeResult -StdOut $script:GoodDump } else { Get-NativeResult } }
         $record = Invoke-TestStep { Set-WfSshdConfig -Context $script:Ctx }
         $record.Status | Should -BeExactly 'PASS'
@@ -212,39 +221,57 @@ Describe 'Set-WfSshdConfig' {
         $text | Should -Match '(?m)^AllowUsers wfcollector$'
         $text | Should -Match '(?m)^Match User wfcollector$'
         $text | Should -Match ([regex]::Escape("ForceCommand $($script:Ctx.ForcedCommand)"))
-        Should -Invoke Restart-Service -Times 1 -Exactly
-        Should -Invoke Invoke-WfNative -Times 1 -Exactly -ParameterFilter { $ArgumentList[0] -ceq '-T' -and ($ArgumentList -join ' ') -match 'user=wfcollector,host=192\.0\.2\.10,addr=192\.0\.2\.10' }
+        Should -Invoke Start-Service -Times 1 -Exactly
+        Should -Invoke Set-Service -Times 1 -Exactly -ParameterFilter { $StartupType -eq 'Automatic' }
+        $script:Service.Status | Should -BeExactly 'Running'
+        $script:Service.StartType | Should -BeExactly 'Automatic'
+        # The probe names the client's address as addr and host, and nothing about the server side.
+        Should -Invoke Invoke-WfNative -Times 1 -Exactly -ParameterFilter { $ArgumentList[0] -ceq '-T' -and $ArgumentList[4] -ceq 'user=wfcollector,host=192.0.2.10,addr=192.0.2.10' }
     }
 
-    It 'restores the previous sshd_config when sshd will not restart with the new one' {
-        Mock Invoke-WfNative { Get-NativeResult }
-        Mock Restart-Service { throw 'service did not start' }
+    It 'reads the effective configuration before anything listens' {
+        $script:Order = New-Object System.Collections.Generic.List[string]
+        Mock Invoke-WfNative { $script:Order.Add([string]$ArgumentList[0]); if ($ArgumentList[0] -ceq '-T') { Get-NativeResult -StdOut $script:GoodDump } else { Get-NativeResult } }
+        Mock Start-Service { $script:Order.Add('start'); $script:Service.Status = 'Running' }
+        [void](Invoke-TestStep { Set-WfSshdConfig -Context $script:Ctx })
+        $script:Order.IndexOf('-T') | Should -BeLessThan $script:Order.IndexOf('start')
+    }
+
+    It 'restores the previous sshd_config and leaves sshd stopped when it will not start' {
+        Mock Invoke-WfNative { if ($ArgumentList[0] -ceq '-T') { Get-NativeResult -StdOut $script:GoodDump } else { Get-NativeResult } }
+        Mock Start-Service { throw 'service did not start' }
         $record = Invoke-TestStep { Set-WfSshdConfig -Context $script:Ctx }
         $record.Status | Should -BeExactly 'FAIL'
-        ($record.Details -join ' ') | Should -Match 'previous sshd_config was restored'
+        ($record.Details -join ' ') | Should -Match 'previous sshd_config was restored and sshd is left stopped'
         [System.IO.File]::ReadAllText($script:Ctx.Layout.SshdConfig) | Should -BeExactly $script:DefaultConfig
-        Should -Invoke Start-Service -Times 1 -Exactly
+        Should -Invoke Set-Service -Times 0
+        $script:Service.Status | Should -BeExactly 'Stopped'
     }
 
-    It 'does not restart sshd at all when sshd rejects the new configuration' {
+    It 'does not start sshd at all when sshd rejects the new configuration' {
         Mock Invoke-WfNative { Get-NativeResult -ExitCode 255 -StdErr 'Bad configuration option' }
         $record = Invoke-TestStep { Set-WfSshdConfig -Context $script:Ctx }
         $record.Status | Should -BeExactly 'FAIL'
         [System.IO.File]::ReadAllText($script:Ctx.Layout.SshdConfig) | Should -BeExactly $script:DefaultConfig
-        Should -Invoke Restart-Service -Times 0
+        Should -Invoke Start-Service -Times 0
+        $script:Service.Status | Should -BeExactly 'Stopped'
     }
 
-    It 'fails when the effective configuration shows another forced command winning' {
+    It 'fails, without starting sshd, when the effective configuration shows another forced command winning' {
         $badDump = $script:GoodDump.Replace("forcecommand $($script:Ctx.ForcedCommand)", 'forcecommand internal-sftp')
         Mock Invoke-WfNative { if ($ArgumentList[0] -ceq '-T') { Get-NativeResult -StdOut $badDump } else { Get-NativeResult } }
         $record = Invoke-TestStep { Set-WfSshdConfig -Context $script:Ctx }
         $record.Status | Should -BeExactly 'FAIL'
         ($record.Details -join ' ') | Should -Match 'ForceCommand'
+        Should -Invoke Start-Service -Times 0
     }
 
-    It 'only warns when sshd cannot print the effective configuration' {
+    It 'is INCOMPLETE, not PASS, when sshd cannot print the effective configuration' {
         Mock Invoke-WfNative { if ($ArgumentList[0] -ceq '-T') { Get-NativeResult -ExitCode 1 } else { Get-NativeResult } }
-        (Invoke-TestStep { Set-WfSshdConfig -Context $script:Ctx }).Status | Should -BeExactly 'WARN'
+        $record = Invoke-TestStep { Set-WfSshdConfig -Context $script:Ctx }
+        $record.Status | Should -BeExactly 'INCOMPLETE'
+        ($record.Details -join ' ') | Should -Match 'not verified: sshd -T'
+        (Get-WfSummaryResult -Steps @($record)).ExitCode | Should -Be 2
     }
 
     It 'warns about an allow list that was already in the file' {
@@ -256,16 +283,69 @@ Describe 'Set-WfSshdConfig' {
     }
 }
 
+Describe 'Start-WfSshd (S4) leaves nothing listening' {
+    BeforeEach {
+        $script:Ctx = New-TestContext
+        $script:Service = [pscustomobject]@{ Status = 'Stopped'; StartType = 'Automatic' }
+        Mock Get-Service { $script:Service }
+        Mock Start-Service {
+            $script:Service.Status = 'Running'
+            Write-WfTextFile -Path (Join-Path $script:Ctx.Layout.SshDir 'ssh_host_ed25519_key.pub') -Text ("ssh-ed25519 $script:KeyBase64 host`n")
+            Write-WfTextFile -Path $script:Ctx.Layout.SshdConfig -Text $script:DefaultConfig
+        }
+        Mock Stop-Service { $script:Service.Status = 'Stopped' }
+        Mock Set-Service { $script:Service.StartType = [string]$StartupType }
+    }
+
+    It 'starts sshd once to create host keys and the default config, then stops it and keeps it manual' {
+        $record = Invoke-TestStep { Start-WfSshd -Context $script:Ctx }
+        $record.Status | Should -BeExactly 'PASS'
+        Should -Invoke Start-Service -Times 1 -Exactly
+        Should -Invoke Stop-Service -Times 1 -Exactly
+        Should -Invoke Set-Service -Times 1 -Exactly -ParameterFilter { $StartupType -eq 'Manual' }
+        $script:Service.Status | Should -BeExactly 'Stopped'
+        $script:Service.StartType | Should -BeExactly 'Manual'
+    }
+
+    It 'stops a running sshd from an earlier run too' {
+        $script:Service.Status = 'Running'
+        Write-WfTextFile -Path (Join-Path $script:Ctx.Layout.SshDir 'ssh_host_ed25519_key.pub') -Text ("ssh-ed25519 $script:KeyBase64 host`n")
+        Write-WfTextFile -Path $script:Ctx.Layout.SshdConfig -Text $script:DefaultConfig
+        (Invoke-TestStep { Start-WfSshd -Context $script:Ctx }).Status | Should -BeExactly 'PASS'
+        Should -Invoke Start-Service -Times 0
+        $script:Service.Status | Should -BeExactly 'Stopped'
+    }
+
+    It 'fails, with sshd stopped, when no host key appeared' {
+        Mock Start-Service { $script:Service.Status = 'Running'; Write-WfTextFile -Path $script:Ctx.Layout.SshdConfig -Text $script:DefaultConfig }
+        $record = Invoke-TestStep { Start-WfSshd -Context $script:Ctx }
+        $record.Status | Should -BeExactly 'FAIL'
+        $script:Service.Status | Should -BeExactly 'Stopped'
+    }
+}
+
 Describe 'Set-WfFirewall' {
     BeforeEach {
         $script:Ctx = New-TestContext
-        $script:DefaultRule = @{ Name = 'OpenSSH-Server-In-TCP'; Enabled = $true; Direction = 'Inbound'; Action = 'Allow'; Profile = 'Any'; Protocol = 'TCP'; LocalPort = @('22'); Program = 'C:\Windows\System32\OpenSSH\sshd.exe'; RemoteAddress = @('Any') }
-        $script:OwnRule = @{ Name = 'win-forensics-ssh-in'; Enabled = $true; Direction = 'Inbound'; Action = 'Allow'; Profile = 'Private'; Protocol = 'TCP'; LocalPort = @('22'); Program = 'Any'; RemoteAddress = @('192.0.2.10') }
+        function New-Rule {
+            param([hashtable]$Overrides)
+            $rule = @{ Name = 'rule'; Enabled = $true; Direction = 'Inbound'; Action = 'Allow'; Profile = 'Any'; Protocol = 'TCP'; LocalPort = @('22'); Program = 'Any'; Package = ''; Service = 'Any'; RemoteAddress = @('Any'); PolicyStoreSourceType = 'Local'; Unclassified = '' }
+            foreach ($key in $Overrides.Keys) { $rule[$key] = $Overrides[$key] }
+            return $rule
+        }
+        $script:Inventory = New-Object System.Collections.Generic.List[object]
+        $script:Inventory.Add((New-Rule @{ Name = 'OpenSSH-Server-In-TCP'; Program = 'C:\Windows\System32\OpenSSH\sshd.exe' }))
+        $script:Inventory.Add((New-Rule @{ Name = 'win-forensics-ssh-in'; Profile = 'Private'; RemoteAddress = @('192.0.2.10') }))
+        $script:Inventory.Add((New-Rule @{ Name = 'a-game'; Protocol = 'Any'; LocalPort = @('Any'); Program = 'C:\Games\game.exe' }))
+        $script:Service = [pscustomobject]@{ Status = 'Running'; StartType = 'Automatic' }
         Mock Get-NetFirewallRule { $null }
         Mock Remove-NetFirewallRule { }
         Mock New-NetFirewallRule { }
-        Mock Disable-NetFirewallRule { $script:DefaultRule.Enabled = $false }
-        Mock Get-WfSshFirewallRule { @($script:DefaultRule.Clone(), $script:OwnRule.Clone()) }
+        Mock Disable-NetFirewallRule { foreach ($rule in $script:Inventory) { if ($rule.Name -eq $Name) { $rule.Enabled = $false } } }
+        Mock Get-WfInboundAllowRule { @($script:Inventory | ForEach-Object { $_.Clone() }) }
+        Mock Get-Service { $script:Service }
+        Mock Stop-Service { $script:Service.Status = 'Stopped' }
+        Mock Set-Service { $script:Service.StartType = [string]$StartupType }
     }
 
     It 'creates its own rule for the Mac on Private only, and disables the rule the install created' {
@@ -276,11 +356,21 @@ Describe 'Set-WfFirewall' {
             $Direction -eq 'Inbound' -and $Action -eq 'Allow' -and $Protocol -eq 'TCP' -and $LocalPort -eq 22
         }
         Should -Invoke Disable-NetFirewallRule -Times 1 -Exactly -ParameterFilter { $Name -eq 'OpenSSH-Server-In-TCP' }
+        Should -Invoke Get-WfInboundAllowRule -Times 2 -Exactly
         $script:Ctx.State.disabled_firewall_rules | Should -Be @('OpenSSH-Server-In-TCP')
+        Should -Invoke Stop-Service -Times 0
+    }
+
+    It 'disables a renamed default rule and a broad Any protocol, Any port rule as well' {
+        $script:Inventory.Add((New-Rule @{ Name = '{c0ffee}'; LocalPort = @('20-25'); Program = 'C:\Windows\System32\OpenSSH\sshd.exe' }))
+        $script:Inventory.Add((New-Rule @{ Name = 'wide-open'; Protocol = 'Any'; LocalPort = @('Any') }))
+        (Invoke-TestStep { Set-WfFirewall -Context $script:Ctx }).Status | Should -BeExactly 'PASS'
+        Should -Invoke Disable-NetFirewallRule -Times 3 -Exactly
+        @($script:Ctx.State.disabled_firewall_rules | Sort-Object) | Should -Be @('{c0ffee}', 'OpenSSH-Server-In-TCP', 'wide-open')
     }
 
     It 'replaces its own rule on a second run and disables nothing more' {
-        $script:DefaultRule.Enabled = $false
+        $script:Inventory[0].Enabled = $false
         Mock Get-NetFirewallRule { [pscustomobject]@{ Name = 'win-forensics-ssh-in' } }
         $record = Invoke-TestStep { Set-WfFirewall -Context $script:Ctx }
         $record.Status | Should -BeExactly 'PASS'
@@ -289,18 +379,54 @@ Describe 'Set-WfFirewall' {
         Should -Invoke Disable-NetFirewallRule -Times 0
     }
 
-    It 'fails when a rule that opens port 22 is still enabled afterwards' {
+    It 'fails closed, with sshd stopped and manual, when a rule that admits SSH cannot be disabled' {
         Mock Disable-NetFirewallRule { }
         $record = Invoke-TestStep { Set-WfFirewall -Context $script:Ctx }
         $record.Status | Should -BeExactly 'FAIL'
-        ($record.Details -join ' ') | Should -Match 'still allow inbound SSH'
+        ($record.Details -join ' ') | Should -Match 'still admit inbound SSH.*sshd is stopped'
+        $script:Service.Status | Should -BeExactly 'Stopped'
+        $script:Service.StartType | Should -BeExactly 'Manual'
     }
 
-    It 'fails when its own rule came out wider than the Mac''s address' {
-        $script:OwnRule.RemoteAddress = @('Any')
+    It 'fails closed on a policy delivered rule and on a rule it cannot read' {
+        $script:Inventory.Add((New-Rule @{ Name = 'from-policy'; Protocol = 'Any'; LocalPort = @('Any'); PolicyStoreSourceType = 'GroupPolicy' }))
+        $record = Invoke-TestStep { Set-WfFirewall -Context $script:Ctx }
+        $record.Status | Should -BeExactly 'FAIL'
+        ($record.Details -join ' ') | Should -Match 'from-policy.*GroupPolicy'
+        $script:Service.Status | Should -BeExactly 'Stopped'
+
+        $script:Inventory.RemoveAt($script:Inventory.Count - 1)
+        $script:Inventory.Add((New-Rule @{ Name = 'mystery'; Unclassified = 'missing port filter' }))
+        $script:Service.Status = 'Running'
+        $record = Invoke-TestStep { Set-WfFirewall -Context $script:Ctx }
+        $record.Status | Should -BeExactly 'FAIL'
+        ($record.Details -join ' ') | Should -Match 'mystery.*could not be read'
+        $script:Service.Status | Should -BeExactly 'Stopped'
+    }
+
+    It 'fails closed when its own rule came out wider than the Mac''s address' {
+        $script:Inventory[1].RemoteAddress = @('Any')
         $record = Invoke-TestStep { Set-WfFirewall -Context $script:Ctx }
         $record.Status | Should -BeExactly 'FAIL'
         ($record.Details -join ' ') | Should -Match 'remote address'
+        $script:Service.Status | Should -BeExactly 'Stopped'
+    }
+}
+
+Describe 'ConvertTo-WfFirewallRuleInfo' {
+    It 'flattens a rule and its four filters, and marks a rule with a missing filter unclassified' {
+        $rule = [pscustomobject]@{ Name = 'r'; DisplayName = 'R'; Enabled = 'True'; Direction = 'Inbound'; Action = 'Allow'; Profile = 'Private'; PolicyStoreSourceType = 'Local' }
+        $port = [pscustomobject]@{ Protocol = 'TCP'; LocalPort = @('22') }
+        $app = [pscustomobject]@{ Program = 'Any'; Package = $null }
+        $service = [pscustomobject]@{ Service = 'Any' }
+        $address = [pscustomobject]@{ RemoteAddress = @('192.0.2.10') }
+        $info = ConvertTo-WfFirewallRuleInfo -Rule $rule -PortFilter $port -ApplicationFilter $app -ServiceFilter $service -AddressFilter $address
+        $info.Enabled | Should -BeTrue
+        $info.Protocol | Should -BeExactly 'TCP'
+        $info.LocalPort | Should -Be @('22')
+        $info.Package | Should -BeExactly ''
+        $info.Unclassified | Should -BeExactly ''
+        (ConvertTo-WfFirewallRuleInfo -Rule $rule -PortFilter $null -ApplicationFilter $app -ServiceFilter $service -AddressFilter $address).Unclassified | Should -Match 'port filter'
     }
 }
 
@@ -309,13 +435,19 @@ Describe 'Set-WfAccount' {
         $script:Ctx = New-TestContext
         $script:Ctx.AccountSid = ''
         $script:Marker = 'win-forensics SSH collector (key only)'
-        $script:User = [pscustomobject]@{ Name = 'wfcollector'; Enabled = $true; PasswordExpires = $null; Description = $script:Marker; SID = [pscustomobject]@{ Value = 'S-1-5-21-1-2-3-1001' } }
-        $script:Groups = @()
+        $script:Sid = 'S-1-5-21-1-2-3-1001'
+        $script:User = [pscustomobject]@{ Name = 'wfcollector'; Enabled = $true; PasswordExpires = $null; Description = $script:Marker; SID = [pscustomobject]@{ Value = $script:Sid } }
+        # The baseline as Windows creates it: Users holds Authenticated Users and INTERACTIVE.
+        $script:Groups = @(
+            @{ Sid = 'S-1-5-32-544'; MemberSids = @('S-1-5-21-1-2-3-1000') }
+            @{ Sid = 'S-1-5-32-545'; MemberSids = @('S-1-5-11', 'S-1-5-4') }
+            @{ Sid = 'S-1-5-32-573'; MemberSids = @() }
+        )
         Mock New-LocalUser { $script:User }
         Mock Set-LocalUser { }
         Mock Enable-LocalUser { $script:User.Enabled = $true }
-        Mock Add-LocalGroupMember { $script:Groups = @('S-1-5-32-573') }
-        Mock Get-WfAccountGroupSid { @{ Sids = $script:Groups; Complete = $true } }
+        Mock Add-LocalGroupMember { $script:Groups[2].MemberSids = @($script:Sid) }
+        Mock Get-WfLocalGroupMembership { $script:Groups }
     }
 
     It 'creates the account with a SecureString password that never expires, in Event Log Readers only' {
@@ -337,9 +469,10 @@ Describe 'Set-WfAccount' {
         $script:PasswordSeen.IsSecure | Should -BeTrue
         $script:PasswordSeen.Length | Should -BeGreaterOrEqual 20
         Should -Invoke Add-LocalGroupMember -Times 1 -Exactly -ParameterFilter { $SID -eq 'S-1-5-32-573' -and $Member -eq 'wfcollector' }
-        $script:Ctx.AccountSid | Should -BeExactly 'S-1-5-21-1-2-3-1001'
+        $script:Ctx.AccountSid | Should -BeExactly $script:Sid
         $script:Ctx.State.account_created_by_this_script | Should -BeTrue
         ($record.Details -join ' ') | Should -Not -Match 'System\.Security\.SecureString'
+        ($record.Details -join ' ') | Should -Match 'no other group'
     }
 
     It 'keeps the description within the 48 characters New-LocalUser allows' {
@@ -347,7 +480,7 @@ Describe 'Set-WfAccount' {
     }
 
     It 'reuses its own account on a second run without creating or re-adding anything' {
-        $script:Groups = @('S-1-5-32-573')
+        $script:Groups[2].MemberSids = @($script:Sid)
         Mock Get-LocalUser { $script:User }
         $record = Invoke-TestStep { Set-WfAccount -Context $script:Ctx }
         $record.Status | Should -BeExactly 'PASS'
@@ -357,7 +490,7 @@ Describe 'Set-WfAccount' {
     }
 
     It 'enables its own account again when it had been disabled' {
-        $script:Groups = @('S-1-5-32-573')
+        $script:Groups[2].MemberSids = @($script:Sid)
         $script:User.Enabled = $false
         Mock Get-LocalUser { $script:User }
         (Invoke-TestStep { Set-WfAccount -Context $script:Ctx }).Status | Should -BeExactly 'PASS'
@@ -374,17 +507,55 @@ Describe 'Set-WfAccount' {
     }
 
     It 'fails when the account is an administrator' {
-        $script:Groups = @('S-1-5-32-573', 'S-1-5-32-544')
+        $script:Groups[0].MemberSids = @('S-1-5-21-1-2-3-1000', $script:Sid)
+        $script:Groups[2].MemberSids = @($script:Sid)
         Mock Get-LocalUser { $script:User }
         $record = Invoke-TestStep { Set-WfAccount -Context $script:Ctx }
         $record.Status | Should -BeExactly 'FAIL'
         ($record.Details -join ' ') | Should -Match 'Administrators'
     }
 
-    It 'warns when the account is in a group beyond Event Log Readers' {
-        $script:Groups = @('S-1-5-32-573', 'S-1-5-32-559')
+    It 'fails, not warns, when the account is in any group beyond Event Log Readers' {
+        $script:Groups += @{ Sid = 'S-1-5-32-559'; MemberSids = @($script:Sid) }
+        $script:Groups[2].MemberSids = @($script:Sid)
         Mock Get-LocalUser { $script:User }
-        (Invoke-TestStep { Set-WfAccount -Context $script:Ctx }).Status | Should -BeExactly 'WARN'
+        $record = Invoke-TestStep { Set-WfAccount -Context $script:Ctx }
+        $record.Status | Should -BeExactly 'FAIL'
+        ($record.Details -join ' ') | Should -Match 'S-1-5-32-559'
+    }
+
+    It 'fails when another group grants through Everyone or Authenticated Users' {
+        $script:Groups += @{ Sid = 'S-1-5-32-580'; MemberSids = @('S-1-5-11') }
+        $script:Groups[2].MemberSids = @($script:Sid)
+        Mock Get-LocalUser { $script:User }
+        $record = Invoke-TestStep { Set-WfAccount -Context $script:Ctx }
+        $record.Status | Should -BeExactly 'FAIL'
+        ($record.Details -join ' ') | Should -Match 'S-1-5-32-580'
+    }
+
+    It 'fails when the groups cannot be enumerated completely' {
+        Mock Get-WfLocalGroupMembership { throw 'could not read the members of group S-1-5-32-544: Failed to compare two elements in the array' }
+        Mock Get-LocalUser { $script:User }
+        $record = Invoke-TestStep { Set-WfAccount -Context $script:Ctx }
+        $record.Status | Should -BeExactly 'FAIL'
+        ($record.Details -join ' ') | Should -Match 'Failed to compare'
+    }
+}
+
+Describe 'Get-WfLocalGroupMembership fallback' {
+    It 'throws instead of returning a partial list when a group cannot be read' {
+        Mock Get-LocalGroup { @([pscustomobject]@{ Name = 'Administrators'; SID = [pscustomobject]@{ Value = 'S-1-5-32-544' } }, [pscustomobject]@{ Name = 'Event Log Readers'; SID = [pscustomobject]@{ Value = 'S-1-5-32-573' } }) }
+        Mock Get-LocalGroupMember { if ($SID -eq 'S-1-5-32-544') { throw 'Failed to compare two elements in the array.' } else { @() } }
+        { Get-WfLocalGroupMembership } | Should -Throw '*Failed to compare*'
+    }
+
+    It 'returns every group with its member SIDs when the fallback can read them all' {
+        Mock Get-LocalGroup { @([pscustomobject]@{ Name = 'Users'; SID = [pscustomobject]@{ Value = 'S-1-5-32-545' } }) }
+        Mock Get-LocalGroupMember { @([pscustomobject]@{ SID = [pscustomobject]@{ Value = 'S-1-5-11' } }, [pscustomobject]@{ SID = [pscustomobject]@{ Value = 'S-1-5-4' } }) }
+        $groups = @(Get-WfLocalGroupMembership)
+        $groups.Count | Should -Be 1
+        $groups[0].Sid | Should -BeExactly 'S-1-5-32-545'
+        @($groups[0].MemberSids) | Should -Be @('S-1-5-11', 'S-1-5-4')
     }
 }
 
@@ -476,13 +647,16 @@ Describe 'Invoke-WfSelfTest' {
         }
     }
 
-    It 'authorizes a throwaway loopback key, checks ping and a refusal, and removes the key again' {
+    It 'authorizes a throwaway loopback key, checks ping, a refusal, and a terminal request, and removes the key again' {
         Mock Invoke-WfNative {
             if ($ArgumentList[$ArgumentList.Count - 1] -eq 'ping') { return Get-NativeResult -StdOut '{"ok":true,"verb":"ping"}' }
+            if ($ArgumentList -contains '-tt') { return Get-NativeResult -ExitCode 64 -StdOut '{"ok":false,"error":"refused"}' -StdErr 'PTY allocation request failed on channel 0' }
             return Get-NativeResult -ExitCode 64 -StdOut '{"ok":false,"error":"refused"}'
         }
         $record = Invoke-TestStep { Invoke-WfSelfTest -Context $script:Ctx }
         $record.Status | Should -BeExactly 'PASS'
+        ($record.Details -join ' ') | Should -Match 'terminal request \(-tt\) was refused a terminal'
+        Should -Invoke Invoke-WfNative -Times 1 -Exactly -ParameterFilter { $ArgumentList -contains '-tt' -and $ArgumentList[$ArgumentList.Count - 1] -eq 'wfcollector@127.0.0.1' }
         $script:KeyWrites.Count | Should -Be 2
         $script:KeyWrites[0].Count | Should -Be 2
         $script:KeyWrites[0][1] | Should -Match 'from="127\.0\.0\.1"'
@@ -491,6 +665,41 @@ Describe 'Invoke-WfSelfTest' {
         [System.IO.File]::ReadAllText($script:Ctx.Layout.AuthorizedKeys) | Should -BeExactly ($script:Ctx.MacKeyLine + "`n")
         @(Get-ChildItem -LiteralPath $script:Ctx.Layout.Root -Filter 'selftest-*').Count | Should -Be 0
         Should -Invoke Invoke-WfNative -Times 1 -Exactly -ParameterFilter { ($ArgumentList -join ' ') -match 'StrictHostKeyChecking=yes' -and $ArgumentList[$ArgumentList.Count - 2] -eq 'wfcollector@127.0.0.1' -and $ArgumentList[$ArgumentList.Count - 1] -eq 'ping' }
+    }
+
+    It 'fails when a forced terminal request gets a shell prompt or a granted terminal' {
+        Mock Invoke-WfNative {
+            if ($ArgumentList[$ArgumentList.Count - 1] -eq 'ping') { return Get-NativeResult -StdOut '{"ok":true,"verb":"ping"}' }
+            if ($ArgumentList -contains '-tt') { return Get-NativeResult -ExitCode 0 -StdOut "Microsoft Windows`r`nC:\Users\wfcollector>" }
+            return Get-NativeResult -ExitCode 64 -StdOut '{"ok":false,"error":"refused"}'
+        }
+        $record = Invoke-TestStep { Invoke-WfSelfTest -Context $script:Ctx }
+        $record.Status | Should -BeExactly 'FAIL'
+        ($record.Details -join ' ') | Should -Match 'terminal request \(-tt\) was NOT refused'
+        [System.IO.File]::ReadAllText($script:Ctx.Layout.AuthorizedKeys) | Should -BeExactly ($script:Ctx.MacKeyLine + "`n")
+
+        Mock Invoke-WfNative {
+            if ($ArgumentList[$ArgumentList.Count - 1] -eq 'ping') { return Get-NativeResult -StdOut '{"ok":true,"verb":"ping"}' }
+            if ($ArgumentList -contains '-tt') { return Get-NativeResult -ExitCode 64 -StdOut '{"ok":false,"error":"refused"}' -StdErr '' }
+            return Get-NativeResult -ExitCode 64 -StdOut '{"ok":false,"error":"refused"}'
+        }
+        $record = Invoke-TestStep { Invoke-WfSelfTest -Context $script:Ctx }
+        $record.Status | Should -BeExactly 'FAIL'
+        ($record.Details -join ' ') | Should -Match 'granted a terminal'
+    }
+
+    It 'reports the network logon rights when ping is denied' {
+        Mock Invoke-WfNative {
+            if ($ArgumentList[0] -eq '/export') {
+                Write-WfTextFile -Path $ArgumentList[2] -Text "[Privilege Rights]`r`nSeNetworkLogonRight = *S-1-5-32-544,*S-1-5-32-545`r`nSeDenyNetworkLogonRight = *S-1-5-113`r`n"
+                return Get-NativeResult
+            }
+            return Get-NativeResult -ExitCode 255 -StdErr 'Permission denied (publickey).'
+        }
+        $record = Invoke-TestStep { Invoke-WfSelfTest -Context $script:Ctx }
+        $record.Status | Should -BeExactly 'FAIL'
+        ($record.Details -join ' ') | Should -Match 'SeNetworkLogonRight = S-1-5-32-544,S-1-5-32-545; SeDenyNetworkLogonRight = S-1-5-113'
+        ($record.Details -join ' ') | Should -Match 'row S13'
     }
 
     It 'fails, and still removes the throwaway key, when ping does not come back' {
@@ -515,16 +724,44 @@ Describe 'Invoke-WfSelfTest' {
     It 'warns when the refusal arrives with the wrong exit code' {
         Mock Invoke-WfNative {
             if ($ArgumentList[$ArgumentList.Count - 1] -eq 'ping') { return Get-NativeResult -StdOut '{"ok":true,"verb":"ping"}' }
+            if ($ArgumentList -contains '-tt') { return Get-NativeResult -ExitCode 1 -StdOut '{"ok":false,"error":"refused"}' -StdErr 'PTY allocation request failed on channel 0' }
             return Get-NativeResult -ExitCode 1 -StdOut '{"ok":false,"error":"refused"}'
         }
         (Invoke-TestStep { Invoke-WfSelfTest -Context $script:Ctx }).Status | Should -BeExactly 'WARN'
     }
 
-    It 'skips with a warning when the OpenSSH client tools are not there' {
+    It 'is INCOMPLETE, never PASS, when the OpenSSH client tools are not there' {
         Remove-Item -LiteralPath (Join-Path (Split-Path -Parent $script:Ctx.SshdExe) 'ssh.exe')
         Mock Invoke-WfNative { throw 'must not be called' }
-        (Invoke-TestStep { Invoke-WfSelfTest -Context $script:Ctx }).Status | Should -BeExactly 'WARN'
+        $record = Invoke-TestStep { Invoke-WfSelfTest -Context $script:Ctx }
+        $record.Status | Should -BeExactly 'INCOMPLETE'
         $script:KeyWrites.Count | Should -Be 0
+        (Get-WfSummaryResult -Steps @($record)).ExitCode | Should -Be 2
+    }
+}
+
+Describe 'Set-WfPower' {
+    BeforeEach { $script:Ctx = New-TestContext }
+
+    It 'passes when the read back says never' {
+        Mock Invoke-WfNative {
+            if ($ArgumentList[0] -eq '/change') { return Get-NativeResult }
+            Get-NativeResult -StdOut "  Current AC Power Setting Index: 0x00000000`r`n  Current DC Power Setting Index: 0x00000384`r`n"
+        }
+        (Invoke-TestStep { Set-WfPower -Context $script:Ctx }).Status | Should -BeExactly 'PASS'
+        Should -Invoke Invoke-WfNative -Times 1 -Exactly -ParameterFilter { ($ArgumentList -join ' ') -ceq '/change standby-timeout-ac 0' }
+    }
+
+    It 'fails when the read back is not zero, and is INCOMPLETE when it cannot be read' {
+        Mock Invoke-WfNative {
+            if ($ArgumentList[0] -eq '/change') { return Get-NativeResult }
+            Get-NativeResult -StdOut "  Current AC Power Setting Index: 0x00000708`r`n  Current DC Power Setting Index: 0x00000384`r`n"
+        }
+        (Invoke-TestStep { Set-WfPower -Context $script:Ctx }).Status | Should -BeExactly 'FAIL'
+        Mock Invoke-WfNative { Get-NativeResult -StdOut 'Invalid Parameters' }
+        $record = Invoke-TestStep { Set-WfPower -Context $script:Ctx }
+        $record.Status | Should -BeExactly 'INCOMPLETE'
+        (Get-WfSummaryResult -Steps @($record)).Result | Should -BeExactly 'INCOMPLETE'
     }
 }
 
@@ -544,6 +781,19 @@ Describe 'Write-WfSummary' {
         $report | Should -Match ([regex]::Escape($script:Ctx.HostKeyFingerprint))
         $report | Should -Match 'wf-pin-host-key\.sh --fingerprint'
         $report | Should -Match 'wf-acceptance\.sh'
+    }
+
+    It 'ends a run whose self test could not run with INCOMPLETE, exit code 2, and no Mac handoff' {
+        Invoke-WfStep -Id 'S12' -Title 'host key' -Action { Add-WfNote 'fingerprint shown' }
+        Invoke-WfStep -Id 'S13' -Title 'Loopback self test' -Action { Add-WfIncomplete 'skipped because -SkipSelfTest was given; the front door has not been exercised' }
+        $code = Write-WfSummary -Context $script:Ctx
+        $code | Should -Be 2
+        $report = [System.IO.File]::ReadAllText((Join-Path $script:Ctx.SourceDir 'wf-frontdoor-report.txt'))
+        $report | Should -Match 'RESULT: INCOMPLETE'
+        $report | Should -Not -Match 'RESULT: PASS'
+        $report | Should -Not -Match 'wf-pin-host-key'
+        $report | Should -Match '\[INCOMPLETE\] S13'
+        $report | Should -Match 'row S13'
     }
 
     It 'ends a failed run with FAIL, the reason, the checklist row, and exit code 1' {
@@ -566,13 +816,15 @@ Describe 'install-state.json' {
         $ctx.Layout.State = Join-Path $ctx.Layout.Remote 'install-state.json'
         $ctx.State.disabled_firewall_rules = @('OpenSSH-Server-In-TCP')
         $ctx.State.account_created_by_this_script = $true
-        $ctx.State.previous_default_shell = @{ DefaultShell = 'C:\x\pwsh.exe'; DefaultShellCommandOption = $null; DefaultShellArguments = $null }
+        $ctx.State.previous_default_shell = @{ DefaultShell = 'C:\x\pwsh.exe'; DefaultShellCommandOption = $null; DefaultShellArguments = $null; DefaultShellEscapeArguments = '1' }
         Save-WfState -Context $ctx
         $read = Read-WfState -Path $ctx.Layout.State
         $read.disabled_firewall_rules | Should -Be @('OpenSSH-Server-In-TCP')
         $read.account_created_by_this_script | Should -BeTrue
         $read.capability_installed_by_this_script | Should -BeFalse
         $read.previous_default_shell.DefaultShell | Should -BeExactly 'C:\x\pwsh.exe'
+        $read.previous_default_shell.DefaultShellEscapeArguments | Should -BeExactly '1'
+        $read.previous_default_shell.Keys.Count | Should -Be 4
     }
 
     It 'starts from defaults when there is no state file or it is unreadable' {

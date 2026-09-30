@@ -404,31 +404,71 @@ function Test-WfPortSpecIncludes {
 }
 
 function Get-WfFirewallPlan {
-    # Which existing inbound rules must be disabled so that the only rule allowing TCP 22 is the
-    # one this script owns. Windows Firewall has no rule ordering: any matching allow rule lets
-    # the traffic in, so a broader rule left enabled would defeat the address scoping.
+    # Decide, from a complete inventory of the enabled inbound allow rules, which rules must be
+    # disabled so that the only rule admitting TCP 22 to sshd is the one this script owns, and
+    # which rules make that impossible (the caller then fails closed with sshd stopped). Windows
+    # Firewall has no rule ordering: any matching allow rule lets the traffic in, so a broader
+    # rule left enabled would defeat the address scoping.
     # https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules
+    #
     # Each input rule is a hashtable: Name, Enabled, Direction, Action, Protocol, LocalPort
-    # (string array), Program. The default rule's documented name is OpenSSH-Server-In-TCP, but
-    # rules are matched by what they allow, whatever they are called.
+    # (string array), Program, Package, Service, PolicyStoreSourceType, and Unclassified (a reason
+    # string when its filters could not be read). A rule admits TCP 22 to sshd when it is an
+    # enabled inbound allow rule, its protocol is TCP, 6, or Any, its local port names 22 or is
+    # Any, and it is not scoped to another program, to a packaged app, or to another service.
+    # Rules are matched by what they allow, never by name; the default rule the OpenSSH Server
+    # install creates is documented as OpenSSH-Server-In-TCP, but a renamed copy is caught too.
+    # Returns @{ Disable = names; FailClosed = reasons }.
     param(
         [AllowNull()][object[]]$Rules,
         [Parameter(Mandatory = $true)][string]$OwnRuleName
     )
     $disable = New-Object System.Collections.Generic.List[string]
+    $failClosed = New-Object System.Collections.Generic.List[string]
     foreach ($rule in @($Rules)) {
         if ($null -eq $rule) { continue }
         if ($rule.Name -eq $OwnRuleName) { continue }
         if (-not $rule.Enabled) { continue }
         if ($rule.Direction -ne 'Inbound' -or $rule.Action -ne 'Allow') { continue }
-        $protocolOk = @('TCP', '6', 'Any') -contains [string]$rule.Protocol
-        $program = [string]$rule.Program
-        $isSshdProgram = $program.ToLowerInvariant().EndsWith('\sshd.exe')
-        $portAny = @($rule.LocalPort) -contains 'Any'
-        $opens22 = $protocolOk -and ((Test-WfPortSpecIncludes -Spec $rule.LocalPort -Port 22) -or ($portAny -and $isSshdProgram))
-        if ($opens22 -or $rule.Name -eq 'OpenSSH-Server-In-TCP') { $disable.Add([string]$rule.Name) }
+        $unclassified = ''
+        if ($rule.ContainsKey('Unclassified')) { $unclassified = [string]$rule.Unclassified }
+        if ($unclassified -ne '') {
+            $failClosed.Add("rule '$($rule.Name)' could not be read ($unclassified)")
+            continue
+        }
+        if (-not (Test-WfRuleAdmitsSsh -Rule $rule)) { continue }
+        $source = ''
+        if ($rule.ContainsKey('PolicyStoreSourceType')) { $source = [string]$rule.PolicyStoreSourceType }
+        if ($source -ne '' -and $source -ne 'Local') {
+            $failClosed.Add("rule '$($rule.Name)' admits inbound SSH and comes from $source policy, which this script cannot disable")
+            continue
+        }
+        $disable.Add([string]$rule.Name)
     }
-    return $disable.ToArray()
+    return @{ Disable = $disable.ToArray(); FailClosed = $failClosed.ToArray() }
+}
+
+function Test-WfRuleAdmitsSsh {
+    # Would this enabled inbound allow rule let a connection to TCP 22 reach sshd?
+    param([Parameter(Mandatory = $true)][hashtable]$Rule)
+    $protocolOk = @('TCP', '6', 'Any') -contains [string]$Rule.Protocol
+    if (-not $protocolOk) { return $false }
+    $ports = [string[]]@($Rule.LocalPort)
+    $portOk = ($ports -contains 'Any') -or (Test-WfPortSpecIncludes -Spec $ports -Port 22)
+    if (-not $portOk) { return $false }
+    # A rule scoped to another program applies to that program's sockets, not to sshd's.
+    $program = ''
+    if ($Rule.ContainsKey('Program')) { $program = [string]$Rule.Program }
+    if ($program -ne '' -and $program -ne 'Any' -and -not $program.ToLowerInvariant().EndsWith('\sshd.exe')) { return $false }
+    # A rule scoped to a packaged (Store) app applies inside that app container only.
+    $package = ''
+    if ($Rule.ContainsKey('Package')) { $package = [string]$Rule.Package }
+    if ($package -ne '' -and $package -ne 'Any') { return $false }
+    # A rule scoped to another Windows service does not cover the sshd service.
+    $service = ''
+    if ($Rule.ContainsKey('Service')) { $service = [string]$Rule.Service }
+    if ($service -ne '' -and $service -ne 'Any' -and $service.ToLowerInvariant() -ne 'sshd') { return $false }
+    return $true
 }
 
 function Test-WfOwnFirewallRule {
@@ -542,13 +582,20 @@ function ConvertFrom-WfPowerCfgQuery {
 }
 
 function Get-WfWriteRightsMask {
-    # FileSystemRights bits that let a principal change or remove a file or directory:
-    # WriteData 0x2, AppendData 0x4, WriteExtendedAttributes 0x10, DeleteSubdirectoriesAndFiles
-    # 0x40, WriteAttributes 0x100, Delete 0x10000, ChangePermissions 0x40000, TakeOwnership
-    # 0x80000, plus GENERIC_WRITE 0x40000000 and GENERIC_ALL 0x10000000.
-    # The same set Win32-OpenSSH treats as write access, plus the two generic bits:
-    # https://github.com/PowerShell/openssh-portable/blob/e581929d3d0cf44e033e47bf3b75a2544918b87e/contrib/win32/win32compat/w32-sshfileperm.c#L49-L53
+    # FileSystemRights bits that let a principal change or remove a file or directory. This mask
+    # is deliberately wider than the one Win32-OpenSSH applies to its own files. Win32-OpenSSH's
+    # SSH_SECURE_WRITE_MASK is WriteData 0x2, AppendData 0x4, WriteExtendedAttributes 0x10,
+    # WriteAttributes 0x100, Delete 0x10000, ChangePermissions 0x40000, and TakeOwnership 0x80000
+    # (https://github.com/PowerShell/openssh-portable/blob/e581929d3d0cf44e033e47bf3b75a2544918b87e/contrib/win32/win32compat/w32-sshfileperm.c#L49-L53),
+    # which is 0xD0116. This mask adds DeleteSubdirectoriesAndFiles 0x40 (a directory right that
+    # removes the files inside), GENERIC_WRITE 0x40000000, and GENERIC_ALL 0x10000000 (generic
+    # rights that map onto the specific write bits), for 0x500D0156.
     return 0x500D0156
+}
+
+function Get-WfUpstreamWriteRightsMask {
+    # Win32-OpenSSH's own SSH_SECURE_WRITE_MASK, kept so a test can state how the two differ.
+    return 0xD0116
 }
 
 function Test-WfAclRule {
@@ -633,14 +680,74 @@ function New-WfRandomPassword {
 }
 
 function Get-WfSummaryResult {
-    # Overall result from the step records ({ Status } of PASS, WARN, FAIL, SKIP).
+    # Overall result from the step records ({ Status } of PASS, WARN, INCOMPLETE, FAIL, SKIP).
+    # PASS needs every step to have run and verified itself; a step that could not perform an
+    # essential verification is INCOMPLETE, which is not success: exit code 2, and no handoff to
+    # the Mac. FAIL (a step failed, so later ones did not run) is exit code 1. WARN never
+    # changes the result.
     param([AllowNull()][object[]]$Steps)
     $fail = @($Steps | Where-Object { $_.Status -eq 'FAIL' }).Count
     $skip = @($Steps | Where-Object { $_.Status -eq 'SKIP' }).Count
+    $incomplete = @($Steps | Where-Object { $_.Status -eq 'INCOMPLETE' }).Count
     $warn = @($Steps | Where-Object { $_.Status -eq 'WARN' }).Count
     $result = 'PASS'
-    if ($fail -gt 0 -or $skip -gt 0) { $result = 'FAIL' }
     $exitCode = 0
-    if ($result -eq 'FAIL') { $exitCode = 1 }
-    return @{ Result = $result; Failed = $fail; Skipped = $skip; Warnings = $warn; ExitCode = $exitCode }
+    if ($fail -gt 0 -or $skip -gt 0) {
+        $result = 'FAIL'
+        $exitCode = 1
+    } elseif ($incomplete -gt 0) {
+        $result = 'INCOMPLETE'
+        $exitCode = 2
+    }
+    return @{ Result = $result; Failed = $fail; Skipped = $skip; Incomplete = $incomplete; Warnings = $warn; ExitCode = $exitCode }
+}
+
+function Get-WfTokenWellKnownSid {
+    # Well known SIDs a network logon token of a local account carries, whatever its groups:
+    # Everyone S-1-1-0, Authenticated Users S-1-5-11, NETWORK S-1-5-2, This Organization S-1-5-15,
+    # Local account S-1-5-113, NTLM Authentication S-1-5-64-10. INTERACTIVE S-1-5-4 is included
+    # too, so that a group which grants through it is looked at even though an SSH session is a
+    # network logon. A local group that lists one of these grants its rights to the account.
+    # https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-security-identifiers
+    return @('S-1-1-0', 'S-1-5-11', 'S-1-5-2', 'S-1-5-15', 'S-1-5-113', 'S-1-5-64-10', 'S-1-5-4')
+}
+
+function Test-WfAccountGroupBaseline {
+    # The exact permitted group baseline of the collector account, checked against the complete
+    # membership of every local group ({ Sid; MemberSids } each):
+    #   - direct membership of Event Log Readers (S-1-5-32-573) and of no other group;
+    #   - membership through a well known SID only in Users (S-1-5-32-545), whose default
+    #     members are Authenticated Users and INTERACTIVE. That one is unavoidable: Windows puts
+    #     every authenticated account in it, and it is what lets the account start
+    #     powershell.exe from System32. Any other group that grants through Everyone,
+    #     Authenticated Users, and so on is rejected, because it would give the account that
+    #     group's rights without anyone having added it there.
+    # Returns the violations as sentences; an empty result means the baseline holds exactly.
+    param(
+        [AllowNull()][object[]]$Groups,
+        [Parameter(Mandatory = $true)][string]$AccountSid
+    )
+    $violations = New-Object System.Collections.Generic.List[string]
+    $wellKnown = @(Get-WfTokenWellKnownSid)
+    $direct = New-Object System.Collections.Generic.List[string]
+    foreach ($group in @($Groups)) {
+        if ($null -eq $group) { continue }
+        $groupSid = [string]$group.Sid
+        $members = [string[]]@($group.MemberSids)
+        if ($members -contains $AccountSid) { $direct.Add($groupSid) }
+        $through = @($members | Where-Object { $wellKnown -contains $_ })
+        if ($through.Count -gt 0 -and $groupSid -ne 'S-1-5-32-545') {
+            $violations.Add("group $groupSid grants its rights to every account through $($through -join ', '); the collector account would hold them too")
+        }
+    }
+    if ($direct -notcontains 'S-1-5-32-573') { $violations.Add('the account is not a member of Event Log Readers (S-1-5-32-573)') }
+    foreach ($groupSid in $direct) {
+        if ($groupSid -eq 'S-1-5-32-573') { continue }
+        if ($groupSid -eq 'S-1-5-32-544') {
+            $violations.Add('the account is a member of Administrators (S-1-5-32-544)')
+        } else {
+            $violations.Add("the account is a member of group $groupSid, which the baseline does not allow")
+        }
+    }
+    return $violations.ToArray()
 }

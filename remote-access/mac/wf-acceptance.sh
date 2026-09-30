@@ -9,7 +9,8 @@
 #
 #   A1  the host key is pinned and strict checking is on for the host alias
 #   A2  "ping" returns the dispatcher's health JSON
-#   A3  commands outside the allowlist are refused, not run (whoami and friends)
+#   A3  commands outside the allowlist are refused, not run (whoami and friends), and a forced
+#       terminal request (-tt) gets neither a terminal nor a shell
 #   A4  password authentication is refused by the server
 #   A5  a host key mismatch, or a missing pin, stops the connection before anything is sent
 #   A6  "collect-<name>" answers "unknown collector" until collectors are installed
@@ -68,6 +69,7 @@ strict="$(opt stricthostkeychecking)"
 known="$(opt userknownhostsfile)"
 hostname_value="$(opt hostname)"
 if [ -z "$resolved" ] || [ "$hostname_value" = "$WF_HOST_ALIAS" ] || [ -z "$hostname_value" ]; then
+    hostname_value=""
     fail "A1 no 'Host $WF_HOST_ALIAS' block in the ssh config; run wf-mac-setup.sh"
 else
     case "$strict" in
@@ -117,12 +119,19 @@ refused() { # refused <label> <args...>
     label="$1"
     shift
     run "$@"
+    classify_refusal "$label"
+}
+# classify_refusal <label>: a refusal is the dispatcher's JSON with no leaked account name. The
+# exit code is transport evidence only: 64 is the dispatcher's code, anything else (zero included)
+# means the code did not survive the trip and is a warning, not a failure.
+classify_refusal() {
+    label="$1"
     # whoami on Windows prints <computer>\<account>; that must not be in the answer.
     leaked=0
     if [ -n "$account" ] && grep -qF "\\$account" "$work/out"; then
         leaked=1
     fi
-    if grep -q '"error":"refused"' "$work/out" && [ "$rc" -ne 0 ] && [ "$leaked" -eq 0 ]; then
+    if grep -q '"error":"refused"' "$work/out" && [ "$leaked" -eq 0 ]; then
         if [ "$rc" -eq 64 ]; then
             pass "A3 refused, exit code 64: $label"
         else
@@ -142,18 +151,28 @@ refused "fetch-C:\\Windows\\win.ini" 'fetch-C:\Windows\win.ini'
 # No command at all is a request for an interactive shell.
 rc=0
 wf_ssh -n -T -o BatchMode=yes -o ConnectTimeout=10 "$WF_HOST_ALIAS" >"$work/out" 2>"$work/err" || rc=$?
-if grep -q '"error":"refused"' "$work/out" && [ "$rc" -ne 0 ]; then
-    pass "A3 refused: a request for an interactive shell"
+classify_refusal "a request for an interactive shell (no command)"
+# A forced terminal request. Win32-OpenSSH enforces ForceCommand only on sessions without a
+# terminal and relies on PermitTTY no to refuse one; the client reports a refused terminal as
+# "PTY allocation request failed on channel 0". There must be no terminal, no prompt, no shell.
+rc=0
+wf_ssh -tt -o BatchMode=yes -o ConnectTimeout=10 "$WF_HOST_ALIAS" >"$work/out" 2>"$work/err" </dev/null || rc=$?
+tr -d '\r' <"$work/out" >"$work/out.txt"
+if grep -Eq '^(PS )?[A-Za-z]:\\[^>]*>' "$work/out.txt" || { [ -n "$account" ] && grep -qF "\\$account" "$work/out.txt"; }; then
+    fail "A3 a forced terminal request (-tt) reached a shell: $(head -c 200 "$work/out.txt" | tr '\n' ' ')"
+elif ! grep -q 'PTY allocation request failed' "$work/err"; then
+    fail "A3 a forced terminal request (-tt) was granted a terminal (PermitTTY no is not in effect); exit code $rc"
 else
-    fail "A3 a request for an interactive shell was not refused (exit code $rc)"
+    cp "$work/out.txt" "$work/out"
+    classify_refusal "a forced terminal request (-tt): no terminal was granted"
 fi
 # scp and sftp are blocked by the forced command as well.
 rc=0
 wf_ssh -n -T -o BatchMode=yes -o ConnectTimeout=10 -s "$WF_HOST_ALIAS" sftp >"$work/out" 2>"$work/err" || rc=$?
-if [ "$rc" -ne 0 ] && ! grep -q 'SSH_FXP\|^sftp>' "$work/out"; then
-    pass "A3 refused: the sftp subsystem"
-else
+if grep -q 'SSH_FXP\|^sftp>' "$work/out"; then
     fail "A3 the sftp subsystem answered (exit code $rc)"
+else
+    classify_refusal "the sftp subsystem"
 fi
 
 # ---- A4: password authentication ---------------------------------------------------------------
@@ -247,7 +266,7 @@ fi
 # ---- A9: other addresses ------------------------------------------------------------------------
 say "TODO A9 not testable from this Mac: a connection from any OTHER address must be refused."
 say "     From another device on the home network (not this Mac), try the PC's port 22, for example:"
-say "         nc -vz -w 5 $hostname_value 22"
+say "         nc -vz -w 5 ${hostname_value:-<PC_LAN_ADDRESS>} 22"
 say "     It must time out. If it connects, stop and rerun the setup script at the PC."
 say "     The setup script's step S3 already verified the firewall rule at the PC itself."
 

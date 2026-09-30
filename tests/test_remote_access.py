@@ -72,7 +72,7 @@ while i < len(args):
         i += 2
     elif a in ("-F", "-i", "-p"):
         i += 2
-    elif a in ("-n", "-T", "-G", "-s"):
+    elif a in ("-n", "-T", "-G", "-s", "-tt", "-t"):
         flags.add(a)
         i += 1
     else:
@@ -119,8 +119,15 @@ def out(obj, code=0):
     sys.exit(code)
 
 if mode == "shell":  # a PC where the forced command is missing: it just runs things
-    sys.stdout.write("gamingpc\\wfcollector\n")
+    if "-tt" in flags:
+        sys.stdout.write("Microsoft Windows [Version 10.0.26100]\r\nC:\\Users\\wfcollector>")
+    else:
+        sys.stdout.write("gamingpc\\wfcollector\n")
     sys.exit(0)
+
+# PermitTTY no: the server refuses the terminal, the client says so, the forced command runs.
+if "-tt" in flags and mode != "pty-granted":
+    sys.stderr.write("PTY allocation request failed on channel 0\n")
 
 dispatcher = os.environ.get("FAKE_SSH_DISPATCHER")
 if dispatcher and command != "security-log-access":
@@ -131,7 +138,7 @@ if dispatcher and command != "security-log-access":
     done = subprocess.run([os.environ["FAKE_SSH_PWSH"], "-NoProfile", "-NonInteractive", "-File", dispatcher], env=env, stdin=subprocess.DEVNULL)
     sys.exit(done.returncode)
 
-refusal_code = 1 if mode == "exit-codes-lost" else 64
+refusal_code = {"exit-codes-lost": 1, "exit-zero": 0}.get(mode, 64)
 if command == "ping":
     boot = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - int(os.environ.get("FAKE_BOOT_AGE", "300"))))
     out({"ok": True, "verb": "ping", "protocol": 1, "host_id": "0123abcd0123abcd", "account": "wfcollector",
@@ -154,6 +161,10 @@ if bundle_dir and command == "fetch-" + bundle_dir:
         archive.writestr(bundle_dir + "/raw/eventlog/system.json", "[]" * 5000)
         if mode == "zip-slip":
             archive.writestr("../escaped.txt", "out of the bundle directory")
+        if mode == "symlink":
+            info = zipfile.ZipInfo(bundle_dir + "/raw/link")
+            info.external_attr = (0o120777 << 16)
+            archive.writestr(info, "../../../../etc/passwd")
     data = buffer.getvalue()
     digest = hashlib.sha256(data).hexdigest()
     body = base64.encodebytes(data).decode().splitlines()
@@ -370,15 +381,31 @@ def test_acceptance_passes_against_a_correct_front_door(mac):
     assert report.strip().splitlines()[-1].startswith("Report saved to")
 
 
-def test_acceptance_sends_only_allowlisted_or_refusable_requests_and_never_a_terminal(mac):
+def test_acceptance_sends_only_allowlisted_or_refusable_requests_and_one_deliberate_terminal_request(mac):
     acceptance(mac)
     calls = [c for c in ssh_calls(mac) if "-G" not in c["flags"]]
     assert calls
+    terminal = [c for c in calls if "-tt" in c["flags"]]
+    assert len(terminal) == 1 and terminal[0]["command"] == ""
     for call in calls:
+        if call in terminal:
+            continue
         assert "-n" in call["flags"] and "-T" in call["flags"], call
         assert call["opts"].get("batchmode") == "yes", call
     sent = {c["command"] for c in calls}
     assert {"ping", "whoami", "ping; whoami", "collect-no-such-collector", "security-log-access", "list-bundles", ""} <= sent
+
+
+def test_acceptance_passes_the_terminal_request_only_when_no_terminal_and_no_shell_came_back(mac):
+    done, _ = acceptance(mac)
+    assert any("forced terminal request" in line for line in lines_with(done.stdout, "PASS A3"))
+
+    done, _ = acceptance(mac, mode="pty-granted")
+    assert done.returncode != 0
+    assert any("granted a terminal" in line for line in lines_with(done.stdout, "FAIL A3"))
+
+    done, _ = acceptance(mac, mode="shell")
+    assert any("reached a shell" in line for line in lines_with(done.stdout, "FAIL A3"))
 
 
 def test_acceptance_fails_when_whoami_is_executed(mac):
@@ -413,6 +440,14 @@ def test_acceptance_fails_without_a_pinned_key_or_with_lax_checking(mac):
     assert any("StrictHostKeyChecking" in line for line in lines_with(done.stdout, "FAIL A1"))
 
 
+def test_acceptance_a9_guidance_names_a_placeholder_when_no_host_is_known(mac):
+    done, _ = acceptance(mac, mode="noconfig")
+    assert done.returncode != 0
+    assert lines_with(done.stdout, "FAIL A1")
+    assert "nc -vz -w 5 <PC_LAN_ADDRESS> 22" in done.stdout
+    assert "nc -vz -w 5  22" not in done.stdout
+
+
 def test_acceptance_reports_an_unreachable_pc_as_failure_with_guidance(mac):
     done, _ = acceptance(mac, mode="unreachable")
     assert done.returncode != 0
@@ -420,10 +455,15 @@ def test_acceptance_reports_an_unreachable_pc_as_failure_with_guidance(mac):
     assert "255 means ssh itself could not connect" in done.stdout
 
 
-def test_acceptance_warns_when_exit_codes_do_not_arrive(mac):
-    done, _ = acceptance(mac, mode="exit-codes-lost")
+@pytest.mark.parametrize("mode", ["exit-codes-lost", "exit-zero"])
+def test_acceptance_warns_when_exit_codes_do_not_arrive(mac, mode):
+    # A refusal is the dispatcher's JSON with nothing leaked; a wrong exit code, zero included,
+    # is a transport warning, never a pass and never a failure.
+    done, _ = acceptance(mac, mode=mode)
     assert done.returncode == 0
     assert any("instead of 64" in line for line in lines_with(done.stdout, "WARN A3"))
+    assert not lines_with(done.stdout, "FAIL")
+    assert not lines_with(done.stdout, "PASS A3 refused, exit code 64")
 
 
 def test_acceptance_warns_when_the_installed_dispatcher_differs(mac):
@@ -491,6 +531,24 @@ def test_fetch_extracts_only_inside_the_bundle_directory(mac):
     assert done.returncode == 0, done.stderr
     assert (out_dir / BUNDLE_DIR / "manifest.json").is_file()
     assert (out_dir / BUNDLE_DIR / "raw" / "eventlog" / "system.json").is_file()
+
+
+def test_fetch_refuses_a_zip_with_a_symbolic_link_entry(mac):
+    done, out_dir = fetch(mac, "--extract", mode="symlink")
+    assert done.returncode == 3, done.stdout + done.stderr
+    assert "symbolic link" in done.stderr
+    assert not out_dir.exists() or not list(out_dir.iterdir())
+    # Without --extract the archive is kept as a file; nothing in it is ever followed.
+    done, out_dir = fetch(mac, mode="symlink")
+    assert done.returncode == 0
+
+
+def test_fetch_extract_needs_unzip_and_says_so_before_fetching(mac):
+    done = run_script(mac, "wf-fetch.sh", BUNDLE_DIR, "--out", str(mac["tmp"] / "bundles"), "--extract",
+                      extra_env={"WF_UNZIP": "/nonexistent/unzip", "FAKE_BUNDLE_DIR": BUNDLE_DIR})
+    assert done.returncode == 1
+    assert "unzip" in done.stderr
+    assert ssh_calls(mac) == []
 
 
 def test_fetch_refuses_a_zip_that_would_write_outside_the_bundle_directory(mac):
@@ -679,8 +737,27 @@ def test_make_kit_builds_one_zip_with_the_public_key_only(real_mac):
     assert public.split()[1] == key.with_suffix(".pub").read_text().split()[1]
     assert "someone@some-mac" not in public
     assert b"BEGIN OPENSSH PRIVATE KEY" not in everything
-    assert "-MacIpAddress 192.0.2.10 -MacPublicKeyFile .\\mac-public-key.pub" in run_at_pc
+    assert "-MacIpAddress 192.0.2.10 -MacPublicKeyFile .\\mac-public-key.pub -AccountName wfcollector" in run_at_pc
     assert "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\remote-access\\windows\\Install-FrontDoor.ps1" in run_at_pc
+
+
+@needs_openssh
+@pytest.mark.skipif(shutil.which("zip") is None, reason="zip is not installed")
+def test_alternate_account_travels_from_the_mac_setup_into_the_kit(real_mac):
+    key = Path(real_mac["env"]["WF_KEY_FILE"])
+    make_key(key, "a throwaway test passphrase")
+    config = Path(real_mac["env"]["WF_SSH_CONFIG"])
+    assert run_real(real_mac, "wf-mac-setup.sh", "--pc-address", "192.0.2.20", "--account", "wfcollector2").returncode == 0
+    resolved = subprocess.run([REAL_SSH, "-G", "-F", str(config), "gaming-pc"], capture_output=True, text=True, check=True).stdout
+    assert "user wfcollector2\n" in resolved
+    out_zip = real_mac["tmp"] / "kit.zip"
+    done = run_real(real_mac, "wf-make-kit.sh", "--mac-address", "192.0.2.10", "--account", "wfcollector2", "--out", str(out_zip))
+    assert done.returncode == 0, done.stderr
+    with zipfile.ZipFile(out_zip) as archive:
+        run_at_pc = archive.read("wf-frontdoor-kit/RUN-AT-PC.txt").decode()
+    assert "-AccountName wfcollector2" in run_at_pc
+    assert "account wfcollector2" in done.stdout
+    assert run_real(real_mac, "wf-make-kit.sh", "--mac-address", "192.0.2.10", "--account", "Bad Name", "--out", str(out_zip)).returncode == 1
 
 
 @needs_openssh
@@ -742,7 +819,8 @@ def test_acceptance_against_the_real_dispatcher(real_dispatcher):
     assert done.returncode == 0, done.stdout + done.stderr
     assert not lines_with(done.stdout, "FAIL")
     assert any("byte for byte" in line for line in lines_with(done.stdout, "PASS A2"))
-    assert len(lines_with(done.stdout, "PASS A3")) == 9
+    assert len(lines_with(done.stdout, "PASS A3")) == 10
+    assert any("forced terminal request" in line for line in lines_with(done.stdout, "PASS A3"))
     assert lines_with(done.stdout, "PASS A6")
     assert "collectors installed on the PC: \"sample-ok\"" in done.stdout
     assert not list(real_dispatcher["outbox"].iterdir()), "the acceptance checks must not create bundles"

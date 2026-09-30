@@ -11,7 +11,7 @@
 #   WF-BUNDLE-END v1 dir=<bundle dir>
 # The zip is kept only if its size and SHA-256 equal the header. What comes back is data from
 # another machine: it is never run, and --extract refuses any entry that would land outside
-# <directory>/<bundle dir>/.
+# <directory>/<bundle dir>/ and any symbolic link entry. WF_UNZIP names another unzip.
 # Exit codes: 0 ok, 1 usage or transport failure, 3 integrity failure (nothing is kept).
 set -eu
 # shellcheck source-path=SCRIPTDIR
@@ -31,6 +31,10 @@ while [ $# -gt 0 ]; do
     esac
 done
 [ -n "$bundle_dir" ] || wf_die "give a bundle directory name (see: ssh $WF_HOST_ALIAS list-bundles)"
+unzip_cmd="${WF_UNZIP:-unzip}"
+if [ "$extract" -eq 1 ] && ! command -v "$unzip_cmd" >/dev/null 2>&1; then
+    wf_die "--extract needs the unzip command, which is not available; fetch without --extract and unpack the zip another way"
+fi
 printf '%s\n' "$bundle_dir" | grep -Eq "$WF_BUNDLE_DIR_RE" || wf_die "'$bundle_dir' is not a bundle directory name (<yyyymmddThhmmssZ>_<collector>_<8 hex>)"
 
 integrity_fail() {
@@ -68,8 +72,13 @@ mkdir -p "$out_dir"
 zip_path="$out_dir/$bundle_dir.zip"
 if [ "$extract" -eq 1 ]; then
     [ ! -e "$out_dir/$bundle_dir" ] || wf_die "$out_dir/$bundle_dir already exists; move it away first"
-    # Every entry must sit under <bundle dir>/ and must not climb out of it.
-    unzip -Z1 "$work/bundle.zip" >"$work/names" 2>/dev/null || integrity_fail "the zip cannot be listed"
+    # Every entry must sit under <bundle dir>/, must not climb out of it, and must be a plain
+    # file or directory: a symbolic link inside an archive from another machine is refused.
+    "$unzip_cmd" -Z "$work/bundle.zip" >"$work/listing" 2>/dev/null || integrity_fail "the zip cannot be listed"
+    if grep -Eq '^l' "$work/listing"; then
+        integrity_fail "the zip holds a symbolic link entry: $(grep -E '^l' "$work/listing" | head -n 1)"
+    fi
+    "$unzip_cmd" -Z1 "$work/bundle.zip" >"$work/names" 2>/dev/null || integrity_fail "the zip cannot be listed"
     while IFS= read -r name; do
         case "$name" in
             "$bundle_dir"/*) ;;
@@ -83,6 +92,6 @@ fi
 cp "$work/bundle.zip" "$zip_path"
 printf 'OK %s\n   %s bytes, SHA-256 %s (matches the PC)\n' "$zip_path" "$got_bytes" "$got_sha"
 if [ "$extract" -eq 1 ]; then
-    unzip -q "$zip_path" -d "$out_dir"
+    "$unzip_cmd" -q "$zip_path" -d "$out_dir"
     printf '   extracted to %s/%s\n' "$out_dir" "$bundle_dir"
 fi
