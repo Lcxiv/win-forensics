@@ -1,0 +1,297 @@
+{
+  "manifest_version": "1.0.0",
+  "bundle_id": "20260301T120001Z_reliability_records_ae3a76a9",
+  "created_utc": "2026-03-01T12:00:08.0000000Z",
+  "scenario": {
+    "id": "reliability_records",
+    "version": "1.0.0",
+    "requested_duration_s": 2592000,
+    "target_process": null,
+    "marks": []
+  },
+  "capture": {
+    "start_utc": "2026-03-01T12:00:01.0000000Z",
+    "stop_utc": "2026-03-01T12:00:08.0000000Z",
+    "orchestrator": "wf-collector:reliability-records",
+    "orchestrator_version": "1.0.0",
+    "elevated": false,
+    "incomplete": false
+  },
+  "machine": {
+    "machine_id": "ae3a76a9f32fa71b72616118339e376c",
+    "hostname": "SYNTHETIC-PC",
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26100",
+      "build": 26100,
+      "ubr": 1,
+      "display_version": "24H2",
+      "architecture": "64-bit",
+      "edition": "Professional"
+    },
+    "cpu": {
+      "name": "Synthetic CPU",
+      "logical_processors": 16,
+      "qpc_frequency_hz": 10000000
+    },
+    "memory_bytes": 34359738368,
+    "gpus": [
+      {
+        "name": "Synthetic Display Adapter",
+        "driver_version": "1.2.3.4",
+        "driver_date": "2026-01-15T00:00:00.0000000Z",
+        "device_id": "PCI\\VEN_FFFF&DEV_0001"
+      }
+    ],
+    "bios": {
+      "vendor": "Synthetic Firmware",
+      "version": "S1.00",
+      "release_date": "2025-11-01T00:00:00.0000000Z"
+    },
+    "board": {
+      "manufacturer": "Synthetic Boards",
+      "product": "SB-1"
+    },
+    "drivers": [],
+    "time_zone": {
+      "name": "UTC",
+      "utc_offset_minutes": 0,
+      "dst_active": false
+    }
+  },
+  "collectors": [
+    {
+      "id": "reliability_records",
+      "kind": "other",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:03.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_ReliabilityRecords"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/cimv2",
+        "-ClassName",
+        "Win32_ReliabilityRecords"
+      ],
+      "started_utc": "2026-03-01T12:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:04.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "9cb769954d98205e609307586026937c5c346d1cc7c99126b61ab08080327d3f"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_ReliabilityRecords",
+          "namespace": "root/cimv2",
+          "time_property": "TimeGenerated",
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:00:02.0000000Z",
+          "max_records": 5000
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_ReliabilityRecords",
+          "namespace": "root/cimv2",
+          "time_property": "TimeGenerated",
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:00:02.0000000Z",
+          "records_exported": 2,
+          "truncated": false
+        },
+        "verified_by": "Get-CimInstance returned without error; the instance count and oldest instance are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/reliability_records/query.json",
+          "bytes": 205,
+          "sha256": "9cb769954d98205e609307586026937c5c346d1cc7c99126b61ab08080327d3f",
+          "role": "config"
+        },
+        {
+          "path": "raw/reliability_records/records.json",
+          "bytes": 719,
+          "sha256": "e3a12fae7f6aab2bb8f113c82dea0580bacdf510a82fddde8ecd5e2c54e8ddcb",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-01-30T12:00:02.0000000Z",
+        "end": "2026-03-01T12:00:03.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "every instance inside the covered range is exported without truncation, and an empty export is only called a quiet window when the oldest instance proves the range was covered",
+        "met": true,
+        "detail": "2 of 3 instances fall inside the window; covered range starts 2026-01-30T12:00:02.0000000Z"
+      },
+      "target_process": null
+    },
+    {
+      "id": "reliability_stability_metrics",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:06.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_ReliabilityStabilityMetrics"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/cimv2",
+        "-ClassName",
+        "Win32_ReliabilityStabilityMetrics"
+      ],
+      "started_utc": "2026-03-01T12:00:05.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:07.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "2c0db45c8b3dc2dcc17814602c98752731aa147b9c69eb91766d40450f862a14"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_ReliabilityStabilityMetrics",
+          "namespace": "root/cimv2",
+          "time_property": "TimeGenerated",
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:00:05.0000000Z",
+          "max_records": 5000
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_ReliabilityStabilityMetrics",
+          "namespace": "root/cimv2",
+          "time_property": "TimeGenerated",
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:00:05.0000000Z",
+          "records_exported": 2,
+          "truncated": false
+        },
+        "verified_by": "Get-CimInstance returned without error; the instance count and oldest instance are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/reliability_stability_metrics/query.json",
+          "bytes": 214,
+          "sha256": "2c0db45c8b3dc2dcc17814602c98752731aa147b9c69eb91766d40450f862a14",
+          "role": "config"
+        },
+        {
+          "path": "raw/reliability_stability_metrics/records.json",
+          "bytes": 463,
+          "sha256": "45bc5922f21750fb1664d61464d8c3c009a29b4714d01ffee2a72d22f7ab1fcc",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-01-30T12:00:05.0000000Z",
+        "end": "2026-03-01T12:00:06.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "every instance inside the covered range is exported without truncation, and an empty export is only called a quiet window when the oldest instance proves the range was covered",
+        "met": true,
+        "detail": "2 of 3 instances fall inside the window; covered range starts 2026-01-30T12:00:05.0000000Z"
+      },
+      "target_process": null
+    }
+  ],
+  "calibration": {
+    "status": "not_applicable",
+    "method": "none: this collector reads historical records that carry their own UTC system time, so there is no QPC session to calibrate",
+    "qpc_frequency_hz": 10000000,
+    "expected_pairs": 0,
+    "pairs": [],
+    "missing_pairs": 0,
+    "time_adjustment": {
+      "start": null,
+      "stop": null
+    },
+    "boot_time_utc": "2026-02-27T12:00:00.0000000Z"
+  },
+  "tools": [
+    {
+      "name": "powershell",
+      "version": "5.1.26100.1",
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "sha256": null
+    },
+    {
+      "name": "wevtutil",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wevtutil.exe",
+      "sha256": null
+    },
+    {
+      "name": "collector:reliability-records",
+      "version": "1.0.0",
+      "path": "<install directory>\\reliability-records.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector-helper:_common.ps1",
+      "version": "1.0.0",
+      "path": "<install directory>\\_common.ps1",
+      "sha256": null
+    }
+  ],
+  "symbols": {
+    "symbol_path": null,
+    "cache_path": null,
+    "dbghelp_version": null
+  },
+  "checksum_algorithm": "sha256",
+  "notes": [
+    "Read only collector reliability-records version 1.0.0: What does Reliability Monitor hold: failures, installs, and the stability index over time?",
+    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine."
+  ]
+}

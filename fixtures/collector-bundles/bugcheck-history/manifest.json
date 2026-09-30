@@ -1,0 +1,231 @@
+{
+  "manifest_version": "1.0.0",
+  "bundle_id": "20260301T120001Z_bugcheck_history_ae3a76a9",
+  "created_utc": "2026-03-01T12:00:07.0000000Z",
+  "scenario": {
+    "id": "bugcheck_history",
+    "version": "1.0.0",
+    "requested_duration_s": 2592000,
+    "target_process": null,
+    "marks": []
+  },
+  "capture": {
+    "start_utc": "2026-03-01T12:00:01.0000000Z",
+    "stop_utc": "2026-03-01T12:00:07.0000000Z",
+    "orchestrator": "wf-collector:bugcheck-history",
+    "orchestrator_version": "1.0.0",
+    "elevated": false,
+    "incomplete": false
+  },
+  "machine": {
+    "machine_id": "ae3a76a9f32fa71b72616118339e376c",
+    "hostname": "SYNTHETIC-PC",
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26100",
+      "build": 26100,
+      "ubr": 1,
+      "display_version": "24H2",
+      "architecture": "64-bit",
+      "edition": "Professional"
+    },
+    "cpu": {
+      "name": "Synthetic CPU",
+      "logical_processors": 16,
+      "qpc_frequency_hz": 10000000
+    },
+    "memory_bytes": 34359738368,
+    "gpus": [
+      {
+        "name": "Synthetic Display Adapter",
+        "driver_version": "1.2.3.4",
+        "driver_date": "2026-01-15T00:00:00.0000000Z",
+        "device_id": "PCI\\VEN_FFFF&DEV_0001"
+      }
+    ],
+    "bios": {
+      "vendor": "Synthetic Firmware",
+      "version": "S1.00",
+      "release_date": "2025-11-01T00:00:00.0000000Z"
+    },
+    "board": {
+      "manufacturer": "Synthetic Boards",
+      "product": "SB-1"
+    },
+    "drivers": [],
+    "time_zone": {
+      "name": "UTC",
+      "utc_offset_minutes": 0,
+      "dst_active": false
+    }
+  },
+  "collectors": [
+    {
+      "id": "system_restart_events",
+      "kind": "eventlog",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:04.0000000Z",
+        "checks": [
+          {
+            "name": "channel_found",
+            "ok": true,
+            "detail": "channel System"
+          },
+          {
+            "name": "channel_readable",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.Diagnostics.Eventing.Reader.EventLogReader",
+        "System",
+        "raw/system_restart_events/query.xml"
+      ],
+      "started_utc": "2026-03-01T12:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:06.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "c92124e5aebfcd53e548abc32fc26d7d53ba415eae6412ae60883fb67145f086"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "System",
+          "event_ids": [
+            41,
+            46,
+            1001,
+            1074,
+            6006,
+            6008,
+            6009,
+            7045
+          ],
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:00:02.0000000Z",
+          "max_events": 5000,
+          "max_artifact_bytes": 67108864,
+          "evtx_export": true,
+          "query_sha256": "c92124e5aebfcd53e548abc32fc26d7d53ba415eae6412ae60883fb67145f086"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "System",
+          "query_accepted": true,
+          "window_start_utc": "2026-01-30T12:00:02.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:05.0000000Z",
+          "records_exported": 4,
+          "truncated": false,
+          "evtx_exported": false,
+          "evtx_exit_code": null,
+          "evtx_message": "synthetic backend: wevtutil does not exist off Windows",
+          "evtx_command": null
+        },
+        "verified_by": "EventLogReader accepted the query in query.xml; the oldest retained record and the provider list are in channel_state.json"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/system_restart_events/channel_state.json",
+          "bytes": 748,
+          "sha256": "d53836df331ec8514a03caf4e75e08ab671d655840f9cb3254460b7b06c23aa8",
+          "role": "report"
+        },
+        {
+          "path": "raw/system_restart_events/events.json",
+          "bytes": 4808,
+          "sha256": "ed9eaed46dc7c4c3b79996c800e51e335fe1360e61028a850c42b4e9ad986219",
+          "role": "primary"
+        },
+        {
+          "path": "raw/system_restart_events/query.xml",
+          "bytes": 292,
+          "sha256": "c92124e5aebfcd53e548abc32fc26d7d53ba415eae6412ae60883fb67145f086",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-01-30T12:00:02.0000000Z",
+        "end": "2026-03-01T12:00:05.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "every record matching query.xml inside the covered range is exported without truncation, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
+        "met": true,
+        "detail": "4 records exported; requested window starts 2026-01-30T12:00:02.0000000Z; covered range starts 2026-01-30T12:00:02.0000000Z"
+      },
+      "target_process": null
+    }
+  ],
+  "calibration": {
+    "status": "not_applicable",
+    "method": "none: this collector reads historical records that carry their own UTC system time, so there is no QPC session to calibrate",
+    "qpc_frequency_hz": 10000000,
+    "expected_pairs": 0,
+    "pairs": [],
+    "missing_pairs": 0,
+    "time_adjustment": {
+      "start": null,
+      "stop": null
+    },
+    "boot_time_utc": "2026-02-27T12:00:00.0000000Z"
+  },
+  "tools": [
+    {
+      "name": "powershell",
+      "version": "5.1.26100.1",
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "sha256": null
+    },
+    {
+      "name": "wevtutil",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wevtutil.exe",
+      "sha256": null
+    },
+    {
+      "name": "collector:bugcheck-history",
+      "version": "1.0.0",
+      "path": "<install directory>\\bugcheck-history.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector-helper:_common.ps1",
+      "version": "1.0.0",
+      "path": "<install directory>\\_common.ps1",
+      "sha256": null
+    }
+  ],
+  "symbols": {
+    "symbol_path": null,
+    "cache_path": null,
+    "dbghelp_version": null
+  },
+  "checksum_algorithm": "sha256",
+  "notes": [
+    "Read only collector bugcheck-history version 1.0.0: Did Windows stop with a bug check or shut down uncleanly, and what changed around it?",
+    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
+    "Windows are bounded with timediff, which the Event Log service evaluates when each query runs, so a window starts at most the run time of the collector later than the recorded window_start_utc.",
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
+    "source system_restart_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record"
+  ]
+}

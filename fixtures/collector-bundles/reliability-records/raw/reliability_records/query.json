@@ -1,0 +1,8 @@
+{
+  "class": "Win32_ReliabilityRecords",
+  "namespace": "root/cimv2",
+  "time_property": "TimeGenerated",
+  "window_days": 30,
+  "window_start_utc": "2026-01-30T12:00:02.0000000Z",
+  "max_records": 5000
+}

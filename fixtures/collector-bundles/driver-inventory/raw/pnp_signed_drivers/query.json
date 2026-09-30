@@ -1,0 +1,8 @@
+{
+  "class": "Win32_PnPSignedDriver",
+  "namespace": "root/cimv2",
+  "time_property": null,
+  "window_days": null,
+  "window_start_utc": null,
+  "max_records": 20000
+}

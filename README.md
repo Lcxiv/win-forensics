@@ -14,7 +14,9 @@ Bundles captured from a real machine are never committed here; only schemas, cod
 
 ## Where this repository is in the build
 
-This is phase 0a of the build order in the captain's implementation plan (kept outside this repository under `firstmate/data/win-opt-framework/implementation-plan.md`, with the research and review history in `plan.md` next to it). Phase 0a writes the four contracts everything else depends on, settles three Process Monitor facts with committed runner fixtures, and lays out one example bundle. There are no collectors, analyzers, or correlator yet; those are phases 1 to 4. The only CI job is the Process Monitor fact finding workflow.
+This is phase 0a of the build order in the captain's implementation plan (kept outside this repository under `firstmate/data/win-opt-framework/implementation-plan.md`, with the research and review history in `plan.md` next to it). Phase 0a writes the four contracts everything else depends on, settles three Process Monitor facts with committed runner fixtures, and lays out one example bundle. There are no live capture collectors, analyzers, or correlator yet; those are phases 1 to 4. The only CI job is the Process Monitor fact finding workflow.
+
+One set of collectors exists ahead of that order, because the captain's plan for reaching the gaming PC over SSH needs it: `collectors/windows/` holds named, read only PowerShell collectors that read history the machine already keeps (bug check and restart events, hardware error events, application crashes and hangs, GPU driver timeouts, reliability records, the driver inventory) as a standard account in Event Log Readers. Each writes a bundle to this contract with every source's measurement status, and `scripts/decode_eventlog.py` decodes the event exports into the `eventlog_events` table. They have never run on Windows; [collectors/windows/README.md](collectors/windows/README.md) lists what is still to be verified on the PC, and what needs Administrator and is therefore left for a later elevated task.
 
 ## The four contracts
 
@@ -32,11 +34,16 @@ Process Monitor facts settled on the GitHub hosted Windows runner, with the fixt
 ```
 docs/contracts/          the contracts above plus procmon-facts.md
 schemas/                 JSON Schema (draft 2020-12), one file per table, plus manifest, evidence, verdict, common
-scripts/                 wf_schema.py (schema registry and validation), decode_dpcisr.py, decode_pdh.py,
+collectors/windows/      read only PowerShell collectors for the PC, their shared helper _common.ps1, and README.md;
+                         tests/ holds the Pester suite, the synthetic backend, and the fixture generator
+scripts/                 wf_schema.py (schema registry and validation), decode_dpcisr.py, decode_pdh.py, decode_eventlog.py,
+                         verify_bundle.py (manifest, checksums, no unlisted raw file), fetch_pwsh.sh (PowerShell 7 into tools/),
                          make_procmon_pmc.py, procmon_facts.ps1 and procmon_facts_summarize.py (runner harness)
 fixtures/example-bundle/ one bundle laid out to the contract from two win-opt format fixtures
+fixtures/collector-bundles/  synthetic bundles written by the collectors against the synthetic backend, one per case
 fixtures/procmon/        committed .pmc test configurations and the runner's facts and export heads
-tests/                   pytest: schemas, decoders, the example bundle, documentation hygiene, procmon fixtures
+tests/                   pytest: schemas, decoders, the example bundle, collector bundles and scripts, documentation
+                         hygiene, procmon fixtures
 .github/workflows/       procmon-facts.yml only
 ```
 
@@ -60,6 +67,17 @@ python scripts/decode_pdh.py --bundle fixtures/example-bundle --source raw/pdh/p
 
 `tests/test_decoders.py` fails when the committed decoded tables in the example bundle differ from a fresh decode, so re-run the two commands after changing a decoder.
 
+A bundle a collector wrote on the PC is checked and decoded on the Mac with:
+
+```
+python scripts/verify_bundle.py <bundle directory>
+python scripts/decode_eventlog.py --bundle <bundle directory>
+```
+
+The collector checks that need PowerShell (PSScriptAnalyzer with the Windows PowerShell 5.1 compatibility rules, the Pester suite, fixture freshness) run from `tests/test_collectors_pwsh.py` and skip when no `pwsh` is found. `scripts/fetch_pwsh.sh` fetches a pinned PowerShell 7 and the two modules into `tools/`, which git ignores.
+
 ## What the fixtures are and are not
+
+The bundles in `fixtures/collector-bundles/` are synthetic from end to end: the real collector scripts wrote them, but every event, record, driver, and machine detail in them is invented in `collectors/windows/tests/SyntheticScenarios.ps1`. They exist to prove the layout, the manifest, the checksums, and the status rules, and they are regenerated, not edited.
 
 The two raw files in `fixtures/example-bundle/raw/` are win-opt's recorded `xperf -a dpcisr` report and per CPU PDH counter CSV. They are format fixtures: they prove that the readers parse those shapes and that provenance can point at a real line and cell. No number, module name, or conclusion inside them is treated as a finding, and none is used as an example or threshold in the contracts. Thresholds in later playbooks come from Microsoft and tool documentation only.

@@ -1,0 +1,4 @@
+2026-03-01T12:00:01.0000000Z collector whea-errors version 1.0.0, helper version 1.0.0, window 30 days
+source system_whea_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record
+source system_whea_events: status observed_zero, 3 artifacts
+2026-03-01T12:00:07.0000000Z manifest written: bundle 20260301T120001Z_whea_errors_ae3a76a9, status ok, 3 artifacts

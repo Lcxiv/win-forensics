@@ -1,0 +1,4 @@
+[
+{"ComputerName":"SYNTHETIC-PC","EventIdentifier":1033,"InsertionStrings":["Example Application","1.0.0.0"],"Logfile":"Application","Message":"Windows Installer installed the product. Product Name: Example Application.","ProductName":"Example Application","RecordNumber":4800,"SourceName":"MsiInstaller","TimeGenerated":"2026-02-09T12:00:00.0000000Z","User":"SYNTHETIC-PC\\owner"},
+{"ComputerName":"SYNTHETIC-PC","EventIdentifier":1000,"InsertionStrings":["example.exe","1.0.0.0"],"Logfile":"Application","Message":"Faulting application name: example.exe, version: 1.0.0.0.","ProductName":"example.exe","RecordNumber":5120,"SourceName":"Application Error","TimeGenerated":"2026-02-25T00:00:00.0000000Z","User":null}
+]
