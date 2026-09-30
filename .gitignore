@@ -11,6 +11,9 @@ captures/
 # Runner harness outputs and downloaded tools
 out/
 tools/
+# Reports the front door scripts write about a real machine (remote-access/)
+wf-frontdoor-report.txt
+wf-frontdoor-acceptance-*.txt
 # Python
 __pycache__/
 *.pyc
