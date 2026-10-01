@@ -13,7 +13,7 @@
     "start_utc": "2026-03-01T12:00:01.0000000Z",
     "stop_utc": "2026-03-01T12:00:15.0000000Z",
     "orchestrator": "wf-collector:bugcheck-history",
-    "orchestrator_version": "1.0.0",
+    "orchestrator_version": "1.1.0",
     "elevated": false,
     "incomplete": false
   },
@@ -212,7 +212,7 @@
     },
     {
       "name": "collector-helper:_common.ps1",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "path": "<install directory>\\_common.ps1",
       "sha256": null
     }

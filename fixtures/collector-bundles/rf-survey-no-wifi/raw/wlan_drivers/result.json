@@ -1,0 +1,16 @@
+{
+  "started_utc": "2026-03-01T12:00:21.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:24.0000000Z",
+  "exit_code": 1,
+  "timed_out": false,
+  "duration_ms": 7,
+  "stdout_bytes": 0,
+  "stderr": "",
+  "records": 0,
+  "records_meaning": "wireless driver blocks, counted by unindented header lines",
+  "protection": {
+    "mac_addresses_replaced": 0,
+    "network_names_replaced": 0
+  },
+  "fields": []
+}

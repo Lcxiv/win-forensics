@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/wlan_bss.schema.json",
+  "title": "wlan_bss row",
+  "description": "One row per access point (BSSID) in a netsh wlan show networks mode=bssid output. Names and addresses are the collector's pseudonyms. See docs/contracts/decoded-tables.md section 5.13.",
+  "x-schema-version": "1.0.0",
+  "x-decoded-table": "wlan_bss",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "interface_name",
+    "network_index",
+    "ssid_pseudonym",
+    "bssid_pseudonym",
+    "signal_pct",
+    "signal_dbm_estimate",
+    "radio_type",
+    "band_text",
+    "band_ghz",
+    "channel",
+    "channel_source",
+    "network_type",
+    "authentication",
+    "encryption",
+    "is_known_profile",
+    "labels_recognised",
+    "provenance"
+  ],
+  "properties": {
+    "interface_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "network_index": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ssid_pseudonym": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "bssid_pseudonym": {
+      "type": "string",
+      "pattern": "^mac-[0-9a-f]{12}$"
+    },
+    "signal_pct": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "signal_dbm_estimate": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "radio_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "band_text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "band_ghz": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "enum": [
+        2.4,
+        5,
+        6,
+        null
+      ]
+    },
+    "channel": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "channel_source": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "label",
+        "value",
+        null
+      ]
+    },
+    "network_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "authentication": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "encryption": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "is_known_profile": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "labels_recognised": {
+      "type": "boolean"
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "properties": {
+            "decoded_table": {
+              "const": "wlan_bss"
+            },
+            "schema_version": {
+              "const": "1.0.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

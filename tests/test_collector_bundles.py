@@ -30,6 +30,19 @@ EXPECTED = {
     "bugcheck-history-access-denied": ("failed", {"system_restart_events": "not_collected"}),
     "driver-inventory": ("ok", {"pnp_signed_drivers": "observed", "system_drivers": "observed"}),
     "reliability-records": ("ok", {"reliability_records": "observed", "reliability_stability_metrics": "observed"}),
+    "rf-survey": ("ok", {"net_adapters": "observed", "default_routes": "observed", "wlan_interfaces": "observed", "wlan_drivers": "observed",
+                         "wlan_networks": "observed", "wlan_profiles": "observed", "wlan_report": "observed",
+                         "wlan_autoconfig_events": "observed", "usb_device_tree": "observed", "bluetooth_devices": "observed"}),
+    "rf-survey-clean": ("partial", {"net_adapters": "observed", "default_routes": "observed", "wlan_interfaces": "observed", "wlan_drivers": "observed",
+                                    "wlan_networks": "observed", "wlan_profiles": "observed", "wlan_report": "not_collected",
+                                    "wlan_autoconfig_events": "observed_zero", "usb_device_tree": "observed", "bluetooth_devices": "observed"}),
+    "rf-survey-no-wifi": ("partial", {"net_adapters": "observed", "default_routes": "observed", "wlan_interfaces": "capture_failed",
+                                      "wlan_drivers": "capture_failed", "wlan_networks": "capture_failed", "wlan_profiles": "capture_failed",
+                                      "wlan_report": "not_collected", "wlan_autoconfig_events": "unsupported", "usb_device_tree": "observed",
+                                      "bluetooth_devices": "observed_zero"}),
+    "rf-survey-non-english": ("partial", {"net_adapters": "observed", "default_routes": "observed", "wlan_interfaces": "observed", "wlan_drivers": "observed",
+                                          "wlan_networks": "observed", "wlan_profiles": "observed", "wlan_report": "not_collected",
+                                          "wlan_autoconfig_events": "observed_zero", "usb_device_tree": "observed", "bluetooth_devices": "observed"}),
     "tdr-events-partial": ("partial", {"system_display_events": "capture_failed", "system_bugcheck_events": "observed_zero"}),
     "whea-errors-quiet": ("ok", {"system_whea_events": "observed_zero"}),
 }
@@ -128,15 +141,27 @@ def test_status_and_evidence_stay_separate(case):
             assert primary == [] or "cap" in collector["status_reason"], collector["id"]
         if collector["kind"] == "eventlog":
             options = collector["requested"]["options"]
-            assert options["timeout_seconds"] == 300 and options["window_end_utc"] > options["window_start_utc"]
+            # rf-survey shares the dispatcher's budget across ten sources and defaults to 80 seconds per source.
+            assert options["timeout_seconds"] == (80 if case.startswith("rf-survey") else 300)
+            assert options["window_end_utc"] > options["window_start_utc"]
             query = (BUNDLES / case / "raw" / collector["id"] / "query.xml").read_text(encoding="utf-8")
             assert "timediff(@SystemTime, " in query and "timediff(@SystemTime)" not in query, "the interval is fixed, not relative to now"
             if collector["raw_time_range"] is not None:
                 assert collector["raw_time_range"]["end"] == options["window_end_utc"]
-        else:
+        elif collector["command"][0] == "Get-CimInstance" and "Win32_PnPEntity" not in collector["command"]:
             assert "-OperationTimeoutSec" in collector["command"] and "-Property" in collector["command"]
             if collector["requested"]["options"]["time_property"]:
                 assert "-Filter" in collector["command"] and collector["requested"]["options"]["filter"].startswith("TimeGenerated >= '")
+        elif collector["command"][0].endswith("netsh.exe"):
+            assert collector["command"][1:3] == ["wlan", "show"], "netsh runs read only queries"
+            options = collector["requested"]["options"]
+            assert options["protection"]["mac_pseudonym"].startswith("mac-") and options["protection"]["ssid_pseudonym"].startswith("ssid-")
+            if collector["status"] in OBSERVED:
+                assert collector["enabled"]["options"]["exit_code"] == 0
+        elif collector["command"][0] == "System.IO.File.ReadAllBytes":
+            assert collector["requested"]["options"]["path_documented"] is False
+        else:
+            assert "Win32_PnPEntity" in collector["command"] and "Get-PnpDeviceProperty" in collector["command"]
         config = [a for a in collector["artifacts"] if a["role"] == "config"]
         assert len(config) == 1 and collector["config_hash"] == {"algorithm": "sha256", "value": config[0]["sha256"]}
 
@@ -148,12 +173,18 @@ def test_observed_zero_is_an_empty_export_inside_a_covered_range(case):
         primary = [a for a in collector["artifacts"] if a["role"] == "primary"]
         if not primary:
             continue
-        records = json.loads((bundle / primary[0]["path"]).read_text(encoding="utf-8"))
-        assert isinstance(records, list)
-        if collector["status"] == "observed_zero":
-            assert records == []
-        if collector["status"] == "observed":
-            assert records
+        text = (bundle / primary[0]["path"]).read_text(encoding="utf-8")
+        if primary[0]["path"].endswith(".json"):
+            records = json.loads(text)
+            assert isinstance(records, list)
+            if collector["status"] == "observed_zero":
+                assert records == []
+            if collector["status"] == "observed":
+                assert records
+        else:
+            # A netsh output or a copied report: text, kept whole, never empty.
+            assert text.strip(), "a text primary is never empty"
+            assert collector["enabled"]["options"]["records"] == 0 if collector["status"] == "observed_zero" else True
         if collector["status"] in OBSERVED:
             requested = collector["requested"]["options"].get("window_start_utc")
             covered = collector["raw_time_range"]["start"]

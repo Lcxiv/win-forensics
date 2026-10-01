@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/pnp_device.schema.json",
+  "title": "pnp_device row",
+  "description": "One row per Plug and Play device exported by a pnp source, with the ancestor chain resolved inside the same export. See docs/contracts/decoded-tables.md section 5.14.",
+  "x-schema-version": "1.0.0",
+  "x-decoded-table": "pnp_device",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_id",
+    "instance_id",
+    "class",
+    "name",
+    "description",
+    "manufacturer",
+    "service",
+    "status",
+    "problem_code",
+    "is_seed",
+    "parent_instance_id",
+    "location_path",
+    "location_info",
+    "bus_reported_description",
+    "vendor_id",
+    "product_id",
+    "controller_instance_id",
+    "controller_service",
+    "usb_stack",
+    "hub_chain",
+    "is_root_hub",
+    "is_receiver_candidate",
+    "is_bluetooth_radio",
+    "is_bluetooth_peer",
+    "provenance"
+  ],
+  "properties": {
+    "source_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "instance_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "class": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "manufacturer": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "service": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "problem_code": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "is_seed": {
+      "type": "boolean"
+    },
+    "parent_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "location_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "location_info": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "bus_reported_description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "vendor_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "product_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "controller_instance_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "controller_service": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "usb_stack": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "usb3_xhci",
+        "usb2_ehci",
+        "usb1_ohci_uhci",
+        "unknown",
+        null
+      ]
+    },
+    "hub_chain": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "is_root_hub": {
+      "type": "boolean"
+    },
+    "is_receiver_candidate": {
+      "type": "boolean"
+    },
+    "is_bluetooth_radio": {
+      "type": "boolean"
+    },
+    "is_bluetooth_peer": {
+      "type": "boolean"
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "properties": {
+            "decoded_table": {
+              "const": "pnp_device"
+            },
+            "schema_version": {
+              "const": "1.0.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,4 @@
+[
+{"DestinationPrefix":"0.0.0.0/0","NextHop":"192.168.1.1","InterfaceIndex":12,"InterfaceAlias":"Ethernet","RouteMetric":0,"Protocol":3,"AddressFamily":2,"Store":1,"Publish":0,"TypeOfRoute":3},
+{"DestinationPrefix":"::/0","NextHop":"fe80::1","InterfaceIndex":12,"InterfaceAlias":"Ethernet","RouteMetric":256,"Protocol":1,"AddressFamily":23,"Store":1,"Publish":0,"TypeOfRoute":3}
+]

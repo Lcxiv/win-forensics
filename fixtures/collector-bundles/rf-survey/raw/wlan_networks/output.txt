@@ -1,0 +1,116 @@
+
+Interface name : Wi-Fi 
+There are 8 networks currently visible. 
+
+SSID 1 : ssid-7a7a32d73bc8
+    Network type            : Infrastructure
+    Authentication          : WPA2-Personal
+    Encryption              : CCMP 
+    BSSID 1                 : mac-bc9b1391f272
+         Signal             : 94%  
+         Radio type         : 802.11ax
+         Band               : 2.4 GHz
+         Channel            : 6 
+         Bss Load:
+             Connected Stations:         3
+             Channel Utilization:        92 (36 %)
+             Medium Available Capacity:  21875 (700 ms)
+         Basic rates (Mbps) : 1 2 5.5 11
+         Other rates (Mbps) : 6 9 12 18 24 36 48 54
+    BSSID 2                 : mac-e98ca0aa8b9d
+         Signal             : 88%  
+         Radio type         : 802.11ax
+         Band               : 5 GHz
+         Channel            : 36 
+         Bss Load:
+             Connected Stations:         1
+             Channel Utilization:        10 (3 %)
+             Medium Available Capacity:  30000 (960 ms)
+         Basic rates (Mbps) : 6 12 24
+         Other rates (Mbps) : 9 18 36 48 54
+
+SSID 2 : ssid-527eeba5654d
+    Network type            : Infrastructure
+    Authentication          : WPA2-Personal
+    Encryption              : CCMP 
+    BSSID 1                 : mac-1c9ef6c2fe77
+         Signal             : 70%  
+         Radio type         : 802.11n
+         Band               : 2.4 GHz
+         Channel            : 6 
+         Basic rates (Mbps) : 1 2 5.5 11
+         Other rates (Mbps) : 6 9 12 18 24 36 48 54
+
+SSID 3 : ssid-bd4519e55bd3
+    Network type            : Infrastructure
+    Authentication          : WPA2-Personal
+    Encryption              : CCMP 
+    BSSID 1                 : mac-73e79aa58470
+         Signal             : 62%  
+         Radio type         : 802.11ax
+         Band               : 2.4 GHz
+         Channel            : 6 
+         Basic rates (Mbps) : 1 2 5.5 11
+         Other rates (Mbps) : 6 9 12 18 24 36 48 54
+
+SSID 4 : ssid-f5bd4e0f7b9c
+    Network type            : Infrastructure
+    Authentication          : WPA2-Personal
+    Encryption              : CCMP 
+    BSSID 1                 : mac-48208ff9efa5
+         Signal             : 55%  
+         Radio type         : 802.11n
+         Band               : 2.4 GHz
+         Channel            : 8 
+         Basic rates (Mbps) : 1 2 5.5 11
+         Other rates (Mbps) : 6 9 12 18 24 36 48 54
+
+SSID 5 : ssid-d3d7dc28204e
+    Network type            : Infrastructure
+    Authentication          : WPA3-Personal
+    Encryption              : CCMP 
+    BSSID 1                 : mac-71ef0990b947
+         Signal             : 40%  
+         Radio type         : 802.11ax
+         Band               : 2.4 GHz
+         Channel            : 1 
+         Basic rates (Mbps) : 1 2 5.5 11
+         Other rates (Mbps) : 6 9 12 18 24 36 48 54
+
+SSID 6 : ssid-6e0a3c767526
+    Network type            : Infrastructure
+    Authentication          : WPA2-Personal
+    Encryption              : CCMP 
+    BSSID 1                 : mac-4dc09d4a5410
+         Signal             : 35%  
+         Radio type         : 802.11n
+         Band               : 2.4 GHz
+         Channel            : 11 
+         Basic rates (Mbps) : 1 2 5.5 11
+         Other rates (Mbps) : 6 9 12 18 24 36 48 54
+
+SSID 7 : ssid-eff03174fcc9
+    Network type            : Infrastructure
+    Authentication          : WPA2-Personal
+    Encryption              : CCMP 
+    BSSID 1                 : mac-dc1ae23fcdca
+         Signal             : 50%  
+         Radio type         : 802.11ac
+         Band               : 5 GHz
+         Channel            : 44 
+         Basic rates (Mbps) : 6 12 24
+         Other rates (Mbps) : 9 18 36 48 54
+
+SSID 8 : 
+    Network type            : Infrastructure
+    Authentication          : WPA2-Personal
+    Encryption              : CCMP 
+    BSSID 1                 : mac-c97d6dcce62d
+         Signal             : 30%  
+         Radio type         : 802.11n
+         Band               : 2.4 GHz
+         Channel            : 1 
+         Basic rates (Mbps) : 1 2 5.5 11
+         Other rates (Mbps) : 6 9 12 18 24 36 48 54
+
+

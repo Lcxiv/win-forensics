@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Lcxiv/win-forensics/schemas/common.schema.json",
   "title": "Shared definitions for win-forensics schemas",
-  "x-schema-version": "1.0.0",
+  "x-schema-version": "1.1.0",
   "$defs": {
     "semver": {
       "type": "string",
@@ -68,7 +68,12 @@
         "powercfg",
         "cdb_analyze",
         "procmon_events",
-        "procmon_stacks"
+        "procmon_stacks",
+        "netsh_fields",
+        "wlan_bss",
+        "pnp_device",
+        "net_adapter",
+        "net_route"
       ]
     },
     "time_domain": {

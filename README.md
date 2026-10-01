@@ -18,6 +18,8 @@ This is phase 0a of the build order in the captain's implementation plan (kept o
 
 One set of collectors exists ahead of that order, because the captain's plan for reaching the gaming PC over SSH needs it: `collectors/windows/` holds named, read only PowerShell collectors that read history the machine already keeps (bug check and restart events, hardware error events, application crashes and hangs, GPU driver timeouts, reliability records, the driver inventory) as a standard account in Event Log Readers. Each writes a bundle to this contract with every source's measurement status, and `scripts/decode_eventlog.py` decodes the event exports into the `eventlog_events` table. They have never run on Windows; [collectors/windows/README.md](collectors/windows/README.md) lists what is still to be verified on the PC, and what needs Administrator and is therefore left for a later elevated task.
 
+The same directory holds `rf-survey`, a read only survey of the 2.4 GHz band around the desk for a PC that is on Ethernet but drives a wireless mouse and headset: which adapter carries the traffic, which networks are on the air on which channels, where the receivers sit on the USB tree, and which radios are on. Network names and hardware addresses are pseudonymised before anything is written. `scripts/decode_rf_survey.py` decodes it into five typed tables and `scripts/analyze_rf_survey.py` writes evidence rows and a plain language report with a cited recommendation for the router channel, the receiver ports and the unused radios. The method, its limits (a packet capture cannot see RF noise), and the before and after test the owner runs are in [docs/rf-survey.md](docs/rf-survey.md).
+
 ## The four contracts
 
 | Contract | Document | Schemas |
@@ -33,10 +35,13 @@ Process Monitor facts settled on the GitHub hosted Windows runner, with the fixt
 
 ```
 docs/contracts/          the contracts above plus procmon-facts.md
-schemas/                 JSON Schema (draft 2020-12), one file per table, plus manifest, evidence, verdict, common
+docs/rf-survey.md        the RF survey: method, limits, citations, and the before and after test
+schemas/                 JSON Schema (draft 2020-12), one file per table, plus manifest, evidence, verdict, common,
+                         and analysis/ for an analyzer's structured result
 collectors/windows/      read only PowerShell collectors for the PC, their shared helper _common.ps1, and README.md;
                          tests/ holds the Pester suite, the synthetic backend, and the fixture generator
 scripts/                 wf_schema.py (schema registry and validation), decode_dpcisr.py, decode_pdh.py, decode_eventlog.py,
+                         decode_rf_survey.py and analyze_rf_survey.py (the RF survey tables, evidence rows and report),
                          verify_bundle.py (manifest, checksums, no unlisted raw file), fetch_pwsh.sh (PowerShell 7 into tools/),
                          make_procmon_pmc.py, procmon_facts.ps1 and procmon_facts_summarize.py (runner harness)
 fixtures/example-bundle/ one bundle laid out to the contract from two win-opt format fixtures
@@ -73,6 +78,16 @@ A bundle a collector wrote on the PC is checked and decoded on the Mac with:
 python scripts/verify_bundle.py <bundle directory>
 python scripts/decode_eventlog.py --bundle <bundle directory>
 ```
+
+An `rf-survey` bundle is decoded and analysed with:
+
+```
+python scripts/decode_rf_survey.py --bundle <bundle directory>
+python scripts/decode_eventlog.py --bundle <bundle directory>
+python scripts/analyze_rf_survey.py --bundle <bundle directory>
+```
+
+The result is `reports/rf-survey.md` inside the bundle, with its evidence rows in `evidence.jsonl`.
 
 The collector checks that need PowerShell (PSScriptAnalyzer with the Windows PowerShell 5.1 compatibility rules, the Pester suite, fixture freshness) run from `tests/test_collectors_pwsh.py` and skip when no `pwsh` is found. `scripts/fetch_pwsh.sh` fetches a pinned PowerShell 7 and the two modules into `tools/`, which git ignores.
 

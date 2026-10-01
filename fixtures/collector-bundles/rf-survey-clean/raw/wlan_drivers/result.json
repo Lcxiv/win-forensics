@@ -1,0 +1,150 @@
+{
+  "started_utc": "2026-03-01T12:00:23.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:26.0000000Z",
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_ms": 7,
+  "stdout_bytes": 1176,
+  "stderr": "",
+  "records": 1,
+  "records_meaning": "wireless driver blocks, counted by unindented header lines",
+  "protection": {
+    "mac_addresses_replaced": 0,
+    "network_names_replaced": 0
+  },
+  "fields": [
+    {
+      "line": 2,
+      "block": 0,
+      "indent": 0,
+      "label": "Interface name",
+      "value": "Wi-Fi"
+    },
+    {
+      "line": 4,
+      "block": 0,
+      "indent": 4,
+      "label": "Driver",
+      "value": "Synthetic Wi-Fi 6E AX Adapter"
+    },
+    {
+      "line": 5,
+      "block": 0,
+      "indent": 4,
+      "label": "Vendor",
+      "value": "Synthetic Wireless"
+    },
+    {
+      "line": 6,
+      "block": 0,
+      "indent": 4,
+      "label": "Provider",
+      "value": "Synthetic Wireless"
+    },
+    {
+      "line": 7,
+      "block": 0,
+      "indent": 4,
+      "label": "Date",
+      "value": "1/10/2026"
+    },
+    {
+      "line": 8,
+      "block": 0,
+      "indent": 4,
+      "label": "Version",
+      "value": "23.0.0.1"
+    },
+    {
+      "line": 9,
+      "block": 0,
+      "indent": 4,
+      "label": "INF file",
+      "value": "oem42.inf"
+    },
+    {
+      "line": 10,
+      "block": 0,
+      "indent": 4,
+      "label": "Type",
+      "value": "Native Wi-Fi Driver"
+    },
+    {
+      "line": 11,
+      "block": 0,
+      "indent": 4,
+      "label": "Radio types supported",
+      "value": "802.11b 802.11g 802.11n 802.11a 802.11ac 802.11ax"
+    },
+    {
+      "line": 12,
+      "block": 0,
+      "indent": 4,
+      "label": "FIPS 140-2 mode supported",
+      "value": "Yes"
+    },
+    {
+      "line": 13,
+      "block": 0,
+      "indent": 4,
+      "label": "802.11w Management Frame Protection supported",
+      "value": "Yes"
+    },
+    {
+      "line": 14,
+      "block": 0,
+      "indent": 4,
+      "label": "Hosted network supported",
+      "value": "No"
+    },
+    {
+      "line": 15,
+      "block": 0,
+      "indent": 4,
+      "label": "Authentication and cipher supported in infrastructure mode",
+      "value": ""
+    },
+    {
+      "line": 19,
+      "block": 0,
+      "indent": 4,
+      "label": "IHV service present",
+      "value": "Yes"
+    },
+    {
+      "line": 20,
+      "block": 0,
+      "indent": 4,
+      "label": "IHV adapter OUI",
+      "value": "[00 00 00], type: [00]"
+    },
+    {
+      "line": 21,
+      "block": 0,
+      "indent": 4,
+      "label": "IHV extensibility DLL path",
+      "value": "C:\\Windows\\System32\\SynIhv.dll"
+    },
+    {
+      "line": 22,
+      "block": 0,
+      "indent": 4,
+      "label": "IHV UI extensibility ClSID",
+      "value": "{00000000-0000-0000-0000-000000000000}"
+    },
+    {
+      "line": 23,
+      "block": 0,
+      "indent": 4,
+      "label": "IHV diagnostics CLSID",
+      "value": "{00000000-0000-0000-0000-000000000000}"
+    },
+    {
+      "line": 24,
+      "block": 0,
+      "indent": 4,
+      "label": "Wireless Display Supported",
+      "value": "Yes (Graphics Driver: Yes, Wi-Fi Driver: Yes)"
+    }
+  ]
+}

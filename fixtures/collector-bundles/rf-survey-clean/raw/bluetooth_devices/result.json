@@ -1,0 +1,11 @@
+{
+  "started_utc": "2026-03-01T12:01:12.0000000Z",
+  "stopped_utc": "2026-03-01T12:01:25.0000000Z",
+  "devices_present": 21,
+  "devices_selected": 10,
+  "seeds": 5,
+  "ancestors_added": 5,
+  "property_errors": 0,
+  "truncated": false,
+  "error": null
+}

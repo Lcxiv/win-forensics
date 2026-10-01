@@ -1,0 +1,14 @@
+{
+  "path": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html",
+  "exists": true,
+  "readable": true,
+  "error": null,
+  "source_bytes": 735,
+  "last_write_time_utc": "2026-02-28T12:00:00.0000000Z",
+  "copy_bytes": 761,
+  "protection": {
+    "mac_addresses_replaced": 2,
+    "network_names_replaced": 5,
+    "known_names_applied": 8
+  }
+}

@@ -1,0 +1,15 @@
+
+Auf dem System ist 1 Schnittstelle vorhanden:
+
+    Name                   : WLAN
+    Beschreibung           : Synthetic Wi-Fi 6E AX Adapter
+    GUID                   : 5f4d3c2b-1a09-4e8f-9d7c-6b5a4f3e2d1c
+    Physische Adresse      : mac-9dcb41c8d865
+    Schnittstellentyp      : Primär
+    Status                 : Getrennt
+    Funkstatus             : Hardware Ein
+                             Software Ein
+
+    Status des gehosteten Netzwerks  : Nicht verfügbar
+
+

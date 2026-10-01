@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/net_adapter.schema.json",
+  "title": "net_adapter row",
+  "description": "One row per MSFT_NetAdapter instance from the net_adapters source, with the documented enumerations spelled out. See docs/contracts/decoded-tables.md section 5.15.",
+  "x-schema-version": "1.0.0",
+  "x-decoded-table": "net_adapter",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "interface_description",
+    "interface_index",
+    "interface_guid",
+    "physical_medium",
+    "physical_medium_text",
+    "operational_status",
+    "operational_status_text",
+    "media_connect_state",
+    "media_connect_state_text",
+    "pnp_state",
+    "pnp_state_text",
+    "status",
+    "virtual",
+    "hidden",
+    "hardware_interface",
+    "receive_link_speed_bps",
+    "transmit_link_speed_bps",
+    "driver_description",
+    "driver_version",
+    "driver_provider",
+    "pnp_device_id",
+    "provenance"
+  ],
+  "properties": {
+    "name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "interface_description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "interface_index": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "interface_guid": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "physical_medium": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "physical_medium_text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "operational_status": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "operational_status_text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "media_connect_state": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "media_connect_state_text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "pnp_state": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "pnp_state_text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "virtual": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "hidden": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "hardware_interface": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "receive_link_speed_bps": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "transmit_link_speed_bps": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "driver_description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "driver_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "driver_provider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "pnp_device_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "properties": {
+            "decoded_table": {
+              "const": "net_adapter"
+            },
+            "schema_version": {
+              "const": "1.0.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

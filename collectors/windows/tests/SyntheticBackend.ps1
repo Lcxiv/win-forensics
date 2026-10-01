@@ -24,21 +24,33 @@
 #              or @{ Rows; SecondsPerRow = <n> } (every row arrives, each n seconds after the last)
 #   Providers  registered provider names, or $null when the list is unreadable
 #   Evtx       'unavailable' (default) or 'placeholder' (writes a small file)
+#   Commands   netsh argument string -> @{ ExitCode; StdOut; StdErr } or @{ Stuck = $true }
+#              (the process never finishes); a missing key exits 1 with a message
+#   NetshPresent  $false makes the netsh preflight fail
+#   Files      full path -> @{ Text = <string> } or @{ ErrorKind; ErrorMessage }
+#   Pnp        @{ Devices = <list of device maps, each may carry Properties = @{ DEVPKEY -> value } > }
+#              or @{ ErrorKind; ErrorMessage }
+#   Salt       the pseudonym salt (fixed, so fixtures are reproducible)
 #   Stdout     list that receives what a collector prints on stdout
 #   Stderr     list that receives what a collector prints on stderr
 
 function Reset-WfSynthetic {
     param([datetime]$Now = ([datetime]::new(2026, 3, 1, 12, 0, 0, [System.DateTimeKind]::Utc)))
     $global:WfSynthetic = @{
-        Now       = $Now
-        Ticks     = 0
-        Channels  = @{}
-        Queries   = New-Object 'System.Collections.Generic.List[object]'
-        Cim       = @{}
-        Providers = @('Microsoft-Windows-WHEA-Logger', 'Application Error', 'Application Hang', 'Windows Error Reporting', '.NET Runtime', 'Display')
-        Evtx      = 'unavailable'
-        Stdout    = New-Object 'System.Collections.Generic.List[string]'
-        Stderr    = New-Object 'System.Collections.Generic.List[string]'
+        Now          = $Now
+        Ticks        = 0
+        Channels     = @{}
+        Queries      = New-Object 'System.Collections.Generic.List[object]'
+        Cim          = @{}
+        Providers    = @('Microsoft-Windows-WHEA-Logger', 'Application Error', 'Application Hang', 'Windows Error Reporting', '.NET Runtime', 'Display', 'Microsoft-Windows-WLAN-AutoConfig')
+        Evtx         = 'unavailable'
+        Commands     = @{}
+        NetshPresent = $true
+        Files        = @{}
+        Pnp          = @{ Devices = @() }
+        Salt         = 'synthetic-salt-0001'
+        Stdout       = New-Object 'System.Collections.Generic.List[string]'
+        Stderr       = New-Object 'System.Collections.Generic.List[string]'
     }
 }
 
@@ -288,6 +300,16 @@ function New-WfCimProducer {
             $property = $before.Groups[1].Value
             $limit = ConvertFrom-WfSyntheticDmtf -Text $before.Groups[2].Value
             $rows = @($rows | Where-Object { $_[$property] -and (ConvertFrom-WfUtcString -Text ([string]$_[$property])) -lt $limit })
+        } elseif ([string]$Filter -match "^(\w+) = '([^']*)'( OR \1 = '([^']*)')*$") {
+            # A static equality filter, one property, one or more values joined by OR.
+            $property = $null
+            $allowed = New-Object 'System.Collections.Generic.HashSet[string]'
+            foreach ($term in ([string]$Filter -split ' OR ')) {
+                $m = [regex]::Match($term, "^(\w+) = '([^']*)'$")
+                $property = $m.Groups[1].Value
+                $null = $allowed.Add($m.Groups[2].Value)
+            }
+            $rows = @($rows | Where-Object { $allowed.Contains([string]$_[$property]) })
         } else {
             $message = 'synthetic:other: unsupported filter ' + $Filter
             return @{ Producer = { throw $message }.GetNewClosure(); Convert = $convert }
@@ -302,4 +324,130 @@ function New-WfCimProducer {
         return @{ Producer = { foreach ($row in $rows) { $global:WfSynthetic.Ticks += $step; $row } }.GetNewClosure(); Convert = $convert }
     }
     return @{ Producer = { foreach ($row in $rows) { $row } }.GetNewClosure(); Convert = $convert }
+}
+
+# --- adapters for the command, file and pnp sources --------------------------
+
+function New-WfPseudonymSalt {
+    return [string]$global:WfSynthetic.Salt
+}
+
+function Get-WfNetshPath {
+    return 'C:\Windows\System32\netsh.exe'
+}
+
+function Test-WfToolPresent {
+    param([string]$Path)
+    if ($Path -like '*netsh.exe') { return [bool]$global:WfSynthetic.NetshPresent }
+    return $true
+}
+
+function Get-WfConsoleOutputEncoding {
+    return (New-Object System.Text.UTF8Encoding($false))
+}
+
+function Get-WfKnownFolderPath {
+    param([string]$Name)
+    if ($Name -eq 'ProgramData') { return 'C:\ProgramData' }
+    throw ('synthetic backend: unknown folder name ' + $Name)
+}
+
+function Invoke-WfProcess {
+    # netsh only: the collector never starts anything else through this seam
+    # in the test suite (the evtx export has its own replacement above).
+    param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null)
+    $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Error = $null; DurationMs = $null }
+    if ($TimeoutSeconds -lt 1) {
+        $result.Error = 'not started: the deadline had passed'
+        return $result
+    }
+    $result.Started = $true
+    $result.DurationMs = 7
+    if (-not $global:WfSynthetic.Commands.ContainsKey($Arguments)) {
+        $result.ExitCode = 1
+        $result.StdErr = 'synthetic backend: no output is defined for ' + $FilePath + ' ' + $Arguments
+        return $result
+    }
+    $entry = $global:WfSynthetic.Commands[$Arguments]
+    if ($entry['Stuck']) {
+        $global:WfSynthetic.Ticks += $TimeoutSeconds
+        $result.TimedOut = $true
+        $result.Error = ('the process did not finish within {0} seconds and was stopped' -f $TimeoutSeconds)
+        return $result
+    }
+    $result.ExitCode = [int]$entry['ExitCode']
+    $result.StdOut = [string]$entry['StdOut']
+    $result.StdErr = [string]$entry['StdErr']
+    return $result
+}
+
+function Read-WfFileBytes {
+    param([string]$Path, [int64]$MaxBytes)
+    $result = [ordered]@{ Exists = $false; Readable = $false; Bytes = $null; Length = $null; LastWriteUtc = $null; ErrorKind = $null; ErrorMessage = $null }
+    if (-not $global:WfSynthetic.Files.ContainsKey($Path)) {
+        $result.ErrorKind = 'not_found'
+        $result.ErrorMessage = 'the file does not exist'
+        return $result
+    }
+    $entry = $global:WfSynthetic.Files[$Path]
+    $result.Exists = $true
+    if ($entry['ErrorKind']) {
+        $result.ErrorKind = [string]$entry['ErrorKind']
+        $result.ErrorMessage = [string]$entry['ErrorMessage']
+        return $result
+    }
+    $bytes = (New-Object System.Text.UTF8Encoding($false)).GetBytes([string]$entry['Text'])
+    $result.Length = [int64]$bytes.Length
+    $result.LastWriteUtc = ConvertTo-WfUtcString -Value $global:WfSynthetic.Now.AddDays(-1)
+    if ($result.Length -gt $MaxBytes) {
+        $result.ErrorKind = 'too_large'
+        $result.ErrorMessage = 'the file is above the cap'
+        return $result
+    }
+    $result.Bytes = $bytes
+    $result.Readable = $true
+    return $result
+}
+
+function Get-WfPnpDevices {
+    param([int]$TimeoutSeconds = 60)
+    $result = [ordered]@{ Ok = $false; ErrorKind = $null; ErrorMessage = $null; Devices = @() }
+    $entry = $global:WfSynthetic.Pnp
+    if ($entry['ErrorKind']) {
+        $result.ErrorKind = [string]$entry['ErrorKind']
+        $result.ErrorMessage = [string]$entry['ErrorMessage']
+        return $result
+    }
+    $devices = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($device in @($entry['Devices'])) {
+        $row = [ordered]@{}
+        foreach ($name in @('instance_id', 'class', 'class_guid', 'name', 'description', 'manufacturer', 'service', 'status', 'problem_code', 'present', 'hardware_ids', 'compatible_ids')) {
+            if ($device.Contains($name)) { $row[$name] = $device[$name] } else { $row[$name] = $null }
+        }
+        if ($null -eq $row['hardware_ids']) { $row['hardware_ids'] = @() }
+        if ($null -eq $row['compatible_ids']) { $row['compatible_ids'] = @() }
+        $devices.Add($row)
+    }
+    $result.Devices = $devices.ToArray()
+    $result.Ok = $true
+    return $result
+}
+
+function Get-WfPnpDeviceProperties {
+    param([string]$InstanceId, [string[]]$KeyNames)
+    $result = [ordered]@{ Ok = $false; ErrorMessage = $null; Values = @{} }
+    foreach ($device in @($global:WfSynthetic.Pnp['Devices'])) {
+        if ([string]$device['instance_id'] -ne $InstanceId) { continue }
+        if ($device.Contains('PropertyError')) {
+            $result.ErrorMessage = [string]$device['PropertyError']
+            return $result
+        }
+        if ($device.Contains('Properties')) {
+            foreach ($key in $KeyNames) { if ($device['Properties'].Contains($key)) { $result.Values[$key] = $device['Properties'][$key] } }
+        }
+        $result.Ok = $true
+        return $result
+    }
+    $result.ErrorMessage = 'synthetic backend: no device named ' + $InstanceId
+    return $result
 }

@@ -1,0 +1,12 @@
+
+Profiles on interface Wi-Fi:
+
+Group policy profiles (read only)
+---------------------------------
+    <None>
+
+User profiles
+-------------
+    All User Profile     : ssid-7a7a32d73bc8
+
+

@@ -1,0 +1,14 @@
+{
+  "path": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html",
+  "exists": false,
+  "readable": false,
+  "error": "the file does not exist",
+  "source_bytes": null,
+  "last_write_time_utc": null,
+  "copy_bytes": 0,
+  "protection": {
+    "mac_addresses_replaced": 0,
+    "network_names_replaced": 0,
+    "known_names_applied": 0
+  }
+}

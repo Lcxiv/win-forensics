@@ -1,0 +1,80 @@
+{
+  "started_utc": "2026-03-01T12:00:18.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:21.0000000Z",
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_ms": 7,
+  "stdout_bytes": 471,
+  "stderr": "",
+  "records": 1,
+  "records_meaning": "wireless interfaces, counted by the GUID each one prints",
+  "protection": {
+    "mac_addresses_replaced": 1,
+    "network_names_replaced": 0
+  },
+  "fields": [
+    {
+      "line": 2,
+      "block": 0,
+      "indent": 0,
+      "label": "Auf dem System ist 1 Schnittstelle vorhanden",
+      "value": ""
+    },
+    {
+      "line": 4,
+      "block": 0,
+      "indent": 4,
+      "label": "Name",
+      "value": "WLAN"
+    },
+    {
+      "line": 5,
+      "block": 0,
+      "indent": 4,
+      "label": "Beschreibung",
+      "value": "Synthetic Wi-Fi 6E AX Adapter"
+    },
+    {
+      "line": 6,
+      "block": 0,
+      "indent": 4,
+      "label": "GUID",
+      "value": "5f4d3c2b-1a09-4e8f-9d7c-6b5a4f3e2d1c"
+    },
+    {
+      "line": 7,
+      "block": 0,
+      "indent": 4,
+      "label": "Physische Adresse",
+      "value": "mac-9dcb41c8d865"
+    },
+    {
+      "line": 8,
+      "block": 0,
+      "indent": 4,
+      "label": "Schnittstellentyp",
+      "value": "Prim\u00e4r"
+    },
+    {
+      "line": 9,
+      "block": 0,
+      "indent": 4,
+      "label": "Status",
+      "value": "Getrennt"
+    },
+    {
+      "line": 10,
+      "block": 0,
+      "indent": 4,
+      "label": "Funkstatus",
+      "value": "Hardware Ein"
+    },
+    {
+      "line": 13,
+      "block": 0,
+      "indent": 4,
+      "label": "Status des gehosteten Netzwerks",
+      "value": "Nicht verf\u00fcgbar"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+
+Schnittstellenname: WLAN
+
+    Treiber                   : Synthetic Wi-Fi 6E AX Adapter
+    Anbieter                  : Synthetic Wireless
+    Hersteller                : Synthetic Wireless
+    Datum                     : 10.01.2026
+    Version                   : 23.0.0.1
+    INF-Datei                 : oem42.inf
+    Typ                       : Systemeigener WLAN-Treiber
+    Unterstützte Funktypen       : 802.11b 802.11g 802.11n 802.11a 802.11ac 802.11ax
+    FIPS 140-2-Modus unterstützt : Ja
+    Gehostetes Netzwerk unterstützt : Nein
+
+

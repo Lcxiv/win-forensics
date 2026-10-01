@@ -1,4 +1,4 @@
-2026-03-01T12:00:01.0000000Z collector application-errors version 1.0.0, helper version 1.0.0, window 30 days, 300 s per source
+2026-03-01T12:00:01.0000000Z collector application-errors version 1.0.0, helper version 1.1.0, window 30 days, 300 s per source
 source application_error_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record
 source application_error_events: channel Application only holds records from 2026-02-20T12:00:00.0000000Z, later than the requested window start; nothing is claimed before that time
 source application_error_events: status observed, 3 artifacts
