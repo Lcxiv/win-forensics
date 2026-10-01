@@ -31,7 +31,7 @@ DASHES = re.compile("[–—]")
 TABLES = ["netsh_fields", "wlan_bss", "pnp_device", "net_adapter", "net_route"]
 # Neighbours' names, a name only the report and an event carried, every address, and the Bluetooth peers of the fixtures.
 SECRETS = ["Neighbour-A", "Neighbour-F", "Nachbar-A", "Unseen-Guest", "02:aa:bb:cc:dd:01", "02-AA-BB-CC-DD-01", "02:aa:bb:cc:dd:99", "02:11:22:33:44:55",
-           "Synthetic Earbuds", "Synthetic Game Controller", "F0F1F2000001", "F0F1F2000002"]
+           "Synthetic Earbuds", "Synthetic Game Controller", "Synthetic BLE Mouse", "F0F1F2000001", "F0F1F2000002", "F0F1F2000003"]
 OWN = "Harbor-Home"
 
 
@@ -227,10 +227,20 @@ def test_bluetooth_peer_nodes_are_pseudonymised_and_not_called_paired(bundle_cop
     decoded(bundle)
     bt = [r for r in rows(bundle, "pnp_device") if r["source_id"] == "bluetooth_devices"]
     peers = [r for r in bt if r["is_bluetooth_peer_node"]]
-    assert len(peers) == 2
+    assert len(peers) == 3
     for peer in peers:
         assert re.fullmatch(r"name-[0-9a-f]{12}", peer["name"])
         assert "mac-" in peer["instance_id"] and "F0F1F2" not in peer["instance_id"]
+    # A peer's GATT service and HID nodes carry its address too, in both sources, and the chain survives pseudonymisation.
+    for source in ("bluetooth_devices", "usb_device_tree"):
+        devices = [r for r in rows(bundle, "pnp_device") if r["source_id"] == source]
+        gatt = [r for r in devices if r["instance_id"].startswith("BTHLEDEVICE\\")]
+        assert len(gatt) == 1, source
+        assert "F0F1F2" not in json.dumps(devices) and "Synthetic BLE Mouse" not in json.dumps(devices)
+        assert gatt[0]["parent_instance_id"] in {p["instance_id"] for p in devices if p["is_bluetooth_peer_node"]}
+    tree = [r for r in rows(bundle, "pnp_device") if r["source_id"] == "usb_device_tree"]
+    mouse = [r for r in tree if r["instance_id"].startswith("HID\\{00001812")]
+    assert len(mouse) == 1 and mouse[0]["parent_instance_id"] == next(r["instance_id"] for r in tree if r["instance_id"].startswith("BTHLEDEVICE\\"))
     assert not any("is_bluetooth_peer" in r and r.get("is_bluetooth_peer") for r in bt), "the old flag that implied pairing is gone"
 
 
@@ -387,7 +397,7 @@ def test_bluetooth_findings_claim_presence_only(bundle_copy):
     assert "off unless the PC's maker enabled it" in present["statement"], "Windows shared spectrum avoidance is not claimed to be on"
     assert "hop around busy channels on their own" in present["statement"]
     in_use = finding(analysis(bundle_copy("rf-survey-clean")), "bluetooth_present")
-    assert "2 remembered peer device nodes" in in_use["statement"] and "Synthetic Earbuds" not in in_use["statement"]
+    assert "3 remembered peer device nodes" in in_use["statement"] and "Synthetic Earbuds" not in in_use["statement"]
     assert "remembered devices are not in use" in in_use["recommendation"]
     disabled = analysis(bundle_copy("rf-survey-non-english"))
     f = finding(disabled, "bluetooth_disabled")
@@ -401,7 +411,7 @@ def test_bluetooth_findings_claim_presence_only(bundle_copy):
     bundle = bundle_copy("rf-survey-clean", "-metric")
     analysis(bundle)
     bt_rows = [r for r in wf_schema.read_jsonl(bundle / "evidence.jsonl") if r["signal"] == "bluetooth_device_nodes"]
-    assert len(bt_rows) == 1 and bt_rows[0]["metric"] == "peer_node_count" and bt_rows[0]["value"] == 2
+    assert len(bt_rows) == 1 and bt_rows[0]["metric"] == "peer_node_count" and bt_rows[0]["value"] == 3
     assert bt_rows[0]["payload"]["not_measured"] == ["pairing state", "connection state", "radio power switch"]
     assert all(p["name_pseudonym"].startswith("name-") for p in bt_rows[0]["payload"]["peer_nodes"])
     assert not any(r["metric"] == "paired_device_count" for r in wf_schema.read_jsonl(bundle / "evidence.jsonl"))
@@ -469,6 +479,29 @@ def test_traffic_path_is_address_family_complete(bundle_copy):
     rewrite_artifact(bundle3, "raw/default_routes/records.json", json.dumps([r for r in routes if r["DestinationPrefix"] == "192.168.1.0/24"]))
     traffic3 = finding(analysis(bundle3), "traffic_path")
     assert "no default route in either address family" in traffic3["statement"]
+
+
+def test_an_unknown_overlap_signal_is_never_rendered_as_zero(bundle_copy):
+    bundle = bundle_copy("rf-survey-clean", "-weak-unknown")
+    text = (bundle / "raw" / "wlan_networks" / "output.txt").read_text(encoding="utf-8")
+    lines = [line for line in text.split("\n") if not re.search(r"Signal\s+: (28|20)%", line)]
+    rewrite_artifact(bundle, "raw/wlan_networks/output.txt", "\n".join(lines))
+    survey = finding(analysis(bundle), "wifi_24ghz_survey")
+    assert "strongest 0%" not in survey["statement"]
+    assert "channel 6: 1 network within four channels, strongest signal unknown" in survey["statement"]
+
+
+def test_the_channel_table_lists_the_pseudonyms_the_owner_can_name(bundle_copy):
+    bundle = bundle_copy("rf-survey")
+    result = analysis(bundle)
+    report = (bundle / "reports" / "rf-survey.md").read_text(encoding="utf-8")
+    survey = finding(result, "wifi_24ghz_survey")
+    assert "Networks here column of the channel table" in survey["recommendation"]
+    assert "| Networks here |" in report
+    listed = {p for c in result["channels_24ghz"] for p in c["ssid_pseudonyms"]}
+    assert listed == {r["ssid_pseudonym"] for r in rows(bundle, "wlan_bss") if r["band_ghz"] == 2.4 and r["ssid_pseudonym"]}
+    for pseudonym in listed:
+        assert pseudonym in report
 
 
 def test_partial_evidence_and_a_failing_section_do_not_erase_the_rest(bundle_copy, monkeypatch):

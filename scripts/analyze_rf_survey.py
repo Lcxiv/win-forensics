@@ -20,8 +20,9 @@ The owner's network is never guessed: a saved profile can be stale and the
 strongest signal can be a neighbour's. The owner names it on the Mac with
 ``--own-network <name as saved on this PC>`` (matched through the saved
 profile names the collector kept readable, each with its pseudonym) or
-``--own-network-pseudonym ssid-...`` (any access point from a previous
-report); only then are all matching access points aggregated and a router
+``--own-network-pseudonym ssid-...`` (an access point listed in the
+channel table of a report of this bundle; the salt is new on every run, so
+a pseudonym from another bundle never matches); only then are all matching access points aggregated and a router
 recommendation made. Neighbours stay pseudonyms in every output.
 
 Receiver distance and line of sight cannot be measured by a survey, so that
@@ -63,7 +64,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import wf_schema  # noqa: E402
 
-ANALYZER = {"id": "rf_survey", "version": "1.1.0"}
+ANALYZER = {"id": "rf_survey", "version": "1.2.0"}
 PLAYBOOK = "rf_survey"
 OBSERVED = ("observed", "observed_zero")
 TABLES = ["net_adapter", "net_route", "wlan_bss", "netsh_fields", "pnp_device", "eventlog_events"]
@@ -223,7 +224,7 @@ def resolve_owner(tables, own_network: str | None, own_pseudonym: str | None) ->
             owner["pseudonym"] = saved[own_network]
         else:
             owner["problem"] = (f"the name is not among this PC's saved profiles ({', '.join(sorted(saved)) or 'none readable'}), so it cannot be matched to a pseudonym; "
-                                "use --own-network-pseudonym with the access point's pseudonym from the channel table instead")
+                                "use --own-network-pseudonym with your access point's pseudonym from the channel table of this bundle's report instead")
     if owner["pseudonym"] and tables["wlan_bss"]["status"] in OBSERVED:
         owner["matched_access_points"] = sum(1 for r in tables["wlan_bss"]["rows"] if r["ssid_pseudonym"] == owner["pseudonym"])
         if owner["matched_access_points"] == 0:
@@ -340,6 +341,7 @@ def analyze_airspace(tables, entries, ev, owner: dict[str, Any]) -> dict[str, An
         strongest_overlap = max((r["signal_pct"] for r in overlap if r["signal_pct"] is not None), default=None)
         channel_rows.append({"channel": channel, "bss_count": len(here), "strongest_signal_pct": strongest_here,
                              "overlap_bss_count": len(overlap), "overlap_strongest_signal_pct": strongest_overlap,
+                             "ssid_pseudonyms": sorted({r["ssid_pseudonym"] for r in here if r["ssid_pseudonym"]}),
                              "own_router_here": any(r["bssid_pseudonym"] in own_ids for r in here), "candidate": channel in CANDIDATE_CHANNELS})
         if here:
             ev.add(signal="wifi_24ghz_bss_count", metric="bss_count", unit="count", value=len(here), source="wlan_networks", subsystem="network",
@@ -355,15 +357,19 @@ def analyze_airspace(tables, entries, ev, owner: dict[str, Any]) -> dict[str, An
                                                  "strongest_signal_pct": strongest_overlap, "strongest_signal_dbm_estimate": pct_to_dbm(strongest_overlap)})
     result["channels"] = channel_rows
 
-    def load(channel: int) -> tuple[int, int]:
+    def load(channel: int) -> tuple[int, int | None]:
         row = channel_rows[channel - 1]
-        return (row["overlap_bss_count"], row["overlap_strongest_signal_pct"] or 0)
+        return (row["overlap_bss_count"], row["overlap_strongest_signal_pct"])
+
+    def load_rank(channel: int) -> tuple[int, int]:
+        count, strongest = load(channel)
+        return (count, 101 if strongest is None else strongest)
 
     def describe_load(channel: int) -> str:
         count, strongest = load(channel)
         if count == 0:
             return f"channel {channel}: no other network within four channels"
-        return f"channel {channel}: {plural(count, 'network')} within four channels, strongest {strongest}%"
+        return f"channel {channel}: {plural(count, 'network')} within four channels, strongest {'signal unknown' if strongest is None else f'{strongest}%'}"
 
     busiest = max(channel_rows, key=lambda c: (c["bss_count"], c["strongest_signal_pct"] or 0))
     strongest_ap = max(band24, key=lambda r: r["signal_pct"] if r["signal_pct"] is not None else -1)
@@ -378,7 +384,7 @@ def analyze_airspace(tables, entries, ev, owner: dict[str, Any]) -> dict[str, An
         saved = owner.get("saved_profile_names") or []
         how = ("Run the analysis again with --own-network followed by your Wi-Fi network's name as it is saved on this PC"
                + (f" (saved profiles: {', '.join(saved)})" if saved else " (no saved profile was readable)")
-               + ", or --own-network-pseudonym followed by the ssid- pseudonym of your access point from the channel table, and the report will aggregate every access point "
+               + ", or --own-network-pseudonym followed by the ssid- pseudonym of your access point from the Networks here column of the channel table in this report, and the report will aggregate every access point "
                "of that network and recommend a channel for it. A saved profile alone is not taken as proof: profiles go stale and the strongest signal can be a neighbour's.")
         result["findings"].append(finding("wifi_24ghz_survey", "wifi_24ghz", "info", "The 2.4 GHz airspace around the desk",
                                           survey + f" Which of these is your router is not known to the analysis ({why}), so no router change is recommended. " + RECEIVER_CAVEAT,
@@ -391,14 +397,14 @@ def analyze_airspace(tables, entries, ev, owner: dict[str, Any]) -> dict[str, An
                          payload={"method": owner["method"], "ssid_pseudonym": owner["pseudonym"], "access_points": [
                              {"bssid_pseudonym": r["bssid_pseudonym"], "band_ghz": r["band_ghz"], "channel": r["channel"], "signal_pct": r["signal_pct"], "radio_type": r["radio_type"]} for r in own_rows]})
         own_channels = sorted({r["channel"] for r in own_24})
-        best = min(CANDIDATE_CHANNELS, key=load)
+        best = min(CANDIDATE_CHANNELS, key=load_rank)
         own_text = ", ".join(f"channel {ch} ({', '.join(fmt_signal(r['signal_pct']) for r in own_24 if r['channel'] == ch)})" for ch in own_channels) or "no 2.4 GHz access point"
         statement = (survey + f" Your network ({owner['pseudonym']}, named by you{' as ' + owner['name'] if owner['name'] else ''}) has {plural(len(own_rows), 'access point')} in the scan: "
                      f"{plural(len(own_24), 'on 2.4 GHz')} at {own_text}, {len(own_high)} on 5 or 6 GHz. " + RECEIVER_CAVEAT)
         if not own_24:
             recommendation = "Your network has no 2.4 GHz access point in this scan, so there is no router channel to change; the household's 2.4 GHz devices are not on it either."
             severity = "info"
-        elif all(ch in CANDIDATE_CHANNELS and load(ch) <= load(best) for ch in own_channels) and len(own_channels) == 1:
+        elif all(ch in CANDIDATE_CHANNELS and load_rank(ch) <= load_rank(best) for ch in own_channels) and len(own_channels) == 1:
             recommendation = f"Keep the router on channel {own_channels[0]}: it already has the lowest overlap load of channels 1, 6 and 11."
             severity = "info"
         else:
@@ -660,11 +666,11 @@ def render_report(manifest, result: dict[str, Any], findings: list[dict[str, Any
             continue
         lines += [heading, ""]
         if kind == "wifi_24ghz" and channels:
-            lines += ["| Channel | Access points here | Strongest here | Networks within four channels" + (" (yours excluded)" if owner["pseudonym"] else "") + " | Strongest of those | Yours | Non overlapping |", "|---|---|---|---|---|---|---|"]
+            lines += ["| Channel | Access points here | Strongest here | Networks within four channels" + (" (yours excluded)" if owner["pseudonym"] else "") + " | Strongest of those | Yours | Non overlapping | Networks here |", "|---|---|---|---|---|---|---|---|"]
             for c in channels:
                 if c["bss_count"] == 0 and not c["candidate"]:
                     continue
-                lines.append(f"| {c['channel']} | {c['bss_count']} | {fmt_pct(c['strongest_signal_pct'])} | {c['overlap_bss_count']} | {fmt_pct(c['overlap_strongest_signal_pct'])} | {'yes' if c['own_router_here'] else ''} | {'yes' if c['candidate'] else ''} |")
+                lines.append(f"| {c['channel']} | {c['bss_count']} | {fmt_pct(c['strongest_signal_pct'])} | {c['overlap_bss_count']} | {fmt_pct(c['overlap_strongest_signal_pct'])} | {'yes' if c['own_router_here'] else ''} | {'yes' if c['candidate'] else ''} | {', '.join(c['ssid_pseudonyms'])} |")
             lines.append("")
         for f in group:
             lines += [f"### {f['title']}", "", f["statement"], ""]
@@ -767,7 +773,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--bundle", required=True, type=Path)
     ap.add_argument("--analyzed-at", default=None)
     ap.add_argument("--own-network", default=None, help="your Wi-Fi network's name as saved on the PC; matched through the saved profiles the collector kept readable")
-    ap.add_argument("--own-network-pseudonym", default=None, help="the ssid- pseudonym of your access point from a previous report")
+    ap.add_argument("--own-network-pseudonym", default=None, help="the ssid- pseudonym of your access point from the channel table of a report of this bundle (pseudonyms differ between bundles)")
     args = ap.parse_args(argv)
     result = analyze(args.bundle, args.analyzed_at, args.own_network, args.own_network_pseudonym)
     print(f"rf_survey: {result['evidence_rows']} evidence rows, {result['findings']} findings, status {result['status']}; report {result['report']}")

@@ -1368,8 +1368,13 @@ function Protect-WfBluetoothAddresses {
 }
 
 function Test-WfBluetoothPeerInstance {
+    # A remembered peer (BTHENUM, BTHLE) or one of its GATT service nodes
+    # (BTHLEDEVICE); each carries the peer's address in its instance id.
     param([string]$InstanceId)
-    return ($InstanceId.StartsWith('BTHENUM\', [System.StringComparison]::OrdinalIgnoreCase) -or $InstanceId.StartsWith('BTHLE\', [System.StringComparison]::OrdinalIgnoreCase))
+    foreach ($prefix in @('BTHENUM\', 'BTHLE\', 'BTHLEDEVICE\')) {
+        if ($InstanceId.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+    }
+    return $false
 }
 
 function Protect-WfBluetoothPeerRow {
@@ -1623,7 +1628,7 @@ function Invoke-WfCommandSource {
             duration_ms    = $(if ($null -ne $run) { $run['DurationMs'] } else { $null })
             stdout_bytes   = $outputBytes
             stdout_bytes_read = $(if ($null -ne $run) { $run['StdOutBytes'] } else { $null })
-            diagnostic     = $(if ($null -ne $run -and $run['Diagnostic']) { (Protect-WfNetshText -Text ([string]$run['Diagnostic']) -Mode 'generic' -Salt ([string]$Context['Salt']) -KnownSsids $Context['Ssids']).Text } else { $null })
+            diagnostic     = $(if ($null -ne $run -and $run['Diagnostic']) { (Protect-WfNetshText -Text ([string]$run['Diagnostic']) -Mode $mode -Salt ([string]$Context['Salt']) -KnownSsids $Context['Ssids']).Text } else { $null })
             stderr         = $stderrText
             records        = $records
             records_meaning = [string]$Source['RecordsMeaning']
@@ -1984,7 +1989,7 @@ function Invoke-WfPnpSource {
                 }
                 if (-not $item['Seed']) { $ancestors += 1 }
                 $parent = [string]$row['parent_instance_id']
-                if (Test-WfBluetoothPeerInstance -InstanceId ([string]$row['instance_id'])) {
+                if ((Test-WfBluetoothPeerInstance -InstanceId ([string]$row['instance_id'])) -or (Test-WfBluetoothPeerInstance -InstanceId $parent)) {
                     $peers += 1
                     $row = Protect-WfBluetoothPeerRow -Row $row -Salt ([string]$Context['Salt'])
                 }

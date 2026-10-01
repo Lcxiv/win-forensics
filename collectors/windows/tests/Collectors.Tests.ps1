@@ -1142,7 +1142,7 @@ Describe 'rf-survey sources against the synthetic backend' {
         $files.Count | Should -BeGreaterThan 25
         # Neighbours' names, a name that only the report and an event carry, every address, and the Bluetooth peers.
         $secrets = @('Neighbour-A', 'Neighbour-F', 'Unseen-Guest', '02:aa:bb:cc:dd:01', '02-AA-BB-CC-DD-01', '02:aa:bb:cc:dd:99', '02-AA-BB-CC-DD-99', '02:11:22:33:44:55',
-            'Synthetic Earbuds', 'Synthetic Game Controller', 'F0F1F2000001', 'F0F1F2000002')
+            'Synthetic Earbuds', 'Synthetic Game Controller', 'Synthetic BLE Mouse', 'F0F1F2000001', 'F0F1F2000002', 'F0F1F2000003')
         foreach ($file in $files) {
             $text = [System.IO.File]::ReadAllText($file.FullName)
             foreach ($secret in $secrets) {
@@ -1186,7 +1186,7 @@ Describe 'rf-survey sources against the synthetic backend' {
         $run = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory $out
         $devices = Get-Content -LiteralPath (Join-Path $out 'raw/bluetooth_devices/devices.json') -Raw | ConvertFrom-Json
         $peers = @($devices | Where-Object { $_.instance_id -like 'BTHENUM\*' -or $_.instance_id -like 'BTHLE\*' })
-        $peers.Count | Should -Be 2
+        $peers.Count | Should -Be 3
         foreach ($peer in $peers) {
             $peer.name | Should -Match '^name-[0-9a-f]{12}$'
             $peer.instance_id | Should -Match 'mac-[0-9a-f]{12}'
@@ -1198,7 +1198,21 @@ Describe 'rf-survey sources against the synthetic backend' {
         $radio = @($devices | Where-Object { $_.instance_id -eq 'USB\VID_FFF5&PID_0005\5&1e2f3a4b&0&14' })[0]
         $radio.name | Should -BeExactly 'Synthetic Wireless Bluetooth'
         $result = Get-Content -LiteralPath (Join-Path $out 'raw/bluetooth_devices/result.json') -Raw | ConvertFrom-Json
-        $result.peer_nodes_pseudonymised | Should -Be 2
+        $result.peer_nodes_pseudonymised | Should -Be 4
+        # A peer's GATT service and HID nodes carry its address too, and the chain stays consistent once pseudonymised.
+        foreach ($source in @('bluetooth_devices', 'usb_device_tree')) {
+            $rows = Get-Content -LiteralPath (Join-Path $out ('raw/' + $source + '/devices.json')) -Raw | ConvertFrom-Json
+            $text = [System.IO.File]::ReadAllText((Join-Path $out ('raw/' + $source + '/devices.json')))
+            $text | Should -Not -Match 'F0F1F2000003|Synthetic BLE Mouse'
+            $gatt = @($rows | Where-Object { $_.instance_id -like 'BTHLEDEVICE\*' })[0]
+            $blePeer = @($rows | Where-Object { $_.instance_id -like 'BTHLE\*' -and $_.instance_id -eq $gatt.parent_instance_id })
+            $blePeer.Count | Should -Be 1
+            $gatt.bus_reported_description | Should -Match '^name-[0-9a-f]{12}$'
+        }
+        $tree = Get-Content -LiteralPath (Join-Path $out 'raw/usb_device_tree/devices.json') -Raw | ConvertFrom-Json
+        $mouse = @($tree | Where-Object { $_.instance_id -like 'HID\{00001812*' })[0]
+        $mouse.parent_instance_id | Should -BeExactly (@($tree | Where-Object { $_.instance_id -like 'BTHLEDEVICE\*' })[0].instance_id)
+        $mouse.name | Should -Match '^name-[0-9a-f]{12}$'
         # A GUID keeps its last group: only bare twelve digit runs are addresses.
         Protect-WfBluetoothAddresses -Text '{a1b2c3d4-0001-4000-8000-000000000001} and DEV_F0F1F2000001' -Salt 's' | Should -Match '^\{a1b2c3d4-0001-4000-8000-000000000001\} and DEV_mac-[0-9a-f]{12}$'
     }
@@ -1268,6 +1282,20 @@ Describe 'rf-survey sources against the synthetic backend' {
         $result.stdout_bytes | Should -Be 0
     }
 
+    It 'pseudonymises the head of an oversized scan kept as a diagnostic' {
+        Start-RfCase
+        $networks = (Get-WfSyntheticNetshText -Name 'networks-congested-en') + (('    Other : ' + ('z' * 2000) + "`n") * 600)
+        $global:WfSynthetic.Commands['wlan show networks mode=bssid'] = @{ ExitCode = 0; StdOut = $networks; StdErr = '' }
+        $out = Join-Path $TestDrive 'oversized-networks'
+        $run = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory $out -Arguments @{ MaxArtifactBytes = 1048576 }
+        (Get-RfSource -Run $run -Id 'wlan_networks').status | Should -BeExactly 'capture_failed'
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/wlan_networks/result.json') -Raw | ConvertFrom-Json
+        $result.diagnostic | Should -Match 'ssid-[0-9a-f]{12}'
+        foreach ($file in @(Get-ChildItem -LiteralPath $out -File -Recurse)) {
+            [System.IO.File]::ReadAllText($file.FullName) | Should -Not -Match 'Neighbour-|02:aa:bb' -Because $file.Name
+        }
+    }
+
     It 'records what netsh printed and how it exited' {
         Start-RfCase
         $out = Join-Path $TestDrive 'netsh-ok'
@@ -1290,6 +1318,13 @@ Describe 'rf-survey sources against the synthetic backend' {
         $profiles = Get-RfSource -Run $run -Id 'wlan_profiles'
         $profiles.enabled.options.records | Should -Be 2
         @($networks.artifacts | ForEach-Object { $_.role } | Sort-Object) | Should -Be @('config', 'primary', 'report')
+        # Every process the run started is netsh with one of the four read only listings.
+        $started = @($global:WfSynthetic.Processes.ToArray())
+        $started.Count | Should -Be 4
+        foreach ($call in $started) {
+            $call['FilePath'] | Should -Match 'netsh\.exe$'
+            $call['Arguments'] | Should -Match '^wlan show (interfaces|drivers|networks mode=bssid|profiles)$'
+        }
     }
 
     It 'never calls an empty scan a quiet airspace, but accepts zero interfaces' {

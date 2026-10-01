@@ -3,7 +3,7 @@
   "$id": "https://github.com/Lcxiv/win-forensics/schemas/analysis/rf_survey.schema.json",
   "title": "rf_survey analysis result (reports/rf-survey.json)",
   "description": "The structured result of scripts/analyze_rf_survey.py: the coverage table first, then the findings, each tied to evidence rows and citations.",
-  "x-schema-version": "1.1.0",
+  "x-schema-version": "1.2.0",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -259,6 +259,7 @@
           "strongest_signal_pct",
           "overlap_bss_count",
           "overlap_strongest_signal_pct",
+          "ssid_pseudonyms",
           "own_router_here",
           "candidate"
         ],
@@ -285,6 +286,12 @@
               "integer",
               "null"
             ]
+          },
+          "ssid_pseudonyms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "own_router_here": {
             "type": "boolean"

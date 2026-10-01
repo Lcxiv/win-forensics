@@ -48,6 +48,7 @@ function Reset-WfSynthetic {
         NetshPresent = $true
         Files        = @{}
         Pnp          = @{ Devices = @() }
+        Processes    = New-Object 'System.Collections.Generic.List[object]'
         Salt         = 'synthetic-salt-0001'
         Stdout       = New-Object 'System.Collections.Generic.List[string]'
         Stderr       = New-Object 'System.Collections.Generic.List[string]'
@@ -357,6 +358,7 @@ function Invoke-WfProcess {
     # in the test suite (the evtx export has its own replacement above).
     param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null, [int64]$MaxBytes = 0)
     $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Oversized = $false; Error = $null; DurationMs = $null; StdOutBytes = [int64]0; StdErrBytes = [int64]0; Diagnostic = $null }
+    $global:WfSynthetic.Processes.Add(@{ FilePath = $FilePath; Arguments = $Arguments })
     if ($TimeoutSeconds -lt 1) {
         $result.Error = 'not started: the deadline had passed'
         return $result

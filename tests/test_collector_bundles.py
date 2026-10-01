@@ -23,6 +23,11 @@ CASES = sorted(p.name for p in BUNDLES.iterdir() if p.is_dir())
 COLLECTOR_NAME = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 OBSERVED = ("observed", "observed_zero")
 
+# The only netsh queries a collector may run: the four read only listings. "wlan show wlanreport"
+# writes a file outside the bundle and "connect", "disconnect", "refresh" and "reportissues" act on
+# the machine, so an allowlist, not a denylist, decides.
+ALLOWED_NETSH = re.compile(r"^wlan show (interfaces|drivers|networks mode=bssid|profiles)$")
+
 # What each committed case is there to show: summary status and the status of every source.
 EXPECTED = {
     "application-errors": ("ok", {"application_error_events": "observed"}),
@@ -156,7 +161,7 @@ def test_status_and_evidence_stay_separate(case):
             if collector["requested"]["options"]["time_property"]:
                 assert "-Filter" in collector["command"] and collector["requested"]["options"]["filter"].startswith("TimeGenerated >= '")
         elif collector["command"][0].endswith("netsh.exe"):
-            assert collector["command"][1:3] == ["wlan", "show"], "netsh runs read only queries"
+            assert ALLOWED_NETSH.fullmatch(" ".join(collector["command"][1:])), collector["command"]
             options = collector["requested"]["options"]
             assert options["protection"]["mac_pseudonym"].startswith("mac-") and options["protection"]["ssid_pseudonym"].startswith("ssid-")
             if collector["status"] in OBSERVED:
@@ -170,6 +175,13 @@ def test_status_and_evidence_stay_separate(case):
             assert "Win32_PnPEntity" in collector["command"] and "Get-PnpDeviceProperty" in collector["command"]
         config = [a for a in collector["artifacts"] if a["role"] == "config"]
         assert len(config) == 1 and collector["config_hash"] == {"algorithm": "sha256", "value": config[0]["sha256"]}
+
+
+def test_the_netsh_allowlist_rejects_both_report_spellings_and_every_action():
+    for forbidden in ("wlan wlanreport", "wlan show wlanreport", "wlan connect x", "wlan disconnect", "wlan refresh hostednetwork", "wlan reportissues", "wlan show networks"):
+        assert not ALLOWED_NETSH.fullmatch(forbidden), forbidden
+    for allowed in ("wlan show interfaces", "wlan show drivers", "wlan show networks mode=bssid", "wlan show profiles"):
+        assert ALLOWED_NETSH.fullmatch(allowed), allowed
 
 
 @pytest.mark.parametrize("case", CASES)
