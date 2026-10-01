@@ -9,4 +9,4 @@ source wlan_report: status not_collected, 2 artifacts
 source wlan_autoconfig_events: status observed_zero, 3 artifacts
 source usb_device_tree: status observed, 3 artifacts
 source bluetooth_devices: status observed, 3 artifacts
-2026-03-01T12:01:33.0000000Z manifest written: bundle 20260301T120001Z_rf_survey_ae3a76a9, status partial, 27 artifacts
+2026-03-01T12:01:36.0000000Z manifest written: bundle 20260301T120001Z_rf_survey_ae3a76a9, status partial, 27 artifacts

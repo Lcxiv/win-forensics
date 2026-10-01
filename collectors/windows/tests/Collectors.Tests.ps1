@@ -1198,7 +1198,7 @@ Describe 'rf-survey sources against the synthetic backend' {
         $radio = @($devices | Where-Object { $_.instance_id -eq 'USB\VID_FFF5&PID_0005\5&1e2f3a4b&0&14' })[0]
         $radio.name | Should -BeExactly 'Synthetic Wireless Bluetooth'
         $result = Get-Content -LiteralPath (Join-Path $out 'raw/bluetooth_devices/result.json') -Raw | ConvertFrom-Json
-        $result.peer_nodes_pseudonymised | Should -Be 4
+        $result.peer_nodes_pseudonymised | Should -Be 5
         # A peer's GATT service and HID nodes carry its address too, and the chain stays consistent once pseudonymised.
         foreach ($source in @('bluetooth_devices', 'usb_device_tree')) {
             $rows = Get-Content -LiteralPath (Join-Path $out ('raw/' + $source + '/devices.json')) -Raw | ConvertFrom-Json
@@ -1219,17 +1219,27 @@ Describe 'rf-survey sources against the synthetic backend' {
 
     It 'pseudonymises a Bluetooth HID node whose parent could not be read' {
         Start-RfCase 'rf-survey-clean'
-        $mouse = @($global:WfSynthetic.Pnp['Devices'] | Where-Object { $_['instance_id'] -like 'HID\{00001812*' })[0]
-        $mouse['PropertyError'] = 'Access is denied.'
+        foreach ($device in @($global:WfSynthetic.Pnp['Devices'] | Where-Object { $_['instance_id'] -like 'HID\{00001812*' -or $_['instance_id'] -like 'BTHHFENUM\*' })) {
+            $device['PropertyError'] = 'Access is denied.'
+        }
         $out = Join-Path $TestDrive 'bt-hid-unread'
         $null = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory $out
         $path = Join-Path $out 'raw/usb_device_tree/devices.json'
-        [System.IO.File]::ReadAllText($path) | Should -Not -Match 'F0F1F2000003|Synthetic BLE Mouse'
+        [System.IO.File]::ReadAllText($path) | Should -Not -Match 'F0F1F2000003|Synthetic BLE Mouse|Synthetic Earbuds'
         $row = @(Get-Content -LiteralPath $path -Raw | ConvertFrom-Json | Where-Object { $_.instance_id -like 'HID\{00001812*' })[0]
         $row.property_error | Should -BeExactly 'Access is denied.'
         $row.parent_instance_id | Should -BeNullOrEmpty
         $row.instance_id | Should -Match 'mac-[0-9a-f]{12}'
         $row.name | Should -Match '^name-[0-9a-f]{12}$'
+        foreach ($source in @('bluetooth_devices', 'usb_device_tree')) {
+            $file = Join-Path $out ('raw/' + $source + '/devices.json')
+            [System.IO.File]::ReadAllText($file) | Should -Not -Match 'Synthetic Earbuds|F0F1F2'
+            $hands = @(Get-Content -LiteralPath $file -Raw | ConvertFrom-Json | Where-Object { $_.instance_id -like 'BTHHFENUM\*' })[0]
+            $hands.property_error | Should -BeExactly 'Access is denied.'
+            $hands.name | Should -Match '^name-[0-9a-f]{12}$'
+        }
+        $radio = @(Get-Content -LiteralPath (Join-Path $out 'raw/bluetooth_devices/devices.json') -Raw | ConvertFrom-Json | Where-Object { $_.instance_id -like 'BTH\MS_BTHLE*' })[0]
+        $radio.name | Should -BeExactly 'Microsoft Bluetooth LE Enumerator'
     }
 
     It 'finds the connected network name by structure when the SSID label is translated' {

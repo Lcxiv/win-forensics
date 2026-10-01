@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.0.0",
   "bundle_id": "20260301T120001Z_rf_survey_ae3a76a9",
-  "created_utc": "2026-03-01T12:01:33.0000000Z",
+  "created_utc": "2026-03-01T12:01:36.0000000Z",
   "scenario": {
     "id": "rf_survey",
     "version": "1.0.0",
@@ -11,7 +11,7 @@
   },
   "capture": {
     "start_utc": "2026-03-01T12:00:01.0000000Z",
-    "stop_utc": "2026-03-01T12:01:33.0000000Z",
+    "stop_utc": "2026-03-01T12:01:36.0000000Z",
     "orchestrator": "wf-collector:rf-survey",
     "orchestrator_version": "1.1.0",
     "elevated": false,
@@ -996,7 +996,7 @@
         "DEVPKEY_Device_Parent,DEVPKEY_Device_LocationPaths,DEVPKEY_Device_LocationInfo,DEVPKEY_Device_Address,DEVPKEY_Device_ContainerId,DEVPKEY_Device_BusReportedDeviceDesc,DEVPKEY_Device_EnumeratorName"
       ],
       "started_utc": "2026-03-01T12:00:50.0000000Z",
-      "stopped_utc": "2026-03-01T12:01:15.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:17.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -1043,9 +1043,9 @@
         "stack_walk": [],
         "counters": [],
         "options": {
-          "devices_present": 24,
-          "devices_selected": 21,
-          "ancestors_added": 5,
+          "devices_present": 25,
+          "devices_selected": 23,
+          "ancestors_added": 6,
           "property_errors": 0,
           "truncated": false
         },
@@ -1056,8 +1056,8 @@
       "artifacts": [
         {
           "path": "raw/usb_device_tree/devices.json",
-          "bytes": 14682,
-          "sha256": "5b4ef0de7024dfade8cc6d73e2696e17700d74f4cf33f37ab3edefb9d143bf95",
+          "bytes": 15923,
+          "sha256": "77f412f6f0f15b173cd066190c26e6c3b47fba242a85deede4d773f05382249d",
           "role": "primary"
         },
         {
@@ -1069,20 +1069,20 @@
         {
           "path": "raw/usb_device_tree/result.json",
           "bytes": 287,
-          "sha256": "9c48ed2ed29b842d735745caa90b93e14e5333d321b1eece69c5696e5f1b5aeb",
+          "sha256": "da7f3c4fdeb78e471f3ebddeca624dd544e6b5e82b0e81e6859faf0c9be2b978",
           "role": "report"
         }
       ],
       "raw_time_range": {
         "start": "2026-03-01T12:00:50.0000000Z",
-        "end": "2026-03-01T12:01:14.0000000Z",
+        "end": "2026-03-01T12:01:16.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
         "declared": "at least one USB device is present (a PC has USB host controllers) and every selected device is followed to the root of the device tree",
         "met": true,
-        "detail": "24 present devices, 21 selected (5 ancestors), 0 property reads failed"
+        "detail": "25 present devices, 23 selected (6 ancestors), 0 property reads failed"
       },
       "target_process": null
     },
@@ -1094,7 +1094,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:01:18.0000000Z",
+        "at_utc": "2026-03-01T12:01:20.0000000Z",
         "checks": [
           {
             "name": "devices_enumerated",
@@ -1113,8 +1113,8 @@
         "-KeyName",
         "DEVPKEY_Device_Parent,DEVPKEY_Device_LocationPaths,DEVPKEY_Device_LocationInfo,DEVPKEY_Device_Address,DEVPKEY_Device_ContainerId,DEVPKEY_Device_BusReportedDeviceDesc,DEVPKEY_Device_EnumeratorName"
       ],
-      "started_utc": "2026-03-01T12:01:16.0000000Z",
-      "stopped_utc": "2026-03-01T12:01:32.0000000Z",
+      "started_utc": "2026-03-01T12:01:18.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:35.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -1156,8 +1156,8 @@
         "stack_walk": [],
         "counters": [],
         "options": {
-          "devices_present": 24,
-          "devices_selected": 12,
+          "devices_present": 25,
+          "devices_selected": 13,
           "ancestors_added": 5,
           "property_errors": 0,
           "truncated": false
@@ -1169,8 +1169,8 @@
       "artifacts": [
         {
           "path": "raw/bluetooth_devices/devices.json",
-          "bytes": 7517,
-          "sha256": "fb416719459fe043d69aa9635a4fddd67108e2402d724326458d8ba4ec6768f4",
+          "bytes": 8133,
+          "sha256": "379bea2d6a3e54df23434b1a50ab30df1123d9e1d87b29aef727558176bc7e69",
           "role": "primary"
         },
         {
@@ -1182,20 +1182,20 @@
         {
           "path": "raw/bluetooth_devices/result.json",
           "bytes": 286,
-          "sha256": "6d14b7ed966d945975ce8b871f469b3148c2b421e9d9bf0c659a9163712d00da",
+          "sha256": "3b48ed64e6665f184092eed235f42cf6852ee9f406185975f6459dfad6279c9c",
           "role": "report"
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:01:16.0000000Z",
-        "end": "2026-03-01T12:01:31.0000000Z",
+        "start": "2026-03-01T12:01:18.0000000Z",
+        "end": "2026-03-01T12:01:34.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
         "declared": "the device enumeration completes; no present Bluetooth device node is a legitimate zero. Presence of a node says nothing about pairing or radio power, which are not measured",
         "met": true,
-        "detail": "24 present devices, 12 selected (5 ancestors), 0 property reads failed"
+        "detail": "25 present devices, 13 selected (5 ancestors), 0 property reads failed"
       },
       "target_process": null
     }

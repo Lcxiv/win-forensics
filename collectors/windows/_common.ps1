@@ -1368,14 +1368,13 @@ function Protect-WfBluetoothAddresses {
 }
 
 function Test-WfBluetoothPeerInstance {
-    # A remembered peer (BTHENUM, BTHLE), one of its GATT service nodes
-    # (BTHLEDEVICE), or a node named after a Bluetooth service UUID (the
-    # Bluetooth base UUID, as a peer's HID collections are); each carries
-    # the peer's address in its instance id.
+    # A node of any Bluetooth enumerator other than the radio's own BTH\
+    # (BTHENUM, BTHLE, BTHLEDEVICE, BTHHFENUM and the like enumerate a
+    # remembered peer and its services, named after the peer), or a node
+    # named after a Bluetooth service UUID (the Bluetooth base UUID, as a
+    # peer's HID collections are).
     param([string]$InstanceId)
-    foreach ($prefix in @('BTHENUM\', 'BTHLE\', 'BTHLEDEVICE\')) {
-        if ($InstanceId.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
-    }
+    if ($InstanceId -match '^BTH[^\\]+\\') { return $true }
     return ($InstanceId -match '\{[0-9A-Fa-f]{8}-0000-1000-8000-00805f9b34fb\}')
 }
 
