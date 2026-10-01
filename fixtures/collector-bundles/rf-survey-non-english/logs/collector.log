@@ -1,12 +1,12 @@
 2026-03-01T12:00:01.0000000Z collector rf-survey version 1.0.0, helper version 1.1.0, window 30 days, 80 s per source
 source net_adapters: status observed, 2 artifacts
 source default_routes: status observed, 2 artifacts
+source wlan_profiles: status observed, 3 artifacts
 source wlan_interfaces: status observed, 3 artifacts
 source wlan_drivers: status observed, 3 artifacts
 source wlan_networks: status observed, 3 artifacts
-source wlan_profiles: status observed, 3 artifacts
 source wlan_report: status not_collected, 2 artifacts
 source wlan_autoconfig_events: status observed_zero, 3 artifacts
 source usb_device_tree: status observed, 3 artifacts
 source bluetooth_devices: status observed, 3 artifacts
-2026-03-01T12:01:25.0000000Z manifest written: bundle 20260301T120001Z_rf_survey_ae3a76a9, status partial, 27 artifacts
+2026-03-01T12:01:27.0000000Z manifest written: bundle 20260301T120001Z_rf_survey_ae3a76a9, status partial, 27 artifacts

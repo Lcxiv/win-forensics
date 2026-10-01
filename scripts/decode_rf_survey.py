@@ -214,8 +214,10 @@ def classify_by_value(value: str, state: dict[str, Any]) -> tuple[str | None, fl
     return None, None
 
 
-def decode_netsh_fields(text: str, command: str, source: str, schema_version: str) -> tuple[list[dict[str, Any]], dict[str, int]]:
+def decode_netsh_fields(text: str, command: str, source: str, schema_version: str,
+                        profiles: dict[str, str] | None = None) -> tuple[list[dict[str, Any]], dict[str, int]]:
     labels = {"interfaces": LABELS_INTERFACES, "drivers": LABELS_DRIVERS, "profiles": LABELS_PROFILES}[command]
+    profiles = profiles or {}
     rows, counts = [], {"label": 0, "value": 0, "unclassified": 0}
     state: dict[str, Any] = {"block": -1}
     for field in netsh_fields(text):
@@ -230,9 +232,11 @@ def decode_netsh_fields(text: str, command: str, source: str, schema_version: st
         elif field["value"]:
             key, number = classify_by_value(field["value"], state)
             how = "value" if key else None
-        if command == "profiles" and RE_SSID_PSEUDONYM.match(field["value"]):
-            # Every name in a profile listing is a saved profile, whatever the label says.
-            key, how = "profile", (how or "value")
+        pseudonym = None
+        if command == "profiles" and field["value"] in profiles:
+            # Every name in a profile listing is a saved profile, whatever the label says;
+            # the collector kept the owner's names readable and recorded their pseudonyms.
+            key, how, pseudonym = "profile", (how or "value"), profiles[field["value"]]
         counts[how or "unclassified"] += 1
         if key == "ssid":
             state["ssid_seen"] = True
@@ -240,25 +244,37 @@ def decode_netsh_fields(text: str, command: str, source: str, schema_version: st
             state["last"] = key
         rows.append({
             "command": command, "block": field["block"], "line": field["line"], "indent": field["indent"],
-            "label_text": field["label"], "value_text": field["value"], "normalized_key": key, "value_number": number, "classified_by": how,
+            "label_text": field["label"], "value_text": field["value"], "value_pseudonym": pseudonym, "normalized_key": key, "value_number": number,
+            "classified_by": how,
             "provenance": {"source_file": source, "row_id_or_offset": f"line:{field['line']}", "decoded_table": "netsh_fields",
                            "decoder_version": DECODER_VERSION, "schema_version": schema_version},
         })
     return rows, counts
 
 
+# A convenience inference, used only when netsh prints no Band line (Windows 11
+# prints one): channels 1 to 14 are the 2.4 GHz numbering, 36 to 165 the 5 GHz
+# UNII-1 to UNII-3 channels Cisco lists for the 802.11 5 GHz band
+# (https://www.cisco.com/c/en/us/td/docs/wireless/controller/9800/technical-reference/wireless-rf-reference-guide.html).
+# 6 GHz reuses these numbers, so an inferred band is marked as such in the
+# sidecar and a 6 GHz access point without a Band line would be misread as 5 GHz.
+CHANNELS_24GHZ = range(1, 15)
+CHANNELS_5GHZ = range(36, 166)
+
+
 def band_from_channel(channel: int | None) -> float | None:
-    """2.4 GHz for channels 1 to 14, 5 GHz for 32 to 177, else unknown (6 GHz reuses low numbers)."""
+    """The convenience inference above; None when the number is outside both ranges."""
     if channel is None:
         return None
-    if 1 <= channel <= 14:
+    if channel in CHANNELS_24GHZ:
         return 2.4
-    if 32 <= channel <= 177:
+    if channel in CHANNELS_5GHZ:
         return 5
     return None
 
 
 def decode_wlan_bss(text: str, source: str, schema_version: str, known_profiles: set[str] | None) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """known_profiles: the pseudonyms of this PC's saved profiles, or None when they were not readable."""
     fields = netsh_fields(text)
     rows: list[dict[str, Any]] = []
     counts = {"networks": 0, "labels_recognised": 0, "band_inferred": 0}
@@ -345,15 +361,26 @@ def decode_wlan_bss(text: str, source: str, schema_version: str, known_profiles:
     return rows, counts
 
 
-def known_profile_pseudonyms(bundle: Path, entries: dict[str, dict[str, Any]]) -> set[str] | None:
+def profile_mapping(bundle: Path, entries: dict[str, dict[str, Any]]) -> dict[str, str] | None:
+    """Saved profile name to pseudonym, from the wlan_profiles result artifact; None when the source was not readable."""
     entry = entries.get("wlan_profiles")
     if entry is None or entry["status"] not in OBSERVED:
         return None
-    try:
-        _, target = read_primary(bundle, entry)
-    except DecodeError:
+    reports = [a["path"] for a in entry["artifacts"] if a["role"] == "report" and a["path"].endswith("/result.json")]
+    if not reports:
         return None
-    return set(re.findall(r"ssid-[0-9a-f]{12}", target.read_text(encoding="utf-8")))
+    try:
+        report = json.loads((bundle / reports[0]).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    out = {}
+    listed = report.get("profiles") or []
+    if isinstance(listed, dict):  # a one element list a PowerShell pipeline unrolled
+        listed = [listed]
+    for item in listed:
+        if isinstance(item, dict) and item.get("name") and RE_SSID_PSEUDONYM.match(str(item.get("pseudonym") or "")):
+            out[str(item["name"])] = str(item["pseudonym"])
+    return out
 
 
 # ---------------------------------------------------------------- devices, adapters, routes
@@ -404,7 +431,8 @@ def decode_pnp(records: list[Any], source: str, source_id: str, schema_version: 
             "is_root_hub": "ROOT_HUB" in instance.upper(),
             "is_receiver_candidate": bool(instance_prefix(record) == "USB" and klass.upper() != "BLUETOOTH" and RE_RECEIVER.search(names)),
             "is_bluetooth_radio": bool(klass.upper() == "BLUETOOTH" and instance_prefix(record) in ("USB", "PCI")),
-            "is_bluetooth_peer": instance_prefix(record) in ("BTHENUM", "BTHLE"),
+            # A present BTHENUM or BTHLE node is a remembered peer; whether it is paired or connected is not measured.
+            "is_bluetooth_peer_node": instance_prefix(record) in ("BTHENUM", "BTHLE"),
             "provenance": {"source_file": source, "row_id_or_offset": f"index:{index}", "decoded_table": "pnp_device",
                            "decoder_version": DECODER_VERSION, "schema_version": schema_version},
         })
@@ -502,7 +530,8 @@ def write_table(bundle: Path, table: str, rows: list[dict[str, Any]], sources: l
     wf_schema.write_json(decoded_dir / f"{table}.meta.json", meta)
 
 
-def decode_table(bundle: Path, table: str, entries: dict[str, dict[str, Any]], decoded_at: str, known_profiles: set[str] | None) -> dict[str, Any]:
+def decode_table(bundle: Path, table: str, entries: dict[str, dict[str, Any]], decoded_at: str, profiles: dict[str, str] | None) -> dict[str, Any]:
+    known_profiles = set(profiles.values()) if profiles is not None else None
     schema_version = wf_schema.table_schema_version(table)
     usable = [entries[s] for s in TABLE_SOURCES[table] if s in entries and entries[s]["status"] in OBSERVED]
     if not usable:
@@ -517,14 +546,14 @@ def decode_table(bundle: Path, table: str, entries: dict[str, dict[str, Any]], d
             source, target = read_primary(bundle, entry)
             sources.append(source)
             if table == "netsh_fields":
-                part, counts = decode_netsh_fields(target.read_text(encoding="utf-8"), COMMAND_OF_SOURCE[entry["id"]], source, schema_version)
+                part, counts = decode_netsh_fields(target.read_text(encoding="utf-8"), COMMAND_OF_SOURCE[entry["id"]], source, schema_version, profiles)
                 checks.append({"name": f"labels:{entry['id']}", "ok": counts["label"] > 0 or not part,
                                "detail": f"{counts['label']} by English label, {counts['value']} by value shape, {counts['unclassified']} unclassified"})
             elif table == "wlan_bss":
                 part, counts = decode_wlan_bss(target.read_text(encoding="utf-8"), source, schema_version, known_profiles)
                 checks.append({"name": "networks_parsed", "ok": len(part) > 0 or entry["status"] == "observed_zero",
                                "detail": f"{counts['networks']} networks, {len(part)} access points, {counts['labels_recognised']} with English labels, "
-                                         f"{counts['band_inferred']} with the band inferred from the channel"})
+                                         f"{counts['band_inferred']} with the band inferred from the channel number (a convenience bound, see CHANNELS_5GHZ)"})
                 checks.append({"name": "known_profiles", "ok": True,
                                "detail": "matched against wlan_profiles" if known_profiles is not None else "wlan_profiles not readable; is_known_profile is null"})
                 if entry["status"] == "observed" and not part:
@@ -565,8 +594,8 @@ def decode(bundle: Path, decoded_at: str | None = None) -> dict[str, Any]:
     entries = source_entries(manifest)
     if manifest["scenario"]["id"] != "rf_survey":
         return {"status": "not_applicable", "reason": f"the bundle was written by {manifest['scenario']['id']}, not rf_survey", "tables": {}}
-    known = known_profile_pseudonyms(bundle, entries)
-    tables = {table: decode_table(bundle, table, entries, decoded_at, known) for table in TABLE_SOURCES}
+    profiles = profile_mapping(bundle, entries)
+    tables = {table: decode_table(bundle, table, entries, decoded_at, profiles) for table in TABLE_SOURCES}
     statuses = {t["status"] for t in tables.values()}
     if statuses & {"observed", "observed_zero"}:
         status = "observed" if "observed" in statuses else "observed_zero"

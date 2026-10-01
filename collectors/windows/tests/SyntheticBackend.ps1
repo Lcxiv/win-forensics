@@ -355,8 +355,8 @@ function Get-WfKnownFolderPath {
 function Invoke-WfProcess {
     # netsh only: the collector never starts anything else through this seam
     # in the test suite (the evtx export has its own replacement above).
-    param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null)
-    $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Error = $null; DurationMs = $null }
+    param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null, [int64]$MaxBytes = 0)
+    $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Oversized = $false; Error = $null; DurationMs = $null; StdOutBytes = [int64]0; StdErrBytes = [int64]0; Diagnostic = $null }
     if ($TimeoutSeconds -lt 1) {
         $result.Error = 'not started: the deadline had passed'
         return $result
@@ -373,6 +373,18 @@ function Invoke-WfProcess {
         $global:WfSynthetic.Ticks += $TimeoutSeconds
         $result.TimedOut = $true
         $result.Error = ('the process did not finish within {0} seconds and was stopped' -f $TimeoutSeconds)
+        return $result
+    }
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    $result.StdOutBytes = [int64]$utf8.GetByteCount([string]$entry['StdOut'])
+    $result.StdErrBytes = [int64]$utf8.GetByteCount([string]$entry['StdErr'])
+    if ($MaxBytes -gt 0 -and $result.StdOutBytes -gt $MaxBytes) {
+        # The real runner stops the child at the cap and keeps a 4096 character head.
+        $result.Oversized = $true
+        $result.Error = ('the process printed more than the cap of {0} bytes on StdOut and was stopped; nothing above the cap was kept' -f $MaxBytes)
+        $head = [string]$entry['StdOut']
+        if ($head.Length -gt 4096) { $head = $head.Substring(0, 4096) }
+        $result.Diagnostic = 'StdOut: ' + $head
         return $result
     }
     $result.ExitCode = [int]$entry['ExitCode']

@@ -22,13 +22,19 @@
 #                                  BSSID, signal strength, channel, and radio
 #                                  type for each visible network"
 #   wlan_report                    the HTML report netsh wlan show wlanreport
-#                                  writes, copied if it already exists; the
-#                                  collector never generates it (Administrator)
+#                                  writes: its size, time and hash if it exists,
+#                                  never its text (it names networks this run
+#                                  cannot recognise); the collector never
+#                                  generates it (Administrator)
 #   wlan_autoconfig_events         the WLAN AutoConfig operational channel
 #   usb_device_tree                present USB, input, audio and network
 #                                  devices with their parent chain to the host
 #                                  controller (Win32_PnPEntity, Get-PnpDeviceProperty)
-#   bluetooth_devices              the Bluetooth radio and its paired devices
+#   bluetooth_devices              the Bluetooth device nodes that are present:
+#                                  the radio, its enumerators and the remembered
+#                                  peers (pairing and radio power are not
+#                                  measured; peer names and addresses are
+#                                  pseudonymised)
 #
 # https://learn.microsoft.com/troubleshoot/windows-client/networking/wireless-network-connectivity-issues-troubleshooting
 # https://learn.microsoft.com/windows-server/administration/windows-commands/netsh-wlan
@@ -36,10 +42,14 @@
 # https://learn.microsoft.com/windows/win32/fwp/wmi/nettcpipprov/msft-netroute
 # https://learn.microsoft.com/windows-hardware/drivers/install/devpkey-device-parent
 #
-# Nothing here forces a scan, connects, disconnects, or changes a setting:
-# netsh wlan show networks prints the service's current list. Network names
-# and hardware addresses are pseudonymised before anything is written (see
-# Protect-WfNetshText in _common.ps1).
+# Nothing here connects, disconnects, or changes a setting, and the collector
+# requests no scan itself. Microsoft documents "netsh wlan show networks" as
+# displaying the visible networks; whether netsh reads the service's cached
+# list or asks it to scan is not documented and is verification item 21 in
+# the README. Network names and hardware addresses are pseudonymised before
+# anything is written (see Protect-WfNetshText in _common.ps1); the saved
+# profiles of this PC stay readable, with their pseudonyms, so the owner can
+# name his network at analysis time.
 #
 # Access: WMI namespaces grant Enable Account (read) to Authenticated Users
 # by default (https://learn.microsoft.com/windows/win32/wmisdk/access-to-wmi-namespaces);
@@ -89,7 +99,7 @@ if (-not $OutputDirectory -or -not (Test-Path -LiteralPath $common)) {
 }
 . $common
 
-$scanWithheld = 'netsh listed no network. Windows withholds the scan list from a process without location consent (https://learn.microsoft.com/windows/win32/nativewifi/wi-fi-access-location-changes), and a session started by sshd cannot answer the consent prompt, so an empty list cannot be told from an empty airspace; see the verification list in collectors/windows/README.md'
+$scanWithheld = 'netsh exited with code 0 and listed no network. Windows withholds the scan list from a process without location consent (https://learn.microsoft.com/windows/win32/nativewifi/wi-fi-access-location-changes), and a session started by sshd cannot answer the consent prompt, so an empty list cannot be told from an empty airspace; see verification item 15 in collectors/windows/README.md'
 
 $definition = @{
     Name     = $collectorName
@@ -118,6 +128,16 @@ $definition = @{
             Filter                     = "DestinationPrefix = '0.0.0.0/0' OR DestinationPrefix = '::/0'"
             Properties                 = @('DestinationPrefix', 'NextHop', 'InterfaceIndex', 'InterfaceAlias', 'RouteMetric', 'Protocol', 'AddressFamily', 'Store', 'Publish', 'TypeOfRoute')
             EmptySnapshotIsObservation = $true
+        },
+        @{
+            Id             = 'wlan_profiles'
+            Type           = 'command'
+            Required       = $false
+            Arguments      = 'wlan show profiles'
+            Protect        = 'profiles'
+            ZeroRule       = 'observed_zero'
+            RecordsMeaning = 'saved wireless profiles, counted by valued lines; the names stay readable (the owner''s own networks) and result.json maps each to its pseudonym'
+            Expectation    = 'netsh exits with code 0 and prints the profile list; no saved profile is a legitimate zero'
         },
         @{
             Id             = 'wlan_interfaces'
@@ -151,16 +171,6 @@ $definition = @{
             Expectation    = 'netsh exits with code 0 and lists at least one network; zero networks is not accepted as an empty airspace'
         },
         @{
-            Id             = 'wlan_profiles'
-            Type           = 'command'
-            Required       = $false
-            Arguments      = 'wlan show profiles'
-            Protect        = 'profiles'
-            ZeroRule       = 'observed_zero'
-            RecordsMeaning = 'saved wireless profiles, counted by name pseudonyms'
-            Expectation    = 'netsh exits with code 0 and prints the profile list; no saved profile is a legitimate zero'
-        },
-        @{
             Id             = 'wlan_report'
             Type           = 'file'
             Required       = $false
@@ -168,9 +178,9 @@ $definition = @{
             Folder         = 'ProgramData'
             PathTail       = 'Microsoft\Windows\WlanReport\wlan-report-latest.html'
             PathDocumented = $false
-            FileName       = 'wlan-report.html'
-            MissingHint    = 'The report is created by "netsh wlan show wlanreport" from an Administrator command prompt (https://support.microsoft.com/windows/analyze-the-wireless-network-report-76da0daa-1db2-6049-d154-7bb679eb03ed), which prints where it saved the file; this collector never creates it.'
-            Expectation    = 'the report exists at the conventional location, is readable, and is copied with names and addresses pseudonymised'
+            FileName       = 'report-summary.json'
+            MissingHint    = 'The report is created by "netsh wlan show wlanreport" from an Administrator command prompt (https://support.microsoft.com/windows/analyze-the-wireless-network-report-76da0daa-1db2-6049-d154-7bb679eb03ed), which prints where it saved the file; this collector never creates it and never copies its text.'
+            Expectation    = 'the report exists at the conventional location and is readable; its size, time and hash are recorded, its text is not'
         },
         @{
             Id         = 'wlan_autoconfig_events'
@@ -202,7 +212,7 @@ $definition = @{
             InstancePrefixes  = @('BTH')
             IncludeAncestors  = $true
             ZeroIsObservation = $true
-            Expectation       = 'the device enumeration completes; a PC without a Bluetooth radio is a legitimate zero'
+            Expectation       = 'the device enumeration completes; no present Bluetooth device node is a legitimate zero. Presence of a node says nothing about pairing or radio power, which are not measured'
         }
     )
 }

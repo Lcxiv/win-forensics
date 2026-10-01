@@ -1,16 +1,19 @@
 {
-  "started_utc": "2026-03-01T12:00:31.0000000Z",
-  "stopped_utc": "2026-03-01T12:00:34.0000000Z",
+  "started_utc": "2026-03-01T12:00:16.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:19.0000000Z",
   "exit_code": 1,
   "timed_out": false,
   "duration_ms": 7,
   "stdout_bytes": 0,
+  "stdout_bytes_read": 59,
+  "diagnostic": null,
   "stderr": "",
   "records": 0,
-  "records_meaning": "saved wireless profiles, counted by name pseudonyms",
+  "records_meaning": "saved wireless profiles, counted by valued lines; the names stay readable (the owner's own networks) and result.json maps each to its pseudonym",
   "protection": {
     "mac_addresses_replaced": 0,
     "network_names_replaced": 0
   },
+  "profiles": [],
   "fields": []
 }

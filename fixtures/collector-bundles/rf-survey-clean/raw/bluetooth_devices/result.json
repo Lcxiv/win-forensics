@@ -5,6 +5,7 @@
   "devices_selected": 10,
   "seeds": 5,
   "ancestors_added": 5,
+  "peer_nodes_pseudonymised": 2,
   "property_errors": 0,
   "truncated": false,
   "error": null

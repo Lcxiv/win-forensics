@@ -1,0 +1,26 @@
+
+Interface name: Wi-Fi
+
+    Driver                    : Synthetic Wi-Fi 6E AX Adapter
+    Vendor                    : Synthetic Wireless
+    Provider                  : Synthetic Wireless
+    Date                      : 1/10/2026
+    Version                   : 23.0.0.1
+    INF file                  : oem42.inf
+    Type                      : Native Wi-Fi Driver
+    Radio types supported     : 802.11b 802.11g 802.11n 802.11a 802.11ac 802.11ax
+    FIPS 140-2 mode supported : Yes
+    802.11w Management Frame Protection supported : Yes
+    Hosted network supported  : No
+    Authentication and cipher supported in infrastructure mode:
+                                Open             None
+                                WPA2-Personal    CCMP
+                                WPA3-Personal    CCMP
+    IHV service present       : Yes
+    IHV adapter OUI           : [00 00 00], type: [00]
+    IHV extensibility DLL path: C:\Windows\System32\SynIhv.dll
+    IHV UI extensibility ClSID: {00000000-0000-0000-0000-000000000000}
+    IHV diagnostics CLSID     : {00000000-0000-0000-0000-000000000000}
+    Wireless Display Supported: Yes (Graphics Driver: Yes, Wi-Fi Driver: Yes)
+
+

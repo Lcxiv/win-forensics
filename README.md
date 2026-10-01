@@ -84,10 +84,10 @@ An `rf-survey` bundle is decoded and analysed with:
 ```
 python scripts/decode_rf_survey.py --bundle <bundle directory>
 python scripts/decode_eventlog.py --bundle <bundle directory>
-python scripts/analyze_rf_survey.py --bundle <bundle directory>
+python scripts/analyze_rf_survey.py --bundle <bundle directory> [--own-network <your Wi-Fi network's name as saved on the PC>]
 ```
 
-The result is `reports/rf-survey.md` inside the bundle, with its evidence rows in `evidence.jsonl`.
+The result is `reports/rf-survey.md` inside the bundle, with its evidence rows in `evidence.jsonl`. Without `--own-network` the report describes the airspace and recommends nothing about the router, because the analysis never guesses which network is yours; with it, every access point of that network is aggregated and a channel is recommended.
 
 The collector checks that need PowerShell (PSScriptAnalyzer with the Windows PowerShell 5.1 compatibility rules, the Pester suite, fixture freshness) run from `tests/test_collectors_pwsh.py` and skip when no `pwsh` is found. `scripts/fetch_pwsh.sh` fetches a pinned PowerShell 7 and the two modules into `tools/`, which git ignores.
 

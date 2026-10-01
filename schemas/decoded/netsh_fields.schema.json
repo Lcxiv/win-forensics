@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/netsh_fields.schema.json",
   "title": "netsh_fields row",
-  "description": "One row per labelled line of a netsh wlan show interfaces, drivers or profiles output: the verbatim label and value, the block the line sits in, and a normalized key when the English label or the shape of the value identifies it. See docs/contracts/decoded-tables.md section 5.12.",
-  "x-schema-version": "1.0.0",
+  "description": "One row per labelled line of a netsh wlan show interfaces, drivers or profiles output: the verbatim label and value (saved profile names are the owner's own and stay readable, each with its pseudonym), the block the line sits in, and a normalized key when the English label or the shape of the value identifies it. See docs/contracts/decoded-tables.md section 5.12.",
+  "x-schema-version": "1.1.0",
   "x-decoded-table": "netsh_fields",
   "type": "object",
   "additionalProperties": false,
@@ -14,6 +14,7 @@
     "indent",
     "label_text",
     "value_text",
+    "value_pseudonym",
     "normalized_key",
     "value_number",
     "classified_by",
@@ -45,6 +46,14 @@
     },
     "value_text": {
       "type": "string"
+    },
+    "value_pseudonym": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^ssid-[0-9a-f]{12}$",
+      "description": "For a saved profile name (kept readable by the collector), the pseudonym the same name carries elsewhere in the bundle."
     },
     "normalized_key": {
       "type": [
@@ -80,7 +89,7 @@
               "const": "netsh_fields"
             },
             "schema_version": {
-              "const": "1.0.0"
+              "const": "1.1.0"
             }
           }
         }

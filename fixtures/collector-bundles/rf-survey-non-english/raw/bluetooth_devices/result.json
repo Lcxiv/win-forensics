@@ -1,10 +1,11 @@
 {
   "started_utc": "2026-03-01T12:01:12.0000000Z",
-  "stopped_utc": "2026-03-01T12:01:23.0000000Z",
-  "devices_present": 19,
-  "devices_selected": 8,
-  "seeds": 3,
+  "stopped_utc": "2026-03-01T12:01:25.0000000Z",
+  "devices_present": 21,
+  "devices_selected": 10,
+  "seeds": 5,
   "ancestors_added": 5,
+  "peer_nodes_pseudonymised": 2,
   "property_errors": 0,
   "truncated": false,
   "error": null

@@ -1,0 +1,26 @@
+
+There is 1 interface on the system:
+
+    Name                   : Wi-Fi
+    Description            : Synthetic Wi-Fi 6E AX Adapter
+    GUID                   : 5f4d3c2b-1a09-4e8f-9d7c-6b5a4f3e2d1c
+    Physical address       : mac-9dcb41c8d865
+    Interface type         : Primary
+    State                  : connected
+    SSID                   : ssid-7a7a32d73bc8
+    BSSID                  : mac-bc9b1391f272
+    Network type           : Infrastructure
+    Radio type             : 802.11n
+    Authentication         : WPA2-Personal
+    Cipher                 : CCMP
+    Connection mode        : Auto Connect
+    Band                   : 2.4 GHz
+    Channel                : 1
+    Receive rate (Mbps)    : 144.4
+    Transmit rate (Mbps)   : 144.4
+    Signal                 : 90%
+    Profile                : ssid-7a7a32d73bc8
+
+    Hosted network status  : Not available
+
+

@@ -780,10 +780,10 @@ function Invoke-WfEventSource {
     # and starts WindowDays earlier. Every read runs under one deadline,
     # TimeoutSeconds after the source started.
     # A source marked Protect carries network names and addresses in its
-    # records (the WLAN AutoConfig channel does): every record's message,
-    # string properties and XML go through Protect-WfNetshText before they
-    # are written, and the binary export is not attempted because it would
-    # hold the same text in clear.
+    # records (the WLAN AutoConfig channel does): every record is reduced to
+    # its System section by Protect-WfEventItem before it is written (no
+    # message, no string data, no rendering info), and the binary export is
+    # not attempted because it would hold the full records in clear.
     param(
         [hashtable]$Source,
         [string]$BundleRoot,
@@ -902,7 +902,7 @@ function Invoke-WfEventSource {
 
         $evtx = [ordered]@{ Attempted = $false; Ok = $false; ExitCode = $null; Message = 'not attempted'; Command = $null }
         if ($protect) {
-            $evtx.Message = 'not attempted: the records of this channel are pseudonymised before they are written, and a binary export would carry the network names in clear'
+            $evtx.Message = 'not attempted: the records of this channel are reduced to their System section before they are written, and a binary export would carry the full records in clear'
         } elseif ($written -and -not $readErrorKind -and -not $truncated) {
             $evtxPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/events.evtx')
             $evtx = Export-WfEvtx -QueryPath $queryPath -TargetPath $evtxPath -MaxBytes $MaxArtifactBytes -TimeoutSeconds ([int](Get-WfRemainingSeconds -DeadlineUtc $deadline))
@@ -1242,10 +1242,19 @@ function Protect-WfNetshText {
     #               address line. That rule needs no label text, so it holds
     #               in any display language.
     #   interfaces  netsh wlan show interfaces. The name sits on the line
-    #               whose label is SSID; the Profile line repeats it, which
-    #               the learned name replacement below catches.
+    #               whose label is SSID, and, as a fallback for a display
+    #               language that translates that label, on the line just
+    #               before the BSSID address line (netsh prints SSID, then
+    #               BSSID); the Profile line repeats it, which the learned
+    #               name replacement below catches.
     #   profiles    netsh wlan show profiles. Every "label : value" line with
-    #               a value names a saved profile.
+    #               a value names a saved profile. Saved profiles are the
+    #               owner's own networks, so they stay readable: the text is
+    #               kept as printed and the result carries each name with its
+    #               pseudonym, which is how an explicit owner selection at
+    #               analysis time is matched to the pseudonymised scan. The
+    #               names are still learned, so a repeat anywhere else (the
+    #               interface Profile line, an event) is pseudonymised.
     #   drivers     netsh wlan show drivers. Only addresses can appear.
     #   generic     the WLAN report and stderr text: addresses, plus every
     #               name learned from the netsh outputs in this run, in its
@@ -1254,11 +1263,12 @@ function Protect-WfNetshText {
     # token. The names themselves are returned only so the caller can carry
     # them to the next source in memory; they are never written.
     param([string]$Text, [string]$Mode, [string]$Salt, [System.Collections.Generic.List[string]]$KnownSsids)
-    $result = [ordered]@{ Text = ''; MacCount = 0; SsidCount = 0; LearnedSsids = (New-Object 'System.Collections.Generic.List[string]') }
+    $result = [ordered]@{ Text = ''; MacCount = 0; SsidCount = 0; LearnedSsids = (New-Object 'System.Collections.Generic.List[string]'); Profiles = @() }
     if ($null -eq $Text) { return $result }
     $lines = New-Object 'System.Collections.Generic.List[string]'
     foreach ($line in (($Text -replace "`r`n", "`n") -split "`n")) { $lines.Add($line) }
     $macPattern = Get-WfMacAddressPattern
+    $guidPattern = '^\{?[0-9A-Fa-f]{8}-(?:[0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}\}?$'
     $ssidLines = New-Object 'System.Collections.Generic.HashSet[int]'
     if ($Mode -eq 'networks') {
         for ($i = 0; $i -lt $lines.Count; $i++) {
@@ -1268,6 +1278,21 @@ function Protect-WfNetshText {
             }
         }
     }
+    if ($Mode -eq 'interfaces') {
+        # Fallback for a translated SSID label: the labelled line just before
+        # an address line is the name line, unless its value is a GUID (the
+        # line before the adapter's own address) or an address itself.
+        for ($i = 1; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -notmatch $macPattern) { continue }
+            $previous = $lines[$i - 1]
+            $colon = $previous.IndexOf(':')
+            if ($colon -lt 0) { continue }
+            $value = $previous.Substring($colon + 1).Trim()
+            if ($value.Length -eq 0 -or $value -match $guidPattern -or $value -match $macPattern) { continue }
+            $null = $ssidLines.Add($i - 1)
+        }
+    }
+    $profiles = New-Object 'System.Collections.Generic.List[object]'
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $line = $lines[$i]
         $colon = $line.IndexOf(':')
@@ -1280,13 +1305,21 @@ function Protect-WfNetshText {
         $value = $line.Substring($colon + 1).Trim()
         if ($value.Length -eq 0 -or $value -match (Get-WfPseudonymPattern -Kind 'ssid')) { continue }
         if (-not $result.LearnedSsids.Contains($value)) { $result.LearnedSsids.Add($value) }
-        $lines[$i] = $line.Substring(0, $colon + 1) + ' ' + (ConvertTo-WfPseudonym -Kind 'ssid' -Value $value -Salt $Salt)
+        $pseudonym = ConvertTo-WfPseudonym -Kind 'ssid' -Value $value -Salt $Salt
+        if ($Mode -eq 'profiles') {
+            # Readable by decision: the owner's own saved networks, with the
+            # pseudonym the same name carries everywhere else in the bundle.
+            $profiles.Add([ordered]@{ name = $value; pseudonym = $pseudonym })
+            continue
+        }
+        $lines[$i] = $line.Substring(0, $colon + 1) + ' ' + $pseudonym
         $result.SsidCount += 1
     }
+    $result.Profiles = $profiles.ToArray()
     $text = ($lines.ToArray() -join "`n")
     $names = New-Object 'System.Collections.Generic.List[string]'
-    foreach ($name in $result.LearnedSsids) { $names.Add($name) }
-    if ($null -ne $KnownSsids) { foreach ($name in $KnownSsids) { if (-not $names.Contains($name)) { $names.Add($name) } } }
+    if ($Mode -ne 'profiles') { foreach ($name in $result.LearnedSsids) { $names.Add($name) } }
+    if ($null -ne $KnownSsids -and $Mode -ne 'profiles') { foreach ($name in $KnownSsids) { if (-not $names.Contains($name)) { $names.Add($name) } } }
     # Longest names first, so a name that contains another is replaced whole.
     foreach ($name in @($names.ToArray() | Sort-Object -Property @{ Expression = { $_.Length }; Descending = $true }, @{ Expression = { $_ } })) {
         $pseudonym = ConvertTo-WfPseudonym -Kind 'ssid' -Value $name -Salt $Salt
@@ -1309,22 +1342,82 @@ function Protect-WfNetshText {
     return $result
 }
 
+function Get-WfBluetoothAddressPattern {
+    # Twelve hexadecimal digits standing alone (a Bluetooth address as the
+    # BTHENUM and BTHLE enumerators print it), not part of a GUID or a longer
+    # run of hex digits.
+    return '(?<![0-9A-Fa-f-])[0-9A-Fa-f]{12}(?![0-9A-Fa-f-])'
+}
+
+function Protect-WfBluetoothAddresses {
+    param([string]$Text, [string]$Salt)
+    if ($null -eq $Text) { return '' }
+    $found = [regex]::Matches($Text, (Get-WfBluetoothAddressPattern))
+    if ($found.Count -eq 0) { return $Text }
+    $builder = New-Object System.Text.StringBuilder
+    $last = 0
+    foreach ($match in $found) {
+        $null = $builder.Append($Text.Substring($last, $match.Index - $last))
+        $hex = $match.Value.ToLowerInvariant()
+        $colon = ($hex -replace '(..)(?!$)', '$1:')
+        $null = $builder.Append((ConvertTo-WfPseudonym -Kind 'mac' -Value $colon -Salt $Salt))
+        $last = $match.Index + $match.Length
+    }
+    $null = $builder.Append($Text.Substring($last))
+    return $builder.ToString()
+}
+
+function Test-WfBluetoothPeerInstance {
+    param([string]$InstanceId)
+    return ($InstanceId.StartsWith('BTHENUM\', [System.StringComparison]::OrdinalIgnoreCase) -or $InstanceId.StartsWith('BTHLE\', [System.StringComparison]::OrdinalIgnoreCase))
+}
+
+function Protect-WfBluetoothPeerRow {
+    # A paired or remembered Bluetooth device is someone's phone, controller
+    # or earbuds; its name and address identify it as a network name would.
+    # The name fields become name-<12 hex> and every bare twelve digit
+    # address becomes the mac- pseudonym of its colon form, in the instance
+    # id, the hardware and compatible ids and the location text. Pairing or
+    # connection state is not touched because it is not measured here. The
+    # row is an ordered map and stays one (untyped parameter).
+    param($Row, [string]$Salt)
+    foreach ($field in @('name', 'description', 'bus_reported_description')) {
+        $value = $Row[$field]
+        if ($null -ne $value -and ([string]$value).Length -gt 0) { $Row[$field] = ConvertTo-WfPseudonym -Kind 'name' -Value ([string]$value) -Salt $Salt }
+    }
+    foreach ($field in @('instance_id', 'location_info', 'parent_instance_id')) {
+        if ($Row[$field]) { $Row[$field] = Protect-WfBluetoothAddresses -Text ([string]$Row[$field]) -Salt $Salt }
+    }
+    foreach ($field in @('hardware_ids', 'compatible_ids', 'location_paths')) {
+        $values = New-Object 'System.Collections.Generic.List[object]'
+        foreach ($value in @($Row[$field])) { $values.Add((Protect-WfBluetoothAddresses -Text ([string]$value) -Salt $Salt)) }
+        $Row[$field] = @($values.ToArray())
+    }
+    return $Row
+}
+
 function Protect-WfEventItem {
-    # One events.json element with its message, string properties and XML
-    # pseudonymised. Numbers, times and identifiers are left as they are. The
-    # item is an ordered map and must stay one (a [hashtable] parameter would
-    # copy it into an unordered one and scramble the export's key order), so
-    # the parameter is untyped.
+    # One events.json element reduced to what cannot carry a network name:
+    # the System section of the record. The rendered message is dropped,
+    # every string property is replaced by null (numbers and booleans, a
+    # reason code or a count, stay), and the EventData, UserData and
+    # RenderingInfo parts of the XML are emptied, because a name the current
+    # run never learned can hide in any of them. Addresses are replaced in
+    # what remains as well. The item is an ordered map and must stay one (a
+    # [hashtable] parameter would copy it into an unordered one and scramble
+    # the export's key order), so the parameter is untyped.
     param($Item, [hashtable]$Context)
-    $salt = [string]$Context['Salt']
-    $known = $Context['Ssids']
-    if ($Item['message']) { $Item['message'] = (Protect-WfNetshText -Text ([string]$Item['message']) -Mode 'generic' -Salt $salt -KnownSsids $known).Text }
+    $Item['message'] = $null
     $values = New-Object 'System.Collections.Generic.List[object]'
     foreach ($value in @($Item['properties'])) {
-        if ($value -is [string]) { $values.Add((Protect-WfNetshText -Text $value -Mode 'generic' -Salt $salt -KnownSsids $known).Text) } else { $values.Add($value) }
+        if ($value -is [string]) { $values.Add($null) } else { $values.Add($value) }
     }
     $Item['properties'] = @($values.ToArray())
-    if ($Item['xml']) { $Item['xml'] = (Protect-WfNetshText -Text ([string]$Item['xml']) -Mode 'generic' -Salt $salt -KnownSsids $known).Text }
+    $xml = [string]$Item['xml']
+    foreach ($element in @('EventData', 'UserData', 'RenderingInfo', 'ProcessingErrorData')) {
+        $xml = [regex]::Replace($xml, ('(?s)<' + $element + '\b[^>]*>.*?</' + $element + '>'), ('<' + $element + '/>'))
+    }
+    $Item['xml'] = (Protect-WfMacAddresses -Text $xml -Salt ([string]$Context['Salt'])).Text
     return $Item
 }
 
@@ -1369,7 +1462,16 @@ function Measure-WfNetshRecords {
             foreach ($match in [regex]::Matches($Text, 'mac-[0-9a-f]{12}')) { $null = $seen.Add($match.Value) }
             return $seen.Count
         }
-        'profiles' { return @([regex]::Matches($Text, 'ssid-[0-9a-f]{12}')).Count }
+        'profiles' {
+            # Saved profiles stay readable, so count the valued labelled lines (the caller
+            # prefers the mapping Protect-WfNetshText returns, which is the same count).
+            $count = 0
+            foreach ($line in (($Text -replace "`r`n", "`n") -split "`n")) {
+                $colon = $line.IndexOf(':')
+                if ($colon -gt 0 -and $line.Substring($colon + 1).Trim().Length -gt 0) { $count += 1 }
+            }
+            return $count
+        }
         'drivers' {
             $count = 0
             foreach ($line in (($Text -replace "`r`n", "`n") -split "`n")) { if ((Test-WfUnindentedLine -Line $line) -and $line.Contains(':')) { $count += 1 } }
@@ -1458,7 +1560,7 @@ function Invoke-WfCommandSource {
                 $readErrorKind = 'timeout'
                 $readErrorMessage = 'the deadline had passed before the command was started'
             } else {
-                $run = Invoke-WfProcess -FilePath $tool -Arguments $arguments -TimeoutSeconds ([int][math]::Ceiling($remaining)) -OutputEncoding $encoding
+                $run = Invoke-WfProcess -FilePath $tool -Arguments $arguments -TimeoutSeconds ([int][math]::Ceiling($remaining)) -OutputEncoding $encoding -MaxBytes $MaxArtifactBytes
             }
         }
         $entry.preflight = [ordered]@{
@@ -1475,6 +1577,9 @@ function Invoke-WfCommandSource {
                 $readErrorMessage = 'the process could not be started: ' + [string]$run['Error']
             } elseif ($run['TimedOut']) {
                 $readErrorKind = 'timeout'
+                $readErrorMessage = [string]$run['Error']
+            } elseif ($run['Oversized']) {
+                $readErrorKind = 'other'
                 $readErrorMessage = [string]$run['Error']
             } else {
                 $protected = Protect-WfNetshText -Text ([string]$run['StdOut']) -Mode $mode -Salt ([string]$Context['Salt']) -KnownSsids $Context['Ssids']
@@ -1498,6 +1603,7 @@ function Invoke-WfCommandSource {
                     } else {
                         Write-WfTextFile -Path $outputPath -Text ($text + "`n")
                         $records = Measure-WfNetshRecords -Text $text -Mode $mode
+                        if ($mode -eq 'profiles') { $records = @($protected.Profiles).Count }
                     }
                 }
             }
@@ -1505,6 +1611,10 @@ function Invoke-WfCommandSource {
         $stopped = Get-WfUtcNow
         $fields = @()
         if ($null -ne $protected -and (Test-Path -LiteralPath $outputPath)) { $fields = ConvertTo-WfNetshFields -Text ([string]$protected.Text) }
+        # Assigned, not wrapped in a subexpression: $( @(...) ) unrolls a one element array into
+        # a lone object and ConvertTo-WfJson would then write an object where the decoder expects a list.
+        $profileMap = $null
+        if ($null -ne $protected -and $mode -eq 'profiles') { $profileMap = @($protected.Profiles) }
         $report = [ordered]@{
             started_utc    = ConvertTo-WfUtcString -Value $started
             stopped_utc    = ConvertTo-WfUtcString -Value $stopped
@@ -1512,6 +1622,8 @@ function Invoke-WfCommandSource {
             timed_out      = $(if ($null -ne $run) { [bool]$run['TimedOut'] } else { $false })
             duration_ms    = $(if ($null -ne $run) { $run['DurationMs'] } else { $null })
             stdout_bytes   = $outputBytes
+            stdout_bytes_read = $(if ($null -ne $run) { $run['StdOutBytes'] } else { $null })
+            diagnostic     = $(if ($null -ne $run -and $run['Diagnostic']) { (Protect-WfNetshText -Text ([string]$run['Diagnostic']) -Mode 'generic' -Salt ([string]$Context['Salt']) -KnownSsids $Context['Ssids']).Text } else { $null })
             stderr         = $stderrText
             records        = $records
             records_meaning = [string]$Source['RecordsMeaning']
@@ -1519,6 +1631,7 @@ function Invoke-WfCommandSource {
                 mac_addresses_replaced = $(if ($null -ne $protected) { $protected.MacCount } else { 0 })
                 network_names_replaced = $(if ($null -ne $protected) { $protected.SsidCount } else { 0 })
             }
+            profiles       = $profileMap
             fields         = @($fields)
         }
         Write-WfJsonFile -Path (Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/result.json')) -Object $report
@@ -1538,9 +1651,9 @@ function Invoke-WfCommandSource {
             $met = $true
         } else {
             $entry.status = 'capture_failed'
-            $entry.status_reason = [string]$Source['ZeroReason']
+            $entry.status_reason = 'zero records: ' + [string]$Source['ZeroReason']
             $met = $false
-            $message = 'source ' + $id + ': ' + [string]$Source['ZeroReason']
+            $message = 'source ' + $id + ': zero records: ' + [string]$Source['ZeroReason']
             $Notes.Add($message)
             $Log.Add($message)
         }
@@ -1578,22 +1691,25 @@ function Invoke-WfCommandSource {
 }
 
 function Invoke-WfFileSource {
-    # Copies one known file read only and writes, under raw/<id>/:
-    #   source.json   the path, the cap and the pseudonym rules (role config)
-    #   result.json   whether the file existed and could be read, its size and
-    #                 last write time, the replacement counts (role report)
-    #   <FileName>    the protected copy (role primary)
-    # A file that does not exist or cannot be read is not_collected with the
-    # message from Windows; a file above the cap is capture_failed and not
-    # copied. The collector never creates the file: for the WLAN report that
-    # is an Administrator step the owner runs (see the README).
+    # Describes one known file read only, without copying it, and writes,
+    # under raw/<id>/:
+    #   source.json           the path, the cap and why no copy is made (role config)
+    #   result.json           whether the file existed and could be read (role report)
+    #   <FileName>            the summary: size, last write time, SHA-256 of
+    #                         the bytes, line count, how many address shaped
+    #                         tokens it holds (role primary)
+    # The WLAN report is free text that embeds "netsh wlan show all", so it
+    # names the neighbours' networks, and a name the current run never saw
+    # cannot be recognised in free text; the summary is therefore all that
+    # leaves the machine. The owner reads the report itself at the PC. A file
+    # that does not exist or cannot be read is not_collected with the
+    # message from Windows; a file above the cap is capture_failed.
     param(
         [hashtable]$Source,
         [string]$BundleRoot,
         [int64]$MaxArtifactBytes,
         [System.Collections.Generic.List[string]]$Log,
-        [System.Collections.Generic.List[string]]$Notes,
-        [hashtable]$Context
+        [System.Collections.Generic.List[string]]$Notes
     )
     $id = [string]$Source['Id']
     $fileName = [string]$Source['FileName']
@@ -1604,7 +1720,7 @@ function Invoke-WfFileSource {
     $dir = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath $relativeDir
     $started = Get-WfUtcNow
     $entry.started_utc = ConvertTo-WfUtcString -Value $started
-    $copyPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/' + $fileName)
+    $summaryPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/' + $fileName)
     try {
         $null = New-Item -ItemType Directory -Force -Path $dir
         $path = [string]$Source['Path']
@@ -1613,7 +1729,8 @@ function Invoke-WfFileSource {
             path               = $path
             path_documented    = [bool]$Source['PathDocumented']
             max_artifact_bytes = $MaxArtifactBytes
-            protection         = Get-WfProtectionDescription -Mode 'generic'
+            mode               = 'summary'
+            why_no_copy        = 'the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded'
         }
         $configPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/source.json')
         Write-WfJsonFile -Path $configPath -Object $config
@@ -1632,7 +1749,7 @@ function Invoke-WfFileSource {
             $readErrorMessage = [string]$read['ErrorMessage']
         } elseif ($read['ErrorKind'] -eq 'too_large') {
             $readErrorKind = 'other'
-            $readErrorMessage = ('the file is {0} bytes, above the cap of {1}, and was not copied' -f $read['Length'], $MaxArtifactBytes)
+            $readErrorMessage = ('the file is {0} bytes, above the cap of {1}, and was not read' -f $read['Length'], $MaxArtifactBytes)
         } elseif ($read['ErrorKind']) {
             $readErrorKind = 'other'
             $readErrorMessage = [string]$read['ErrorMessage']
@@ -1645,28 +1762,31 @@ function Invoke-WfFileSource {
                 [ordered]@{ name = 'file_readable'; ok = [bool]$read['Readable']; detail = $(if ($read['Readable']) { $null } else { [string]$read['ErrorMessage'] }) }
             )
         }
-        $protected = $null
-        $copyBytes = 0
+        $summary = $null
         if (-not $readErrorKind) {
-            $text = (New-Object System.Text.UTF8Encoding($false)).GetString([byte[]]$read['Bytes'])
-            $protected = Protect-WfNetshText -Text $text -Mode 'generic' -Salt ([string]$Context['Salt']) -KnownSsids $Context['Ssids']
-            Write-WfTextFile -Path $copyPath -Text ([string]$protected.Text)
-            $copyBytes = (Get-Item -LiteralPath $copyPath).Length
+            $bytes = [byte[]]$read['Bytes']
+            $text = (New-Object System.Text.UTF8Encoding($false)).GetString($bytes)
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            try { $digest = (([System.BitConverter]::ToString($sha.ComputeHash($bytes))) -replace '-', '').ToLowerInvariant() } finally { $sha.Dispose() }
+            $summary = [ordered]@{
+                path                = $path
+                bytes               = [int64]$bytes.Length
+                last_write_time_utc = $read['LastWriteUtc']
+                sha256              = $digest
+                lines               = @(($text -replace "`r`n", "`n") -split "`n").Count
+                address_tokens      = @([regex]::Matches($text, (Get-WfMacAddressPattern))).Count
+                content_kept        = $false
+            }
+            Write-WfJsonFile -Path $summaryPath -Object $summary
         }
         $stopped = Get-WfUtcNow
         $report = [ordered]@{
-            path                = $path
-            exists              = [bool]$read['Exists']
-            readable            = [bool]$read['Readable']
-            error               = $read['ErrorMessage']
-            source_bytes        = $read['Length']
-            last_write_time_utc = $read['LastWriteUtc']
-            copy_bytes          = $copyBytes
-            protection          = [ordered]@{
-                mac_addresses_replaced = $(if ($null -ne $protected) { $protected.MacCount } else { 0 })
-                network_names_replaced = $(if ($null -ne $protected) { $protected.SsidCount } else { 0 })
-                known_names_applied    = @($Context['Ssids']).Count
-            }
+            path         = $path
+            exists       = [bool]$read['Exists']
+            readable     = [bool]$read['Readable']
+            error        = $read['ErrorMessage']
+            source_bytes = $read['Length']
+            summarised   = ($null -ne $summary)
         }
         Write-WfJsonFile -Path (Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/result.json')) -Object $report
         if ($readErrorKind) {
@@ -1679,32 +1799,30 @@ function Invoke-WfFileSource {
             $entry.status_reason = $null
             $met = $true
             $entry.raw_time_range = New-WfTimeRange -StartUtc $started -EndUtc $stopped
-            $Notes.Add('source ' + $id + ': the copied report may still name networks that the current scan did not list; only addresses and the names learned in this run are pseudonymised in it')
+            $Notes.Add('source ' + $id + ': the file exists and was summarised, not copied; its text can name networks the current run never saw')
         }
-        Remove-WfPrimaryUnlessKept -Path $copyPath -Status $entry.status -Truncated $false -RecordCount $(if ($met) { 1 } else { 0 }) -Log $Log -SourceId $id
+        Remove-WfPrimaryUnlessKept -Path $summaryPath -Status $entry.status -Truncated $false -RecordCount $(if ($met) { 1 } else { 0 }) -Log $Log -SourceId $id
         $entry.enabled = [ordered]@{
             providers = @(); keywords = @(); stack_walk = @(); counters = @()
             options   = [ordered]@{
-                exists                 = $report.exists
-                readable               = $report.readable
-                source_bytes           = $report.source_bytes
-                last_write_time_utc    = $report.last_write_time_utc
-                copy_bytes             = $copyBytes
-                mac_addresses_replaced = $report.protection.mac_addresses_replaced
-                network_names_replaced = $report.protection.network_names_replaced
+                exists              = $report.exists
+                readable            = $report.readable
+                source_bytes        = $report.source_bytes
+                last_write_time_utc = $(if ($null -ne $summary) { $summary.last_write_time_utc } else { $null })
+                content_kept        = $false
             }
-            verified_by = 'the source size and last write time are in result.json; the copy is the primary artifact'
+            verified_by = 'the source size, time and hash are in the summary artifact; the text itself is not in the bundle'
         }
         $entry.expectation = [ordered]@{
             declared = [string]$Source['Expectation']
             met      = $met
-            detail   = $(if ($met) { ('{0} bytes copied' -f $copyBytes) } else { $readErrorMessage })
+            detail   = $(if ($met) { ('{0} bytes summarised' -f $summary.bytes) } else { $readErrorMessage })
         }
     } catch {
         $entry.status = 'capture_failed'
         $entry.status_reason = 'the collector raised while reading this source: ' + $_.Exception.Message
         $Log.Add('source ' + $id + ' raised: ' + $_.Exception.Message)
-        if (Test-Path -LiteralPath $copyPath) { Remove-Item -LiteralPath $copyPath -Force }
+        if (Test-Path -LiteralPath $summaryPath) { Remove-Item -LiteralPath $summaryPath -Force }
     }
     $entry.stopped_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
     $entry.artifacts = Get-WfArtifactRecords -BundleRoot $BundleRoot -SourceId $id -Roles $roles
@@ -1748,7 +1866,8 @@ function Invoke-WfPnpSource {
         [int64]$MaxArtifactBytes,
         [int]$TimeoutSeconds,
         [System.Collections.Generic.List[string]]$Log,
-        [System.Collections.Generic.List[string]]$Notes
+        [System.Collections.Generic.List[string]]$Notes,
+        [hashtable]$Context
     )
     $id = [string]$Source['Id']
     # Assigned, not wrapped in @(): the helper returns a wrapped array, and
@@ -1808,6 +1927,7 @@ function Invoke-WfPnpSource {
         $present = 0
         $propertyErrors = 0
         $ancestors = 0
+        $peers = 0
         $accumulator = New-WfRowAccumulator -MaxRows $MaxEvents -MaxBytes $MaxArtifactBytes
         if (-not $readErrorKind) {
             foreach ($device in @($enumeration['Devices'])) {
@@ -1863,8 +1983,12 @@ function Invoke-WfPnpSource {
                     $row['property_error'] = [string]$properties['ErrorMessage']
                 }
                 if (-not $item['Seed']) { $ancestors += 1 }
-                if (-not (Add-WfRow -Accumulator $accumulator -Row $row)) { $truncated = $true; break }
                 $parent = [string]$row['parent_instance_id']
+                if (Test-WfBluetoothPeerInstance -InstanceId ([string]$row['instance_id'])) {
+                    $peers += 1
+                    $row = Protect-WfBluetoothPeerRow -Row $row -Salt ([string]$Context['Salt'])
+                }
+                if (-not (Add-WfRow -Accumulator $accumulator -Row $row)) { $truncated = $true; break }
                 if ($includeAncestors -and $parent) {
                     $parentKey = $parent.ToUpperInvariant()
                     if ($all.ContainsKey($parentKey) -and $queued.Add($parentKey)) { $queue.Enqueue(@{ Device = $all[$parentKey]; Seed = $false }) }
@@ -1894,6 +2018,7 @@ function Invoke-WfPnpSource {
             devices_selected = $selected
             seeds            = ($selected - $ancestors)
             ancestors_added  = $ancestors
+            peer_nodes_pseudonymised = $peers
             property_errors  = $propertyErrors
             truncated        = $truncated
             error            = $(if ($readErrorKind) { $readErrorMessage } else { $null })
@@ -2076,10 +2201,11 @@ function Invoke-WfCollector {
         } elseif ($type -eq 'file') {
             $protects = $true
             $result = Invoke-WfFileSource -Source $source -BundleRoot $bundleRoot -MaxArtifactBytes $MaxArtifactBytes `
-                -Log $log -Notes $notes -Context $context
+                -Log $log -Notes $notes
         } elseif ($type -eq 'pnp') {
+            $protects = $true
             $result = Invoke-WfPnpSource -Source $source -BundleRoot $bundleRoot -MaxEvents $MaxEvents `
-                -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes
+                -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes -Context $context
         } else {
             throw ('unknown source type: ' + $type)
         }
@@ -2118,7 +2244,7 @@ function Invoke-WfCollector {
         $allNotes.Add('Each event log query selects a fixed interval, window_end_utc minus the window to window_end_utc, so records raised while the query ran are not part of the result.')
     }
     if ($protects) {
-        $allNotes.Add('Network names and hardware addresses are pseudonyms (ssid-<12 hex>, mac-<12 hex>) keyed with a random salt that was not stored: the same value maps to the same pseudonym inside this bundle and to nothing outside it.')
+        $allNotes.Add('Network names, hardware addresses and Bluetooth peer names are pseudonyms (ssid-<12 hex>, mac-<12 hex>, name-<12 hex>) keyed with a random salt that was not stored: the same value maps to the same pseudonym inside this bundle and to nothing outside it. The saved Wi-Fi profiles of this PC are the exception: they are the owner''s own networks and stay readable, each with its pseudonym, so an explicit owner selection can be matched at analysis time.')
     }
     $allNotes.Add('This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.')
     foreach ($note in $notes) { $allNotes.Add($note) }
@@ -2599,13 +2725,17 @@ function Export-WfEvtx {
         $result.Message = 'not started: the source deadline had passed'
         return $result
     }
-    $run = Invoke-WfProcess -FilePath $wevtutil -Arguments $arguments -TimeoutSeconds $TimeoutSeconds
+    $run = Invoke-WfProcess -FilePath $wevtutil -Arguments $arguments -TimeoutSeconds $TimeoutSeconds -MaxBytes 1048576
     if (-not $run['Started']) {
         $result.Message = 'wevtutil could not be run: ' + [string]$run['Error']
         return $result
     }
     if ($run['TimedOut']) {
         $result.Message = 'wevtutil did not finish within ' + $TimeoutSeconds + ' seconds and was stopped'
+        return $result
+    }
+    if ($run['Oversized']) {
+        $result.Message = 'wevtutil printed more than 1 MiB and was stopped: ' + [string]$run['Error']
         return $result
     }
     $result.ExitCode = [int]$run['ExitCode']
@@ -2630,17 +2760,23 @@ function Export-WfEvtx {
 
 function Invoke-WfProcess {
     # Starts one executable directly, with no shell, drains both output
-    # streams so the process cannot block on a full pipe, and stops it when
-    # the deadline passes. The only executables started through this are
-    # wevtutil (export verb) and netsh (wlan show queries).
-    param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null)
-    $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Error = $null; DurationMs = $null }
+    # streams as they arrive so the process cannot block on a full pipe, and
+    # stops it when the deadline passes or when a stream has delivered more
+    # than MaxBytes (UTF-8 bytes) of text. Nothing above the cap is retained:
+    # an oversized run keeps only the first 4096 characters of each stream as
+    # a diagnostic. MaxBytes 0 means the caller enforces its own cap on what
+    # it writes (wevtutil prints a line or two). The only executables started
+    # through this are wevtutil (export verb) and netsh (wlan show queries).
+    param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null, [int64]$MaxBytes = 0)
+    $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Oversized = $false; Error = $null; DurationMs = $null; StdOutBytes = [int64]0; StdErrBytes = [int64]0; Diagnostic = $null }
     if ($TimeoutSeconds -lt 1) {
         $result.Error = 'not started: the deadline had passed'
         return $result
     }
     $process = $null
     $watch = [System.Diagnostics.Stopwatch]::StartNew()
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    $diagnosticChars = 4096
     try {
         $startInfo = New-Object System.Diagnostics.ProcessStartInfo
         $startInfo.FileName = $FilePath
@@ -2657,18 +2793,59 @@ function Invoke-WfProcess {
         $process.StartInfo = $startInfo
         $null = $process.Start()
         $result.Started = $true
-        $stdout = $process.StandardOutput.ReadToEndAsync()
-        $stderr = $process.StandardError.ReadToEndAsync()
-        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-            try { $process.Kill() } catch { $null = $_ }
-            $result.TimedOut = $true
-            $result.Error = ('the process did not finish within {0} seconds and was stopped' -f $TimeoutSeconds)
+        $deadline = [datetime]::UtcNow.AddSeconds($TimeoutSeconds)
+        $streams = @(
+            @{ Name = 'StdOut'; Reader = $process.StandardOutput; Buffer = (New-Object char[] 4096); Text = (New-Object System.Text.StringBuilder); Bytes = [int64]0; Done = $false; Task = $null },
+            @{ Name = 'StdErr'; Reader = $process.StandardError; Buffer = (New-Object char[] 4096); Text = (New-Object System.Text.StringBuilder); Bytes = [int64]0; Done = $false; Task = $null }
+        )
+        foreach ($stream in $streams) { $stream.Task = $stream.Reader.ReadAsync($stream.Buffer, 0, $stream.Buffer.Length) }
+        while (-not ($streams[0].Done -and $streams[1].Done)) {
+            $pending = New-Object 'System.Collections.Generic.List[System.Threading.Tasks.Task]'
+            foreach ($stream in $streams) { if (-not $stream.Done) { $pending.Add($stream.Task) } }
+            $remaining = ($deadline - [datetime]::UtcNow).TotalMilliseconds
+            if ($remaining -le 0) {
+                try { $process.Kill() } catch { $null = $_ }
+                $result.TimedOut = $true
+                $result.Error = ('the process did not finish within {0} seconds and was stopped' -f $TimeoutSeconds)
+                break
+            }
+            $index = [System.Threading.Tasks.Task]::WaitAny($pending.ToArray(), [int][math]::Min($remaining, 1000))
+            if ($index -lt 0) { continue }
+            $stream = $null
+            foreach ($candidate in $streams) { if ($candidate.Task -eq $pending[$index]) { $stream = $candidate } }
+            $count = [int]$stream.Task.Result
+            if ($count -eq 0) {
+                $stream.Done = $true
+                continue
+            }
+            $stream.Bytes += $utf8.GetByteCount($stream.Buffer, 0, $count)
+            if ($MaxBytes -gt 0 -and $stream.Bytes -gt $MaxBytes) {
+                # Keep the diagnostic head only, drop the rest, stop the child.
+                if ($stream.Text.Length -lt $diagnosticChars) { $null = $stream.Text.Append($stream.Buffer, 0, [math]::Min($count, $diagnosticChars - $stream.Text.Length)) }
+                try { $process.Kill() } catch { $null = $_ }
+                $result.Oversized = $true
+                $result.Error = ('the process printed more than the cap of {0} bytes on {1} and was stopped; nothing above the cap was kept' -f $MaxBytes, $stream.Name)
+                break
+            }
+            $null = $stream.Text.Append($stream.Buffer, 0, $count)
+            $stream.Task = $stream.Reader.ReadAsync($stream.Buffer, 0, $stream.Buffer.Length)
+        }
+        $result.StdOutBytes = $streams[0].Bytes
+        $result.StdErrBytes = $streams[1].Bytes
+        if ($result.TimedOut -or $result.Oversized) {
+            $head = New-Object 'System.Collections.Generic.List[string]'
+            foreach ($stream in $streams) {
+                $text = $stream.Text.ToString()
+                if ($text.Length -gt $diagnosticChars) { $text = $text.Substring(0, $diagnosticChars) }
+                if ($text.Trim().Length -gt 0) { $head.Add($stream.Name + ': ' + $text) }
+            }
+            $result.Diagnostic = ($head.ToArray() -join "`n")
             return $result
         }
         $process.WaitForExit()
         $result.ExitCode = [int]$process.ExitCode
-        $result.StdOut = [string]$stdout.Result
-        $result.StdErr = [string]$stderr.Result
+        $result.StdOut = $streams[0].Text.ToString()
+        $result.StdErr = $streams[1].Text.ToString()
     } catch {
         $result.Error = $_.Exception.Message
     } finally {

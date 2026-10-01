@@ -1,0 +1,1256 @@
+{
+  "manifest_version": "1.0.0",
+  "bundle_id": "20260301T120001Z_rf_survey_ae3a76a9",
+  "created_utc": "2026-03-01T12:01:25.0000000Z",
+  "scenario": {
+    "id": "rf_survey",
+    "version": "1.0.0",
+    "requested_duration_s": 2592000,
+    "target_process": null,
+    "marks": []
+  },
+  "capture": {
+    "start_utc": "2026-03-01T12:00:01.0000000Z",
+    "stop_utc": "2026-03-01T12:01:25.0000000Z",
+    "orchestrator": "wf-collector:rf-survey",
+    "orchestrator_version": "1.1.0",
+    "elevated": false,
+    "incomplete": true
+  },
+  "machine": {
+    "machine_id": "ae3a76a9f32fa71b72616118339e376c",
+    "hostname": "SYNTHETIC-PC",
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26100",
+      "build": 26100,
+      "ubr": 1,
+      "display_version": "24H2",
+      "architecture": "64-bit",
+      "edition": "Professional"
+    },
+    "cpu": {
+      "name": "Synthetic CPU",
+      "logical_processors": 16,
+      "qpc_frequency_hz": 10000000
+    },
+    "memory_bytes": 34359738368,
+    "gpus": [
+      {
+        "name": "Synthetic Display Adapter",
+        "driver_version": "1.2.3.4",
+        "driver_date": "2026-01-15T00:00:00.0000000Z",
+        "device_id": "PCI\\VEN_FFFF&DEV_0001"
+      }
+    ],
+    "bios": {
+      "vendor": "Synthetic Firmware",
+      "version": "S1.00",
+      "release_date": "2025-11-01T00:00:00.0000000Z"
+    },
+    "board": {
+      "manufacturer": "Synthetic Boards",
+      "product": "SB-1"
+    },
+    "drivers": [],
+    "time_zone": {
+      "name": "UTC",
+      "utc_offset_minutes": 0,
+      "dst_active": false
+    }
+  },
+  "collectors": [
+    {
+      "id": "net_adapters",
+      "kind": "config_snapshot",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:09.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/StandardCimv2:MSFT_NetAdapter"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/StandardCimv2",
+        "-ClassName",
+        "MSFT_NetAdapter",
+        "-Property",
+        "Name,InterfaceDescription,InterfaceIndex,InterfaceGuid,InterfaceName,NdisMedium,NdisPhysicalMedium,InterfaceOperationalStatus,InterfaceAdminStatus,MediaConnectState,State,Status,Virtual,Hidden,HardwareInterface,ConnectorPresent,EndPointInterface,ReceiveLinkSpeed,TransmitLinkSpeed,DriverDescription,DriverVersionString,DriverProvider,DriverDate,PnPDeviceID,LowerLayerInterfaceIndices,HigherLayerInterfaceIndices",
+        "-OperationTimeoutSec",
+        "80"
+      ],
+      "started_utc": "2026-03-01T12:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:10.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "3d460c13a2aae66925ae084b0e165734958872b00a02c952affecb4b6c95eb2a"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "MSFT_NetAdapter",
+          "namespace": "root/StandardCimv2",
+          "properties": [
+            "Name",
+            "InterfaceDescription",
+            "InterfaceIndex",
+            "InterfaceGuid",
+            "InterfaceName",
+            "NdisMedium",
+            "NdisPhysicalMedium",
+            "InterfaceOperationalStatus",
+            "InterfaceAdminStatus",
+            "MediaConnectState",
+            "State",
+            "Status",
+            "Virtual",
+            "Hidden",
+            "HardwareInterface",
+            "ConnectorPresent",
+            "EndPointInterface",
+            "ReceiveLinkSpeed",
+            "TransmitLinkSpeed",
+            "DriverDescription",
+            "DriverVersionString",
+            "DriverProvider",
+            "DriverDate",
+            "PnPDeviceID",
+            "LowerLayerInterfaceIndices",
+            "HigherLayerInterfaceIndices"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "coverage_probe_filter": null,
+          "max_records": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 80
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "MSFT_NetAdapter",
+          "namespace": "root/StandardCimv2",
+          "properties": [
+            "Name",
+            "InterfaceDescription",
+            "InterfaceIndex",
+            "InterfaceGuid",
+            "InterfaceName",
+            "NdisMedium",
+            "NdisPhysicalMedium",
+            "InterfaceOperationalStatus",
+            "InterfaceAdminStatus",
+            "MediaConnectState",
+            "State",
+            "Status",
+            "Virtual",
+            "Hidden",
+            "HardwareInterface",
+            "ConnectorPresent",
+            "EndPointInterface",
+            "ReceiveLinkSpeed",
+            "TransmitLinkSpeed",
+            "DriverDescription",
+            "DriverVersionString",
+            "DriverProvider",
+            "DriverDate",
+            "PnPDeviceID",
+            "LowerLayerInterfaceIndices",
+            "HigherLayerInterfaceIndices"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "records_read": 4,
+          "records_exported": 4,
+          "truncated": false,
+          "coverage_probe": null
+        },
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/net_adapters/query.json",
+          "bytes": 921,
+          "sha256": "3d460c13a2aae66925ae084b0e165734958872b00a02c952affecb4b6c95eb2a",
+          "role": "config"
+        },
+        {
+          "path": "raw/net_adapters/records.json",
+          "bytes": 3050,
+          "sha256": "fd757b0860424cbf09f4892534b7159ab26a8ed08be035c8c834467b019c421b",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:09.0000000Z",
+        "end": "2026-03-01T12:00:09.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": true,
+        "detail": "4 instances"
+      },
+      "target_process": null
+    },
+    {
+      "id": "default_routes",
+      "kind": "config_snapshot",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:16.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/StandardCimv2:MSFT_NetRoute"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/StandardCimv2",
+        "-ClassName",
+        "MSFT_NetRoute",
+        "-Property",
+        "DestinationPrefix,NextHop,InterfaceIndex,InterfaceAlias,RouteMetric,Protocol,AddressFamily,Store,Publish,TypeOfRoute",
+        "-OperationTimeoutSec",
+        "80",
+        "-Filter",
+        "DestinationPrefix = '0.0.0.0/0' OR DestinationPrefix = '::/0'"
+      ],
+      "started_utc": "2026-03-01T12:00:11.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:17.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "fbf44e4d118f2416b0027bfa4a4cc476ea25c2be89bb991b664cc8af998ae42c"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "MSFT_NetRoute",
+          "namespace": "root/StandardCimv2",
+          "properties": [
+            "DestinationPrefix",
+            "NextHop",
+            "InterfaceIndex",
+            "InterfaceAlias",
+            "RouteMetric",
+            "Protocol",
+            "AddressFamily",
+            "Store",
+            "Publish",
+            "TypeOfRoute"
+          ],
+          "filter": "DestinationPrefix = '0.0.0.0/0' OR DestinationPrefix = '::/0'",
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "coverage_probe_filter": null,
+          "max_records": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 80
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "MSFT_NetRoute",
+          "namespace": "root/StandardCimv2",
+          "properties": [
+            "DestinationPrefix",
+            "NextHop",
+            "InterfaceIndex",
+            "InterfaceAlias",
+            "RouteMetric",
+            "Protocol",
+            "AddressFamily",
+            "Store",
+            "Publish",
+            "TypeOfRoute"
+          ],
+          "filter": "DestinationPrefix = '0.0.0.0/0' OR DestinationPrefix = '::/0'",
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "records_read": 2,
+          "records_exported": 2,
+          "truncated": false,
+          "coverage_probe": null
+        },
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/default_routes/query.json",
+          "bytes": 571,
+          "sha256": "fbf44e4d118f2416b0027bfa4a4cc476ea25c2be89bb991b664cc8af998ae42c",
+          "role": "config"
+        },
+        {
+          "path": "raw/default_routes/records.json",
+          "bytes": 381,
+          "sha256": "bab66bfa9f20379bb5b389b806c4d5eeb95bacd98f775cb56d5ed3a5699f6225",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:16.0000000Z",
+        "end": "2026-03-01T12:00:16.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the enumeration completes; zero instances is an observation for this class (the filter can legitimately match nothing)",
+        "met": true,
+        "detail": "2 instances"
+      },
+      "target_process": null
+    },
+    {
+      "id": "wlan_profiles",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:20.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\netsh.exe"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\netsh.exe",
+        "wlan",
+        "show",
+        "profiles"
+      ],
+      "started_utc": "2026-03-01T12:00:18.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:22.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "600b3a573cf77efe43991aa7b43baf9e65aa7baec3a2a7afa722ad7d466ba06d"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\Windows\\System32\\netsh.exe",
+          "arguments": "wlan show profiles",
+          "timeout_seconds": 80,
+          "max_artifact_bytes": 67108864,
+          "output_encoding": "utf-8",
+          "output_code_page": 65001,
+          "line_endings": "lf",
+          "protection": {
+            "mode": "profiles",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
+          },
+          "zero_records_rule": "observed_zero"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 7,
+          "stdout_bytes": 220,
+          "records": 2,
+          "mac_addresses_replaced": 0,
+          "network_names_replaced": 0,
+          "output_encoding": "utf-8"
+        },
+        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/wlan_profiles/command.json",
+          "bytes": 676,
+          "sha256": "600b3a573cf77efe43991aa7b43baf9e65aa7baec3a2a7afa722ad7d466ba06d",
+          "role": "config"
+        },
+        {
+          "path": "raw/wlan_profiles/output.txt",
+          "bytes": 220,
+          "sha256": "b41b2292b66e849b394dd80642b8221d36f61b4a20cb969cb1b2318b3c7e4998",
+          "role": "primary"
+        },
+        {
+          "path": "raw/wlan_profiles/result.json",
+          "bytes": 1119,
+          "sha256": "9d1c6e81001b70e283e67a111b33c4d777962b618c05005df30504c015bc0ebd",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:18.0000000Z",
+        "end": "2026-03-01T12:00:21.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "netsh exits with code 0 and prints the profile list; no saved profile is a legitimate zero",
+        "met": true,
+        "detail": "exit code 0; 2 records (saved wireless profiles, counted by valued lines; the names stay readable (the owner's own networks) and result.json maps each to its pseudonym)"
+      },
+      "target_process": null
+    },
+    {
+      "id": "wlan_interfaces",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:25.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\netsh.exe"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\netsh.exe",
+        "wlan",
+        "show",
+        "interfaces"
+      ],
+      "started_utc": "2026-03-01T12:00:23.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:27.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "99e5567e108ce4227c3964e59341845c2126cd1689bda5f1bc34422d2df58ea6"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\Windows\\System32\\netsh.exe",
+          "arguments": "wlan show interfaces",
+          "timeout_seconds": 80,
+          "max_artifact_bytes": 67108864,
+          "output_encoding": "utf-8",
+          "output_code_page": 65001,
+          "line_endings": "lf",
+          "protection": {
+            "mode": "interfaces",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
+          },
+          "zero_records_rule": "observed_zero"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 7,
+          "stdout_bytes": 877,
+          "records": 1,
+          "mac_addresses_replaced": 2,
+          "network_names_replaced": 2,
+          "output_encoding": "utf-8"
+        },
+        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/wlan_interfaces/command.json",
+          "bytes": 680,
+          "sha256": "99e5567e108ce4227c3964e59341845c2126cd1689bda5f1bc34422d2df58ea6",
+          "role": "config"
+        },
+        {
+          "path": "raw/wlan_interfaces/output.txt",
+          "bytes": 877,
+          "sha256": "5d746507598510884070fc590fd2bf4d61a8dd39541c5032caa96628f75f8eb6",
+          "role": "primary"
+        },
+        {
+          "path": "raw/wlan_interfaces/result.json",
+          "bytes": 3145,
+          "sha256": "5ea720dd448cdd40d46a518a580ff87f40cb91f234634285b1e23592cd66d544",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:23.0000000Z",
+        "end": "2026-03-01T12:00:26.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "netsh exits with code 0 and prints the interface list; a PC without a wireless interface is a legitimate zero",
+        "met": true,
+        "detail": "exit code 0; 1 records (wireless interfaces, counted by the GUID each one prints)"
+      },
+      "target_process": null
+    },
+    {
+      "id": "wlan_drivers",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:30.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\netsh.exe"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\netsh.exe",
+        "wlan",
+        "show",
+        "drivers"
+      ],
+      "started_utc": "2026-03-01T12:00:28.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:32.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "e257fc59cd5f900712d67204d16d1fbafaeff83489a296a84ee2f7793ed13863"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\Windows\\System32\\netsh.exe",
+          "arguments": "wlan show drivers",
+          "timeout_seconds": 80,
+          "max_artifact_bytes": 67108864,
+          "output_encoding": "utf-8",
+          "output_code_page": 65001,
+          "line_endings": "lf",
+          "protection": {
+            "mode": "drivers",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
+          },
+          "zero_records_rule": "observed_zero"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 7,
+          "stdout_bytes": 1176,
+          "records": 1,
+          "mac_addresses_replaced": 0,
+          "network_names_replaced": 0,
+          "output_encoding": "utf-8"
+        },
+        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/wlan_drivers/command.json",
+          "bytes": 674,
+          "sha256": "e257fc59cd5f900712d67204d16d1fbafaeff83489a296a84ee2f7793ed13863",
+          "role": "config"
+        },
+        {
+          "path": "raw/wlan_drivers/output.txt",
+          "bytes": 1176,
+          "sha256": "f7d0663c47e6a54afa027c8e239886b1879ca86338d977b803963d5abf2edb5a",
+          "role": "primary"
+        },
+        {
+          "path": "raw/wlan_drivers/result.json",
+          "bytes": 3179,
+          "sha256": "5a13aa600fc61cdd7e1c5ee0159a2bb6f53fcb718971e4f29e8b6a6fb618b6c4",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:28.0000000Z",
+        "end": "2026-03-01T12:00:31.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "netsh exits with code 0 and prints the driver properties; a PC without a wireless interface is a legitimate zero",
+        "met": true,
+        "detail": "exit code 0; 1 records (wireless driver blocks, counted by unindented header lines)"
+      },
+      "target_process": null
+    },
+    {
+      "id": "wlan_networks",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:35.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\netsh.exe"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\netsh.exe",
+        "wlan",
+        "show",
+        "networks",
+        "mode=bssid"
+      ],
+      "started_utc": "2026-03-01T12:00:33.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:37.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "e6b11579666589459945fffff301191543c9c51dfb59903c587e927ce4ac5da5"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\Windows\\System32\\netsh.exe",
+          "arguments": "wlan show networks mode=bssid",
+          "timeout_seconds": 80,
+          "max_artifact_bytes": 67108864,
+          "output_encoding": "utf-8",
+          "output_code_page": 65001,
+          "line_endings": "lf",
+          "protection": {
+            "mode": "networks",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
+          },
+          "zero_records_rule": "capture_failed"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 7,
+          "stdout_bytes": 1383,
+          "records": 3,
+          "mac_addresses_replaced": 3,
+          "network_names_replaced": 3,
+          "output_encoding": "utf-8"
+        },
+        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/wlan_networks/command.json",
+          "bytes": 688,
+          "sha256": "e6b11579666589459945fffff301191543c9c51dfb59903c587e927ce4ac5da5",
+          "role": "config"
+        },
+        {
+          "path": "raw/wlan_networks/output.txt",
+          "bytes": 1383,
+          "sha256": "52348e315fd1965510ea6d3eb97c2d2125dc8b9db0acb0716d8631ef420efb87",
+          "role": "primary"
+        },
+        {
+          "path": "raw/wlan_networks/result.json",
+          "bytes": 4748,
+          "sha256": "40b224361f2c379ff2b011c182c6e31dc99518396f2522f902b6ec859694327a",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:33.0000000Z",
+        "end": "2026-03-01T12:00:36.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "netsh exits with code 0 and lists at least one network; zero networks is not accepted as an empty airspace",
+        "met": true,
+        "detail": "exit code 0; 3 records (visible access points (BSSIDs), counted by distinct address pseudonyms)"
+      },
+      "target_process": null
+    },
+    {
+      "id": "wlan_report",
+      "kind": "other",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "preflight failed, the source could not be opened: the file does not exist: C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html. The report is created by \"netsh wlan show wlanreport\" from an Administrator command prompt (https://support.microsoft.com/windows/analyze-the-wireless-network-report-76da0daa-1db2-6049-d154-7bb679eb03ed), which prints where it saved the file; this collector never creates it and never copies its text.",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:39.0000000Z",
+        "checks": [
+          {
+            "name": "file_exists",
+            "ok": false,
+            "detail": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html"
+          },
+          {
+            "name": "file_readable",
+            "ok": false,
+            "detail": "the file does not exist"
+          }
+        ]
+      },
+      "command": [
+        "System.IO.File.ReadAllBytes",
+        "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html"
+      ],
+      "started_utc": "2026-03-01T12:00:38.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:41.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "532e25a15517349423864451a282b39c72f24199a39bfd5e6adfb0b8f3311318"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html",
+          "path_documented": false,
+          "max_artifact_bytes": 67108864,
+          "mode": "summary",
+          "why_no_copy": "the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exists": false,
+          "readable": false,
+          "source_bytes": null,
+          "last_write_time_utc": null,
+          "content_kept": false
+        },
+        "verified_by": "the source size, time and hash are in the summary artifact; the text itself is not in the bundle"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/wlan_report/result.json",
+          "bytes": 214,
+          "sha256": "95683e8603e188acae30319cd04a558b924b834ef0359cee45930d90ff568a13",
+          "role": "report"
+        },
+        {
+          "path": "raw/wlan_report/source.json",
+          "bytes": 323,
+          "sha256": "532e25a15517349423864451a282b39c72f24199a39bfd5e6adfb0b8f3311318",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "the report exists at the conventional location and is readable; its size, time and hash are recorded, its text is not",
+        "met": false,
+        "detail": "the file does not exist: C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html. The report is created by \"netsh wlan show wlanreport\" from an Administrator command prompt (https://support.microsoft.com/windows/analyze-the-wireless-network-report-76da0daa-1db2-6049-d154-7bb679eb03ed), which prints where it saved the file; this collector never creates it and never copies its text."
+      },
+      "target_process": null
+    },
+    {
+      "id": "wlan_autoconfig_events",
+      "kind": "eventlog",
+      "required": false,
+      "status": "observed_zero",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:48.0000000Z",
+        "checks": [
+          {
+            "name": "channel_found",
+            "ok": true,
+            "detail": "channel Microsoft-Windows-WLAN-AutoConfig/Operational"
+          },
+          {
+            "name": "channel_readable",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.Diagnostics.Eventing.Reader.EventLogReader",
+        "Microsoft-Windows-WLAN-AutoConfig/Operational",
+        "raw/wlan_autoconfig_events/query.xml"
+      ],
+      "started_utc": "2026-03-01T12:00:42.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:49.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "bf8b8b3902d0b48e954c0cbcfa4148574ba5e2a88c6ab0419bd9d97b0007bbab"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [
+          "Microsoft-Windows-WLAN-AutoConfig"
+        ],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "Microsoft-Windows-WLAN-AutoConfig/Operational",
+          "event_ids": [],
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:00:43.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:43.0000000Z",
+          "max_events": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 80,
+          "query_sha256": "bf8b8b3902d0b48e954c0cbcfa4148574ba5e2a88c6ab0419bd9d97b0007bbab"
+        }
+      },
+      "enabled": {
+        "providers": [
+          "Microsoft-Windows-WLAN-AutoConfig"
+        ],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "Microsoft-Windows-WLAN-AutoConfig/Operational",
+          "query_accepted": true,
+          "window_start_utc": "2026-01-30T12:00:43.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:43.0000000Z",
+          "records_read": 0,
+          "records_exported": 0,
+          "truncated": false,
+          "timed_out": false,
+          "evtx_exported": false,
+          "evtx_exit_code": null,
+          "evtx_message": "not attempted: the records of this channel are reduced to their System section before they are written, and a binary export would carry the full records in clear",
+          "evtx_command": null
+        },
+        "verified_by": "EventLogReader accepted the query in query.xml; the oldest retained record and the provider list are in channel_state.json"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/wlan_autoconfig_events/channel_state.json",
+          "bytes": 862,
+          "sha256": "c2edabc4d2f460e86c88ec6655a05d924e76e0b8e0059f23e45ac2dfcccc1ca4",
+          "role": "report"
+        },
+        {
+          "path": "raw/wlan_autoconfig_events/events.json",
+          "bytes": 3,
+          "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+          "role": "primary"
+        },
+        {
+          "path": "raw/wlan_autoconfig_events/query.xml",
+          "bytes": 383,
+          "sha256": "bf8b8b3902d0b48e954c0cbcfa4148574ba5e2a88c6ab0419bd9d97b0007bbab",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-01-30T12:00:43.0000000Z",
+        "end": "2026-03-01T12:00:43.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
+        "met": true,
+        "detail": "0 records read; requested window 2026-01-30T12:00:43.0000000Z to 2026-03-01T12:00:43.0000000Z; covered range starts 2026-01-30T12:00:43.0000000Z"
+      },
+      "target_process": null
+    },
+    {
+      "id": "usb_device_tree",
+      "kind": "config_snapshot",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:52.0000000Z",
+        "checks": [
+          {
+            "name": "devices_enumerated",
+            "ok": true,
+            "detail": "Win32_PnPEntity"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-ClassName",
+        "Win32_PnPEntity",
+        "-Filter",
+        "Present = TRUE",
+        "Get-PnpDeviceProperty",
+        "-KeyName",
+        "DEVPKEY_Device_Parent,DEVPKEY_Device_LocationPaths,DEVPKEY_Device_LocationInfo,DEVPKEY_Device_Address,DEVPKEY_Device_ContainerId,DEVPKEY_Device_BusReportedDeviceDesc,DEVPKEY_Device_EnumeratorName"
+      ],
+      "started_utc": "2026-03-01T12:00:50.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:11.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "ee7f5fa02ba119402864ccfa32911a4ee9d61233b4fe838f87eaa99d0d3e002d"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "enumeration": "Win32_PnPEntity, present devices, root/cimv2",
+          "classes": [
+            "USB",
+            "HIDClass",
+            "Mouse",
+            "Keyboard",
+            "Media",
+            "Net"
+          ],
+          "instance_prefixes": [
+            "USB\\"
+          ],
+          "include_ancestors": true,
+          "property_keys": [
+            "DEVPKEY_Device_Parent",
+            "DEVPKEY_Device_LocationPaths",
+            "DEVPKEY_Device_LocationInfo",
+            "DEVPKEY_Device_Address",
+            "DEVPKEY_Device_ContainerId",
+            "DEVPKEY_Device_BusReportedDeviceDesc",
+            "DEVPKEY_Device_EnumeratorName"
+          ],
+          "max_records": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 80,
+          "zero_is_observation": false
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "devices_present": 19,
+          "devices_selected": 17,
+          "ancestors_added": 3,
+          "property_errors": 0,
+          "truncated": false
+        },
+        "verified_by": "the enumeration completed without error; the device counts are in result.json"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/usb_device_tree/devices.json",
+          "bytes": 11764,
+          "sha256": "789de81e4a9c4514270b26b92d2a865e0bbce7cddfa7e013da00b3759c701b69",
+          "role": "primary"
+        },
+        {
+          "path": "raw/usb_device_tree/query.json",
+          "bytes": 622,
+          "sha256": "ee7f5fa02ba119402864ccfa32911a4ee9d61233b4fe838f87eaa99d0d3e002d",
+          "role": "config"
+        },
+        {
+          "path": "raw/usb_device_tree/result.json",
+          "bytes": 287,
+          "sha256": "106b7012efeed6fd529ba59608259b8f91a92d43bdcfcb97247321f3fc08d2c2",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:50.0000000Z",
+        "end": "2026-03-01T12:01:10.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "at least one USB device is present (a PC has USB host controllers) and every selected device is followed to the root of the device tree",
+        "met": true,
+        "detail": "19 present devices, 17 selected (3 ancestors), 0 property reads failed"
+      },
+      "target_process": null
+    },
+    {
+      "id": "bluetooth_devices",
+      "kind": "config_snapshot",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:01:14.0000000Z",
+        "checks": [
+          {
+            "name": "devices_enumerated",
+            "ok": true,
+            "detail": "Win32_PnPEntity"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-ClassName",
+        "Win32_PnPEntity",
+        "-Filter",
+        "Present = TRUE",
+        "Get-PnpDeviceProperty",
+        "-KeyName",
+        "DEVPKEY_Device_Parent,DEVPKEY_Device_LocationPaths,DEVPKEY_Device_LocationInfo,DEVPKEY_Device_Address,DEVPKEY_Device_ContainerId,DEVPKEY_Device_BusReportedDeviceDesc,DEVPKEY_Device_EnumeratorName"
+      ],
+      "started_utc": "2026-03-01T12:01:12.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:24.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "884cad30fb08a5d5b3b1fd5d5e21239fbb4dc3f2137d7d19f1b4c6ffba3c17c8"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "enumeration": "Win32_PnPEntity, present devices, root/cimv2",
+          "classes": [
+            "Bluetooth"
+          ],
+          "instance_prefixes": [
+            "BTH"
+          ],
+          "include_ancestors": true,
+          "property_keys": [
+            "DEVPKEY_Device_Parent",
+            "DEVPKEY_Device_LocationPaths",
+            "DEVPKEY_Device_LocationInfo",
+            "DEVPKEY_Device_Address",
+            "DEVPKEY_Device_ContainerId",
+            "DEVPKEY_Device_BusReportedDeviceDesc",
+            "DEVPKEY_Device_EnumeratorName"
+          ],
+          "max_records": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 80,
+          "zero_is_observation": true
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "devices_present": 19,
+          "devices_selected": 8,
+          "ancestors_added": 5,
+          "property_errors": 0,
+          "truncated": false
+        },
+        "verified_by": "the enumeration completed without error; the device counts are in result.json"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/bluetooth_devices/devices.json",
+          "bytes": 4833,
+          "sha256": "803c387f56ec3d6e554b9eb3e0411d41ed64387fdc20cdbbcbb647046b531937",
+          "role": "primary"
+        },
+        {
+          "path": "raw/bluetooth_devices/query.json",
+          "bytes": 556,
+          "sha256": "884cad30fb08a5d5b3b1fd5d5e21239fbb4dc3f2137d7d19f1b4c6ffba3c17c8",
+          "role": "config"
+        },
+        {
+          "path": "raw/bluetooth_devices/result.json",
+          "bytes": 285,
+          "sha256": "3f54114bfaf3e35b7582718d7b26c0413d28983609f152715ec88e1c9736b5fc",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:01:12.0000000Z",
+        "end": "2026-03-01T12:01:23.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the device enumeration completes; no present Bluetooth device node is a legitimate zero. Presence of a node says nothing about pairing or radio power, which are not measured",
+        "met": true,
+        "detail": "19 present devices, 8 selected (5 ancestors), 0 property reads failed"
+      },
+      "target_process": null
+    }
+  ],
+  "calibration": {
+    "status": "not_applicable",
+    "method": "none: this collector reads historical records that carry their own UTC system time, so there is no QPC session to calibrate",
+    "qpc_frequency_hz": 10000000,
+    "expected_pairs": 0,
+    "pairs": [],
+    "missing_pairs": 0,
+    "time_adjustment": {
+      "start": null,
+      "stop": null
+    },
+    "boot_time_utc": "2026-02-27T12:00:00.0000000Z"
+  },
+  "tools": [
+    {
+      "name": "powershell",
+      "version": "5.1.26100.1",
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "sha256": null
+    },
+    {
+      "name": "wevtutil",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wevtutil.exe",
+      "sha256": null
+    },
+    {
+      "name": "collector:rf-survey",
+      "version": "1.0.0",
+      "path": "<install directory>\\rf-survey.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector-helper:_common.ps1",
+      "version": "1.1.0",
+      "path": "<install directory>\\_common.ps1",
+      "sha256": null
+    }
+  ],
+  "symbols": {
+    "symbol_path": null,
+    "cache_path": null,
+    "dbghelp_version": null
+  },
+  "checksum_algorithm": "sha256",
+  "notes": [
+    "Read only collector rf-survey version 1.0.0: What does the 2.4 GHz airspace around the desk look like, which adapter carries the traffic, and where do the wireless receivers sit on the PC?",
+    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
+    "Each event log query selects a fixed interval, window_end_utc minus the window to window_end_utc, so records raised while the query ran are not part of the result.",
+    "Network names, hardware addresses and Bluetooth peer names are pseudonyms (ssid-<12 hex>, mac-<12 hex>, name-<12 hex>) keyed with a random salt that was not stored: the same value maps to the same pseudonym inside this bundle and to nothing outside it. The saved Wi-Fi profiles of this PC are the exception: they are the owner's own networks and stay readable, each with its pseudonym, so an explicit owner selection can be matched at analysis time.",
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine."
+  ]
+}

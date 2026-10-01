@@ -2,10 +2,6 @@
   "path": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html",
   "path_documented": false,
   "max_artifact_bytes": 67108864,
-  "protection": {
-    "mode": "generic",
-    "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
-    "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
-    "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
-  }
+  "mode": "summary",
+  "why_no_copy": "the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded"
 }

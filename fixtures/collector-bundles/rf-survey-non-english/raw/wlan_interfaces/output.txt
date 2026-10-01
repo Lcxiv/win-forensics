@@ -6,10 +6,19 @@ Auf dem System ist 1 Schnittstelle vorhanden:
     GUID                   : 5f4d3c2b-1a09-4e8f-9d7c-6b5a4f3e2d1c
     Physische Adresse      : mac-9dcb41c8d865
     Schnittstellentyp      : Primär
-    Status                 : Getrennt
-    Funkstatus             : Hardware Ein
-                             Software Ein
-
-    Status des gehosteten Netzwerks  : Nicht verfügbar
+    Status                 : Verbunden
+    Netzwerkname           : ssid-7a7a32d73bc8
+    BSSID                  : mac-bc9b1391f272
+    Netzwerktyp            : Infrastruktur
+    Funktyp                : 802.11ax
+    Authentifizierung      : WPA2-Personal
+    Verschlüsselung         : CCMP
+    Verbindungsmodus       : Automatische Verbindung
+    Band                   : 2,4 GHz
+    Kanal                  : 6
+    Empfangsrate (MBit/s)  : 144,4
+    übertragungsrate (MBit/s) : 144,4
+    Signal                 : 94%
+    Profil                 : ssid-7a7a32d73bc8
 
 

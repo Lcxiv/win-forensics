@@ -1,10 +1,12 @@
 {
-  "started_utc": "2026-03-01T12:00:23.0000000Z",
-  "stopped_utc": "2026-03-01T12:00:26.0000000Z",
+  "started_utc": "2026-03-01T12:00:28.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:31.0000000Z",
   "exit_code": 0,
   "timed_out": false,
   "duration_ms": 7,
   "stdout_bytes": 1176,
+  "stdout_bytes_read": 1200,
+  "diagnostic": null,
   "stderr": "",
   "records": 1,
   "records_meaning": "wireless driver blocks, counted by unindented header lines",
@@ -12,6 +14,7 @@
     "mac_addresses_replaced": 0,
     "network_names_replaced": 0
   },
+  "profiles": null,
   "fields": [
     {
       "line": 2,

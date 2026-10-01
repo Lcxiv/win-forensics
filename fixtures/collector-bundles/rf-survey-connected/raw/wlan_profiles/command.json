@@ -1,0 +1,16 @@
+{
+  "tool": "C:\\Windows\\System32\\netsh.exe",
+  "arguments": "wlan show profiles",
+  "timeout_seconds": 80,
+  "max_artifact_bytes": 67108864,
+  "output_encoding": "utf-8",
+  "output_code_page": 65001,
+  "line_endings": "lf",
+  "protection": {
+    "mode": "profiles",
+    "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+    "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
+    "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
+  },
+  "zero_records_rule": "observed_zero"
+}

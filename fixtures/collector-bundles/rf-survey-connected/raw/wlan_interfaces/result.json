@@ -1,0 +1,167 @@
+{
+  "started_utc": "2026-03-01T12:00:23.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:26.0000000Z",
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_ms": 7,
+  "stdout_bytes": 877,
+  "stdout_bytes_read": 891,
+  "diagnostic": null,
+  "stderr": "",
+  "records": 1,
+  "records_meaning": "wireless interfaces, counted by the GUID each one prints",
+  "protection": {
+    "mac_addresses_replaced": 2,
+    "network_names_replaced": 2
+  },
+  "profiles": null,
+  "fields": [
+    {
+      "line": 2,
+      "block": 0,
+      "indent": 0,
+      "label": "There is 1 interface on the system",
+      "value": ""
+    },
+    {
+      "line": 4,
+      "block": 0,
+      "indent": 4,
+      "label": "Name",
+      "value": "Wi-Fi"
+    },
+    {
+      "line": 5,
+      "block": 0,
+      "indent": 4,
+      "label": "Description",
+      "value": "Synthetic Wi-Fi 6E AX Adapter"
+    },
+    {
+      "line": 6,
+      "block": 0,
+      "indent": 4,
+      "label": "GUID",
+      "value": "5f4d3c2b-1a09-4e8f-9d7c-6b5a4f3e2d1c"
+    },
+    {
+      "line": 7,
+      "block": 0,
+      "indent": 4,
+      "label": "Physical address",
+      "value": "mac-9dcb41c8d865"
+    },
+    {
+      "line": 8,
+      "block": 0,
+      "indent": 4,
+      "label": "Interface type",
+      "value": "Primary"
+    },
+    {
+      "line": 9,
+      "block": 0,
+      "indent": 4,
+      "label": "State",
+      "value": "connected"
+    },
+    {
+      "line": 10,
+      "block": 0,
+      "indent": 4,
+      "label": "SSID",
+      "value": "ssid-7a7a32d73bc8"
+    },
+    {
+      "line": 11,
+      "block": 0,
+      "indent": 4,
+      "label": "BSSID",
+      "value": "mac-bc9b1391f272"
+    },
+    {
+      "line": 12,
+      "block": 0,
+      "indent": 4,
+      "label": "Network type",
+      "value": "Infrastructure"
+    },
+    {
+      "line": 13,
+      "block": 0,
+      "indent": 4,
+      "label": "Radio type",
+      "value": "802.11n"
+    },
+    {
+      "line": 14,
+      "block": 0,
+      "indent": 4,
+      "label": "Authentication",
+      "value": "WPA2-Personal"
+    },
+    {
+      "line": 15,
+      "block": 0,
+      "indent": 4,
+      "label": "Cipher",
+      "value": "CCMP"
+    },
+    {
+      "line": 16,
+      "block": 0,
+      "indent": 4,
+      "label": "Connection mode",
+      "value": "Auto Connect"
+    },
+    {
+      "line": 17,
+      "block": 0,
+      "indent": 4,
+      "label": "Band",
+      "value": "2.4 GHz"
+    },
+    {
+      "line": 18,
+      "block": 0,
+      "indent": 4,
+      "label": "Channel",
+      "value": "1"
+    },
+    {
+      "line": 19,
+      "block": 0,
+      "indent": 4,
+      "label": "Receive rate (Mbps)",
+      "value": "144.4"
+    },
+    {
+      "line": 20,
+      "block": 0,
+      "indent": 4,
+      "label": "Transmit rate (Mbps)",
+      "value": "144.4"
+    },
+    {
+      "line": 21,
+      "block": 0,
+      "indent": 4,
+      "label": "Signal",
+      "value": "90%"
+    },
+    {
+      "line": 22,
+      "block": 0,
+      "indent": 4,
+      "label": "Profile",
+      "value": "ssid-7a7a32d73bc8"
+    },
+    {
+      "line": 24,
+      "block": 0,
+      "indent": 4,
+      "label": "Hosted network status",
+      "value": "Not available"
+    }
+  ]
+}

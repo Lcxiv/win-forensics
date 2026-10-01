@@ -36,6 +36,9 @@ EXPECTED = {
     "rf-survey-clean": ("partial", {"net_adapters": "observed", "default_routes": "observed", "wlan_interfaces": "observed", "wlan_drivers": "observed",
                                     "wlan_networks": "observed", "wlan_profiles": "observed", "wlan_report": "not_collected",
                                     "wlan_autoconfig_events": "observed_zero", "usb_device_tree": "observed", "bluetooth_devices": "observed"}),
+    "rf-survey-connected": ("partial", {"net_adapters": "observed", "default_routes": "observed", "wlan_interfaces": "observed", "wlan_drivers": "observed",
+                                        "wlan_networks": "observed", "wlan_profiles": "observed", "wlan_report": "not_collected",
+                                        "wlan_autoconfig_events": "observed_zero", "usb_device_tree": "observed", "bluetooth_devices": "observed"}),
     "rf-survey-no-wifi": ("partial", {"net_adapters": "observed", "default_routes": "observed", "wlan_interfaces": "capture_failed",
                                       "wlan_drivers": "capture_failed", "wlan_networks": "capture_failed", "wlan_profiles": "capture_failed",
                                       "wlan_report": "not_collected", "wlan_autoconfig_events": "unsupported", "usb_device_tree": "observed",
@@ -160,6 +163,9 @@ def test_status_and_evidence_stay_separate(case):
                 assert collector["enabled"]["options"]["exit_code"] == 0
         elif collector["command"][0] == "System.IO.File.ReadAllBytes":
             assert collector["requested"]["options"]["path_documented"] is False
+            assert collector["requested"]["options"]["mode"] == "summary", "the report's text never leaves the machine"
+            if collector["status"] in OBSERVED:
+                assert primary[0]["path"].endswith("/report-summary.json")
         else:
             assert "Win32_PnPEntity" in collector["command"] and "Get-PnpDeviceProperty" in collector["command"]
         config = [a for a in collector["artifacts"] if a["role"] == "config"]
@@ -174,7 +180,12 @@ def test_observed_zero_is_an_empty_export_inside_a_covered_range(case):
         if not primary:
             continue
         text = (bundle / primary[0]["path"]).read_text(encoding="utf-8")
-        if primary[0]["path"].endswith(".json"):
+        if primary[0]["path"].endswith("/report-summary.json"):
+            # The file source's summary: one object about the file, never its text, never empty.
+            summary = json.loads(text)
+            assert summary["content_kept"] is False and summary["bytes"] > 0 and len(summary["sha256"]) == 64
+            assert collector["status"] == "observed"
+        elif primary[0]["path"].endswith(".json"):
             records = json.loads(text)
             assert isinstance(records, list)
             if collector["status"] == "observed_zero":
@@ -182,7 +193,7 @@ def test_observed_zero_is_an_empty_export_inside_a_covered_range(case):
             if collector["status"] == "observed":
                 assert records
         else:
-            # A netsh output or a copied report: text, kept whole, never empty.
+            # A netsh output: text, kept whole, never empty.
             assert text.strip(), "a text primary is never empty"
             assert collector["enabled"]["options"]["records"] == 0 if collector["status"] == "observed_zero" else True
         if collector["status"] in OBSERVED:

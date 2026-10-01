@@ -1,6 +1,6 @@
 # Decoded tables contract
 
-Status: phase 0a, version 1.1.0 (1.0.0 plus the five `rf-survey` tables in sections 5.12 to 5.16). Companion contracts: [timestamps.md](timestamps.md), [measurement-status.md](measurement-status.md), [bundle.md](bundle.md). Schemas live under `schemas/decoded/`.
+Status: phase 0a, version 1.1.0 (1.0.0 plus the five `rf-survey` tables in sections 5.12 to 5.16; `netsh_fields` and `pnp_device` are at schema version 1.1.0 after the saved profile mapping and the Bluetooth peer node rename). Companion contracts: [timestamps.md](timestamps.md), [measurement-status.md](measurement-status.md), [bundle.md](bundle.md). Schemas live under `schemas/decoded/`.
 
 ## 1. What a decoded table is
 
@@ -184,19 +184,21 @@ Required: `time_of_day` (verbatim, `h:mm:ss.fffffff AM` or `PM`), `process_name`
 
 One row per labelled line of the `netsh wlan show interfaces`, `show drivers` and `show profiles` outputs the `rf-survey` collector writes as `raw/<source id>/output.txt` (format and pseudonyms in `collectors/windows/README.md`). Decoder: `scripts/decode_rf_survey.py`. The label and value are verbatim; `normalized_key` names the field when the English label is known (`classified_by = label`) or when the value's shape identifies it (`classified_by = value`: a GUID, an `802.11x` radio type, a `GHz` band, a percentage, a channel number after the band line, a `mac-` or `ssid-` pseudonym), and is null otherwise, so a display language the decoder has not seen loses names, not numbers. Time domain: `system_time` (the capture moment).
 
-Required: `command` (`interfaces`, `drivers`, `profiles`), `block` (0-based index of the unindented block), `line` (1-based), `indent`, `label_text`, `value_text`, `normalized_key` (string or null), `value_number` (number or null), `classified_by` (`label`, `value`, or null), `provenance` (`line:<n>`).
+Saved profile names are the owner's own and stay readable in `value_text`; for those rows `value_pseudonym` carries the pseudonym the same name has in `wlan_bss`, which is how an explicit owner selection is matched.
+
+Required: `command` (`interfaces`, `drivers`, `profiles`), `block` (0-based index of the unindented block), `line` (1-based), `indent`, `label_text`, `value_text`, `value_pseudonym` (string or null), `normalized_key` (string or null), `value_number` (number or null), `classified_by` (`label`, `value`, or null), `provenance` (`line:<n>`).
 
 ### 5.13 `wlan_bss`
 
-One row per access point in a `netsh wlan show networks mode=bssid` output. Names and addresses are the collector's pseudonyms (`ssid-<12 hex>`, `mac-<12 hex>`), consistent inside one bundle. Decoder: `scripts/decode_rf_survey.py`. The band is read from the Band line when Windows prints one and inferred from the channel otherwise (1 to 14 is 2.4 GHz, 32 to 177 is 5 GHz, anything else is unknown because 6 GHz reuses low numbers); the sidecar counts the inferred rows. `signal_dbm_estimate` follows Microsoft's documented mapping of the signal quality percentage (0 is minus 100 dBm, 100 is minus 50 dBm, linear between). `is_known_profile` is true when the network's name pseudonym also appears in the `wlan_profiles` output and null when that output was not readable.
+One row per access point in a `netsh wlan show networks mode=bssid` output. Names and addresses are the collector's pseudonyms (`ssid-<12 hex>`, `mac-<12 hex>`), consistent inside one bundle. Decoder: `scripts/decode_rf_survey.py`. The band is read from the Band line when Windows prints one and inferred from the channel otherwise, as a convenience bound: 1 to 14 is the 2.4 GHz numbering, 36 to 165 the 5 GHz UNII-1 to UNII-3 channels Cisco lists in its [Wireless RF Reference Guide](https://www.cisco.com/c/en/us/td/docs/wireless/controller/9800/technical-reference/wireless-rf-reference-guide.html), anything else is unknown; 6 GHz reuses these numbers, so the sidecar counts the inferred rows and a 6 GHz access point without a Band line would be misread as 5 GHz. `signal_dbm_estimate` follows Microsoft's documented mapping of the signal quality percentage (0 is minus 100 dBm, 100 is minus 50 dBm, linear between). `is_known_profile` is true when the network's name pseudonym is one of this PC's saved profiles and null when the profiles were not readable; it says the PC has a profile for the network, not that the network is the owner's (profiles go stale).
 
 Required: `interface_name`, `network_index`, `ssid_pseudonym` (null for a hidden network), `bssid_pseudonym`, `signal_pct`, `signal_dbm_estimate`, `radio_type`, `band_text`, `band_ghz` (2.4, 5, 6 or null), `channel`, `channel_source` (`label`, `value`, or null), `network_type`, `authentication`, `encryption` (the last three by English label only, else null), `is_known_profile`, `labels_recognised`, `provenance` (`line:<a>-<b>`, the access point's lines).
 
 ### 5.14 `pnp_device`
 
-One row per device in a `pnp` source export (`raw/<source id>/devices.json`), with the chain to the host controller resolved inside the same export. Decoder: `scripts/decode_rf_survey.py`. `usb_stack` follows the controller's service as Microsoft documents the driver stacks (`USBXHCI` is `usb3_xhci`, `usbehci` is `usb2_ehci`, `usbohci` and `usbuhci` are `usb1_ohci_uhci`); it says which controller type serves the port, never the speed a device negotiated, which Windows does not expose. `is_receiver_candidate` is a name match (receiver, dongle, wireless, Unifying, Lightspeed and the like on a USB device that is not a Bluetooth radio) and is a hint, not an identification.
+One row per device in a `pnp` source export (`raw/<source id>/devices.json`), with the chain to the host controller resolved inside the same export. Decoder: `scripts/decode_rf_survey.py`. `usb_stack` follows the controller's service as Microsoft documents the driver stacks (`USBXHCI` is `usb3_xhci`, `usbehci` is `usb2_ehci`, `usbohci` and `usbuhci` are `usb1_ohci_uhci`); it says which controller type serves the port, never the speed a device negotiated, which Windows does not expose. `is_receiver_candidate` is a name match (receiver, dongle, wireless, Unifying, Lightspeed and the like on a USB device that is not a Bluetooth radio) and is a hint, not an identification. `is_bluetooth_peer_node` marks a present `BTHENUM` or `BTHLE` node, a remembered peer whose name and address are the collector's pseudonyms; pairing and connection state are not measured.
 
-Required: `source_id`, `instance_id`, `class`, `name`, `description`, `manufacturer`, `service`, `status`, `problem_code`, `is_seed`, `parent_instance_id`, `location_path`, `location_info`, `bus_reported_description`, `vendor_id`, `product_id`, `controller_instance_id`, `controller_service`, `usb_stack`, `hub_chain` (ancestor instance ids, nearest first), `is_root_hub`, `is_receiver_candidate`, `is_bluetooth_radio`, `is_bluetooth_peer`, `provenance` (`index:<n>`).
+Required: `source_id`, `instance_id`, `class`, `name`, `description`, `manufacturer`, `service`, `status`, `problem_code`, `is_seed`, `parent_instance_id`, `location_path`, `location_info`, `bus_reported_description`, `vendor_id`, `product_id`, `controller_instance_id`, `controller_service`, `usb_stack`, `hub_chain` (ancestor instance ids, nearest first), `is_root_hub`, `is_receiver_candidate`, `is_bluetooth_radio`, `is_bluetooth_peer_node`, `provenance` (`index:<n>`).
 
 ### 5.15 `net_adapter`
 
@@ -206,7 +208,7 @@ Required: `name`, `interface_description`, `interface_index`, `interface_guid`, 
 
 ### 5.16 `net_route`
 
-One row per `MSFT_NetRoute` instance from the `default_routes` source (the `0.0.0.0/0` and `::/0` routes). Decoder: `scripts/decode_rf_survey.py`. The interface behind the IPv4 default route with the lowest metric is the one that carries the machine's traffic.
+One row per `MSFT_NetRoute` instance from the `default_routes` source (the `0.0.0.0/0` and `::/0` routes). Decoder: `scripts/decode_rf_survey.py`. The interface behind the default route with the lowest metric, across both address families, is the one that carries the machine's traffic; the analyzer lists IPv4 first on an equal metric and reports when the families use different interfaces.
 
 Required: `destination_prefix`, `next_hop`, `interface_index`, `interface_alias`, `route_metric`, `protocol`, `protocol_text`, `address_family`, `address_family_text` (`IPv4`, `IPv6`, or null), `store`, `provenance` (`index:<n>`).
 

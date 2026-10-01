@@ -3,7 +3,7 @@
   "$id": "https://github.com/Lcxiv/win-forensics/schemas/analysis/rf_survey.schema.json",
   "title": "rf_survey analysis result (reports/rf-survey.json)",
   "description": "The structured result of scripts/analyze_rf_survey.py: the coverage table first, then the findings, each tied to evidence rows and citations.",
-  "x-schema-version": "1.0.0",
+  "x-schema-version": "1.1.0",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -12,6 +12,7 @@
     "bundle_id",
     "status",
     "status_reason",
+    "owner",
     "coverage",
     "findings",
     "channels_24ghz",
@@ -50,6 +51,58 @@
         "string",
         "null"
       ]
+    },
+    "owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provided",
+        "method",
+        "pseudonym",
+        "name",
+        "matched_access_points",
+        "problem"
+      ],
+      "description": "The owner's network, from an explicit selection only; never inferred from a saved profile or the strongest signal.",
+      "properties": {
+        "provided": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "profile_name",
+            "pseudonym",
+            null
+          ]
+        },
+        "pseudonym": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^ssid-[0-9a-f]{12}$"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "matched_access_points": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "problem": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
     },
     "coverage": {
       "type": "array",

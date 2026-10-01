@@ -1,17 +1,25 @@
 {
-  "started_utc": "2026-03-01T12:00:33.0000000Z",
-  "stopped_utc": "2026-03-01T12:00:36.0000000Z",
+  "started_utc": "2026-03-01T12:00:18.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:21.0000000Z",
   "exit_code": 0,
   "timed_out": false,
   "duration_ms": 7,
-  "stdout_bytes": 213,
+  "stdout_bytes": 207,
+  "stdout_bytes_read": 217,
+  "diagnostic": null,
   "stderr": "",
   "records": 1,
-  "records_meaning": "saved wireless profiles, counted by name pseudonyms",
+  "records_meaning": "saved wireless profiles, counted by valued lines; the names stay readable (the owner's own networks) and result.json maps each to its pseudonym",
   "protection": {
     "mac_addresses_replaced": 0,
-    "network_names_replaced": 1
+    "network_names_replaced": 0
   },
+  "profiles": [
+    {
+      "name": "Harbor-Home",
+      "pseudonym": "ssid-7a7a32d73bc8"
+    }
+  ],
   "fields": [
     {
       "line": 2,
@@ -25,7 +33,7 @@
       "block": 0,
       "indent": 4,
       "label": "Profil f\u00fcr alle Benutzer",
-      "value": "ssid-7a7a32d73bc8"
+      "value": "Harbor-Home"
     }
   ]
 }

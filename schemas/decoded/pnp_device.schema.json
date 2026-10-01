@@ -3,7 +3,7 @@
   "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/pnp_device.schema.json",
   "title": "pnp_device row",
   "description": "One row per Plug and Play device exported by a pnp source, with the ancestor chain resolved inside the same export. See docs/contracts/decoded-tables.md section 5.14.",
-  "x-schema-version": "1.0.0",
+  "x-schema-version": "1.1.0",
   "x-decoded-table": "pnp_device",
   "type": "object",
   "additionalProperties": false,
@@ -31,7 +31,7 @@
     "is_root_hub",
     "is_receiver_candidate",
     "is_bluetooth_radio",
-    "is_bluetooth_peer",
+    "is_bluetooth_peer_node",
     "provenance"
   ],
   "properties": {
@@ -164,8 +164,9 @@
     "is_bluetooth_radio": {
       "type": "boolean"
     },
-    "is_bluetooth_peer": {
-      "type": "boolean"
+    "is_bluetooth_peer_node": {
+      "type": "boolean",
+      "description": "A present BTHENUM or BTHLE device node, a remembered peer whose name and address are pseudonyms; pairing and connection state are not measured."
     },
     "provenance": {
       "allOf": [
@@ -178,7 +179,7 @@
               "const": "pnp_device"
             },
             "schema_version": {
-              "const": "1.0.0"
+              "const": "1.1.0"
             }
           }
         }

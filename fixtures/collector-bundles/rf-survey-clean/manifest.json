@@ -351,7 +351,7 @@
       "target_process": null
     },
     {
-      "id": "wlan_interfaces",
+      "id": "wlan_profiles",
       "kind": "other",
       "required": false,
       "status": "observed",
@@ -371,10 +371,115 @@
         "C:\\Windows\\System32\\netsh.exe",
         "wlan",
         "show",
-        "interfaces"
+        "profiles"
       ],
       "started_utc": "2026-03-01T12:00:18.0000000Z",
       "stopped_utc": "2026-03-01T12:00:22.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "600b3a573cf77efe43991aa7b43baf9e65aa7baec3a2a7afa722ad7d466ba06d"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\Windows\\System32\\netsh.exe",
+          "arguments": "wlan show profiles",
+          "timeout_seconds": 80,
+          "max_artifact_bytes": 67108864,
+          "output_encoding": "utf-8",
+          "output_code_page": 65001,
+          "line_endings": "lf",
+          "protection": {
+            "mode": "profiles",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
+          },
+          "zero_records_rule": "observed_zero"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 7,
+          "stdout_bytes": 180,
+          "records": 1,
+          "mac_addresses_replaced": 0,
+          "network_names_replaced": 0,
+          "output_encoding": "utf-8"
+        },
+        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/wlan_profiles/command.json",
+          "bytes": 676,
+          "sha256": "600b3a573cf77efe43991aa7b43baf9e65aa7baec3a2a7afa722ad7d466ba06d",
+          "role": "config"
+        },
+        {
+          "path": "raw/wlan_profiles/output.txt",
+          "bytes": 180,
+          "sha256": "d8253fc5ca48dfa313caa347bb081f93a24e1f1e88d74a7be0c6b8e63b3c0198",
+          "role": "primary"
+        },
+        {
+          "path": "raw/wlan_profiles/result.json",
+          "bytes": 904,
+          "sha256": "2205aca30b7fc406b9b4133b66d07b48cf60ff0eb199b105423787c0c6959ccb",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:18.0000000Z",
+        "end": "2026-03-01T12:00:21.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "netsh exits with code 0 and prints the profile list; no saved profile is a legitimate zero",
+        "met": true,
+        "detail": "exit code 0; 1 records (saved wireless profiles, counted by valued lines; the names stay readable (the owner's own networks) and result.json maps each to its pseudonym)"
+      },
+      "target_process": null
+    },
+    {
+      "id": "wlan_interfaces",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:25.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\netsh.exe"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\netsh.exe",
+        "wlan",
+        "show",
+        "interfaces"
+      ],
+      "started_utc": "2026-03-01T12:00:23.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:27.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -437,14 +542,14 @@
         },
         {
           "path": "raw/wlan_interfaces/result.json",
-          "bytes": 1591,
-          "sha256": "7cd9dc1677b2b41e11bc7a568fdbc28babe1735dda4a55d302f4ff3a19596859",
+          "bytes": 1661,
+          "sha256": "0e4269cf4968426506b3a7264614a73d4ae390dafd47eb0ac1c67e116029ecf4",
           "role": "report"
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:00:18.0000000Z",
-        "end": "2026-03-01T12:00:21.0000000Z",
+        "start": "2026-03-01T12:00:23.0000000Z",
+        "end": "2026-03-01T12:00:26.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -463,7 +568,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:25.0000000Z",
+        "at_utc": "2026-03-01T12:00:30.0000000Z",
         "checks": [
           {
             "name": "tool_present",
@@ -478,8 +583,8 @@
         "show",
         "drivers"
       ],
-      "started_utc": "2026-03-01T12:00:23.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:27.0000000Z",
+      "started_utc": "2026-03-01T12:00:28.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:32.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -542,14 +647,14 @@
         },
         {
           "path": "raw/wlan_drivers/result.json",
-          "bytes": 3108,
-          "sha256": "2391c987e9516727f8675134e1da52fc849ec81ef83f5b84f7e5e2d285a92b2e",
+          "bytes": 3179,
+          "sha256": "5a13aa600fc61cdd7e1c5ee0159a2bb6f53fcb718971e4f29e8b6a6fb618b6c4",
           "role": "report"
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:00:23.0000000Z",
-        "end": "2026-03-01T12:00:26.0000000Z",
+        "start": "2026-03-01T12:00:28.0000000Z",
+        "end": "2026-03-01T12:00:31.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -568,7 +673,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:30.0000000Z",
+        "at_utc": "2026-03-01T12:00:35.0000000Z",
         "checks": [
           {
             "name": "tool_present",
@@ -584,8 +689,8 @@
         "networks",
         "mode=bssid"
       ],
-      "started_utc": "2026-03-01T12:00:28.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:32.0000000Z",
+      "started_utc": "2026-03-01T12:00:33.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:37.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -648,14 +753,14 @@
         },
         {
           "path": "raw/wlan_networks/result.json",
-          "bytes": 4677,
-          "sha256": "9f29e553366929c3aafc2539443eabbd0221d14d004dc33a559bf1f002f75765",
+          "bytes": 4748,
+          "sha256": "40b224361f2c379ff2b011c182c6e31dc99518396f2522f902b6ec859694327a",
           "role": "report"
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:00:28.0000000Z",
-        "end": "2026-03-01T12:00:31.0000000Z",
+        "start": "2026-03-01T12:00:33.0000000Z",
+        "end": "2026-03-01T12:00:36.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -667,116 +772,11 @@
       "target_process": null
     },
     {
-      "id": "wlan_profiles",
-      "kind": "other",
-      "required": false,
-      "status": "observed",
-      "status_reason": null,
-      "preflight": {
-        "ok": true,
-        "at_utc": "2026-03-01T12:00:35.0000000Z",
-        "checks": [
-          {
-            "name": "tool_present",
-            "ok": true,
-            "detail": "C:\\Windows\\System32\\netsh.exe"
-          }
-        ]
-      },
-      "command": [
-        "C:\\Windows\\System32\\netsh.exe",
-        "wlan",
-        "show",
-        "profiles"
-      ],
-      "started_utc": "2026-03-01T12:00:33.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:37.0000000Z",
-      "exit_code": null,
-      "config_hash": {
-        "algorithm": "sha256",
-        "value": "600b3a573cf77efe43991aa7b43baf9e65aa7baec3a2a7afa722ad7d466ba06d"
-      },
-      "filter_hash": null,
-      "requested": {
-        "providers": [],
-        "keywords": [],
-        "stack_walk": [],
-        "counters": [],
-        "options": {
-          "tool": "C:\\Windows\\System32\\netsh.exe",
-          "arguments": "wlan show profiles",
-          "timeout_seconds": 80,
-          "max_artifact_bytes": 67108864,
-          "output_encoding": "utf-8",
-          "output_code_page": 65001,
-          "line_endings": "lf",
-          "protection": {
-            "mode": "profiles",
-            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
-            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
-            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
-          },
-          "zero_records_rule": "observed_zero"
-        }
-      },
-      "enabled": {
-        "providers": [],
-        "keywords": [],
-        "stack_walk": [],
-        "counters": [],
-        "options": {
-          "exit_code": 0,
-          "timed_out": false,
-          "duration_ms": 7,
-          "stdout_bytes": 186,
-          "records": 1,
-          "mac_addresses_replaced": 0,
-          "network_names_replaced": 1,
-          "output_encoding": "utf-8"
-        },
-        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
-      },
-      "events_lost": null,
-      "buffers": null,
-      "artifacts": [
-        {
-          "path": "raw/wlan_profiles/command.json",
-          "bytes": 676,
-          "sha256": "600b3a573cf77efe43991aa7b43baf9e65aa7baec3a2a7afa722ad7d466ba06d",
-          "role": "config"
-        },
-        {
-          "path": "raw/wlan_profiles/output.txt",
-          "bytes": 186,
-          "sha256": "27312768b0cb953f81f7b622ff05faf7c16bacc53ea944b197833249ecae133d",
-          "role": "primary"
-        },
-        {
-          "path": "raw/wlan_profiles/result.json",
-          "bytes": 667,
-          "sha256": "6e889a82a3b732539d61cd92bf6f5397b62273c2a4cf566bea403058488052c0",
-          "role": "report"
-        }
-      ],
-      "raw_time_range": {
-        "start": "2026-03-01T12:00:33.0000000Z",
-        "end": "2026-03-01T12:00:36.0000000Z",
-        "domain": "system_time",
-        "unit": "iso_utc"
-      },
-      "expectation": {
-        "declared": "netsh exits with code 0 and prints the profile list; no saved profile is a legitimate zero",
-        "met": true,
-        "detail": "exit code 0; 1 records (saved wireless profiles, counted by name pseudonyms)"
-      },
-      "target_process": null
-    },
-    {
       "id": "wlan_report",
       "kind": "other",
       "required": false,
       "status": "not_collected",
-      "status_reason": "preflight failed, the source could not be opened: the file does not exist: C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html. The report is created by \"netsh wlan show wlanreport\" from an Administrator command prompt (https://support.microsoft.com/windows/analyze-the-wireless-network-report-76da0daa-1db2-6049-d154-7bb679eb03ed), which prints where it saved the file; this collector never creates it.",
+      "status_reason": "preflight failed, the source could not be opened: the file does not exist: C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html. The report is created by \"netsh wlan show wlanreport\" from an Administrator command prompt (https://support.microsoft.com/windows/analyze-the-wireless-network-report-76da0daa-1db2-6049-d154-7bb679eb03ed), which prints where it saved the file; this collector never creates it and never copies its text.",
       "preflight": {
         "ok": false,
         "at_utc": "2026-03-01T12:00:39.0000000Z",
@@ -802,7 +802,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "f044956d3367aa608298c7328db547f4a09a3d382bd9e55e757354e2d1438017"
+        "value": "532e25a15517349423864451a282b39c72f24199a39bfd5e6adfb0b8f3311318"
       },
       "filter_hash": null,
       "requested": {
@@ -814,12 +814,8 @@
           "path": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html",
           "path_documented": false,
           "max_artifact_bytes": 67108864,
-          "protection": {
-            "mode": "generic",
-            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
-            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
-            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
-          }
+          "mode": "summary",
+          "why_no_copy": "the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded"
         }
       },
       "enabled": {
@@ -832,33 +828,31 @@
           "readable": false,
           "source_bytes": null,
           "last_write_time_utc": null,
-          "copy_bytes": 0,
-          "mac_addresses_replaced": 0,
-          "network_names_replaced": 0
+          "content_kept": false
         },
-        "verified_by": "the source size and last write time are in result.json; the copy is the primary artifact"
+        "verified_by": "the source size, time and hash are in the summary artifact; the text itself is not in the bundle"
       },
       "events_lost": null,
       "buffers": null,
       "artifacts": [
         {
           "path": "raw/wlan_report/result.json",
-          "bytes": 359,
-          "sha256": "56596ca6af85b978787fbc1c75534f1f36883c1ba2bec763f4a6531ce4b31bbd",
+          "bytes": 214,
+          "sha256": "95683e8603e188acae30319cd04a558b924b834ef0359cee45930d90ff568a13",
           "role": "report"
         },
         {
           "path": "raw/wlan_report/source.json",
-          "bytes": 558,
-          "sha256": "f044956d3367aa608298c7328db547f4a09a3d382bd9e55e757354e2d1438017",
+          "bytes": 323,
+          "sha256": "532e25a15517349423864451a282b39c72f24199a39bfd5e6adfb0b8f3311318",
           "role": "config"
         }
       ],
       "raw_time_range": null,
       "expectation": {
-        "declared": "the report exists at the conventional location, is readable, and is copied with names and addresses pseudonymised",
+        "declared": "the report exists at the conventional location and is readable; its size, time and hash are recorded, its text is not",
         "met": false,
-        "detail": "the file does not exist: C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html. The report is created by \"netsh wlan show wlanreport\" from an Administrator command prompt (https://support.microsoft.com/windows/analyze-the-wireless-network-report-76da0daa-1db2-6049-d154-7bb679eb03ed), which prints where it saved the file; this collector never creates it."
+        "detail": "the file does not exist: C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html. The report is created by \"netsh wlan show wlanreport\" from an Administrator command prompt (https://support.microsoft.com/windows/analyze-the-wireless-network-report-76da0daa-1db2-6049-d154-7bb679eb03ed), which prints where it saved the file; this collector never creates it and never copies its text."
       },
       "target_process": null
     },
@@ -934,7 +928,7 @@
           "timed_out": false,
           "evtx_exported": false,
           "evtx_exit_code": null,
-          "evtx_message": "not attempted: the records of this channel are pseudonymised before they are written, and a binary export would carry the network names in clear",
+          "evtx_message": "not attempted: the records of this channel are reduced to their System section before they are written, and a binary export would carry the full records in clear",
           "evtx_command": null
         },
         "verified_by": "EventLogReader accepted the query in query.xml; the oldest retained record and the provider list are in channel_state.json"
@@ -1074,8 +1068,8 @@
         },
         {
           "path": "raw/usb_device_tree/result.json",
-          "bytes": 254,
-          "sha256": "6d96296069b0da1895e185df023b652158d8a7f77fb06af8112bfaf3ed396154",
+          "bytes": 287,
+          "sha256": "9ff722845bfba9551dd086850c838c5593a47c1d6ddb14b3cacad6f755039087",
           "role": "report"
         }
       ],
@@ -1175,8 +1169,8 @@
       "artifacts": [
         {
           "path": "raw/bluetooth_devices/devices.json",
-          "bytes": 6036,
-          "sha256": "c5e6d2ced9711fa3cb3559e01e7b37acd1fe1234253e9bcb0d4c72420d5cad3b",
+          "bytes": 6051,
+          "sha256": "2aed71f5b2172d94ec4bac1aeaf3163e164f9b3b961818077ea63838ed447430",
           "role": "primary"
         },
         {
@@ -1187,8 +1181,8 @@
         },
         {
           "path": "raw/bluetooth_devices/result.json",
-          "bytes": 253,
-          "sha256": "79e741206dd3c1cf35d350de21f170a6d1655b8b187e9e1929759eab1b65417a",
+          "bytes": 286,
+          "sha256": "87cd3db5cda2b52122fd0c5766fff686156ef6d1a485935ec5baf7e09d6290e1",
           "role": "report"
         }
       ],
@@ -1199,7 +1193,7 @@
         "unit": "iso_utc"
       },
       "expectation": {
-        "declared": "the device enumeration completes; a PC without a Bluetooth radio is a legitimate zero",
+        "declared": "the device enumeration completes; no present Bluetooth device node is a legitimate zero. Presence of a node says nothing about pairing or radio power, which are not measured",
         "met": true,
         "detail": "21 present devices, 10 selected (5 ancestors), 0 property reads failed"
       },
@@ -1256,7 +1250,7 @@
     "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
     "Each event log query selects a fixed interval, window_end_utc minus the window to window_end_utc, so records raised while the query ran are not part of the result.",
-    "Network names and hardware addresses are pseudonyms (ssid-<12 hex>, mac-<12 hex>) keyed with a random salt that was not stored: the same value maps to the same pseudonym inside this bundle and to nothing outside it.",
+    "Network names, hardware addresses and Bluetooth peer names are pseudonyms (ssid-<12 hex>, mac-<12 hex>, name-<12 hex>) keyed with a random salt that was not stored: the same value maps to the same pseudonym inside this bundle and to nothing outside it. The saved Wi-Fi profiles of this PC are the exception: they are the owner's own networks and stay readable, each with its pseudonym, so an explicit owner selection can be matched at analysis time.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine."
   ]
 }

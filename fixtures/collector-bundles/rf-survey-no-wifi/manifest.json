@@ -351,7 +351,7 @@
       "target_process": null
     },
     {
-      "id": "wlan_interfaces",
+      "id": "wlan_profiles",
       "kind": "other",
       "required": false,
       "status": "capture_failed",
@@ -371,293 +371,10 @@
         "C:\\Windows\\System32\\netsh.exe",
         "wlan",
         "show",
-        "interfaces"
+        "profiles"
       ],
       "started_utc": "2026-03-01T12:00:16.0000000Z",
       "stopped_utc": "2026-03-01T12:00:20.0000000Z",
-      "exit_code": null,
-      "config_hash": {
-        "algorithm": "sha256",
-        "value": "99e5567e108ce4227c3964e59341845c2126cd1689bda5f1bc34422d2df58ea6"
-      },
-      "filter_hash": null,
-      "requested": {
-        "providers": [],
-        "keywords": [],
-        "stack_walk": [],
-        "counters": [],
-        "options": {
-          "tool": "C:\\Windows\\System32\\netsh.exe",
-          "arguments": "wlan show interfaces",
-          "timeout_seconds": 80,
-          "max_artifact_bytes": 67108864,
-          "output_encoding": "utf-8",
-          "output_code_page": 65001,
-          "line_endings": "lf",
-          "protection": {
-            "mode": "interfaces",
-            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
-            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
-            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
-          },
-          "zero_records_rule": "observed_zero"
-        }
-      },
-      "enabled": {
-        "providers": [],
-        "keywords": [],
-        "stack_walk": [],
-        "counters": [],
-        "options": {
-          "exit_code": 1,
-          "timed_out": false,
-          "duration_ms": 7,
-          "stdout_bytes": 0,
-          "records": 0,
-          "mac_addresses_replaced": 0,
-          "network_names_replaced": 0,
-          "output_encoding": "utf-8"
-        },
-        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
-      },
-      "events_lost": null,
-      "buffers": null,
-      "artifacts": [
-        {
-          "path": "raw/wlan_interfaces/command.json",
-          "bytes": 680,
-          "sha256": "99e5567e108ce4227c3964e59341845c2126cd1689bda5f1bc34422d2df58ea6",
-          "role": "config"
-        },
-        {
-          "path": "raw/wlan_interfaces/result.json",
-          "bytes": 399,
-          "sha256": "1d87a2dff4f7a4dc5dbea908189d6c20c88c60c3e03977fd2bc374ddeb036720",
-          "role": "report"
-        }
-      ],
-      "raw_time_range": null,
-      "expectation": {
-        "declared": "netsh exits with code 0 and prints the interface list; a PC without a wireless interface is a legitimate zero",
-        "met": false,
-        "detail": "exit code 1; 0 records (wireless interfaces, counted by the GUID each one prints)"
-      },
-      "target_process": null
-    },
-    {
-      "id": "wlan_drivers",
-      "kind": "other",
-      "required": false,
-      "status": "capture_failed",
-      "status_reason": "the read started and then failed: C:\\Windows\\System32\\netsh.exe exited with code 1: The Wireless AutoConfig Service (wlansvc) is not running.",
-      "preflight": {
-        "ok": true,
-        "at_utc": "2026-03-01T12:00:23.0000000Z",
-        "checks": [
-          {
-            "name": "tool_present",
-            "ok": true,
-            "detail": "C:\\Windows\\System32\\netsh.exe"
-          }
-        ]
-      },
-      "command": [
-        "C:\\Windows\\System32\\netsh.exe",
-        "wlan",
-        "show",
-        "drivers"
-      ],
-      "started_utc": "2026-03-01T12:00:21.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:25.0000000Z",
-      "exit_code": null,
-      "config_hash": {
-        "algorithm": "sha256",
-        "value": "e257fc59cd5f900712d67204d16d1fbafaeff83489a296a84ee2f7793ed13863"
-      },
-      "filter_hash": null,
-      "requested": {
-        "providers": [],
-        "keywords": [],
-        "stack_walk": [],
-        "counters": [],
-        "options": {
-          "tool": "C:\\Windows\\System32\\netsh.exe",
-          "arguments": "wlan show drivers",
-          "timeout_seconds": 80,
-          "max_artifact_bytes": 67108864,
-          "output_encoding": "utf-8",
-          "output_code_page": 65001,
-          "line_endings": "lf",
-          "protection": {
-            "mode": "drivers",
-            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
-            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
-            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
-          },
-          "zero_records_rule": "observed_zero"
-        }
-      },
-      "enabled": {
-        "providers": [],
-        "keywords": [],
-        "stack_walk": [],
-        "counters": [],
-        "options": {
-          "exit_code": 1,
-          "timed_out": false,
-          "duration_ms": 7,
-          "stdout_bytes": 0,
-          "records": 0,
-          "mac_addresses_replaced": 0,
-          "network_names_replaced": 0,
-          "output_encoding": "utf-8"
-        },
-        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
-      },
-      "events_lost": null,
-      "buffers": null,
-      "artifacts": [
-        {
-          "path": "raw/wlan_drivers/command.json",
-          "bytes": 674,
-          "sha256": "e257fc59cd5f900712d67204d16d1fbafaeff83489a296a84ee2f7793ed13863",
-          "role": "config"
-        },
-        {
-          "path": "raw/wlan_drivers/result.json",
-          "bytes": 401,
-          "sha256": "3575e0c8699110489021f3b92aacf8f6a56d2080a0831b6de63fd9bb94ea09b2",
-          "role": "report"
-        }
-      ],
-      "raw_time_range": null,
-      "expectation": {
-        "declared": "netsh exits with code 0 and prints the driver properties; a PC without a wireless interface is a legitimate zero",
-        "met": false,
-        "detail": "exit code 1; 0 records (wireless driver blocks, counted by unindented header lines)"
-      },
-      "target_process": null
-    },
-    {
-      "id": "wlan_networks",
-      "kind": "other",
-      "required": false,
-      "status": "capture_failed",
-      "status_reason": "the read started and then failed: C:\\Windows\\System32\\netsh.exe exited with code 1: The Wireless AutoConfig Service (wlansvc) is not running.",
-      "preflight": {
-        "ok": true,
-        "at_utc": "2026-03-01T12:00:28.0000000Z",
-        "checks": [
-          {
-            "name": "tool_present",
-            "ok": true,
-            "detail": "C:\\Windows\\System32\\netsh.exe"
-          }
-        ]
-      },
-      "command": [
-        "C:\\Windows\\System32\\netsh.exe",
-        "wlan",
-        "show",
-        "networks",
-        "mode=bssid"
-      ],
-      "started_utc": "2026-03-01T12:00:26.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:30.0000000Z",
-      "exit_code": null,
-      "config_hash": {
-        "algorithm": "sha256",
-        "value": "e6b11579666589459945fffff301191543c9c51dfb59903c587e927ce4ac5da5"
-      },
-      "filter_hash": null,
-      "requested": {
-        "providers": [],
-        "keywords": [],
-        "stack_walk": [],
-        "counters": [],
-        "options": {
-          "tool": "C:\\Windows\\System32\\netsh.exe",
-          "arguments": "wlan show networks mode=bssid",
-          "timeout_seconds": 80,
-          "max_artifact_bytes": 67108864,
-          "output_encoding": "utf-8",
-          "output_code_page": 65001,
-          "line_endings": "lf",
-          "protection": {
-            "mode": "networks",
-            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
-            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
-            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
-          },
-          "zero_records_rule": "capture_failed"
-        }
-      },
-      "enabled": {
-        "providers": [],
-        "keywords": [],
-        "stack_walk": [],
-        "counters": [],
-        "options": {
-          "exit_code": 1,
-          "timed_out": false,
-          "duration_ms": 7,
-          "stdout_bytes": 0,
-          "records": 0,
-          "mac_addresses_replaced": 0,
-          "network_names_replaced": 0,
-          "output_encoding": "utf-8"
-        },
-        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
-      },
-      "events_lost": null,
-      "buffers": null,
-      "artifacts": [
-        {
-          "path": "raw/wlan_networks/command.json",
-          "bytes": 688,
-          "sha256": "e6b11579666589459945fffff301191543c9c51dfb59903c587e927ce4ac5da5",
-          "role": "config"
-        },
-        {
-          "path": "raw/wlan_networks/result.json",
-          "bytes": 413,
-          "sha256": "5ef8e0b511d4e766bda94df93a78973413efc013063ef1746f81da2c39c41d16",
-          "role": "report"
-        }
-      ],
-      "raw_time_range": null,
-      "expectation": {
-        "declared": "netsh exits with code 0 and lists at least one network; zero networks is not accepted as an empty airspace",
-        "met": false,
-        "detail": "exit code 1; 0 records (visible access points (BSSIDs), counted by distinct address pseudonyms)"
-      },
-      "target_process": null
-    },
-    {
-      "id": "wlan_profiles",
-      "kind": "other",
-      "required": false,
-      "status": "capture_failed",
-      "status_reason": "the read started and then failed: C:\\Windows\\System32\\netsh.exe exited with code 1: The Wireless AutoConfig Service (wlansvc) is not running.",
-      "preflight": {
-        "ok": true,
-        "at_utc": "2026-03-01T12:00:33.0000000Z",
-        "checks": [
-          {
-            "name": "tool_present",
-            "ok": true,
-            "detail": "C:\\Windows\\System32\\netsh.exe"
-          }
-        ]
-      },
-      "command": [
-        "C:\\Windows\\System32\\netsh.exe",
-        "wlan",
-        "show",
-        "profiles"
-      ],
-      "started_utc": "2026-03-01T12:00:31.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:35.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -714,8 +431,8 @@
         },
         {
           "path": "raw/wlan_profiles/result.json",
-          "bytes": 394,
-          "sha256": "d98d5c0b4e75b7a395e8a3d299c3406e5759fc61c9a9fdfac4031f29476449f4",
+          "bytes": 553,
+          "sha256": "2098499cdece18203bc7dbd88cf0d816ac13778737baca8f990e1b7baf4d4870",
           "role": "report"
         }
       ],
@@ -723,7 +440,290 @@
       "expectation": {
         "declared": "netsh exits with code 0 and prints the profile list; no saved profile is a legitimate zero",
         "met": false,
-        "detail": "exit code 1; 0 records (saved wireless profiles, counted by name pseudonyms)"
+        "detail": "exit code 1; 0 records (saved wireless profiles, counted by valued lines; the names stay readable (the owner's own networks) and result.json maps each to its pseudonym)"
+      },
+      "target_process": null
+    },
+    {
+      "id": "wlan_interfaces",
+      "kind": "other",
+      "required": false,
+      "status": "capture_failed",
+      "status_reason": "the read started and then failed: C:\\Windows\\System32\\netsh.exe exited with code 1: The Wireless AutoConfig Service (wlansvc) is not running.",
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:23.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\netsh.exe"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\netsh.exe",
+        "wlan",
+        "show",
+        "interfaces"
+      ],
+      "started_utc": "2026-03-01T12:00:21.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:25.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "99e5567e108ce4227c3964e59341845c2126cd1689bda5f1bc34422d2df58ea6"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\Windows\\System32\\netsh.exe",
+          "arguments": "wlan show interfaces",
+          "timeout_seconds": 80,
+          "max_artifact_bytes": 67108864,
+          "output_encoding": "utf-8",
+          "output_code_page": 65001,
+          "line_endings": "lf",
+          "protection": {
+            "mode": "interfaces",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
+          },
+          "zero_records_rule": "observed_zero"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exit_code": 1,
+          "timed_out": false,
+          "duration_ms": 7,
+          "stdout_bytes": 0,
+          "records": 0,
+          "mac_addresses_replaced": 0,
+          "network_names_replaced": 0,
+          "output_encoding": "utf-8"
+        },
+        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/wlan_interfaces/command.json",
+          "bytes": 680,
+          "sha256": "99e5567e108ce4227c3964e59341845c2126cd1689bda5f1bc34422d2df58ea6",
+          "role": "config"
+        },
+        {
+          "path": "raw/wlan_interfaces/result.json",
+          "bytes": 468,
+          "sha256": "52c3e3d917b038944e1aac5919f3dc4c2220356cba731b0a3362510244aaeae5",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "netsh exits with code 0 and prints the interface list; a PC without a wireless interface is a legitimate zero",
+        "met": false,
+        "detail": "exit code 1; 0 records (wireless interfaces, counted by the GUID each one prints)"
+      },
+      "target_process": null
+    },
+    {
+      "id": "wlan_drivers",
+      "kind": "other",
+      "required": false,
+      "status": "capture_failed",
+      "status_reason": "the read started and then failed: C:\\Windows\\System32\\netsh.exe exited with code 1: The Wireless AutoConfig Service (wlansvc) is not running.",
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:28.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\netsh.exe"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\netsh.exe",
+        "wlan",
+        "show",
+        "drivers"
+      ],
+      "started_utc": "2026-03-01T12:00:26.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:30.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "e257fc59cd5f900712d67204d16d1fbafaeff83489a296a84ee2f7793ed13863"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\Windows\\System32\\netsh.exe",
+          "arguments": "wlan show drivers",
+          "timeout_seconds": 80,
+          "max_artifact_bytes": 67108864,
+          "output_encoding": "utf-8",
+          "output_code_page": 65001,
+          "line_endings": "lf",
+          "protection": {
+            "mode": "drivers",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
+          },
+          "zero_records_rule": "observed_zero"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exit_code": 1,
+          "timed_out": false,
+          "duration_ms": 7,
+          "stdout_bytes": 0,
+          "records": 0,
+          "mac_addresses_replaced": 0,
+          "network_names_replaced": 0,
+          "output_encoding": "utf-8"
+        },
+        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/wlan_drivers/command.json",
+          "bytes": 674,
+          "sha256": "e257fc59cd5f900712d67204d16d1fbafaeff83489a296a84ee2f7793ed13863",
+          "role": "config"
+        },
+        {
+          "path": "raw/wlan_drivers/result.json",
+          "bytes": 470,
+          "sha256": "6ecc64c9df4e090c2cb27fcb450bfe7ec570858d41e56bbb9750d4222f0771a9",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "netsh exits with code 0 and prints the driver properties; a PC without a wireless interface is a legitimate zero",
+        "met": false,
+        "detail": "exit code 1; 0 records (wireless driver blocks, counted by unindented header lines)"
+      },
+      "target_process": null
+    },
+    {
+      "id": "wlan_networks",
+      "kind": "other",
+      "required": false,
+      "status": "capture_failed",
+      "status_reason": "the read started and then failed: C:\\Windows\\System32\\netsh.exe exited with code 1: The Wireless AutoConfig Service (wlansvc) is not running.",
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:33.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\netsh.exe"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\netsh.exe",
+        "wlan",
+        "show",
+        "networks",
+        "mode=bssid"
+      ],
+      "started_utc": "2026-03-01T12:00:31.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:35.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "e6b11579666589459945fffff301191543c9c51dfb59903c587e927ce4ac5da5"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\Windows\\System32\\netsh.exe",
+          "arguments": "wlan show networks mode=bssid",
+          "timeout_seconds": 80,
+          "max_artifact_bytes": 67108864,
+          "output_encoding": "utf-8",
+          "output_code_page": 65001,
+          "line_endings": "lf",
+          "protection": {
+            "mode": "networks",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
+          },
+          "zero_records_rule": "capture_failed"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exit_code": 1,
+          "timed_out": false,
+          "duration_ms": 7,
+          "stdout_bytes": 0,
+          "records": 0,
+          "mac_addresses_replaced": 0,
+          "network_names_replaced": 0,
+          "output_encoding": "utf-8"
+        },
+        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/wlan_networks/command.json",
+          "bytes": 688,
+          "sha256": "e6b11579666589459945fffff301191543c9c51dfb59903c587e927ce4ac5da5",
+          "role": "config"
+        },
+        {
+          "path": "raw/wlan_networks/result.json",
+          "bytes": 482,
+          "sha256": "cd5442311dc3f4ac12ace22986ab7b7c0471b099387715f16ef5ab3499f36348",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "netsh exits with code 0 and lists at least one network; zero networks is not accepted as an empty airspace",
+        "met": false,
+        "detail": "exit code 1; 0 records (visible access points (BSSIDs), counted by distinct address pseudonyms)"
       },
       "target_process": null
     },
@@ -732,7 +732,7 @@
       "kind": "other",
       "required": false,
       "status": "not_collected",
-      "status_reason": "preflight failed, the source could not be opened: the file does not exist: C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html. The report is created by \"netsh wlan show wlanreport\" from an Administrator command prompt (https://support.microsoft.com/windows/analyze-the-wireless-network-report-76da0daa-1db2-6049-d154-7bb679eb03ed), which prints where it saved the file; this collector never creates it.",
+      "status_reason": "preflight failed, the source could not be opened: the file does not exist: C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html. The report is created by \"netsh wlan show wlanreport\" from an Administrator command prompt (https://support.microsoft.com/windows/analyze-the-wireless-network-report-76da0daa-1db2-6049-d154-7bb679eb03ed), which prints where it saved the file; this collector never creates it and never copies its text.",
       "preflight": {
         "ok": false,
         "at_utc": "2026-03-01T12:00:37.0000000Z",
@@ -758,7 +758,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "f044956d3367aa608298c7328db547f4a09a3d382bd9e55e757354e2d1438017"
+        "value": "532e25a15517349423864451a282b39c72f24199a39bfd5e6adfb0b8f3311318"
       },
       "filter_hash": null,
       "requested": {
@@ -770,12 +770,8 @@
           "path": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html",
           "path_documented": false,
           "max_artifact_bytes": 67108864,
-          "protection": {
-            "mode": "generic",
-            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
-            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
-            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
-          }
+          "mode": "summary",
+          "why_no_copy": "the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded"
         }
       },
       "enabled": {
@@ -788,33 +784,31 @@
           "readable": false,
           "source_bytes": null,
           "last_write_time_utc": null,
-          "copy_bytes": 0,
-          "mac_addresses_replaced": 0,
-          "network_names_replaced": 0
+          "content_kept": false
         },
-        "verified_by": "the source size and last write time are in result.json; the copy is the primary artifact"
+        "verified_by": "the source size, time and hash are in the summary artifact; the text itself is not in the bundle"
       },
       "events_lost": null,
       "buffers": null,
       "artifacts": [
         {
           "path": "raw/wlan_report/result.json",
-          "bytes": 359,
-          "sha256": "5ade1a228233a2f82077b494246e404bbf11ff8337581bc3be71e3d024ca3442",
+          "bytes": 214,
+          "sha256": "95683e8603e188acae30319cd04a558b924b834ef0359cee45930d90ff568a13",
           "role": "report"
         },
         {
           "path": "raw/wlan_report/source.json",
-          "bytes": 558,
-          "sha256": "f044956d3367aa608298c7328db547f4a09a3d382bd9e55e757354e2d1438017",
+          "bytes": 323,
+          "sha256": "532e25a15517349423864451a282b39c72f24199a39bfd5e6adfb0b8f3311318",
           "role": "config"
         }
       ],
       "raw_time_range": null,
       "expectation": {
-        "declared": "the report exists at the conventional location, is readable, and is copied with names and addresses pseudonymised",
+        "declared": "the report exists at the conventional location and is readable; its size, time and hash are recorded, its text is not",
         "met": false,
-        "detail": "the file does not exist: C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html. The report is created by \"netsh wlan show wlanreport\" from an Administrator command prompt (https://support.microsoft.com/windows/analyze-the-wireless-network-report-76da0daa-1db2-6049-d154-7bb679eb03ed), which prints where it saved the file; this collector never creates it."
+        "detail": "the file does not exist: C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html. The report is created by \"netsh wlan show wlanreport\" from an Administrator command prompt (https://support.microsoft.com/windows/analyze-the-wireless-network-report-76da0daa-1db2-6049-d154-7bb679eb03ed), which prints where it saved the file; this collector never creates it and never copies its text."
       },
       "target_process": null
     },
@@ -890,7 +884,7 @@
           "timed_out": false,
           "evtx_exported": false,
           "evtx_exit_code": null,
-          "evtx_message": "not attempted: the records of this channel are pseudonymised before they are written, and a binary export would carry the network names in clear",
+          "evtx_message": "not attempted: the records of this channel are reduced to their System section before they are written, and a binary export would carry the full records in clear",
           "evtx_command": null
         },
         "verified_by": "EventLogReader accepted the query in query.xml; the oldest retained record and the provider list are in channel_state.json"
@@ -1019,8 +1013,8 @@
         },
         {
           "path": "raw/usb_device_tree/result.json",
-          "bytes": 253,
-          "sha256": "ff825e21fe433270c6517c7bdc8030094c881d406e77f1210d51fc0179bee98c",
+          "bytes": 286,
+          "sha256": "75d28a8526c10b962c807cc446b8d496f89c03370756bac27a8d3e3cede49613",
           "role": "report"
         }
       ],
@@ -1132,8 +1126,8 @@
         },
         {
           "path": "raw/bluetooth_devices/result.json",
-          "bytes": 252,
-          "sha256": "4ee282fa5de752a0ee129344009c3a3228ea3368221c05f5fdd373f1eee80879",
+          "bytes": 285,
+          "sha256": "a31c94272b2a9e892ff7a84d1efdfc5be736304f32403c16fb0b6cdaced6de02",
           "role": "report"
         }
       ],
@@ -1144,7 +1138,7 @@
         "unit": "iso_utc"
       },
       "expectation": {
-        "declared": "the device enumeration completes; a PC without a Bluetooth radio is a legitimate zero",
+        "declared": "the device enumeration completes; no present Bluetooth device node is a legitimate zero. Presence of a node says nothing about pairing or radio power, which are not measured",
         "met": true,
         "detail": "12 present devices, 0 selected (0 ancestors), 0 property reads failed"
       },
@@ -1201,7 +1195,7 @@
     "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
     "Each event log query selects a fixed interval, window_end_utc minus the window to window_end_utc, so records raised while the query ran are not part of the result.",
-    "Network names and hardware addresses are pseudonyms (ssid-<12 hex>, mac-<12 hex>) keyed with a random salt that was not stored: the same value maps to the same pseudonym inside this bundle and to nothing outside it.",
+    "Network names, hardware addresses and Bluetooth peer names are pseudonyms (ssid-<12 hex>, mac-<12 hex>, name-<12 hex>) keyed with a random salt that was not stored: the same value maps to the same pseudonym inside this bundle and to nothing outside it. The saved Wi-Fi profiles of this PC are the exception: they are the owner's own networks and stay readable, each with its pseudonym, so an explicit owner selection can be matched at analysis time.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine."
   ]
 }
