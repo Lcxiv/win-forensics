@@ -1,0 +1,25 @@
+{
+  "class": "MSFT_NetRoute",
+  "namespace": "root/StandardCimv2",
+  "properties": [
+    "DestinationPrefix",
+    "NextHop",
+    "InterfaceIndex",
+    "InterfaceAlias",
+    "RouteMetric",
+    "Protocol",
+    "AddressFamily",
+    "Store",
+    "Publish",
+    "TypeOfRoute"
+  ],
+  "filter": "DestinationPrefix = '0.0.0.0/0' OR DestinationPrefix = '::/0'",
+  "time_property": null,
+  "window_days": null,
+  "window_start_utc": null,
+  "window_end_utc": null,
+  "coverage_probe_filter": null,
+  "max_records": 5000,
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 80
+}

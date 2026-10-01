@@ -1,0 +1,97 @@
+{
+  "started_utc": "2026-03-01T12:00:28.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:31.0000000Z",
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_ms": 7,
+  "stdout_bytes": 547,
+  "stdout_bytes_read": 560,
+  "diagnostic": null,
+  "stderr": "",
+  "records": 1,
+  "records_meaning": "wireless driver blocks, counted by unindented header lines",
+  "protection": {
+    "mac_addresses_replaced": 0,
+    "network_names_replaced": 0
+  },
+  "profiles": null,
+  "fields": [
+    {
+      "line": 2,
+      "block": 0,
+      "indent": 0,
+      "label": "Schnittstellenname",
+      "value": "WLAN"
+    },
+    {
+      "line": 4,
+      "block": 0,
+      "indent": 4,
+      "label": "Treiber",
+      "value": "Synthetic Wi-Fi 6E AX Adapter"
+    },
+    {
+      "line": 5,
+      "block": 0,
+      "indent": 4,
+      "label": "Anbieter",
+      "value": "Synthetic Wireless"
+    },
+    {
+      "line": 6,
+      "block": 0,
+      "indent": 4,
+      "label": "Hersteller",
+      "value": "Synthetic Wireless"
+    },
+    {
+      "line": 7,
+      "block": 0,
+      "indent": 4,
+      "label": "Datum",
+      "value": "10.01.2026"
+    },
+    {
+      "line": 8,
+      "block": 0,
+      "indent": 4,
+      "label": "Version",
+      "value": "23.0.0.1"
+    },
+    {
+      "line": 9,
+      "block": 0,
+      "indent": 4,
+      "label": "INF-Datei",
+      "value": "oem42.inf"
+    },
+    {
+      "line": 10,
+      "block": 0,
+      "indent": 4,
+      "label": "Typ",
+      "value": "Systemeigener WLAN-Treiber"
+    },
+    {
+      "line": 11,
+      "block": 0,
+      "indent": 4,
+      "label": "Unterst\u00fctzte Funktypen",
+      "value": "802.11b 802.11g 802.11n 802.11a 802.11ac 802.11ax"
+    },
+    {
+      "line": 12,
+      "block": 0,
+      "indent": 4,
+      "label": "FIPS 140-2-Modus unterst\u00fctzt",
+      "value": "Ja"
+    },
+    {
+      "line": 13,
+      "block": 0,
+      "indent": 4,
+      "label": "Gehostetes Netzwerk unterst\u00fctzt",
+      "value": "Nein"
+    }
+  ]
+}

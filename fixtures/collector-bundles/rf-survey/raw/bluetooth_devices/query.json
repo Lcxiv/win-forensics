@@ -1,0 +1,23 @@
+{
+  "enumeration": "Win32_PnPEntity, present devices, root/cimv2",
+  "classes": [
+    "Bluetooth"
+  ],
+  "instance_prefixes": [
+    "BTH"
+  ],
+  "include_ancestors": true,
+  "property_keys": [
+    "DEVPKEY_Device_Parent",
+    "DEVPKEY_Device_LocationPaths",
+    "DEVPKEY_Device_LocationInfo",
+    "DEVPKEY_Device_Address",
+    "DEVPKEY_Device_ContainerId",
+    "DEVPKEY_Device_BusReportedDeviceDesc",
+    "DEVPKEY_Device_EnumeratorName"
+  ],
+  "max_records": 5000,
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 80,
+  "zero_is_observation": true
+}

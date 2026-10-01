@@ -1,0 +1,26 @@
+{
+  "channel": "Microsoft-Windows-WLAN-AutoConfig/Operational",
+  "read_at_utc": "2026-03-01T12:00:49.0000000Z",
+  "state": {
+    "found": true,
+    "readable": true,
+    "error": null,
+    "error_kind": null,
+    "record_count": 800,
+    "oldest_record_number": 1,
+    "oldest_record_time_utc": "2025-12-31T12:00:00.0000000Z",
+    "oldest_probe": "read",
+    "file_size_bytes": 1052672,
+    "is_log_full": false,
+    "last_write_time_utc": null,
+    "is_enabled": true,
+    "log_mode": "Circular",
+    "maximum_size_bytes": 20971520,
+    "isolation": "System",
+    "security_descriptor": "O:BAG:SYD:(A;;0xf0007;;;SY)(A;;0x7;;;BA)(A;;0x3;;;BO)(A;;0x5;;;SO)(A;;0x1;;;IU)(A;;0x3;;;SU)(A;;0x1;;;S-1-5-3)(A;;0x2;;;S-1-5-33)(A;;0x1;;;S-1-5-32-573)",
+    "configuration_error": null
+  },
+  "providers_registered": {
+    "Microsoft-Windows-WLAN-AutoConfig": true
+  }
+}

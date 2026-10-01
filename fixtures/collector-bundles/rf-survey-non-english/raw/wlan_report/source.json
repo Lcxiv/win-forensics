@@ -1,0 +1,7 @@
+{
+  "path": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html",
+  "path_documented": false,
+  "max_artifact_bytes": 67108864,
+  "mode": "summary",
+  "why_no_copy": "the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded"
+}

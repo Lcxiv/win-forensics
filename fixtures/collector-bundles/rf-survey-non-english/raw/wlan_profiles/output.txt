@@ -1,0 +1,12 @@
+
+Profile auf Schnittstelle WLAN:
+
+Gruppenrichtlinienprofile (schreibgeschützt)
+---------------------------------
+    <Keine>
+
+Benutzerprofile
+-------------
+    Profil für alle Benutzer     : Harbor-Home
+
+

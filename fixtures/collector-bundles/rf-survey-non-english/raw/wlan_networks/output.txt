@@ -1,0 +1,64 @@
+
+Schnittstellenname : WLAN 
+Derzeit sind 4 Netzwerke sichtbar. 
+
+SSID 1 : ssid-7a7a32d73bc8
+    Netzwerktyp             : Infrastruktur
+    Authentifizierung       : WPA2-Personal
+    Verschlüsselung         : CCMP 
+    BSSID 1                 : mac-bc9b1391f272
+         Signal             : 94%  
+         Funktyp            : 802.11ax
+         Band               : 2,4 GHz
+         Kanal              : 6 
+         Bss Load:
+             Verbundene Stationen:       3
+             Kanalauslastung:            92 (36 %)
+             Verfügbare Medienkapazität: 21875 (700 ms)
+         Basisraten (MBit/s) : 1 2 5,5 11
+         Andere Raten (MBit/s) : 6 9 12 18 24 36 48 54
+    BSSID 2                 : mac-e98ca0aa8b9d
+         Signal             : 88%  
+         Funktyp            : 802.11ax
+         Band               : 5 GHz
+         Kanal              : 36 
+         Basisraten (MBit/s) : 6 12 24
+         Andere Raten (MBit/s) : 9 18 36 48 54
+
+SSID 2 : ssid-3db41b961831
+    Netzwerktyp             : Infrastruktur
+    Authentifizierung       : WPA2-Personal
+    Verschlüsselung         : CCMP 
+    BSSID 1                 : mac-1c9ef6c2fe77
+         Signal             : 70%  
+         Funktyp            : 802.11n
+         Band               : 2,4 GHz
+         Kanal              : 6 
+         Basisraten (MBit/s) : 1 2 5,5 11
+         Andere Raten (MBit/s) : 6 9 12 18 24 36 48 54
+
+SSID 3 : ssid-5ab765bb7eea
+    Netzwerktyp             : Infrastruktur
+    Authentifizierung       : WPA2-Personal
+    Verschlüsselung         : CCMP 
+    BSSID 1                 : mac-73e79aa58470
+         Signal             : 62%  
+         Funktyp            : 802.11ax
+         Band               : 2,4 GHz
+         Kanal              : 6 
+         Basisraten (MBit/s) : 1 2 5,5 11
+         Andere Raten (MBit/s) : 6 9 12 18 24 36 48 54
+
+SSID 4 : ssid-136773c56e5a
+    Netzwerktyp             : Infrastruktur
+    Authentifizierung       : WPA2-Personal
+    Verschlüsselung         : CCMP 
+    BSSID 1                 : mac-4dc09d4a5410
+         Signal             : 35%  
+         Funktyp            : 802.11n
+         Band               : 2,4 GHz
+         Kanal              : 11 
+         Basisraten (MBit/s) : 1 2 5,5 11
+         Andere Raten (MBit/s) : 6 9 12 18 24 36 48 54
+
+

@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/net_route.schema.json",
+  "title": "net_route row",
+  "description": "One row per MSFT_NetRoute instance from the default_routes source. See docs/contracts/decoded-tables.md section 5.16.",
+  "x-schema-version": "1.0.0",
+  "x-decoded-table": "net_route",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "destination_prefix",
+    "next_hop",
+    "interface_index",
+    "interface_alias",
+    "route_metric",
+    "protocol",
+    "protocol_text",
+    "address_family",
+    "address_family_text",
+    "store",
+    "provenance"
+  ],
+  "properties": {
+    "destination_prefix": {
+      "type": "string"
+    },
+    "next_hop": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "interface_index": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "interface_alias": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "route_metric": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "protocol": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "protocol_text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "address_family": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "address_family_text": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "IPv4",
+        "IPv6",
+        null
+      ]
+    },
+    "store": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "properties": {
+            "decoded_table": {
+              "const": "net_route"
+            },
+            "schema_version": {
+              "const": "1.0.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

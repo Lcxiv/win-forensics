@@ -1,0 +1,15 @@
+
+There is 1 interface on the system:
+
+    Name                   : Wi-Fi
+    Description            : Synthetic Wi-Fi 6E AX Adapter
+    GUID                   : 5f4d3c2b-1a09-4e8f-9d7c-6b5a4f3e2d1c
+    Physical address       : mac-9dcb41c8d865
+    Interface type         : Primary
+    State                  : disconnected
+    Radio status           : Hardware On
+                             Software On
+
+    Hosted network status  : Not available
+
+

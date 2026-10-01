@@ -23,6 +23,8 @@ A bundle is one directory named by its id, `<yyyymmddThhmmssZ>_<scenario>_<machi
   evidence.jsonl         written by analyzers
   verdict.json           written by the correlator
   validation.json        written by the validator; copied into verdict.json
+  reports/               written by analyzers for people: a rendering of their evidence rows and coverage
+                         (for example reports/rf-survey.md and rf-survey.json); never an input to any other step
   logs/                  collector and decoder stdout and stderr, one file per step
 ```
 

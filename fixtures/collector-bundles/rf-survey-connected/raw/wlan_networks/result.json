@@ -1,0 +1,258 @@
+{
+  "started_utc": "2026-03-01T12:00:33.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:36.0000000Z",
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_ms": 7,
+  "stdout_bytes": 1383,
+  "stdout_bytes_read": 1407,
+  "diagnostic": null,
+  "stderr": "",
+  "records": 3,
+  "records_meaning": "visible access points (BSSIDs), counted by distinct address pseudonyms",
+  "protection": {
+    "mac_addresses_replaced": 3,
+    "network_names_replaced": 3
+  },
+  "profiles": null,
+  "fields": [
+    {
+      "line": 2,
+      "block": 0,
+      "indent": 0,
+      "label": "Interface name",
+      "value": "Wi-Fi"
+    },
+    {
+      "line": 5,
+      "block": 1,
+      "indent": 0,
+      "label": "SSID 1",
+      "value": "ssid-7a7a32d73bc8"
+    },
+    {
+      "line": 6,
+      "block": 1,
+      "indent": 4,
+      "label": "Network type",
+      "value": "Infrastructure"
+    },
+    {
+      "line": 7,
+      "block": 1,
+      "indent": 4,
+      "label": "Authentication",
+      "value": "WPA2-Personal"
+    },
+    {
+      "line": 8,
+      "block": 1,
+      "indent": 4,
+      "label": "Encryption",
+      "value": "CCMP"
+    },
+    {
+      "line": 9,
+      "block": 1,
+      "indent": 4,
+      "label": "BSSID 1",
+      "value": "mac-bc9b1391f272"
+    },
+    {
+      "line": 10,
+      "block": 1,
+      "indent": 9,
+      "label": "Signal",
+      "value": "90%"
+    },
+    {
+      "line": 11,
+      "block": 1,
+      "indent": 9,
+      "label": "Radio type",
+      "value": "802.11n"
+    },
+    {
+      "line": 12,
+      "block": 1,
+      "indent": 9,
+      "label": "Band",
+      "value": "2.4 GHz"
+    },
+    {
+      "line": 13,
+      "block": 1,
+      "indent": 9,
+      "label": "Channel",
+      "value": "1"
+    },
+    {
+      "line": 14,
+      "block": 1,
+      "indent": 9,
+      "label": "Basic rates (Mbps)",
+      "value": "1 2 5.5 11"
+    },
+    {
+      "line": 15,
+      "block": 1,
+      "indent": 9,
+      "label": "Other rates (Mbps)",
+      "value": "6 9 12 18 24 36 48 54"
+    },
+    {
+      "line": 17,
+      "block": 2,
+      "indent": 0,
+      "label": "SSID 2",
+      "value": "ssid-527eeba5654d"
+    },
+    {
+      "line": 18,
+      "block": 2,
+      "indent": 4,
+      "label": "Network type",
+      "value": "Infrastructure"
+    },
+    {
+      "line": 19,
+      "block": 2,
+      "indent": 4,
+      "label": "Authentication",
+      "value": "WPA2-Personal"
+    },
+    {
+      "line": 20,
+      "block": 2,
+      "indent": 4,
+      "label": "Encryption",
+      "value": "CCMP"
+    },
+    {
+      "line": 21,
+      "block": 2,
+      "indent": 4,
+      "label": "BSSID 1",
+      "value": "mac-1c9ef6c2fe77"
+    },
+    {
+      "line": 22,
+      "block": 2,
+      "indent": 9,
+      "label": "Signal",
+      "value": "28%"
+    },
+    {
+      "line": 23,
+      "block": 2,
+      "indent": 9,
+      "label": "Radio type",
+      "value": "802.11n"
+    },
+    {
+      "line": 24,
+      "block": 2,
+      "indent": 9,
+      "label": "Band",
+      "value": "2.4 GHz"
+    },
+    {
+      "line": 25,
+      "block": 2,
+      "indent": 9,
+      "label": "Channel",
+      "value": "11"
+    },
+    {
+      "line": 26,
+      "block": 2,
+      "indent": 9,
+      "label": "Basic rates (Mbps)",
+      "value": "1 2 5.5 11"
+    },
+    {
+      "line": 27,
+      "block": 2,
+      "indent": 9,
+      "label": "Other rates (Mbps)",
+      "value": "6 9 12 18 24 36 48 54"
+    },
+    {
+      "line": 29,
+      "block": 3,
+      "indent": 0,
+      "label": "SSID 3",
+      "value": "ssid-bd4519e55bd3"
+    },
+    {
+      "line": 30,
+      "block": 3,
+      "indent": 4,
+      "label": "Network type",
+      "value": "Infrastructure"
+    },
+    {
+      "line": 31,
+      "block": 3,
+      "indent": 4,
+      "label": "Authentication",
+      "value": "WPA2-Personal"
+    },
+    {
+      "line": 32,
+      "block": 3,
+      "indent": 4,
+      "label": "Encryption",
+      "value": "CCMP"
+    },
+    {
+      "line": 33,
+      "block": 3,
+      "indent": 4,
+      "label": "BSSID 1",
+      "value": "mac-73e79aa58470"
+    },
+    {
+      "line": 34,
+      "block": 3,
+      "indent": 9,
+      "label": "Signal",
+      "value": "20%"
+    },
+    {
+      "line": 35,
+      "block": 3,
+      "indent": 9,
+      "label": "Radio type",
+      "value": "802.11g"
+    },
+    {
+      "line": 36,
+      "block": 3,
+      "indent": 9,
+      "label": "Band",
+      "value": "2.4 GHz"
+    },
+    {
+      "line": 37,
+      "block": 3,
+      "indent": 9,
+      "label": "Channel",
+      "value": "6"
+    },
+    {
+      "line": 38,
+      "block": 3,
+      "indent": 9,
+      "label": "Basic rates (Mbps)",
+      "value": "1 2 5.5 11"
+    },
+    {
+      "line": 39,
+      "block": 3,
+      "indent": 9,
+      "label": "Other rates (Mbps)",
+      "value": "6 9 12 18 24 36 48 54"
+    }
+  ]
+}

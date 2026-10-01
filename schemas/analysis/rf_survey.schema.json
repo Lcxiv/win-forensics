@@ -1,0 +1,309 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/analysis/rf_survey.schema.json",
+  "title": "rf_survey analysis result (reports/rf-survey.json)",
+  "description": "The structured result of scripts/analyze_rf_survey.py: the coverage table first, then the findings, each tied to evidence rows and citations.",
+  "x-schema-version": "1.2.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "analyzer",
+    "analyzed_at_utc",
+    "bundle_id",
+    "status",
+    "status_reason",
+    "owner",
+    "coverage",
+    "findings",
+    "channels_24ghz",
+    "report_path"
+  ],
+  "properties": {
+    "analyzer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version"
+      ],
+      "properties": {
+        "id": {
+          "const": "rf_survey"
+        },
+        "version": {
+          "$ref": "../common.schema.json#/$defs/semver"
+        }
+      }
+    },
+    "analyzed_at_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+      "description": "ISO 8601 date and time in UTC with a trailing Z; up to seven fractional digits (100 ns)."
+    },
+    "bundle_id": {
+      "type": "string"
+    },
+    "status": {
+      "$ref": "../common.schema.json#/$defs/measurement_status"
+    },
+    "status_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provided",
+        "method",
+        "pseudonym",
+        "name",
+        "matched_access_points",
+        "problem"
+      ],
+      "description": "The owner's network, from an explicit selection only; never inferred from a saved profile or the strongest signal.",
+      "properties": {
+        "provided": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "profile_name",
+            "pseudonym",
+            null
+          ]
+        },
+        "pseudonym": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^ssid-[0-9a-f]{12}$"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "matched_access_points": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "problem": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "collector_status",
+          "collector_status_reason",
+          "decoded_table",
+          "decoded_status",
+          "rows"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "collector",
+              "table"
+            ]
+          },
+          "collector_status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "collector_status_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decoded_table": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decoded_status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rows": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "severity",
+          "title",
+          "statement",
+          "recommendation",
+          "evidence_row_ids",
+          "citations",
+          "measured"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "traffic_path",
+              "wifi_24ghz",
+              "usb_receiver",
+              "unused_radio",
+              "placement",
+              "wlan_events",
+              "coverage"
+            ]
+          },
+          "severity": {
+            "$ref": "../common.schema.json#/$defs/severity"
+          },
+          "title": {
+            "type": "string"
+          },
+          "statement": {
+            "type": "string",
+            "description": "What the evidence shows, in plain language."
+          },
+          "recommendation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What to try, or null when the finding only informs."
+          },
+          "evidence_row_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "citations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "title",
+                "url"
+              ],
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "pattern": "^https://"
+                }
+              }
+            }
+          },
+          "measured": {
+            "type": "boolean",
+            "description": "False when the finding rests on cited guidance alone because the survey cannot measure it."
+          },
+          "details": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "channels_24ghz": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "channel",
+          "bss_count",
+          "strongest_signal_pct",
+          "overlap_bss_count",
+          "overlap_strongest_signal_pct",
+          "ssid_pseudonyms",
+          "own_router_here",
+          "candidate"
+        ],
+        "properties": {
+          "channel": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 14
+          },
+          "bss_count": {
+            "type": "integer"
+          },
+          "strongest_signal_pct": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "overlap_bss_count": {
+            "type": "integer"
+          },
+          "overlap_strongest_signal_pct": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "ssid_pseudonyms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "own_router_here": {
+            "type": "boolean"
+          },
+          "candidate": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "report_path": {
+      "type": "string"
+    }
+  }
+}

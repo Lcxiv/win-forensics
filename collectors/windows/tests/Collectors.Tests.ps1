@@ -9,6 +9,9 @@ BeforeAll {
     Set-StrictMode -Version 2.0
     $script:CollectorRoot = Split-Path -Parent $PSScriptRoot
     . (Join-Path $script:CollectorRoot '_common.ps1')
+    # The real process runner, kept before the synthetic backend replaces it,
+    # so one test can run it against a real child process on this host.
+    $script:RealInvokeProcess = ${function:Invoke-WfProcess}
     . (Join-Path $PSScriptRoot 'SyntheticBackend.ps1')
     . (Join-Path $PSScriptRoot 'SyntheticScenarios.ps1')
 
@@ -1030,5 +1033,465 @@ Describe 'collectors, end to end against the synthetic backend' {
         $run2 = Invoke-TestCollector -Collector 'whea-errors' -OutputDirectory $refused
         $run2.ExitCode | Should -Be 1
         Test-Path -LiteralPath (Join-Path $refused 'logs') | Should -BeFalse
+    }
+}
+
+Describe 'pseudonyms for network names and addresses' {
+    BeforeAll {
+        $script:Salt = 'test-salt'
+    }
+
+    It 'maps both printed forms of an address to one pseudonym and leaves GUIDs alone' {
+        $text = 'a 02:AA:bb:CC:dd:01 and 02-aa-BB-cc-DD-01 but not 5f4d3c2b-1a09-4e8f-9d7c-6b5a4f3e2d1c or 0123456789AB'
+        $r = Protect-WfMacAddresses -Text $text -Salt $script:Salt
+        $r['Count'] | Should -Be 2
+        $expected = ConvertTo-WfPseudonym -Kind 'mac' -Value '02:aa:bb:cc:dd:01' -Salt $script:Salt
+        $r['Text'] | Should -BeExactly ('a ' + $expected + ' and ' + $expected + ' but not 5f4d3c2b-1a09-4e8f-9d7c-6b5a4f3e2d1c or 0123456789AB')
+        $expected | Should -Match '^mac-[0-9a-f]{12}$'
+    }
+
+    It 'finds the network name by structure in a scan, whatever the labels say' {
+        $text = "Nom : WLAN`r`nIl y a 2 reseaux visibles.`r`n`r`nSSID 1 : Chez Moi`r`n    Type : Infrastructure`r`n    Chiffrement : CCMP`r`n    BSSID 1 : 02:aa:bb:cc:dd:01`r`n         Signal : 80%`r`n`r`nSSID 2 : `r`n    Type : Infrastructure`r`n    BSSID 1 : 02:aa:bb:cc:dd:02`r`n"
+        $r = Protect-WfNetshText -Text $text -Mode 'networks' -Salt $script:Salt -KnownSsids $null
+        $r.Text | Should -Not -Match 'Chez Moi'
+        $r.Text | Should -Match "`nSSID 1 : ssid-[0-9a-f]{12}`n"
+        $r.Text | Should -Match "`nSSID 2 : `n"
+        $r.Text | Should -Match 'Chiffrement : CCMP'
+        $r.Text | Should -Match 'Nom : WLAN'
+        $r.Text | Should -Not -Match '02:aa:bb'
+        $r.MacCount | Should -Be 2
+        $r.SsidCount | Should -Be 1
+        @($r.LearnedSsids) | Should -Be @('Chez Moi')
+    }
+
+    It 'replaces the SSID line and its repeat on the profile line of an interface listing' {
+        $text = "    SSID                   : Home Net`r`n    BSSID                  : 02:aa:bb:cc:dd:01`r`n    Channel                : 6`r`n    Profile                : Home Net`r`n"
+        $r = Protect-WfNetshText -Text $text -Mode 'interfaces' -Salt $script:Salt -KnownSsids $null
+        $pseudonym = ConvertTo-WfPseudonym -Kind 'ssid' -Value 'Home Net' -Salt $script:Salt
+        $r.Text | Should -Not -Match 'Home Net'
+        $r.Text | Should -Match ('SSID\s+: ' + $pseudonym)
+        $r.Text | Should -Match ('Profile\s+: ' + $pseudonym)
+        $r.Text | Should -Match 'Channel\s+: 6'
+        $r.SsidCount | Should -Be 2
+    }
+
+    It 'learns every valued line of a profile listing as a name and leaves the listing readable' {
+        $text = "Profiles on interface Wi-Fi:`r`n`r`nUser profiles`r`n-------------`r`n    All User Profile     : Alpha`r`n    All User Profile     : Beta Guest`r`n"
+        $r = Protect-WfNetshText -Text $text -Mode 'profiles' -Salt $script:Salt -KnownSsids $null
+        $r.Text | Should -Match 'Alpha'
+        $r.Text | Should -Match 'Profiles on interface Wi-Fi:'
+        @($r.LearnedSsids) | Should -Be @('Alpha', 'Beta Guest')
+        @($r.Profiles).Count | Should -Be 2
+    }
+
+    It 'replaces known names in plain and HTML encoded form in generic text and nothing else' {
+        $known = New-Object 'System.Collections.Generic.List[string]'
+        $known.Add('Tom & Jerry')
+        $known.Add('Home')
+        $text = '<td>Tom &amp; Jerry</td><td>Tom & Jerry</td><td>Homely Home</td><td>02-AA-BB-CC-DD-01</td>'
+        $r = Protect-WfNetshText -Text $text -Mode 'generic' -Salt $script:Salt -KnownSsids $known
+        $tom = ConvertTo-WfPseudonym -Kind 'ssid' -Value 'Tom & Jerry' -Salt $script:Salt
+        $homeName = ConvertTo-WfPseudonym -Kind 'ssid' -Value 'Home' -Salt $script:Salt
+        $r.Text | Should -BeExactly ('<td>' + $tom + '</td><td>' + $tom + '</td><td>Homely ' + $homeName + '</td><td>' + (ConvertTo-WfPseudonym -Kind 'mac' -Value '02:aa:bb:cc:dd:01' -Salt $script:Salt) + '</td>')
+        $r.SsidCount | Should -Be 3
+        $r.MacCount | Should -Be 1
+    }
+
+    It 'counts records by a language independent shape' {
+        Measure-WfNetshRecords -Text "GUID : 5f4d3c2b-1a09-4e8f-9d7c-6b5a4f3e2d1c`nGUID : 6f4d3c2b-1a09-4e8f-9d7c-6b5a4f3e2d1c" -Mode 'interfaces' | Should -Be 2
+        Measure-WfNetshRecords -Text "BSSID 1 : mac-000000000001`nBSSID 2 : mac-000000000002`nBSSID 1 : mac-000000000001" -Mode 'networks' | Should -Be 2
+        Measure-WfNetshRecords -Text "x : ssid-000000000001`ny : ssid-000000000002" -Mode 'profiles' | Should -Be 2
+        Measure-WfNetshRecords -Text "Interface name: Wi-Fi`n    Driver : x`nInterface name: Wi-Fi 2`n    Driver : y`nno colon here" -Mode 'drivers' | Should -Be 2
+        Measure-WfNetshRecords -Text 'There is no wireless interface on the system.' -Mode 'interfaces' | Should -Be 0
+    }
+
+    It 'tokenises every labelled line with its line number, indentation and block' {
+        $fields = ConvertTo-WfNetshFields -Text "Interface name : Wi-Fi`nThere are 1 networks.`n`nSSID 1 : ssid-000000000001`n    BSSID 1 : mac-000000000001`n         Signal : 80%`n"
+        @($fields).Count | Should -Be 4
+        $fields[0]['line'] | Should -Be 1
+        $fields[0]['block'] | Should -Be 0
+        $fields[1]['line'] | Should -Be 4
+        $fields[1]['block'] | Should -Be 1
+        $fields[1]['label'] | Should -BeExactly 'SSID 1'
+        $fields[2]['indent'] | Should -Be 4
+        $fields[3]['indent'] | Should -Be 9
+        $fields[3]['value'] | Should -BeExactly '80%'
+    }
+}
+
+Describe 'rf-survey sources against the synthetic backend' {
+    BeforeAll {
+        function Start-RfCase {
+            param([string]$Case = 'rf-survey')
+            Reset-WfSynthetic
+            $selected = @(Get-WfSyntheticCases | Where-Object { $_['Case'] -eq $Case })[0]
+            & $selected['Setup']
+        }
+        function Get-RfSource {
+            param($Run, [string]$Id)
+            return @($Run.Manifest.collectors | Where-Object { $_.id -eq $Id })[0]
+        }
+    }
+
+    It 'writes no neighbour name, unseen name, address or peer name in clear anywhere in the bundle' {
+        Start-RfCase
+        $out = Join-Path $TestDrive 'privacy'
+        $run = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory $out
+        $run.ExitCode | Should -Be 0
+        $files = @(Get-ChildItem -LiteralPath $out -File -Recurse)
+        $files.Count | Should -BeGreaterThan 25
+        # Neighbours' names, a name that only the report and an event carry, every address, and the Bluetooth peers.
+        $secrets = @('Neighbour-A', 'Neighbour-F', 'Unseen-Guest', '02:aa:bb:cc:dd:01', '02-AA-BB-CC-DD-01', '02:aa:bb:cc:dd:99', '02-AA-BB-CC-DD-99', '02:11:22:33:44:55',
+            'Synthetic Earbuds', 'Synthetic Game Controller', 'Synthetic BLE Mouse', 'F0F1F2000001', 'F0F1F2000002', 'F0F1F2000003')
+        foreach ($file in $files) {
+            $text = [System.IO.File]::ReadAllText($file.FullName)
+            foreach ($secret in $secrets) {
+                $text.Contains($secret) | Should -BeFalse -Because ($file.Name + ' must not carry ' + $secret)
+            }
+        }
+        # The owner's saved profile names are the one readable exception, and only inside the profiles source.
+        foreach ($file in $files) {
+            $text = [System.IO.File]::ReadAllText($file.FullName)
+            if ($text.Contains('Harbor-Home') -or $text.Contains('Coffee-Guest')) { $file.FullName | Should -Match 'raw[\\/]wlan_profiles[\\/]' }
+        }
+        $profiles = Get-Content -LiteralPath (Join-Path $out 'raw/wlan_profiles/result.json') -Raw | ConvertFrom-Json
+        @($profiles.profiles | ForEach-Object { $_.name }) | Should -Be @('Harbor-Home', 'Coffee-Guest')
+        $pseudonym = ConvertTo-WfPseudonym -Kind 'ssid' -Value 'Harbor-Home' -Salt $global:WfSynthetic.Salt
+        $profiles.profiles[0].pseudonym | Should -BeExactly $pseudonym
+        # The same name maps to the same pseudonym in the scan, which is how an owner selection is matched.
+        [System.IO.File]::ReadAllText((Join-Path $out 'raw/wlan_networks/output.txt')) | Should -Match $pseudonym
+        # Events keep their System section only, and the binary export is not attempted.
+        $events = Get-Content -LiteralPath (Join-Path $out 'raw/wlan_autoconfig_events/events.json') -Raw | ConvertFrom-Json
+        @($events).Count | Should -Be 2
+        $events[0].message | Should -BeNullOrEmpty
+        @($events[0].properties) | Should -Be @($null, $null, $null, 7, $null)
+        $events[0].xml | Should -Match '<EventData/>'
+        $events[0].xml | Should -Match '<EventRecordID>790</EventRecordID>'
+        $events[0].xml | Should -Not -Match 'Unseen|Harbor|02:aa'
+        $source = Get-RfSource -Run $run -Id 'wlan_autoconfig_events'
+        $source.enabled.options.evtx_exported | Should -BeFalse
+        $source.enabled.options.evtx_message | Should -Match 'System section'
+        # The report is summarised, never copied.
+        @(Get-ChildItem -LiteralPath (Join-Path $out 'raw/wlan_report') -File | ForEach-Object { $_.Name } | Sort-Object) | Should -Be @('report-summary.json', 'result.json', 'source.json')
+        $summary = Get-Content -LiteralPath (Join-Path $out 'raw/wlan_report/report-summary.json') -Raw | ConvertFrom-Json
+        $summary.content_kept | Should -BeFalse
+        $summary.address_tokens | Should -Be 3
+        $summary.sha256 | Should -Match '^[0-9a-f]{64}$'
+        @($run.Manifest.notes | Where-Object { $_ -match 'pseudonyms' }).Count | Should -Be 1
+    }
+
+    It 'pseudonymises Bluetooth peer nodes but not the radio, and counts them' {
+        Start-RfCase 'rf-survey-clean'
+        $out = Join-Path $TestDrive 'bt-peers'
+        $run = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory $out
+        $devices = Get-Content -LiteralPath (Join-Path $out 'raw/bluetooth_devices/devices.json') -Raw | ConvertFrom-Json
+        $peers = @($devices | Where-Object { $_.instance_id -like 'BTHENUM\*' -or $_.instance_id -like 'BTHLE\*' })
+        $peers.Count | Should -Be 3
+        foreach ($peer in $peers) {
+            $peer.name | Should -Match '^name-[0-9a-f]{12}$'
+            $peer.instance_id | Should -Match 'mac-[0-9a-f]{12}'
+            $peer.instance_id | Should -Not -Match 'F0F1F2'
+            @($peer.hardware_ids)[0] | Should -Match 'mac-[0-9a-f]{12}'
+        }
+        $expected = ConvertTo-WfPseudonym -Kind 'mac' -Value 'f0:f1:f2:00:00:01' -Salt $global:WfSynthetic.Salt
+        $peers[0].instance_id | Should -Match ([regex]::Escape($expected))
+        $radio = @($devices | Where-Object { $_.instance_id -eq 'USB\VID_FFF5&PID_0005\5&1e2f3a4b&0&14' })[0]
+        $radio.name | Should -BeExactly 'Synthetic Wireless Bluetooth'
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/bluetooth_devices/result.json') -Raw | ConvertFrom-Json
+        $result.peer_nodes_pseudonymised | Should -Be 5
+        # A peer's GATT service and HID nodes carry its address too, and the chain stays consistent once pseudonymised.
+        foreach ($source in @('bluetooth_devices', 'usb_device_tree')) {
+            $rows = Get-Content -LiteralPath (Join-Path $out ('raw/' + $source + '/devices.json')) -Raw | ConvertFrom-Json
+            $text = [System.IO.File]::ReadAllText((Join-Path $out ('raw/' + $source + '/devices.json')))
+            $text | Should -Not -Match 'F0F1F2000003|Synthetic BLE Mouse'
+            $gatt = @($rows | Where-Object { $_.instance_id -like 'BTHLEDEVICE\*' })[0]
+            $blePeer = @($rows | Where-Object { $_.instance_id -like 'BTHLE\*' -and $_.instance_id -eq $gatt.parent_instance_id })
+            $blePeer.Count | Should -Be 1
+            $gatt.bus_reported_description | Should -Match '^name-[0-9a-f]{12}$'
+        }
+        $tree = Get-Content -LiteralPath (Join-Path $out 'raw/usb_device_tree/devices.json') -Raw | ConvertFrom-Json
+        $mouse = @($tree | Where-Object { $_.instance_id -like 'HID\{00001812*' })[0]
+        $mouse.parent_instance_id | Should -BeExactly (@($tree | Where-Object { $_.instance_id -like 'BTHLEDEVICE\*' })[0].instance_id)
+        $mouse.name | Should -Match '^name-[0-9a-f]{12}$'
+        # A GUID keeps its last group: only bare twelve digit runs are addresses.
+        Protect-WfBluetoothAddresses -Text '{a1b2c3d4-0001-4000-8000-000000000001} and DEV_F0F1F2000001' -Salt 's' | Should -Match '^\{a1b2c3d4-0001-4000-8000-000000000001\} and DEV_mac-[0-9a-f]{12}$'
+    }
+
+    It 'pseudonymises a Bluetooth HID node whose parent could not be read' {
+        Start-RfCase 'rf-survey-clean'
+        foreach ($device in @($global:WfSynthetic.Pnp['Devices'] | Where-Object { $_['instance_id'] -like 'HID\{00001812*' -or $_['instance_id'] -like 'BTHHFENUM\*' })) {
+            $device['PropertyError'] = 'Access is denied.'
+        }
+        $out = Join-Path $TestDrive 'bt-hid-unread'
+        $null = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory $out
+        $path = Join-Path $out 'raw/usb_device_tree/devices.json'
+        [System.IO.File]::ReadAllText($path) | Should -Not -Match 'F0F1F2000003|Synthetic BLE Mouse|Synthetic Earbuds'
+        $row = @(Get-Content -LiteralPath $path -Raw | ConvertFrom-Json | Where-Object { $_.instance_id -like 'HID\{00001812*' })[0]
+        $row.property_error | Should -BeExactly 'Access is denied.'
+        $row.parent_instance_id | Should -BeNullOrEmpty
+        $row.instance_id | Should -Match 'mac-[0-9a-f]{12}'
+        $row.name | Should -Match '^name-[0-9a-f]{12}$'
+        foreach ($source in @('bluetooth_devices', 'usb_device_tree')) {
+            $file = Join-Path $out ('raw/' + $source + '/devices.json')
+            [System.IO.File]::ReadAllText($file) | Should -Not -Match 'Synthetic Earbuds|F0F1F2'
+            $hands = @(Get-Content -LiteralPath $file -Raw | ConvertFrom-Json | Where-Object { $_.instance_id -like 'BTHHFENUM\*' })[0]
+            $hands.property_error | Should -BeExactly 'Access is denied.'
+            $hands.name | Should -Match '^name-[0-9a-f]{12}$'
+        }
+        $radio = @(Get-Content -LiteralPath (Join-Path $out 'raw/bluetooth_devices/devices.json') -Raw | ConvertFrom-Json | Where-Object { $_.instance_id -like 'BTH\MS_BTHLE*' })[0]
+        $radio.name | Should -BeExactly 'Microsoft Bluetooth LE Enumerator'
+    }
+
+    It 'finds the connected network name by structure when the SSID label is translated' {
+        $text = "    GUID                   : 5f4d3c2b-1a09-4e8f-9d7c-6b5a4f3e2d1c`r`n    Adresse physique       : 02:11:22:33:44:55`r`n    Etat                   : connecte`r`n    Nom du reseau          : Chez Moi`r`n    BSSID                  : 02:aa:bb:cc:dd:01`r`n    Canal                  : 6`r`n    Profil                 : Chez Moi`r`n"
+        $r = Protect-WfNetshText -Text $text -Mode 'interfaces' -Salt 'test-salt' -KnownSsids $null
+        $r.Text | Should -Not -Match 'Chez Moi'
+        $r.Text | Should -Match 'Nom du reseau\s+: ssid-[0-9a-f]{12}'
+        $r.Text | Should -Match 'Profil\s+: ssid-[0-9a-f]{12}'
+        $r.Text | Should -Match 'GUID\s+: 5f4d3c2b-1a09-4e8f-9d7c-6b5a4f3e2d1c'
+        $r.SsidCount | Should -Be 2
+        Start-RfCase 'rf-survey-connected'
+        $out = Join-Path $TestDrive 'connected'
+        $run = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory $out
+        $listing = [System.IO.File]::ReadAllText((Join-Path $out 'raw/wlan_interfaces/output.txt'))
+        $listing | Should -Not -Match 'Harbor-Home|02:aa:bb|02:11:22'
+        $listing | Should -Match 'SSID\s+: ssid-[0-9a-f]{12}'
+        $listing | Should -Match 'Profile\s+: ssid-[0-9a-f]{12}'
+        $listing | Should -Match 'Channel\s+: 1'
+        (Get-RfSource -Run $run -Id 'wlan_interfaces').enabled.options.network_names_replaced | Should -Be 2
+    }
+
+    It 'keeps saved profiles readable with their pseudonyms and counts them as records' {
+        $text = "Profiles on interface Wi-Fi:`r`n`r`nUser profiles`r`n-------------`r`n    All User Profile     : Alpha`r`n    All User Profile     : Beta Guest`r`n"
+        $r = Protect-WfNetshText -Text $text -Mode 'profiles' -Salt 'test-salt' -KnownSsids $null
+        $r.Text | Should -Match 'Alpha'
+        $r.Text | Should -Match 'Beta Guest'
+        $r.SsidCount | Should -Be 0
+        @($r.Profiles | ForEach-Object { $_['name'] }) | Should -Be @('Alpha', 'Beta Guest')
+        $r.Profiles[1]['pseudonym'] | Should -BeExactly (ConvertTo-WfPseudonym -Kind 'ssid' -Value 'Beta Guest' -Salt 'test-salt')
+        @($r.LearnedSsids) | Should -Be @('Alpha', 'Beta Guest')
+        Start-RfCase
+        $run = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory (Join-Path $TestDrive 'profiles-count')
+        (Get-RfSource -Run $run -Id 'wlan_profiles').status | Should -BeExactly 'observed'
+        (Get-RfSource -Run $run -Id 'wlan_profiles').enabled.options.records | Should -Be 2
+    }
+
+    It 'stops a real child process at the cap and keeps only a bounded diagnostic' {
+        $pwsh = (Get-Process -Id $PID).Path
+        $arguments = '-NoProfile -NonInteractive -Command "1..200 | ForEach-Object { ''x'' * 4000 }"'
+        $run = & $script:RealInvokeProcess -FilePath $pwsh -Arguments $arguments -TimeoutSeconds 60 -MaxBytes 65536
+        $run['Started'] | Should -BeTrue
+        $run['Oversized'] | Should -BeTrue
+        $run['TimedOut'] | Should -BeFalse
+        $run['ExitCode'] | Should -BeNullOrEmpty
+        $run['StdOut'] | Should -BeExactly ''
+        $run['StdOutBytes'] | Should -BeGreaterThan 65536
+        $run['StdOutBytes'] | Should -BeLessThan 200000 -Because 'the child was stopped soon after the cap, not drained to the end'
+        $run['Diagnostic'].Length | Should -BeLessOrEqual 4200
+        $run['Error'] | Should -Match 'more than the cap of 65536 bytes'
+        $small = & $script:RealInvokeProcess -FilePath $pwsh -Arguments '-NoProfile -NonInteractive -Command "Write-Output hello; [Console]::Error.WriteLine(''warn''); exit 3"' -TimeoutSeconds 60 -MaxBytes 65536
+        $small['Oversized'] | Should -BeFalse
+        $small['ExitCode'] | Should -Be 3
+        $small['StdOut'].Trim() | Should -BeExactly 'hello'
+        $small['StdErr'].Trim() | Should -BeExactly 'warn'
+        Start-RfCase
+        $global:WfSynthetic.Commands['wlan show drivers'] = @{ ExitCode = 0; StdOut = ('Interface name: Wi-Fi' + "`n" + ('    Driver : ' + ('y' * 2000) + "`n") * 600); StdErr = '' }
+        $out = Join-Path $TestDrive 'oversized'
+        $run2 = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory $out -Arguments @{ MaxArtifactBytes = 1048576 }
+        $drivers = Get-RfSource -Run $run2 -Id 'wlan_drivers'
+        $drivers.status | Should -BeExactly 'capture_failed'
+        $drivers.status_reason | Should -Match 'more than the cap of 1048576 bytes'
+        Test-Path -LiteralPath (Join-Path $out 'raw/wlan_drivers/output.txt') | Should -BeFalse
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/wlan_drivers/result.json') -Raw | ConvertFrom-Json
+        $result.diagnostic.Length | Should -BeLessOrEqual 4200
+        $result.stdout_bytes | Should -Be 0
+    }
+
+    It 'pseudonymises the head of an oversized scan kept as a diagnostic' {
+        Start-RfCase
+        $networks = (Get-WfSyntheticNetshText -Name 'networks-congested-en') + (('    Other : ' + ('z' * 2000) + "`n") * 600)
+        $global:WfSynthetic.Commands['wlan show networks mode=bssid'] = @{ ExitCode = 0; StdOut = $networks; StdErr = '' }
+        $out = Join-Path $TestDrive 'oversized-networks'
+        $run = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory $out -Arguments @{ MaxArtifactBytes = 1048576 }
+        (Get-RfSource -Run $run -Id 'wlan_networks').status | Should -BeExactly 'capture_failed'
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/wlan_networks/result.json') -Raw | ConvertFrom-Json
+        $result.diagnostic | Should -Match 'ssid-[0-9a-f]{12}'
+        foreach ($file in @(Get-ChildItem -LiteralPath $out -File -Recurse)) {
+            [System.IO.File]::ReadAllText($file.FullName) | Should -Not -Match 'Neighbour-|02:aa:bb' -Because $file.Name
+        }
+    }
+
+    It 'records what netsh printed and how it exited' {
+        Start-RfCase
+        $out = Join-Path $TestDrive 'netsh-ok'
+        $run = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory $out
+        $networks = Get-RfSource -Run $run -Id 'wlan_networks'
+        $networks.status | Should -BeExactly 'observed'
+        $networks.status_reason | Should -BeNullOrEmpty
+        $networks.enabled.options.records | Should -Be 10
+        $networks.enabled.options.exit_code | Should -Be 0
+        $networks.enabled.options.mac_addresses_replaced | Should -Be 10
+        $networks.command[0] | Should -Match 'netsh\.exe$'
+        $networks.command[1..3] | Should -Be @('wlan', 'show', 'networks')
+        $networks.raw_time_range.start | Should -Not -BeNullOrEmpty
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/wlan_networks/result.json') -Raw | ConvertFrom-Json
+        @($result.fields).Count | Should -BeGreaterThan 50
+        $result.protection.network_names_replaced | Should -Be 7
+        $interfaces = Get-RfSource -Run $run -Id 'wlan_interfaces'
+        $interfaces.status | Should -BeExactly 'observed'
+        $interfaces.enabled.options.records | Should -Be 1
+        $profiles = Get-RfSource -Run $run -Id 'wlan_profiles'
+        $profiles.enabled.options.records | Should -Be 2
+        @($networks.artifacts | ForEach-Object { $_.role } | Sort-Object) | Should -Be @('config', 'primary', 'report')
+        # Every process the run started is netsh with one of the four read only listings.
+        $started = @($global:WfSynthetic.Processes.ToArray())
+        $started.Count | Should -Be 4
+        foreach ($call in $started) {
+            $call['FilePath'] | Should -Match 'netsh\.exe$'
+            $call['Arguments'] | Should -Match '^wlan show (interfaces|drivers|networks mode=bssid|profiles)$'
+        }
+    }
+
+    It 'never calls an empty scan a quiet airspace, but accepts zero interfaces' {
+        Start-RfCase
+        $global:WfSynthetic.Commands['wlan show networks mode=bssid'] = @{ ExitCode = 0; StdOut = "`r`nInterface name : Wi-Fi `r`nThere are 0 networks currently visible. `r`n`r`n"; StdErr = '' }
+        $global:WfSynthetic.Commands['wlan show interfaces'] = @{ ExitCode = 0; StdOut = "`r`nThere is no wireless interface on the system.`r`n`r`n"; StdErr = '' }
+        $out = Join-Path $TestDrive 'zero-networks'
+        $run = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory $out
+        $networks = Get-RfSource -Run $run -Id 'wlan_networks'
+        $networks.status | Should -BeExactly 'capture_failed'
+        $networks.status_reason | Should -Match '^zero records: netsh exited with code 0'
+        $networks.status_reason | Should -Match 'location consent'
+        $networks.expectation.met | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $out 'raw/wlan_networks/output.txt') | Should -BeFalse
+        $interfaces = Get-RfSource -Run $run -Id 'wlan_interfaces'
+        $interfaces.status | Should -BeExactly 'observed_zero'
+        Test-Path -LiteralPath (Join-Path $out 'raw/wlan_interfaces/output.txt') | Should -BeTrue
+    }
+
+    It 'maps a failing, a missing and a hanging netsh to the right status' {
+        Start-RfCase
+        $global:WfSynthetic.Commands['wlan show drivers'] = @{ ExitCode = 1; StdOut = "The Wireless AutoConfig Service (wlansvc) is not running.`r`n"; StdErr = '' }
+        $global:WfSynthetic.Commands['wlan show profiles'] = @{ Stuck = $true }
+        $out = Join-Path $TestDrive 'netsh-fails'
+        $run = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory $out -Arguments @{ TimeoutSeconds = 20 }
+        $drivers = Get-RfSource -Run $run -Id 'wlan_drivers'
+        $drivers.status | Should -BeExactly 'capture_failed'
+        $drivers.status_reason | Should -Match 'exited with code 1: The Wireless AutoConfig Service'
+        Test-Path -LiteralPath (Join-Path $out 'raw/wlan_drivers/output.txt') | Should -BeFalse
+        $profiles = Get-RfSource -Run $run -Id 'wlan_profiles'
+        $profiles.status | Should -BeExactly 'capture_failed'
+        $profiles.status_reason | Should -Match 'did not finish within'
+        $profiles.enabled.options.timed_out | Should -BeTrue
+
+        Start-RfCase
+        $global:WfSynthetic.NetshPresent = $false
+        $run2 = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory (Join-Path $TestDrive 'no-netsh')
+        $run2.ExitCode | Should -Be 0
+        foreach ($id in @('wlan_interfaces', 'wlan_drivers', 'wlan_networks', 'wlan_profiles')) {
+            $source = Get-RfSource -Run $run2 -Id $id
+            $source.status | Should -BeExactly 'not_collected' -Because $id
+            $source.preflight.ok | Should -BeFalse
+        }
+        ($run2.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'partial'
+    }
+
+    It 'summarises the WLAN report only when it exists, fits the cap and can be read, and never copies it' {
+        Start-RfCase
+        $out = Join-Path $TestDrive 'report-ok'
+        $run = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory $out
+        $report = Get-RfSource -Run $run -Id 'wlan_report'
+        $report.status | Should -BeExactly 'observed'
+        $report.enabled.options.content_kept | Should -BeFalse
+        $report.requested.options.mode | Should -BeExactly 'summary'
+        $report.requested.options.path_documented | Should -BeFalse
+        @($report.artifacts | Where-Object { $_.role -eq 'primary' })[0].path | Should -BeExactly 'raw/wlan_report/report-summary.json'
+        @($run.Manifest.notes | Where-Object { $_ -match 'summarised, not copied' }).Count | Should -Be 1
+
+        Start-RfCase 'rf-survey-clean'
+        $run2 = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory (Join-Path $TestDrive 'report-missing')
+        $missing = Get-RfSource -Run $run2 -Id 'wlan_report'
+        $missing.status | Should -BeExactly 'not_collected'
+        $missing.status_reason | Should -Match 'does not exist'
+        $missing.status_reason | Should -Match 'Administrator'
+        @($missing.artifacts | ForEach-Object { $_.role }) | Should -Not -Contain 'primary'
+
+        Start-RfCase
+        $global:WfSynthetic.Files['C:\ProgramData\Microsoft\Windows\WlanReport\wlan-report-latest.html'] = @{ ErrorKind = 'access_denied'; ErrorMessage = 'Access to the path is denied.' }
+        $run3 = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory (Join-Path $TestDrive 'report-denied')
+        (Get-RfSource -Run $run3 -Id 'wlan_report').status | Should -BeExactly 'not_collected'
+        (Get-RfSource -Run $run3 -Id 'wlan_report').status_reason | Should -Match 'denied'
+
+        Start-RfCase
+        $global:WfSynthetic.Files['C:\ProgramData\Microsoft\Windows\WlanReport\wlan-report-latest.html'] = @{ Text = ('x' * 1100000) }
+        $out4 = Join-Path $TestDrive 'report-large'
+        $run4 = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory $out4 -Arguments @{ MaxArtifactBytes = 1048576 }
+        (Get-RfSource -Run $run4 -Id 'wlan_report').status | Should -BeExactly 'capture_failed'
+        (Get-RfSource -Run $run4 -Id 'wlan_report').status_reason | Should -Match 'above the cap'
+        Test-Path -LiteralPath (Join-Path $out4 'raw/wlan_report/report-summary.json') | Should -BeFalse
+    }
+
+    It 'follows every selected device to the root of the tree and keeps the controller' {
+        Start-RfCase
+        $out = Join-Path $TestDrive 'usb-tree'
+        $run = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory $out
+        $usb = Get-RfSource -Run $run -Id 'usb_device_tree'
+        $usb.status | Should -BeExactly 'observed'
+        $usb.enabled.options.devices_present | Should -Be 19
+        # The seeds are every device of the six classes plus every USB\ instance; the three ancestors are the PCI root, the ACPI root and the tree root.
+        $usb.enabled.options.ancestors_added | Should -Be 3
+        $devices = Get-Content -LiteralPath (Join-Path $out 'raw/usb_device_tree/devices.json') -Raw | ConvertFrom-Json
+        $byId = @{}
+        foreach ($device in $devices) { $byId[$device.instance_id] = $device }
+        $receiver = $byId['USB\VID_FFF1&PID_0001\5&1e2f3a4b&0&3']
+        $receiver.is_seed | Should -BeTrue
+        $receiver.parent_instance_id | Should -BeExactly 'USB\ROOT_HUB30\4&2a1b3c4d&0&0'
+        $receiver.location_paths | Should -Be @('PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(3)')
+        $receiver.bus_reported_description | Should -BeExactly 'Synthetic Lightspeed Receiver'
+        $controller = $byId['PCI\VEN_FFF0&DEV_A36D\3&11583659&0&A0']
+        $controller.is_seed | Should -BeTrue -Because 'a host controller is of class USB'
+        $controller.service | Should -BeExactly 'USBXHCI'
+        $byId['HID\VID_FFF1&PID_0001&MI_00\7&4c5d6e7f&0&0000'].is_seed | Should -BeTrue -Because 'class Mouse is selected even without a USB instance id'
+        $byId['PCI\VEN_FFF0&DEV_2725\4&3a2b1c0d&0&00A0'].is_seed | Should -BeTrue -Because 'class Net is selected'
+        $byId['ACPI\PNP0A08\0'].is_seed | Should -BeFalse -Because 'the PCI root is only an ancestor'
+        $byId.ContainsKey('HTREE\ROOT\0') | Should -BeTrue
+        $byId.ContainsKey('PCI\VEN_FFFF&DEV_0001\4&3a2b1c0d&0&0008') | Should -BeFalse -Because 'the display adapter is neither selected nor an ancestor'
+        $bluetooth = Get-RfSource -Run $run -Id 'bluetooth_devices'
+        $bluetooth.status | Should -BeExactly 'observed'
+        $bluetooth.enabled.options.devices_selected | Should -Be 8
+        $routes = Get-Content -LiteralPath (Join-Path $out 'raw/default_routes/records.json') -Raw | ConvertFrom-Json
+        @($routes | ForEach-Object { $_.DestinationPrefix }) | Should -Be @('0.0.0.0/0', '::/0')
+        (Get-RfSource -Run $run -Id 'default_routes').requested.options.filter | Should -Match "DestinationPrefix = '0.0.0.0/0' OR"
+    }
+
+    It 'reports a device enumeration that fails, is empty or hits the cap honestly' {
+        Start-RfCase
+        $global:WfSynthetic.Pnp = @{ ErrorKind = 'access_denied'; ErrorMessage = 'Access denied' }
+        $run = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory (Join-Path $TestDrive 'pnp-denied')
+        (Get-RfSource -Run $run -Id 'usb_device_tree').status | Should -BeExactly 'not_collected'
+        (Get-RfSource -Run $run -Id 'bluetooth_devices').status | Should -BeExactly 'not_collected'
+        @((Get-RfSource -Run $run -Id 'usb_device_tree').artifacts | ForEach-Object { $_.role }) | Should -Not -Contain 'primary'
+
+        Start-RfCase
+        $global:WfSynthetic.Pnp = @{ Devices = @() }
+        $run2 = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory (Join-Path $TestDrive 'pnp-empty')
+        (Get-RfSource -Run $run2 -Id 'usb_device_tree').status | Should -BeExactly 'capture_failed'
+        (Get-RfSource -Run $run2 -Id 'usb_device_tree').status_reason | Should -Match 'no present device'
+        (Get-RfSource -Run $run2 -Id 'bluetooth_devices').status | Should -BeExactly 'capture_failed'
+
+        Start-RfCase 'rf-survey-no-wifi'
+        $run3 = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory (Join-Path $TestDrive 'pnp-no-bt')
+        $bluetooth = Get-RfSource -Run $run3 -Id 'bluetooth_devices'
+        $bluetooth.status | Should -BeExactly 'observed_zero'
+        $bluetooth.enabled.options.devices_present | Should -BeGreaterThan 0
+        $bluetooth.enabled.options.devices_selected | Should -Be 0
+
+        Start-RfCase
+        $out4 = Join-Path $TestDrive 'pnp-capped'
+        $run4 = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory $out4 -Arguments @{ MaxEvents = 3 }
+        $usb = Get-RfSource -Run $run4 -Id 'usb_device_tree'
+        $usb.status | Should -BeExactly 'capture_failed'
+        $usb.status_reason | Should -Match 'cap of 3 records'
+        @(Get-Content -LiteralPath (Join-Path $out4 'raw/usb_device_tree/devices.json') -Raw | ConvertFrom-Json).Count | Should -Be 3
     }
 }
