@@ -1217,6 +1217,21 @@ Describe 'rf-survey sources against the synthetic backend' {
         Protect-WfBluetoothAddresses -Text '{a1b2c3d4-0001-4000-8000-000000000001} and DEV_F0F1F2000001' -Salt 's' | Should -Match '^\{a1b2c3d4-0001-4000-8000-000000000001\} and DEV_mac-[0-9a-f]{12}$'
     }
 
+    It 'pseudonymises a Bluetooth HID node whose parent could not be read' {
+        Start-RfCase 'rf-survey-clean'
+        $mouse = @($global:WfSynthetic.Pnp['Devices'] | Where-Object { $_['instance_id'] -like 'HID\{00001812*' })[0]
+        $mouse['PropertyError'] = 'Access is denied.'
+        $out = Join-Path $TestDrive 'bt-hid-unread'
+        $null = Invoke-TestCollector -Collector 'rf-survey' -OutputDirectory $out
+        $path = Join-Path $out 'raw/usb_device_tree/devices.json'
+        [System.IO.File]::ReadAllText($path) | Should -Not -Match 'F0F1F2000003|Synthetic BLE Mouse'
+        $row = @(Get-Content -LiteralPath $path -Raw | ConvertFrom-Json | Where-Object { $_.instance_id -like 'HID\{00001812*' })[0]
+        $row.property_error | Should -BeExactly 'Access is denied.'
+        $row.parent_instance_id | Should -BeNullOrEmpty
+        $row.instance_id | Should -Match 'mac-[0-9a-f]{12}'
+        $row.name | Should -Match '^name-[0-9a-f]{12}$'
+    }
+
     It 'finds the connected network name by structure when the SSID label is translated' {
         $text = "    GUID                   : 5f4d3c2b-1a09-4e8f-9d7c-6b5a4f3e2d1c`r`n    Adresse physique       : 02:11:22:33:44:55`r`n    Etat                   : connecte`r`n    Nom du reseau          : Chez Moi`r`n    BSSID                  : 02:aa:bb:cc:dd:01`r`n    Canal                  : 6`r`n    Profil                 : Chez Moi`r`n"
         $r = Protect-WfNetshText -Text $text -Mode 'interfaces' -Salt 'test-salt' -KnownSsids $null
