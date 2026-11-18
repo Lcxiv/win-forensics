@@ -1,6 +1,6 @@
 # Timestamp contract
 
-Status: phase 0a, version 1.0.0. Applies to every collector, decoder, analyzer, and playbook in this repository. Companion contracts: [decoded-tables.md](decoded-tables.md), [measurement-status.md](measurement-status.md), [bundle.md](bundle.md).
+Status: phase 0a, version 1.1.0 (1.0.0 with the `presentmon` row in section 2 now describing the CSV printed from a Windows Performance Recorder recording read on the PC with `--etl_file --output_stdout --qpc_time` plus the collector's recording record, and with the `CPUStartTime` correction to 1.0.0 stated in that row). Applies to every collector, decoder, analyzer, and playbook in this repository. Companion contracts: [decoded-tables.md](decoded-tables.md), [measurement-status.md](measurement-status.md), [bundle.md](bundle.md).
 
 ## 1. Why one clock story is not enough
 
