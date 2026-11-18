@@ -27,6 +27,11 @@ OBSERVED = ("observed", "observed_zero")
 # writes a file outside the bundle and "connect", "disconnect", "refresh" and "reportissues" act on
 # the machine, so an allowlist, not a denylist, decides.
 ALLOWED_NETSH = re.compile(r"^wlan show (interfaces|drivers|networks mode=bssid|profiles)$")
+# The one PresentMon command line presentmon-frames may record: a named session, a CSV in the bundle,
+# no console statistics, QPC time stamps, a bounded run that terminates itself, and process names
+# only (never --process_id). The cleanup call is checked in the Pester suite, which sees every process start.
+ALLOWED_PRESENTMON = re.compile(r"^--session_name wf-presentmon-frames --output_file raw/presentmon_frames/frames\.csv --no_console_stats "
+                                r"--qpc_time --timed [0-9]+ --terminate_after_timed( --process_name [A-Za-z0-9._-]+)*$")
 
 # What each committed case is there to show: summary status and the status of every source.
 EXPECTED = {
@@ -53,6 +58,10 @@ EXPECTED = {
                                           "wlan_autoconfig_events": "observed_zero", "usb_device_tree": "observed", "bluetooth_devices": "observed"}),
     "tdr-events-partial": ("partial", {"system_display_events": "capture_failed", "system_bugcheck_events": "observed_zero"}),
     "whea-errors-quiet": ("ok", {"system_whea_events": "observed_zero"}),
+    "presentmon-frames": ("ok", {"presentmon_frames": "observed"}),
+    "presentmon-frames-quiet": ("ok", {"presentmon_frames": "observed_zero"}),
+    "presentmon-frames-no-binary": ("failed", {"presentmon_frames": "not_collected"}),
+    "presentmon-frames-access-denied": ("failed", {"presentmon_frames": "not_collected"}),
 }
 
 
@@ -113,7 +122,9 @@ def test_manifest_identifies_the_collector(case):
     assert manifest["calibration"]["status"] == "not_applicable" and manifest["calibration"]["pairs"] == []
     assert manifest["machine"]["hostname"] == "SYNTHETIC-PC", "fixtures never carry a real host name"
     tool_names = [t["name"] for t in manifest["tools"]]
-    assert tool_names == ["powershell", "wevtutil", f"collector:{name}", "collector-helper:_common.ps1"]
+    assert tool_names[:4] == ["powershell", "wevtutil", f"collector:{name}", "collector-helper:_common.ps1"]
+    # A collector that runs an operator supplied binary adds it, verified or not, after the four.
+    assert tool_names[4:] == (["presentmon"] if name == "presentmon-frames" else [])
 
 
 @pytest.mark.parametrize("case", CASES)
@@ -160,6 +171,14 @@ def test_status_and_evidence_stay_separate(case):
             assert "-OperationTimeoutSec" in collector["command"] and "-Property" in collector["command"]
             if collector["requested"]["options"]["time_property"]:
                 assert "-Filter" in collector["command"] and collector["requested"]["options"]["filter"].startswith("TimeGenerated >= '")
+        elif collector["kind"] == "presentmon":
+            assert ALLOWED_PRESENTMON.fullmatch(" ".join(collector["command"][1:])), collector["command"]
+            assert collector["command"][0] == collector["requested"]["options"]["tool"]
+            assert collector["events_lost"] is None, "PresentMon 2.6.0 documents no lost event count; null, never zero"
+            if collector["status"] in OBSERVED:
+                assert collector["enabled"]["options"]["qpc_time_column"] is True
+                assert collector["enabled"]["options"]["exit_code"] == 0
+                assert collector["enabled"]["options"]["cleanup_ran"] is True
         elif collector["command"][0].endswith("netsh.exe"):
             assert ALLOWED_NETSH.fullmatch(" ".join(collector["command"][1:])), collector["command"]
             options = collector["requested"]["options"]
@@ -447,3 +466,47 @@ def test_reliability_export_keeps_wmi_names_and_utc_times():
         assert set(record) == {"ComputerName", "EventIdentifier", "InsertionStrings", "Logfile", "Message", "ProductName",
                                "RecordNumber", "SourceName", "TimeGenerated", "User"}
         assert iso.match(record["TimeGenerated"]) and isinstance(record["InsertionStrings"], list)
+
+
+
+# ---------------------------------------------------------------- PresentMon captures
+
+def test_presentmon_fixture_records_the_pin_and_the_verification():
+    manifest = load_manifest("presentmon-frames")
+    source = manifest["collectors"][0]
+    config = json.loads((BUNDLES / "presentmon-frames" / "raw" / "presentmon_frames" / "command.json").read_text(encoding="utf-8"))
+    result = json.loads((BUNDLES / "presentmon-frames" / "raw" / "presentmon_frames" / "result.json").read_text(encoding="utf-8"))
+    presentmon = next(t for t in manifest["tools"] if t["name"] == "presentmon")
+    assert presentmon["version"] == config["pinned"]["version"] == "2.6.0"
+    assert presentmon["sha256"] == config["pinned"]["sha256"] == result["binary"]["sha256"]
+    assert result["binary"]["pin_matched"] is True and result["binary"]["length_matched"] is True
+    assert [c["ok"] for c in source["preflight"]["checks"]] == [True, True, True]
+    assert manifest["scenario"]["requested_duration_s"] == config["duration_seconds"] == 60
+    assert config["hard_maximum_seconds"] == 90
+    assert "CPUStartQPC" in manifest["calibration"]["method"] and manifest["calibration"]["status"] == "not_applicable"
+    assert result["cleanup"]["attempted"] is True and result["cleanup"]["started"] is True
+    assert result["events_lost"] is None
+    roles = {a["role"]: a["path"] for a in source["artifacts"]}
+    assert roles == {"config": "raw/presentmon_frames/command.json", "primary": "raw/presentmon_frames/frames.csv",
+                     "log": "raw/presentmon_frames/console.txt", "report": "raw/presentmon_frames/result.json"}
+    assert source["enabled"]["options"]["processes"] == [{"application": "SyntheticGame.exe", "process_id": 4242, "frames": 8},
+                                                         {"application": "<unknown>", "process_id": 5120, "frames": 2}]
+    assert source["enabled"]["options"]["unknown_application_frames"] == 2
+
+
+def test_presentmon_failures_leave_no_csv_and_run_nothing_unverified():
+    for case, reason in (("presentmon-frames-no-binary", "is not at"), ("presentmon-frames-access-denied", "access denied")):
+        manifest = load_manifest(case)
+        source = manifest["collectors"][0]
+        assert source["status"] == "not_collected" and reason in source["status_reason"]
+        assert not (BUNDLES / case / "raw" / "presentmon_frames" / "frames.csv").exists()
+        assert source["raw_time_range"] is None and source["expectation"]["met"] is False
+    missing = load_manifest("presentmon-frames-no-binary")["collectors"][0]
+    assert missing["preflight"]["ok"] is False
+    assert "https://github.com/GameTechDev/PresentMon/releases/tag/v2.6.0" in missing["status_reason"]
+    result = json.loads((BUNDLES / "presentmon-frames-no-binary" / "raw" / "presentmon_frames" / "result.json").read_text(encoding="utf-8"))
+    assert result["run"]["started"] is False and result["cleanup"]["attempted"] is False
+    denied = load_manifest("presentmon-frames-access-denied")["collectors"][0]
+    assert denied["preflight"]["ok"] is True, "the binary was verified; the trace session is what failed"
+    assert "Performance Log Users" in denied["status_reason"]
+    assert denied["enabled"]["options"]["console_flagged_lines"] == ["error: failed to start trace session (access denied)"]

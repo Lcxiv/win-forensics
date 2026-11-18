@@ -1,0 +1,283 @@
+{
+  "manifest_version": "1.0.0",
+  "bundle_id": "20260301T120001Z_presentmon_frames_ae3a76a9",
+  "created_utc": "2026-03-01T12:00:08.0000000Z",
+  "scenario": {
+    "id": "presentmon_frames",
+    "version": "1.0.0",
+    "requested_duration_s": 60,
+    "target_process": null,
+    "marks": []
+  },
+  "capture": {
+    "start_utc": "2026-03-01T12:00:01.0000000Z",
+    "stop_utc": "2026-03-01T12:00:08.0000000Z",
+    "orchestrator": "wf-collector:presentmon-frames",
+    "orchestrator_version": "1.2.0",
+    "elevated": false,
+    "incomplete": true
+  },
+  "machine": {
+    "machine_id": "ae3a76a9f32fa71b72616118339e376c",
+    "hostname": "SYNTHETIC-PC",
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26100",
+      "build": 26100,
+      "ubr": 1,
+      "display_version": "24H2",
+      "architecture": "64-bit",
+      "edition": "Professional"
+    },
+    "cpu": {
+      "name": "Synthetic CPU",
+      "logical_processors": 16,
+      "qpc_frequency_hz": 10000000
+    },
+    "memory_bytes": 34359738368,
+    "gpus": [
+      {
+        "name": "Synthetic Display Adapter",
+        "driver_version": "1.2.3.4",
+        "driver_date": "2026-01-15T00:00:00.0000000Z",
+        "device_id": "PCI\\VEN_FFFF&DEV_0001"
+      }
+    ],
+    "bios": {
+      "vendor": "Synthetic Firmware",
+      "version": "S1.00",
+      "release_date": "2025-11-01T00:00:00.0000000Z"
+    },
+    "board": {
+      "manufacturer": "Synthetic Boards",
+      "product": "SB-1"
+    },
+    "drivers": [],
+    "time_zone": {
+      "name": "UTC",
+      "utc_offset_minutes": 0,
+      "dst_active": false
+    }
+  },
+  "collectors": [
+    {
+      "id": "presentmon_frames",
+      "kind": "presentmon",
+      "required": true,
+      "status": "not_collected",
+      "status_reason": "preflight failed, the trace session could not be started: PresentMon could not start its trace session (exit code 1): error: failed to start trace session (access denied). PresentMon documents that the user must be a member of Performance Log Users or run elevated",
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:03.0000000Z",
+        "checks": [
+          {
+            "name": "binary_present",
+            "ok": true,
+            "detail": "C:\\ProgramData\\win-forensics\\tools\\PresentMon-2.6.0-x64.exe"
+          },
+          {
+            "name": "binary_sha256_pinned",
+            "ok": true,
+            "detail": "sha256 b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af, pinned b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af"
+          },
+          {
+            "name": "binary_length_pinned",
+            "ok": true,
+            "detail": "980320 bytes, pinned 980320"
+          }
+        ]
+      },
+      "command": [
+        "C:\\ProgramData\\win-forensics\\tools\\PresentMon-2.6.0-x64.exe",
+        "--session_name",
+        "wf-presentmon-frames",
+        "--output_file",
+        "raw/presentmon_frames/frames.csv",
+        "--no_console_stats",
+        "--qpc_time",
+        "--timed",
+        "60",
+        "--terminate_after_timed"
+      ],
+      "started_utc": "2026-03-01T12:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:07.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "fa4079de1f52c0e8d8eec2d9dab2c569e6f28cff20d459d57ec1a8b5c93ab94c"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\ProgramData\\win-forensics\\tools\\PresentMon-2.6.0-x64.exe",
+          "pinned": {
+            "version": "2.6.0",
+            "file_name": "PresentMon-2.6.0-x64.exe",
+            "sha256": "b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af",
+            "length": 980320,
+            "release_url": "https://github.com/GameTechDev/PresentMon/releases/tag/v2.6.0",
+            "asset_url": "https://github.com/GameTechDev/PresentMon/releases/download/v2.6.0/PresentMon-2.6.0-x64.exe",
+            "documentation_url": "https://github.com/GameTechDev/PresentMon/blob/v2.6.0/README-ConsoleApplication.md",
+            "digest_source": "the digest GitHub records for the release asset (release API digest field), read 2026-11-18"
+          },
+          "arguments": [
+            "--session_name",
+            "wf-presentmon-frames",
+            "--output_file",
+            "raw/presentmon_frames/frames.csv",
+            "--no_console_stats",
+            "--qpc_time",
+            "--timed",
+            "60",
+            "--terminate_after_timed"
+          ],
+          "output_file_recorded_as": "the bundle relative path of frames.csv; the process received the absolute path of that file in this bundle, in double quotes",
+          "cleanup_arguments": [
+            "--session_name",
+            "wf-presentmon-frames",
+            "--terminate_existing_session"
+          ],
+          "session_name": "wf-presentmon-frames",
+          "duration_seconds": 60,
+          "grace_seconds": 30,
+          "hard_maximum_seconds": 90,
+          "helper_deadline_seconds": 120,
+          "process_names": [],
+          "observes": "ETW trace session consumed by PresentMon (vendor README: the PresentData library performs the lowest-level collection and analysis of ETW events); capture by process name or for every process, never by process id; no overlay, no injection",
+          "max_artifact_bytes": 67108864,
+          "console_cap_bytes": 1048576,
+          "option_citations": {
+            "--session_name": "Use the specified session name instead of the default \"PresentMon\".",
+            "--output_file": "Write CSV output to the specified path.",
+            "--no_console_stats": "Do not display active swap chains and frame statistics in the console.",
+            "--qpc_time": "Output the CPU start time as a performance counter value.",
+            "--timed": "Stop recording after the specified amount of time.",
+            "--terminate_after_timed": "When using --timed, terminate PresentMon after the timed capture completes.",
+            "--process_name": "Only record processes with the specified exe name. This argument can be repeated to capture multiple processes.",
+            "--terminate_existing_session": "If a trace session with the same name is already running, stop the existing session then exit."
+          },
+          "account": {
+            "elevated": false,
+            "performance_log_users": false
+          }
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exit_code": 1,
+          "timed_out": false,
+          "duration_ms": 1000,
+          "csv_bytes": 0,
+          "csv_header": [],
+          "qpc_time_column": false,
+          "records": 0,
+          "processes": [],
+          "unknown_application_frames": 0,
+          "console_flagged_lines": [
+            "error: failed to start trace session (access denied)"
+          ],
+          "cleanup_ran": true,
+          "cleanup_exit_code": 0,
+          "elevated": false,
+          "performance_log_users": false
+        },
+        "verified_by": "the CSV header PresentMon wrote (a CPUStartQPC column proves --qpc_time was in effect), its exit code, and its console text in console.txt; the cleanup call is recorded in result.json"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/presentmon_frames/command.json",
+          "bytes": 2592,
+          "sha256": "fa4079de1f52c0e8d8eec2d9dab2c569e6f28cff20d459d57ec1a8b5c93ab94c",
+          "role": "config"
+        },
+        {
+          "path": "raw/presentmon_frames/console.txt",
+          "bytes": 72,
+          "sha256": "dd36e0d6bc5f74ae30dcb9683f717d89dfc32f26d4def07d0f55d8089a3bc8c7",
+          "role": "log"
+        },
+        {
+          "path": "raw/presentmon_frames/result.json",
+          "bytes": 1448,
+          "sha256": "fc979d8d3bd117859b802855f9e1517ee20a4f93ea7a97a8c87147a17f17ab19",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "the pinned PresentMon binary exits with code 0 after its timed run, the CSV header carries CPUStartQPC (the --qpc_time option in effect), and at least one frame row was written; with no process filter, zero rows after a completed run is a quiet window (observed_zero); with a process filter, zero rows is capture_failed",
+        "met": false,
+        "detail": "exit code 1; 0 frames from 0 processes; CPUStartQPC column False; cleanup ran True"
+      },
+      "target_process": null
+    }
+  ],
+  "calibration": {
+    "status": "not_applicable",
+    "method": "none in this collector: frame timestamps are performance counter values (PresentMon --qpc_time, CPUStartQPC), the etw_qpc master domain of docs/contracts/timestamps.md; the calibration pairs that relate them to system time come from the clock collector of a later runner",
+    "qpc_frequency_hz": 10000000,
+    "expected_pairs": 0,
+    "pairs": [],
+    "missing_pairs": 0,
+    "time_adjustment": {
+      "start": null,
+      "stop": null
+    },
+    "boot_time_utc": "2026-02-27T12:00:00.0000000Z"
+  },
+  "tools": [
+    {
+      "name": "powershell",
+      "version": "5.1.26100.1",
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "sha256": null
+    },
+    {
+      "name": "wevtutil",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wevtutil.exe",
+      "sha256": null
+    },
+    {
+      "name": "collector:presentmon-frames",
+      "version": "1.0.0",
+      "path": "<install directory>\\presentmon-frames.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector-helper:_common.ps1",
+      "version": "1.2.0",
+      "path": "<install directory>\\_common.ps1",
+      "sha256": null
+    },
+    {
+      "name": "presentmon",
+      "version": "2.6.0",
+      "path": "C:\\ProgramData\\win-forensics\\tools\\PresentMon-2.6.0-x64.exe",
+      "sha256": "b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af"
+    }
+  ],
+  "symbols": {
+    "symbol_path": null,
+    "cache_path": null,
+    "dbghelp_version": null
+  },
+  "checksum_algorithm": "sha256",
+  "notes": [
+    "Read only collector presentmon-frames version 1.0.0: What did the frame pipeline do, frame by frame, during a bounded window: present cadence, time in Present, CPU and GPU busy and wait, display latency, every frame stamped in the ETW performance counter domain?",
+    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
+    "source presentmon_frames: the account is neither elevated nor a member of Performance Log Users (S-1-5-32-559); PresentMon documents that it then fails with \"failed to start trace session (access denied)\""
+  ]
+}

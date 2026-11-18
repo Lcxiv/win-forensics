@@ -1,0 +1,5 @@
+2026-03-01T12:00:01.0000000Z collector presentmon-frames version 1.0.0, helper version 1.2.0, no time window (snapshot), 90 s per source
+source presentmon_frames: starting C:\ProgramData\win-forensics\tools\PresentMon-2.6.0-x64.exe --session_name wf-presentmon-frames --output_file raw/presentmon_frames/frames.csv --no_console_stats --qpc_time --timed 30 --terminate_after_timed
+source presentmon_frames: cleanup C:\ProgramData\win-forensics\tools\PresentMon-2.6.0-x64.exe --session_name wf-presentmon-frames --terminate_existing_session
+source presentmon_frames: status observed_zero, 4 artifacts
+2026-03-01T12:00:37.0000000Z manifest written: bundle 20260301T120001Z_presentmon_frames_ae3a76a9, status ok, 4 artifacts

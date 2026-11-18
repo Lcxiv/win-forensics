@@ -1,0 +1,83 @@
+{
+  "binary": {
+    "path": "C:\\ProgramData\\win-forensics\\tools\\PresentMon-2.6.0-x64.exe",
+    "exists": true,
+    "length": 980320,
+    "sha256": "b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af",
+    "file_version": "2.6.0.0",
+    "product_version": "2.6.0",
+    "error": null,
+    "pin_matched": true,
+    "length_matched": true
+  },
+  "run": {
+    "started_utc": "2026-03-01T12:00:02.0000000Z",
+    "stopped_utc": "2026-03-01T12:00:35.0000000Z",
+    "started": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "oversized": false,
+    "duration_ms": 30000,
+    "stdout_bytes": 0,
+    "stderr_bytes": 0,
+    "error": null
+  },
+  "csv": {
+    "path": "raw/presentmon_frames/frames.csv",
+    "bytes": 482,
+    "header": [
+      "Application",
+      "ProcessID",
+      "SwapChainAddress",
+      "PresentRuntime",
+      "SyncInterval",
+      "PresentFlags",
+      "AllowsTearing",
+      "PresentMode",
+      "FrameType",
+      "CPUStartQPC",
+      "MsCPUBusy",
+      "MsCPUWait",
+      "MsGPULatency",
+      "MsGPUTime",
+      "MsGPUBusy",
+      "MsGPUWait",
+      "VideoBusy",
+      "DisplayLatency",
+      "DisplayedTime",
+      "MsAnimationError",
+      "AnimationTime",
+      "MsClickToPhotonLatency",
+      "MsAllInputToPhotonLatency",
+      "InstrumentedLatency",
+      "MsBetweenPresents",
+      "MsInPresentAPI",
+      "MsBetweenDisplayChange",
+      "MsUntilDisplayed",
+      "MsRenderPresentLatency",
+      "MsBetweenSimulationStart",
+      "MsPCLatency",
+      "MsBetweenAppStart"
+    ],
+    "qpc_time_column": true,
+    "frames": 0,
+    "processes": [],
+    "truncated_process_list": false,
+    "unknown_application_frames": 0
+  },
+  "console_flagged_lines": [],
+  "events_lost": null,
+  "events_lost_note": "PresentMon 2.6.0 documents no lost event count for the console application; the console text is kept verbatim in console.txt and the lines above are the ones that look like warnings",
+  "cleanup": {
+    "attempted": true,
+    "started": true,
+    "exit_code": 0,
+    "timed_out": false,
+    "duration_ms": 1000,
+    "output": null
+  },
+  "account": {
+    "elevated": false,
+    "performance_log_users": true
+  }
+}

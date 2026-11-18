@@ -1,0 +1,5 @@
+stdout:
+
+stderr:
+error: failed to start trace session (access denied)
+

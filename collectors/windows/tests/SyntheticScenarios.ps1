@@ -191,7 +191,149 @@ function Get-WfSyntheticCases {
             }
         })
 
+    # The PresentMon frame capture. The binary, its output and every frame
+    # are invented; the hash the synthetic file reports is the pinned one so
+    # the collector's verification passes, and the CSV follows the column
+    # list the vendor documents for 2.6.0 (see Get-WfSyntheticPresentMonCsv).
+
+    # A completed 60 second capture of every presenting process: a game and
+    # a process PresentMon could not name. Status ok, source observed.
+    $cases.Add(@{
+            Case = 'presentmon-frames'; Collector = 'presentmon-frames'; ExitCode = 0
+            Arguments = @{ PresentMonPath = (Get-WfSyntheticPresentMonPath); DurationSeconds = 60 }
+            Setup = {
+                New-WfSyntheticPresentMon -PerformanceLogUsers $true
+                Add-WfSyntheticPresentMonRun -CsvText (Get-WfSyntheticPresentMonCsv -Name 'two-processes') -Seconds 60
+            }
+        })
+
+    # The same capture while nothing presented: a header and no rows, which
+    # is the quiet window the collector accepts without a process filter.
+    $cases.Add(@{
+            Case = 'presentmon-frames-quiet'; Collector = 'presentmon-frames'; ExitCode = 0
+            Arguments = @{ PresentMonPath = (Get-WfSyntheticPresentMonPath); DurationSeconds = 30 }
+            Setup = {
+                New-WfSyntheticPresentMon -PerformanceLogUsers $true
+                Add-WfSyntheticPresentMonRun -CsvText (Get-WfSyntheticPresentMonCsv -Name 'header-only') -Seconds 30
+            }
+        })
+
+    # The operator has not placed the binary: nothing runs, the source is
+    # not_collected with the download hint, the collector exits 1.
+    $cases.Add(@{
+            Case = 'presentmon-frames-no-binary'; Collector = 'presentmon-frames'; ExitCode = 1
+            Arguments = @{ PresentMonPath = (Get-WfSyntheticPresentMonPath); DurationSeconds = 60 }
+            Setup = {
+                New-WfSyntheticPresentMon -PerformanceLogUsers $true -Present $false
+            }
+        })
+
+    # The account is outside Performance Log Users and PresentMon refuses to
+    # start its trace session: not_collected with the tool's own message.
+    $cases.Add(@{
+            Case = 'presentmon-frames-access-denied'; Collector = 'presentmon-frames'; ExitCode = 1
+            Arguments = @{ PresentMonPath = (Get-WfSyntheticPresentMonPath); DurationSeconds = 60 }
+            Setup = {
+                New-WfSyntheticPresentMon -PerformanceLogUsers $false
+                Add-WfSyntheticPresentMonRun -ExitCode 1 -StdErr "error: failed to start trace session (access denied)`r`n" -Seconds 1
+            }
+        })
+
     return $cases.ToArray()
+}
+
+function Get-WfSyntheticPresentMonPath {
+    # Where the fixture cases say the binary is; the synthetic backend never
+    # touches the path, it only looks it up.
+    return 'C:\ProgramData\win-forensics\tools\PresentMon-2.6.0-x64.exe'
+}
+
+function Get-WfSyntheticPresentMonPinnedSha256 {
+    # The pin presentmon-frames.ps1 carries (GitHub release v2.6.0 asset
+    # digest). Kept here as text so the synthetic file can report it; a test
+    # compares it with the collector's own constant.
+    return 'b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af'
+}
+
+function New-WfSyntheticPresentMon {
+    # The synthetic PresentMon binary (present with the pinned hash and size
+    # unless told otherwise) and the account's group memberships.
+    param([bool]$PerformanceLogUsers = $true, [bool]$Present = $true, [string]$Sha256 = '', [int64]$Length = 980320, [bool]$Elevated = $false)
+    $global:WfSynthetic.Account = @{ Elevated = $Elevated; EventLogReaders = $true; PerformanceLogUsers = $PerformanceLogUsers }
+    if (-not $Present) {
+        $global:WfSynthetic.Binaries.Remove((Get-WfSyntheticPresentMonPath))
+        return
+    }
+    if (-not $Sha256) { $Sha256 = Get-WfSyntheticPresentMonPinnedSha256 }
+    $global:WfSynthetic.Binaries[(Get-WfSyntheticPresentMonPath)] = @{ Length = $Length; Sha256 = $Sha256; FileVersion = '2.6.0.0'; ProductVersion = '2.6.0' }
+}
+
+function Add-WfSyntheticPresentMonRun {
+    # What the synthetic binary does when started for a capture (arguments
+    # carrying --timed) and for the cleanup call (--terminate_existing_session).
+    param([int]$ExitCode = 0, [string]$StdOut = '', [string]$StdErr = '', $CsvText = $null, [int]$Seconds = 60, [bool]$Stuck = $false,
+        [int]$CleanupExitCode = 0, [string]$CleanupStdOut = '', [bool]$CleanupStuck = $false)
+    $capture = @{ Path = (Get-WfSyntheticPresentMonPath); Match = '--timed'; ExitCode = $ExitCode; StdOut = $StdOut; StdErr = $StdErr; Seconds = $Seconds }
+    if ($null -ne $CsvText) { $capture['CsvText'] = [string]$CsvText }
+    if ($Stuck) { $capture['Stuck'] = $true }
+    $global:WfSynthetic.Programs.Add($capture)
+    $cleanup = @{ Path = (Get-WfSyntheticPresentMonPath); Match = '--terminate_existing_session'; ExitCode = $CleanupExitCode; StdOut = $CleanupStdOut; StdErr = ''; Seconds = 1 }
+    if ($CleanupStuck) { $cleanup['Stuck'] = $true }
+    $global:WfSynthetic.Programs.Add($cleanup)
+}
+
+function Get-WfSyntheticPresentMonCsv {
+    # Invented CSV text in the column list the PresentMon 2.6.0 console
+    # README documents under "CSV columns" (every default metric, with
+    # CPUStartQPC because the collector passes --qpc_time, without the three
+    # columns that need --write_display_metadata). Values are made up: a
+    # 10 MHz counter (the synthetic machine's QueryPerformanceFrequency), a
+    # game at about 144 frames per second, a second process PresentMon could
+    # not name, and NA where the vendor documents NA (a frame that was not
+    # displayed) or where no input reached the frame.
+    param([string]$Name)
+    $nl = "`r`n"
+    $header = 'Application,ProcessID,SwapChainAddress,PresentRuntime,SyncInterval,PresentFlags,AllowsTearing,PresentMode,FrameType,CPUStartQPC,MsCPUBusy,MsCPUWait,MsGPULatency,MsGPUTime,MsGPUBusy,MsGPUWait,VideoBusy,DisplayLatency,DisplayedTime,MsAnimationError,AnimationTime,MsClickToPhotonLatency,MsAllInputToPhotonLatency,InstrumentedLatency,MsBetweenPresents,MsInPresentAPI,MsBetweenDisplayChange,MsUntilDisplayed,MsRenderPresentLatency,MsBetweenSimulationStart,MsPCLatency,MsBetweenAppStart'
+    switch ($Name) {
+        'header-only' { return ($header + $nl) }
+        'no-qpc' {
+            return (($header -replace 'CPUStartQPC', 'CPUStartTime') + $nl +
+                'SyntheticGame.exe,4242,0x000001F3A0C0B2E0,DXGI,0,512,1,Hardware: Independent Flip,Application,0.000000,5.812,1.102,0.401,5.633,5.511,0.122,0.000,12.338,6.944,NA,0.000000,NA,NA,NA,NA,0.214,NA,NA,6.112,NA,NA,6.914' + $nl)
+        }
+        'two-processes' {
+            $lines = New-Object 'System.Collections.Generic.List[string]'
+            $lines.Add($header)
+            $qpc = [int64]123456789000
+            $game = @(
+                @('6.914', '5.812', '1.102', '0.401', '5.633', '5.511', '0.122', '12.338', '6.944', '0.030', 'NA', 'NA', '6.914', '0.214', '6.944', '6.112'),
+                @('6.930', '5.790', '1.140', '0.398', '5.701', '5.590', '0.111', '12.401', '6.930', '-0.014', '18.772', '18.772', '6.930', '0.201', '6.930', '6.144'),
+                @('6.902', '5.820', '1.082', '0.405', '5.655', '5.540', '0.115', '12.350', '6.902', '0.028', 'NA', 'NA', '6.902', '0.219', '6.902', '6.090'),
+                @('13.804', '12.650', '1.154', '0.412', '12.511', '12.400', '0.111', '19.250', '13.804', '6.902', 'NA', 'NA', '13.804', '0.233', '13.804', '13.011'),
+                @('6.944', '5.801', '1.143', '0.399', '5.622', '5.500', '0.122', '12.299', 'NA', '-6.860', 'NA', 'NA', '6.944', '0.208', 'NA', 'NA'),
+                @('6.920', '5.833', '1.087', '0.403', '5.690', '5.577', '0.113', '12.388', '13.864', '0.000', 'NA', 'NA', '6.920', '0.211', '13.864', '6.120'),
+                @('6.911', '5.809', '1.102', '0.400', '5.640', '5.521', '0.119', '12.344', '6.911', '0.009', '25.104', '25.104', '6.911', '0.215', '6.911', '6.100'),
+                @('6.933', '5.822', '1.111', '0.404', '5.661', '5.548', '0.113', '12.360', '6.933', '-0.022', 'NA', 'NA', '6.933', '0.209', '6.933', '6.133')
+            )
+            $modes = @('Hardware: Independent Flip', 'Hardware: Independent Flip', 'Hardware: Independent Flip', 'Hardware Composed: Independent Flip', 'Hardware: Independent Flip', 'Hardware: Independent Flip', 'Hardware: Independent Flip', 'Hardware: Independent Flip')
+            $i = 0
+            foreach ($frame in $game) {
+                $qpc += [int64]([double]$frame[0] * 10000)
+                # BetweenPresents, CPUBusy, CPUWait, GPULatency, GPUTime, GPUBusy, GPUWait, DisplayLatency, DisplayedTime, AnimationError, ClickToPhoton, AllInputToPhoton, BetweenAppStart, InPresentAPI, BetweenDisplayChange, UntilDisplayed
+                $lines.Add(('SyntheticGame.exe,4242,0x000001F3A0C0B2E0,DXGI,0,512,1,{0},Application,{1},{2},{3},{4},{5},{6},{7},0.000,{8},{9},{10},{11},{12},{13},NA,{14},{15},{16},{17},6.112,NA,NA,{18}' -f
+                        $modes[$i], $qpc, $frame[1], $frame[2], $frame[3], $frame[4], $frame[5], $frame[6], $frame[7], $frame[8], $frame[9], ($qpc / 10000.0).ToString('F6', [System.Globalization.CultureInfo]::InvariantCulture), $frame[10], $frame[11], $frame[0], $frame[13], $frame[14], $frame[15], $frame[12]))
+                $i += 1
+                if ($i -eq 3 -or $i -eq 6) {
+                    # A frame from a process PresentMon could not name, composed by the desktop.
+                    $lines.Add(('<unknown>,5120,0x000001F3A1D44F00,DXGI,1,0,0,Composed: Flip,Application,{0},2.011,14.655,0.902,1.244,1.201,0.043,0.000,22.104,16.667,0.000,{1},NA,NA,NA,16.666,0.088,16.667,20.104,1.500,NA,NA,16.666' -f ($qpc + 31000), (($qpc + 31000) / 10000.0).ToString('F6', [System.Globalization.CultureInfo]::InvariantCulture)))
+                }
+            }
+            return (($lines.ToArray() -join $nl) + $nl)
+        }
+        'ragged' {
+            return ($header + $nl + 'SyntheticGame.exe,4242,0x000001F3A0C0B2E0,DXGI,0,512' + $nl)
+        }
+    }
+    throw ('no synthetic PresentMon CSV named ' + $Name)
 }
 
 function New-WfSyntheticRfMachine {

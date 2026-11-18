@@ -1,0 +1,53 @@
+{
+  "tool": "C:\\ProgramData\\win-forensics\\tools\\PresentMon-2.6.0-x64.exe",
+  "pinned": {
+    "version": "2.6.0",
+    "file_name": "PresentMon-2.6.0-x64.exe",
+    "sha256": "b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af",
+    "length": 980320,
+    "release_url": "https://github.com/GameTechDev/PresentMon/releases/tag/v2.6.0",
+    "asset_url": "https://github.com/GameTechDev/PresentMon/releases/download/v2.6.0/PresentMon-2.6.0-x64.exe",
+    "documentation_url": "https://github.com/GameTechDev/PresentMon/blob/v2.6.0/README-ConsoleApplication.md",
+    "digest_source": "the digest GitHub records for the release asset (release API digest field), read 2026-11-18"
+  },
+  "arguments": [
+    "--session_name",
+    "wf-presentmon-frames",
+    "--output_file",
+    "raw/presentmon_frames/frames.csv",
+    "--no_console_stats",
+    "--qpc_time",
+    "--timed",
+    "60",
+    "--terminate_after_timed"
+  ],
+  "output_file_recorded_as": "the bundle relative path of frames.csv; the process received the absolute path of that file in this bundle, in double quotes",
+  "cleanup_arguments": [
+    "--session_name",
+    "wf-presentmon-frames",
+    "--terminate_existing_session"
+  ],
+  "session_name": "wf-presentmon-frames",
+  "duration_seconds": 60,
+  "grace_seconds": 30,
+  "hard_maximum_seconds": 90,
+  "helper_deadline_seconds": 120,
+  "process_names": [],
+  "observes": "ETW trace session consumed by PresentMon (vendor README: the PresentData library performs the lowest-level collection and analysis of ETW events); capture by process name or for every process, never by process id; no overlay, no injection",
+  "max_artifact_bytes": 67108864,
+  "console_cap_bytes": 1048576,
+  "option_citations": {
+    "--session_name": "Use the specified session name instead of the default \"PresentMon\".",
+    "--output_file": "Write CSV output to the specified path.",
+    "--no_console_stats": "Do not display active swap chains and frame statistics in the console.",
+    "--qpc_time": "Output the CPU start time as a performance counter value.",
+    "--timed": "Stop recording after the specified amount of time.",
+    "--terminate_after_timed": "When using --timed, terminate PresentMon after the timed capture completes.",
+    "--process_name": "Only record processes with the specified exe name. This argument can be repeated to capture multiple processes.",
+    "--terminate_existing_session": "If a trace session with the same name is already running, stop the existing session then exit."
+  },
+  "account": {
+    "elevated": false,
+    "performance_log_users": false
+  }
+}

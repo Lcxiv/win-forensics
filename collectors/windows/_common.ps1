@@ -15,7 +15,10 @@
 #
 # Source types a collector definition may use: eventlog, cim, command (a
 # fixed netsh query), file (one known file copied read only), pnp (present
-# Plug and Play devices with their parent chain).
+# Plug and Play devices with their parent chain), and custom (a source
+# function the collector script itself defines and names in Invoke; the
+# PresentMon frame capture keeps its live session control there, in
+# presentmon-frames.ps1, so this helper carries no session logic).
 #
 # Target: Windows PowerShell 5.1 as a standard account in Event Log Readers.
 # Contracts: docs/contracts/bundle.md, docs/contracts/measurement-status.md,
@@ -34,7 +37,7 @@ if (Get-Command -Name 'Invoke-WfCollectorScript' -CommandType Function -ErrorAct
 # Constants are functions, not script scoped variables: a function that is
 # called from another script file would look a script variable up in that
 # file's scope and not find it.
-function Get-WfCollectorsVersion { return '1.1.0' }
+function Get-WfCollectorsVersion { return '1.2.0' }
 function Get-WfManifestVersion { return '1.0.0' }
 function Get-WfCollectorNamePattern { return '^[a-z][a-z0-9-]{1,40}$' }
 
@@ -2172,6 +2175,15 @@ function Invoke-WfCollector {
     }
     $windowText = 'no time window (snapshot)'
     if ($windowed) { $windowText = ('window {0} days' -f $WindowDays) }
+    # A live capture states its requested duration in seconds and, when it is
+    # scoped to a process, the process name; history collectors leave both out.
+    $requestedDuration = [int64]0
+    if ($windowed) { $requestedDuration = [int64]$WindowDays * 86400 }
+    if ($Definition.ContainsKey('RequestedDurationSeconds')) { $requestedDuration = [int64]$Definition['RequestedDurationSeconds'] }
+    $targetProcess = $null
+    if ($Definition.ContainsKey('TargetProcess') -and $Definition['TargetProcess']) { $targetProcess = [string]$Definition['TargetProcess'] }
+    $calibrationMethod = 'none: this collector reads historical records that carry their own UTC system time, so there is no QPC session to calibrate'
+    if ($Definition.ContainsKey('CalibrationMethod') -and $Definition['CalibrationMethod']) { $calibrationMethod = [string]$Definition['CalibrationMethod'] }
     $log.Add(('{0} collector {1} version {2}, helper version {3}, {4}, {5} s per source' -f (ConvertTo-WfUtcString -Value $start), $name, [string]$Definition['Version'], (Get-WfCollectorsVersion), $windowText, $TimeoutSeconds))
 
     $machineInfo = $null
@@ -2185,6 +2197,7 @@ function Invoke-WfCollector {
     }
     $account = Get-WfAccountInfo
     $entries = New-Object 'System.Collections.Generic.List[object]'
+    $extraTools = New-Object 'System.Collections.Generic.List[object]'
     $driverResult = $null
     # Shared by the sources that pseudonymise names and addresses: one salt
     # for the run, and the network names learned so far, kept in memory only.
@@ -2212,10 +2225,21 @@ function Invoke-WfCollector {
             $protects = $true
             $result = Invoke-WfPnpSource -Source $source -BundleRoot $bundleRoot -MaxEvents $MaxEvents `
                 -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes -Context $context
+        } elseif ($type -eq 'custom') {
+            # A source function the collector script defines (dot sourcing this
+            # helper puts both in the script's scope). It takes the same
+            # parameters as the command source and returns Entry, Rows and,
+            # optionally, Tools (tool records for manifest.tools, for a binary
+            # the source verified and ran).
+            $invoke = [string]$source['Invoke']
+            if (-not (Get-Command -Name $invoke -CommandType Function -ErrorAction SilentlyContinue)) { throw ('custom source ' + [string]$source['Id'] + ' names a function that is not defined: ' + $invoke) }
+            $result = & $invoke -Source $source -BundleRoot $bundleRoot -MaxArtifactBytes $MaxArtifactBytes `
+                -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes -Context $context
         } else {
             throw ('unknown source type: ' + $type)
         }
         $entries.Add($result['Entry'])
+        if ($result.Contains('Tools')) { foreach ($tool in @($result['Tools'])) { $extraTools.Add($tool) } }
     }
     $context['Ssids'].Clear()
     $stop = Get-WfUtcNow
@@ -2241,6 +2265,7 @@ function Invoke-WfCollector {
         $notes.Add($message)
         $log.Add($message)
     }
+    if ($extraTools.Count -gt 0) { $tools = @($tools) + @($extraTools.ToArray()) }
 
     $allNotes = New-Object 'System.Collections.Generic.List[string]'
     $allNotes.Add(('Read only collector {0} version {1}: {2}' -f $name, [string]$Definition['Version'], [string]$Definition['Question']))
@@ -2262,8 +2287,8 @@ function Invoke-WfCollector {
         scenario           = [ordered]@{
             id                   = $scenarioId
             version              = [string]$Definition['Version']
-            requested_duration_s = $(if ($windowed) { [int64]$WindowDays * 86400 } else { 0 })
-            target_process       = $null
+            requested_duration_s = $requestedDuration
+            target_process       = $targetProcess
             marks                = @()
         }
         capture            = [ordered]@{
@@ -2278,7 +2303,7 @@ function Invoke-WfCollector {
         collectors         = @($entries.ToArray())
         calibration        = [ordered]@{
             status           = 'not_applicable'
-            method           = 'none: this collector reads historical records that carry their own UTC system time, so there is no QPC session to calibrate'
+            method           = $calibrationMethod
             qpc_frequency_hz = $machineInfo['qpc_frequency_hz']
             expected_pairs   = 0
             pairs            = @()
@@ -2506,7 +2531,9 @@ function Get-WfAccountInfo {
     # privileges of the account that authenticated:
     # https://learn.microsoft.com/en-us/powershell/scripting/security/remoting/ssh-remoting-in-powershell
     # WindowsPrincipal.IsInRole: https://learn.microsoft.com/en-us/dotnet/api/system.security.principal.windowsprincipal.isinrole
-    $info = [ordered]@{ name = $null; elevated = $null; event_log_readers = $null }
+    # Well known SIDs (Event Log Readers S-1-5-32-573, Performance Log Users
+    # S-1-5-32-559): https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-security-identifiers
+    $info = [ordered]@{ name = $null; elevated = $null; event_log_readers = $null; performance_log_users = $null }
     try {
         $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
         $principal = New-Object System.Security.Principal.WindowsPrincipal($identity)
@@ -2514,6 +2541,8 @@ function Get-WfAccountInfo {
         $info.elevated = [bool]$principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
         $readers = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-573')
         $info.event_log_readers = [bool]$principal.IsInRole($readers)
+        $performanceLogUsers = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-559')
+        $info.performance_log_users = [bool]$principal.IsInRole($performanceLogUsers)
     } catch {
         Write-WfStderrLine -Text ('could not read the account identity: ' + $_.Exception.Message)
     }
@@ -2771,8 +2800,9 @@ function Invoke-WfProcess {
     # than MaxBytes (UTF-8 bytes) of text. Nothing above the cap is retained:
     # an oversized run keeps only the first 4096 characters of each stream as
     # a diagnostic. MaxBytes 0 means the caller enforces its own cap on what
-    # it writes (wevtutil prints a line or two). The only executables started
-    # through this are wevtutil (export verb) and netsh (wlan show queries).
+    # it writes (wevtutil prints a line or two). The executables started
+    # through this are wevtutil (export verb), netsh (wlan show queries) and
+    # the pinned PresentMon console binary (presentmon-frames.ps1).
     param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null, [int64]$MaxBytes = 0)
     $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Oversized = $false; Error = $null; DurationMs = $null; StdOutBytes = [int64]0; StdErrBytes = [int64]0; Diagnostic = $null }
     if ($TimeoutSeconds -lt 1) {
@@ -2877,6 +2907,32 @@ function Get-WfNetshPath {
 function Test-WfToolPresent {
     param([string]$Path)
     return [bool](Test-Path -LiteralPath $Path -PathType Leaf)
+}
+
+function Get-WfBinaryInfo {
+    # What a collector checks before it runs an operator supplied executable:
+    # that the file exists, its exact size and SHA-256 (the pin), and the
+    # version strings Windows reads from its resource block
+    # (https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.fileversioninfo),
+    # which are recorded and never trusted in place of the hash.
+    param([string]$Path)
+    $info = [ordered]@{ exists = $false; length = $null; sha256 = $null; file_version = $null; product_version = $null; error = $null }
+    try {
+        if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $info }
+        $info.exists = $true
+        $info.length = [int64](Get-Item -LiteralPath $Path).Length
+        $info.sha256 = Get-WfSha256OfFile -Path $Path
+        try {
+            $version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($Path)
+            $info.file_version = $version.FileVersion
+            $info.product_version = $version.ProductVersion
+        } catch {
+            $info.file_version = $null
+        }
+    } catch {
+        $info.error = $_.Exception.Message
+    }
+    return $info
 }
 
 function Get-WfConsoleOutputEncoding {

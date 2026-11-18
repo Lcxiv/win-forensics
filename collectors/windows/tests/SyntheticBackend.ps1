@@ -26,6 +26,13 @@
 #   Evtx       'unavailable' (default) or 'placeholder' (writes a small file)
 #   Commands   netsh argument string -> @{ ExitCode; StdOut; StdErr } or @{ Stuck = $true }
 #              (the process never finishes); a missing key exits 1 with a message
+#   Programs   list of @{ Path = <executable>; Match = <text found in the arguments>;
+#              ExitCode; StdOut; StdErr; Stuck; CsvText = <written to the --output_file path
+#              before the process "exits">; Seconds = <how long the run takes> }, for the
+#              PresentMon binary, matched after Commands; a run with no match exits 1
+#   Binaries   full path -> @{ Length; Sha256; FileVersion; ProductVersion } for Get-WfBinaryInfo;
+#              a missing key is a file that does not exist
+#   Account    the values Get-WfAccountInfo returns (elevated, group memberships)
 #   NetshPresent  $false makes the netsh preflight fail
 #   Files      full path -> @{ Text = <string> } or @{ ErrorKind; ErrorMessage }
 #   Pnp        @{ Devices = <list of device maps, each may carry Properties = @{ DEVPKEY -> value } > }
@@ -45,6 +52,9 @@ function Reset-WfSynthetic {
         Providers    = @('Microsoft-Windows-WHEA-Logger', 'Application Error', 'Application Hang', 'Windows Error Reporting', '.NET Runtime', 'Display', 'Microsoft-Windows-WLAN-AutoConfig')
         Evtx         = 'unavailable'
         Commands     = @{}
+        Programs     = New-Object 'System.Collections.Generic.List[object]'
+        Binaries     = @{}
+        Account      = @{ Elevated = $false; EventLogReaders = $true; PerformanceLogUsers = $false }
         NetshPresent = $true
         Files        = @{}
         Pnp          = @{ Devices = @() }
@@ -176,7 +186,8 @@ function Get-WfMachineInfo {
 }
 
 function Get-WfAccountInfo {
-    return [ordered]@{ name = 'SYNTHETIC-PC\wf-collector'; elevated = $false; event_log_readers = $true }
+    $account = $global:WfSynthetic.Account
+    return [ordered]@{ name = 'SYNTHETIC-PC\wf-collector'; elevated = [bool]$account['Elevated']; event_log_readers = [bool]$account['EventLogReaders']; performance_log_users = [bool]$account['PerformanceLogUsers'] }
 }
 
 function Get-WfToolInventory {
@@ -343,6 +354,19 @@ function Test-WfToolPresent {
     return $true
 }
 
+function Get-WfBinaryInfo {
+    param([string]$Path)
+    $info = [ordered]@{ exists = $false; length = $null; sha256 = $null; file_version = $null; product_version = $null; error = $null }
+    if (-not $global:WfSynthetic.Binaries.ContainsKey($Path)) { return $info }
+    $entry = $global:WfSynthetic.Binaries[$Path]
+    $info.exists = $true
+    $info.length = [int64]$entry['Length']
+    $info.sha256 = [string]$entry['Sha256']
+    if ($entry.Contains('FileVersion')) { $info.file_version = $entry['FileVersion'] }
+    if ($entry.Contains('ProductVersion')) { $info.product_version = $entry['ProductVersion'] }
+    return $info
+}
+
 function Get-WfConsoleOutputEncoding {
     return (New-Object System.Text.UTF8Encoding($false))
 }
@@ -365,12 +389,33 @@ function Invoke-WfProcess {
     }
     $result.Started = $true
     $result.DurationMs = 7
-    if (-not $global:WfSynthetic.Commands.ContainsKey($Arguments)) {
+    $entry = $null
+    if ($global:WfSynthetic.Commands.ContainsKey($Arguments)) {
+        $entry = $global:WfSynthetic.Commands[$Arguments]
+    } else {
+        foreach ($program in $global:WfSynthetic.Programs) {
+            if ([string]$program['Path'] -ne $FilePath) { continue }
+            if ($program['Match'] -and -not $Arguments.Contains([string]$program['Match'])) { continue }
+            $entry = $program
+            break
+        }
+    }
+    if ($null -eq $entry) {
         $result.ExitCode = 1
         $result.StdErr = 'synthetic backend: no output is defined for ' + $FilePath + ' ' + $Arguments
         return $result
     }
-    $entry = $global:WfSynthetic.Commands[$Arguments]
+    if ($entry.Contains('Seconds')) {
+        $global:WfSynthetic.Ticks += [int]$entry['Seconds']
+        $result.DurationMs = [int64]$entry['Seconds'] * 1000
+    }
+    if ($entry.Contains('CsvText')) {
+        # PresentMon writes its CSV to the --output_file path; the synthetic
+        # program does the same before it "exits", so the collector reads a
+        # file it did not write itself.
+        $m = [regex]::Match($Arguments, '--output_file "([^"]+)"')
+        if ($m.Success) { Write-WfTextFile -Path $m.Groups[1].Value -Text ([string]$entry['CsvText']) }
+    }
     if ($entry['Stuck']) {
         $global:WfSynthetic.Ticks += $TimeoutSeconds
         $result.TimedOut = $true

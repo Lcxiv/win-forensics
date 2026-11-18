@@ -1495,3 +1495,303 @@ Describe 'rf-survey sources against the synthetic backend' {
         @(Get-Content -LiteralPath (Join-Path $out4 'raw/usb_device_tree/devices.json') -Raw | ConvertFrom-Json).Count | Should -Be 3
     }
 }
+
+Describe 'presentmon-frames against the synthetic backend' {
+    BeforeAll {
+        function Start-PmCase {
+            # The happy case's machine: the pinned binary present, the account
+            # in Performance Log Users, a capture that writes the two process
+            # CSV. Tests then replace the program's behaviour.
+            Reset-WfSynthetic
+            $selected = @(Get-WfSyntheticCases | Where-Object { $_['Case'] -eq 'presentmon-frames' })[0]
+            & $selected['Setup']
+        }
+        function Set-PmRun {
+            # Replaces what the synthetic PresentMon does when started.
+            param([hashtable]$Run)
+            $global:WfSynthetic.Programs.Clear()
+            Add-WfSyntheticPresentMonRun @Run
+        }
+        function Invoke-PmCollector {
+            param([string]$OutputDirectory, [hashtable]$Arguments = @{})
+            $all = @{ PresentMonPath = (Get-WfSyntheticPresentMonPath); DurationSeconds = 60 }
+            foreach ($key in $Arguments.Keys) { $all[$key] = $Arguments[$key] }
+            return (Invoke-TestCollector -Collector 'presentmon-frames' -OutputDirectory $OutputDirectory -Arguments $all)
+        }
+        function Get-PmSource {
+            param($Run)
+            return @($Run.Manifest.collectors | Where-Object { $_.id -eq 'presentmon_frames' })[0]
+        }
+        function Get-PmStartedArguments {
+            return @($global:WfSynthetic.Processes.ToArray() | ForEach-Object { [string]$_['Arguments'] })
+        }
+        # The only two argument strings the collector may hand to the binary.
+        $script:PmCapturePattern = '^--session_name wf-presentmon-frames --output_file "[^"]+" --no_console_stats --qpc_time --timed [0-9]+ --terminate_after_timed( --process_name [A-Za-z0-9._-]+)*$'
+        $script:PmCleanupPattern = '^--session_name wf-presentmon-frames --terminate_existing_session$'
+    }
+
+    It 'runs the pinned binary with the documented options only and records the run' {
+        Start-PmCase
+        $out = Join-Path $TestDrive 'pm-ok'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $run.ExitCode | Should -Be 0
+        ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'ok'
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'observed'
+        $source.kind | Should -BeExactly 'presentmon'
+        $source.required | Should -BeTrue
+        $source.preflight.ok | Should -BeTrue
+        @($source.preflight.checks | ForEach-Object { $_.name }) | Should -Be @('binary_present', 'binary_sha256_pinned', 'binary_length_pinned')
+        @($source.command) | Should -Be @((Get-WfSyntheticPresentMonPath), '--session_name', 'wf-presentmon-frames', '--output_file', 'raw/presentmon_frames/frames.csv', '--no_console_stats', '--qpc_time', '--timed', '60', '--terminate_after_timed')
+        $source.enabled.options.records | Should -Be 10
+        $source.enabled.options.qpc_time_column | Should -BeTrue
+        $source.enabled.options.unknown_application_frames | Should -Be 2
+        @($source.enabled.options.processes).Count | Should -Be 2
+        $source.enabled.options.cleanup_ran | Should -BeTrue
+        $source.events_lost | Should -BeNullOrEmpty
+        $source.raw_time_range.domain | Should -BeExactly 'system_time'
+        $source.target_process | Should -BeNullOrEmpty
+        @($source.artifacts | ForEach-Object { $_.role } | Sort-Object) | Should -Be @('config', 'log', 'primary', 'report')
+        # The CSV is the file the program wrote, untouched.
+        [System.IO.File]::ReadAllText((Join-Path $out 'raw/presentmon_frames/frames.csv')) | Should -BeExactly (Get-WfSyntheticPresentMonCsv -Name 'two-processes')
+        # The manifest states the pin, the duration and the time domain story.
+        $run.Manifest.scenario.requested_duration_s | Should -Be 60
+        $run.Manifest.scenario.target_process | Should -BeNullOrEmpty
+        $run.Manifest.calibration.status | Should -BeExactly 'not_applicable'
+        $run.Manifest.calibration.method | Should -Match 'CPUStartQPC'
+        $presentmon = @($run.Manifest.tools | Where-Object { $_.name -eq 'presentmon' })[0]
+        $presentmon.version | Should -BeExactly '2.6.0'
+        $presentmon.sha256 | Should -BeExactly (Get-WfSyntheticPresentMonPinnedSha256)
+        $config = Get-Content -LiteralPath (Join-Path $out 'raw/presentmon_frames/command.json') -Raw | ConvertFrom-Json
+        $config.pinned.sha256 | Should -BeExactly (Get-WfSyntheticPresentMonPinnedSha256)
+        $config.pinned.release_url | Should -Match '^https://github.com/GameTechDev/PresentMon/releases/tag/v2\.6\.0$'
+        $source.config_hash.value | Should -BeExactly (Get-TestSha256 -Path (Join-Path $out 'raw/presentmon_frames/command.json'))
+        # Exactly two processes were started: the capture and the cleanup call, both with allowlisted arguments.
+        $started = @($global:WfSynthetic.Processes.ToArray())
+        $started.Count | Should -Be 2
+        foreach ($call in $started) { $call['FilePath'] | Should -BeExactly (Get-WfSyntheticPresentMonPath) }
+        $started[0]['Arguments'] | Should -Match $script:PmCapturePattern
+        $started[0]['Arguments'] | Should -Match '--timed 60 '
+        $started[1]['Arguments'] | Should -Match $script:PmCleanupPattern
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/presentmon_frames/result.json') -Raw | ConvertFrom-Json
+        $result.cleanup.attempted | Should -BeTrue
+        $result.cleanup.exit_code | Should -Be 0
+        $result.binary.pin_matched | Should -BeTrue
+        $result.events_lost | Should -BeNullOrEmpty
+    }
+
+    It 'passes each requested process name through and records the first as the target' {
+        Start-PmCase
+        $out = Join-Path $TestDrive 'pm-named'
+        $run = Invoke-PmCollector -OutputDirectory $out -Arguments @{ ProcessName = @('SyntheticGame.exe', 'Other-App_2.exe') }
+        $run.ExitCode | Should -Be 0
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'observed'
+        @($source.command)[-4..-1] | Should -Be @('--process_name', 'SyntheticGame.exe', '--process_name', 'Other-App_2.exe')
+        $source.target_process.name | Should -BeExactly 'SyntheticGame.exe'
+        $source.target_process.alive_at_start | Should -BeNullOrEmpty
+        $run.Manifest.scenario.target_process | Should -BeExactly 'SyntheticGame.exe'
+        (Get-PmStartedArguments)[0] | Should -Match $script:PmCapturePattern
+        # Unelevated, the vendor documents that other accounts' processes cannot be targeted by name: the manifest says so.
+        @($run.Manifest.notes | Where-Object { $_ -match 'cannot be targeted by name' }).Count | Should -Be 1
+    }
+
+    It 'never runs a binary whose hash or size differs from the pin' {
+        Start-PmCase
+        New-WfSyntheticPresentMon -PerformanceLogUsers $true -Sha256 ('0' * 64)
+        $out = Join-Path $TestDrive 'pm-wrong-hash'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $run.ExitCode | Should -Be 1
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'not_collected'
+        $source.status_reason | Should -Match '^preflight failed: the file at .* has SHA-256 0{64} \(980320 bytes\); the pinned PresentMon 2\.6\.0 console binary has b2a706bc'
+        $source.preflight.ok | Should -BeFalse
+        @($source.preflight.checks | Where-Object { $_.name -eq 'binary_sha256_pinned' })[0].ok | Should -BeFalse
+        $global:WfSynthetic.Processes.Count | Should -Be 0 -Because 'nothing may run before the pin matched'
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/frames.csv') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/console.txt') | Should -BeFalse
+        @($run.Manifest.tools | Where-Object { $_.name -eq 'presentmon' })[0].sha256 | Should -BeExactly ('0' * 64)
+
+        Start-PmCase
+        New-WfSyntheticPresentMon -PerformanceLogUsers $true -Length 980321
+        $run2 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-wrong-size')
+        (Get-PmSource -Run $run2).status | Should -BeExactly 'not_collected'
+        (Get-PmSource -Run $run2).status_reason | Should -Match '980321 bytes'
+        $global:WfSynthetic.Processes.Count | Should -Be 0
+    }
+
+    It 'reports a missing binary with the download hint and runs nothing' {
+        Start-PmCase
+        New-WfSyntheticPresentMon -PerformanceLogUsers $true -Present $false
+        $out = Join-Path $TestDrive 'pm-missing'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $run.ExitCode | Should -Be 1
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'not_collected'
+        $source.status_reason | Should -Match 'is not at '
+        $source.status_reason | Should -Match 'https://github.com/GameTechDev/PresentMon/releases/tag/v2\.6\.0'
+        $source.status_reason | Should -Match 'never downloads'
+        $global:WfSynthetic.Processes.Count | Should -Be 0
+        @($source.artifacts | ForEach-Object { $_.role } | Sort-Object) | Should -Be @('config', 'report')
+        @($run.Manifest.tools | Where-Object { $_.name -eq 'presentmon' })[0].sha256 | Should -BeNullOrEmpty
+    }
+
+    It 'treats a trace session that could not start as not collected and keeps the tool''s words' {
+        Start-PmCase
+        New-WfSyntheticPresentMon -PerformanceLogUsers $false
+        Set-PmRun -Run @{ ExitCode = 1; StdErr = "error: failed to start trace session (access denied)`r`n"; Seconds = 1 }
+        $out = Join-Path $TestDrive 'pm-denied'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $run.ExitCode | Should -Be 1
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'not_collected'
+        $source.status_reason | Should -Match 'failed to start trace session \(access denied\)'
+        $source.status_reason | Should -Match 'Performance Log Users'
+        $source.enabled.options.console_flagged_lines | Should -Contain 'error: failed to start trace session (access denied)'
+        @($run.Manifest.notes | Where-Object { $_ -match 'neither elevated nor a member of Performance Log Users' }).Count | Should -Be 1
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/frames.csv') | Should -BeFalse
+        [System.IO.File]::ReadAllText((Join-Path $out 'raw/presentmon_frames/console.txt')) | Should -Match 'access denied'
+        # The cleanup call is still made after a started run.
+        (Get-PmStartedArguments).Count | Should -Be 2
+        (Get-PmStartedArguments)[1] | Should -Match $script:PmCleanupPattern
+
+        Start-PmCase
+        Set-PmRun -Run @{ ExitCode = 3; StdOut = "something else went wrong`r`n"; Seconds = 2 }
+        $run2 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-exit3')
+        (Get-PmSource -Run $run2).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run2).status_reason | Should -Match '^PresentMon exited with code 3: something else went wrong'
+    }
+
+    It 'stops a run that outlives its window, keeps no CSV and still makes the cleanup call' {
+        Start-PmCase
+        Set-PmRun -Run @{ Stuck = $true; CsvText = (Get-WfSyntheticPresentMonCsv -Name 'two-processes') }
+        $out = Join-Path $TestDrive 'pm-stuck'
+        $run = Invoke-PmCollector -OutputDirectory $out -Arguments @{ DurationSeconds = 30 }
+        $run.ExitCode | Should -Be 1
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match '^PresentMon did not exit within 60 seconds \(the requested 30 second capture plus a 30 second grace period\) and was stopped$'
+        $source.enabled.options.timed_out | Should -BeTrue
+        $source.enabled.options.cleanup_ran | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/frames.csv') | Should -BeFalse -Because 'a CSV left by a stopped process is not a complete capture'
+        (Get-PmStartedArguments).Count | Should -Be 2
+        (Get-PmStartedArguments)[1] | Should -Match $script:PmCleanupPattern
+        $source.raw_time_range | Should -BeNullOrEmpty
+    }
+
+    It 'says when it could not confirm that the trace session was stopped' {
+        Start-PmCase
+        Set-PmRun -Run @{ Stuck = $true; CleanupStuck = $true }
+        $out = Join-Path $TestDrive 'pm-stuck-cleanup'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match 'the trace session wf-presentmon-frames may still be running'
+        $source.enabled.options.cleanup_ran | Should -BeFalse
+        @($run.Manifest.notes | Where-Object { $_ -match 'could not confirm that the trace session' }).Count | Should -Be 1
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/presentmon_frames/result.json') -Raw | ConvertFrom-Json
+        $result.cleanup.timed_out | Should -BeTrue
+    }
+
+    It 'is capture_failed, not a quiet window, when named processes yield no frames' {
+        Start-PmCase
+        Set-PmRun -Run @{ CsvText = (Get-WfSyntheticPresentMonCsv -Name 'header-only'); Seconds = 60 }
+        $out = Join-Path $TestDrive 'pm-scoped-zero'
+        $run = Invoke-PmCollector -OutputDirectory $out -Arguments @{ ProcessName = @('SyntheticGame.exe') }
+        $run.ExitCode | Should -Be 1
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match '^zero frames for the requested process names \(SyntheticGame\.exe\) in a 60 second capture that otherwise completed'
+        $source.status_reason | Should -Match '<unknown>'
+        $source.expectation.met | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/frames.csv') | Should -BeFalse
+
+        # The same empty CSV without a filter is the quiet window the contract allows.
+        Start-PmCase
+        Set-PmRun -Run @{ CsvText = (Get-WfSyntheticPresentMonCsv -Name 'header-only'); Seconds = 60 }
+        $run2 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-quiet')
+        $run2.ExitCode | Should -Be 0
+        (Get-PmSource -Run $run2).status | Should -BeExactly 'observed_zero'
+        (Get-PmSource -Run $run2).enabled.options.records | Should -Be 0
+        Test-Path -LiteralPath (Join-Path $TestDrive 'pm-quiet/raw/presentmon_frames/frames.csv') | Should -BeTrue
+    }
+
+    It 'refuses a CSV whose header does not prove the requested options' {
+        Start-PmCase
+        Set-PmRun -Run @{ CsvText = (Get-WfSyntheticPresentMonCsv -Name 'no-qpc'); Seconds = 60 }
+        $out = Join-Path $TestDrive 'pm-no-qpc'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match '^--qpc_time was requested but the CSV header has no CPUStartQPC column'
+        $source.enabled.options.qpc_time_column | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/frames.csv') | Should -BeFalse
+
+        Start-PmCase
+        Set-PmRun -Run @{ CsvText = "not,a,presentmon,header`r`n1,2,3,4`r`n"; Seconds = 60 }
+        $run2 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-bad-header')
+        (Get-PmSource -Run $run2).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run2).status_reason | Should -Match 'not the documented PresentMon header'
+    }
+
+    It 'refuses a CSV above the cap, an empty CSV and a missing CSV' {
+        Start-PmCase
+        Set-PmRun -Run @{ CsvText = ((Get-WfSyntheticPresentMonCsv -Name 'header-only') + (('x' * 1000 + "`n") * 1100)); Seconds = 60 }
+        $out = Join-Path $TestDrive 'pm-oversized-csv'
+        $run = Invoke-PmCollector -OutputDirectory $out -Arguments @{ MaxArtifactBytes = 1048576 }
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match 'above the cap of 1048576, and was not kept'
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/frames.csv') | Should -BeFalse
+
+        Start-PmCase
+        Set-PmRun -Run @{ CsvText = ''; Seconds = 60 }
+        $run2 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-empty-csv')
+        (Get-PmSource -Run $run2).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run2).status_reason | Should -Match 'zero bytes'
+        Test-Path -LiteralPath (Join-Path $TestDrive 'pm-empty-csv/raw/presentmon_frames/frames.csv') | Should -BeFalse
+
+        Start-PmCase
+        Set-PmRun -Run @{ Seconds = 60 }
+        $run3 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-no-csv')
+        (Get-PmSource -Run $run3).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run3).status_reason | Should -Match 'wrote no CSV'
+    }
+
+    It 'stops a program that floods the console and records only a diagnostic head' {
+        Start-PmCase
+        Set-PmRun -Run @{ StdOut = (('y' * 4000 + "`n") * 300); CsvText = (Get-WfSyntheticPresentMonCsv -Name 'two-processes'); Seconds = 60 }
+        $out = Join-Path $TestDrive 'pm-flood'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match 'more than the cap of 1048576 bytes'
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/frames.csv') | Should -BeFalse
+        (Get-Item -LiteralPath (Join-Path $out 'raw/presentmon_frames/console.txt')).Length | Should -BeLessThan 6000
+    }
+
+    It 'keeps what the program printed and flags the lines that look like warnings' {
+        Start-PmCase
+        Set-PmRun -Run @{ StdOut = "synthetic presentmon: recording`r`nwarning: synthetic lost 3 events`r`nall good`r`n"; CsvText = (Get-WfSyntheticPresentMonCsv -Name 'two-processes'); Seconds = 60 }
+        $out = Join-Path $TestDrive 'pm-warnings'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'observed' -Because 'the vendor documents no lost event report, so a line is recorded, not judged'
+        @($source.enabled.options.console_flagged_lines) | Should -Be @('warning: synthetic lost 3 events')
+        $source.events_lost | Should -BeNullOrEmpty
+        [System.IO.File]::ReadAllText((Join-Path $out 'raw/presentmon_frames/console.txt')) | Should -Match 'synthetic presentmon: recording'
+    }
+
+    It 'rejects a duration or a process name outside the rules with a failed summary and no bundle' {
+        Start-PmCase
+        foreach ($bad in @(@{ DurationSeconds = 4 }, @{ DurationSeconds = 601 }, @{ ProcessName = @('bad name.exe') }, @{ ProcessName = @('a"b.exe') }, @{ ProcessName = @('1.exe', '2.exe', '3.exe', '4.exe', '5.exe', '6.exe', '7.exe', '8.exe', '9.exe') })) {
+            $out = Join-Path $TestDrive ('pm-bad-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+            $run = Invoke-PmCollector -OutputDirectory $out -Arguments $bad
+            $run.ExitCode | Should -Be 1
+            $run.Stdout.Count | Should -Be 1
+            ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'failed'
+            Test-Path -LiteralPath $out | Should -BeFalse
+            $global:WfSynthetic.Processes.Count | Should -Be 0
+        }
+    }
+}
