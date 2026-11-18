@@ -260,8 +260,8 @@ function Open-WfEventReader {
         return $result
     }
     if (Test-WfSyntheticNumericTimediff -QueryXml $QueryXml) {
-        # What the gaming PC did on 2026-11-18 (Windows 11 build 26100, Windows
-        # PowerShell 5.1): EventLogQuery and EventLogReader accepted a query
+        # What the gaming PC did on 2026-11-18 (Windows 11 Pro 25H2 build 26200,
+        # Windows PowerShell 5.1.26100): EventLogQuery and EventLogReader accepted a query
         # with timediff(@SystemTime, <FILETIME number>) and the first
         # ReadEvent threw EventLogInvalidDataException, "The data is invalid",
         # before any record, on every channel. Reported by the PC session, not
@@ -272,6 +272,13 @@ function Open-WfEventReader {
         return $result
     }
     $bound = Get-WfSyntheticQueryBound -QueryXml $QueryXml
+    if ($null -eq $bound -and $QueryXml.Contains('TimeCreated[')) {
+        # A time test the stand-in cannot read must not become "every event":
+        # the stand-in fails closed, like the code under test.
+        $result.ReadNext = { param([timespan]$Remaining) throw 'synthetic backend: the query carries a TimeCreated test whose bound the stand-in cannot parse' }
+        $result.Ok = $true
+        return $result
+    }
     foreach ($query in $global:WfSynthetic.Queries) {
         if (-not $QueryXml.Contains([string]$query['Match'])) { continue }
         if ($query['Throws']) {

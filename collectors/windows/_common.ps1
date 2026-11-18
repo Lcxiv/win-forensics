@@ -334,11 +334,12 @@ function ConvertTo-WfMillisecondFloor {
 
 function ConvertTo-WfXPathDateTime {
     # The xs:dateTime literal the event query compares TimeCreated/@SystemTime
-    # with: UTC, three fractional digits, a Z suffix. Event Viewer's custom
-    # range filter and Get-WinEvent's StartTime and EndTime keys write this
-    # shape; the PC session read records with it on 2026-11-18 (README,
-    # verification item 23). Seven digits are not used because nothing has
-    # shown the query engine accepts them.
+    # with: UTC, three fractional digits, a Z suffix. This is the text
+    # Get-WinEvent writes for its StartTime and EndTime keys (format "s", the
+    # millisecond as three digits, "Z"; GetEventCommand.cs in the PowerShell
+    # repository, SystemTimePeriodTemplate), and the PC session read records
+    # with it on 2026-11-18 (README, verification item 23). Seven digits are
+    # not used because nothing has shown the query engine accepts them.
     param([datetime]$Value)
     return $Value.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ', [System.Globalization.CultureInfo]::InvariantCulture)
 }
@@ -363,8 +364,8 @@ function Build-WfEventQueryXml {
     # The upper bound matters: the same page says a result set also receives
     # matching events raised while it is enumerated.
     # The documented alternative, timediff(@SystemTime, <FILETIME number>), is
-    # not used: on the gaming PC (Windows 11 build 26100, Windows PowerShell
-    # 5.1) EventLogQuery accepted it and the first ReadEvent threw
+    # not used: on the gaming PC (Windows 11 Pro 25H2 build 26200, Windows
+    # PowerShell 5.1.26100) EventLogQuery accepted it and the first ReadEvent threw
     # EventLogInvalidDataException, "The data is invalid", on every channel,
     # while this form read the same records (README, verification item 23).
     # The one argument form, timediff(@SystemTime) <= <ms>, works there too but
@@ -372,9 +373,11 @@ function Build-WfEventQueryXml {
     # -EndUtc must already be cut to the millisecond (ConvertTo-WfMillisecondFloor),
     # so that the literal and the recorded window agree exactly.
     # The Select text escapes only the characters XML requires in element
-    # content (&, <, >), so the quotes around literals stay as written, the
-    # shape Event Viewer's own exported queries have; what the engine makes of
-    # a quote written as &apos; is not documented and is not relied on.
+    # content (&, <, >), so the quotes around literals stay as written. That
+    # matches the query text Get-WinEvent builds (GetEventCommand.cs writes
+    # &gt;= and &lt;= around plain quotes) and is equivalent under the XML 1.0
+    # predefined entities (https://www.w3.org/TR/xml/#sec-predefined-ent) to
+    # the &apos; form SecurityElement.Escape would write.
     # The same text is given to EventLogQuery and, as a file, to
     # wevtutil epl /sq:true, so both exports come from one query.
     param([string]$Channel, [string[]]$Predicates, [datetime]$EndUtc, [int64]$WindowMilliseconds)

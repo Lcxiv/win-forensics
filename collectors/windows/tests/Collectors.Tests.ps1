@@ -366,6 +366,34 @@ Describe 'the event query time bound on the gaming PC' {
         @($accumulator.Rows | ForEach-Object { $_['record_id'] }) | Should -Be @(4, 3, 2)
     }
 
+    It 'fails closed when a query carries a TimeCreated test the stand-in cannot parse' {
+        Reset-WfSynthetic
+        $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90
+        Add-WfSyntheticQuery -Match 'EventID=41' -Events @((New-WfSyntheticEvent -RecordId 5 -Provider 'Microsoft-Windows-Kernel-Power' -EventId 41 -Level 1 -DaysAgo 3))
+        $odd = '<QueryList><Query Id="0" Path="System"><Select Path="System">*[System[(EventID=41) and TimeCreated[@SystemTime &gt;= 1]]]</Select></Query></QueryList>'
+        Get-WfSyntheticQueryBound -QueryXml $odd | Should -BeNullOrEmpty
+        $reader = Open-WfEventReader -Channel 'System' -QueryXml $odd -Reverse $true
+        $reader['Ok'] | Should -BeTrue
+        { & $reader['ReadNext'] ([timespan]::FromSeconds(10)) } | Should -Throw '*cannot parse*'
+    }
+
+    It 'cuts a clock with sub-millisecond ticks to the millisecond before the query is built' {
+        # Without the floor at the call site the builder refuses the end time
+        # and the source is capture_failed; with it the run is a quiet window.
+        Reset-WfSynthetic -Now ([datetime]::new(2026, 3, 1, 12, 0, 0, [System.DateTimeKind]::Utc).AddTicks(12345))
+        $case = @(Get-WfSyntheticCases | Where-Object { $_['Case'] -eq 'whea-errors-quiet' })[0]
+        & $case['Setup']
+        $run = Invoke-TestCollector -Collector 'whea-errors' -OutputDirectory (Join-Path $TestDrive 'sub-millisecond')
+        $run.ExitCode | Should -Be 0
+        $source = $run.Manifest.collectors[0]
+        $source.enabled.options.query_accepted | Should -BeTrue
+        $source.status | Should -Not -BeExactly 'capture_failed'
+        $source.status | Should -BeExactly 'observed_zero'
+        (ConvertFrom-WfUtcString -Text (Get-TestUtcText -Value $source.requested.options.window_end_utc)).Ticks % 10000 | Should -Be 0
+        $query = [System.IO.File]::ReadAllText((Join-Path $TestDrive 'sub-millisecond/raw/system_whea_events/query.xml'))
+        $query | Should -Match "@SystemTime &lt;= '2026-03-01T12:00:0\d\.001Z'"
+    }
+
     It 'lets every event log collector read its channel end to end with the fixed form' {
         foreach ($name in @('bugcheck-history', 'whea-errors-quiet', 'application-errors', 'tdr-events-partial')) {
             Reset-WfSynthetic
