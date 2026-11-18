@@ -31,7 +31,7 @@ ALLOWED_NETSH = re.compile(r"^wlan show (interfaces|drivers|networks mode=bssid|
 # page changes a setting, a scheme, or writes a report file outside the bundle.
 ALLOWED_POWERCFG = re.compile(r"^/(list|getactivescheme|aliases|query|qh)$")
 # The configuration snapshot's three questions without a documented read only path.
-UNAVAILABLE = {"logical_processor_map", "power_mode", "timer_resolution"}
+UNAVAILABLE = {"power_mode", "timer_resolution"}
 
 # What each committed case is there to show: summary status and the status of every source.
 EXPECTED = {
@@ -59,13 +59,13 @@ EXPECTED = {
     "tdr-events-partial": ("partial", {"system_display_events": "capture_failed", "system_bugcheck_events": "observed_zero"}),
     "whea-errors-quiet": ("ok", {"system_whea_events": "observed_zero"}),
     "config-snapshot": ("partial", {"interrupt_policy": "observed", "graphics_tdr": "observed", "processors": "observed", "cpu_caches": "observed",
-                                    "logical_processor_map": "not_collected", "power_active_scheme": "observed", "power_schemes": "observed",
+                                    "logical_processor_map": "observed", "power_active_scheme": "observed", "power_schemes": "observed",
                                     "power_aliases": "observed", "power_settings": "observed", "power_settings_hidden": "observed",
                                     "power_mode": "not_collected", "timer_resolution": "not_collected", "processes": "observed",
                                     "timer_helper_process": "observed", "process_lasso_install": "observed", "process_lasso_config": "observed",
                                     "process_lasso_log": "observed", "stutter_guard_install": "observed", "stutter_guard_journal": "observed"}),
     "config-snapshot-clean": ("partial", {"interrupt_policy": "observed", "graphics_tdr": "observed", "processors": "observed", "cpu_caches": "observed",
-                                          "logical_processor_map": "not_collected", "power_active_scheme": "observed", "power_schemes": "observed",
+                                          "logical_processor_map": "observed", "power_active_scheme": "observed", "power_schemes": "observed",
                                           "power_aliases": "observed", "power_settings": "observed", "power_settings_hidden": "capture_failed",
                                           "power_mode": "not_collected", "timer_resolution": "not_collected", "processes": "observed",
                                           "timer_helper_process": "observed_zero", "process_lasso_install": "observed_zero", "process_lasso_config": "not_collected",
@@ -209,11 +209,25 @@ def test_status_and_evidence_stay_separate(case):
             assert collector["requested"]["options"]["mode"] == "listing" and collector["requested"]["options"]["recursive"] is False
             if collector["status"] in OBSERVED:
                 assert primary[0]["path"].endswith("/listing.json") and collector["enabled"]["options"]["content_kept"] is False
-        elif "Microsoft.Win32.RegistryKey.GetValue" in collector["command"]:
-            assert collector["requested"]["options"]["read_only"].startswith("keys are opened for reading")
-            assert collector["requested"]["options"]["mode"] in ("devices", "keys")
+        elif "SetupDiOpenDevRegKey" in collector["command"]:
+            # The device key API path: global scope, the hardware key, read access, the two fixed relative subkeys.
+            assert collector["command"][5:9] == ["SetupDiOpenDevRegKey", "DICS_FLAG_GLOBAL", "DIREG_DEV", "KEY_READ"]
+            assert collector["command"][10] == "Interrupt Management\\Affinity Policy;Interrupt Management\\MessageSignaledInterruptProperties"
+            assert collector["requested"]["options"]["mode"] == "devices" and collector["requested"]["options"]["instance_prefixes"] == ["PCI\\"]
+            assert collector["requested"]["options"]["resolver"]["access"] == "KEY_READ (0x20019)"
+            assert "CurrentControlSet\\\\Enum" not in json.dumps(collector["requested"]["options"]), "no physical Enum path is named"
             if collector["status"] in OBSERVED:
                 assert primary[0]["path"].endswith("/keys.json")
+        elif "Microsoft.Win32.RegistryKey.GetValue" in collector["command"]:
+            assert collector["requested"]["options"]["read_only"].startswith("keys are opened for reading")
+            assert collector["requested"]["options"]["mode"] == "keys"
+            if collector["status"] in OBSERVED:
+                assert primary[0]["path"].endswith("/keys.json")
+        elif collector["command"][0] == "kernel32.dll!GetLogicalProcessorInformationEx":
+            assert collector["command"] == ["kernel32.dll!GetLogicalProcessorInformationEx", "RelationAll"]
+            assert collector["requested"]["options"]["read_only"].startswith("a query")
+            if collector["status"] in OBSERVED:
+                assert primary[0]["path"].endswith("/topology.json") and collector["enabled"]["options"]["cores"] > 0
         elif collector["command"] == ["none"]:
             assert collector["id"] in UNAVAILABLE and collector["status"] == "not_collected"
             assert collector["preflight"]["ok"] is False and collector["requested"]["options"]["documented_paths"]
@@ -253,13 +267,15 @@ def test_observed_zero_is_an_empty_export_inside_a_covered_range(case):
             assert summary["content_kept"] is False and summary["bytes"] > 0 and len(summary["sha256"]) == 64
             assert collector["status"] == "observed"
         elif primary[0]["path"].endswith("/listing.json"):
-            # The directory source: an object about the folder; a folder that does not exist is a zero with exists false.
-            listing = json.loads(text)
-            assert isinstance(listing["files"], list) and listing["exists"] in (True, False)
+            # The directory source: an array of files; the folder's own facts are in result.json, and a folder that does not
+            # exist is a zero with exists false there.
+            files = json.loads(text)
+            report = json.loads((bundle / "raw" / collector["id"] / "result.json").read_text(encoding="utf-8"))
+            assert isinstance(files, list) and report["exists"] in (True, False) and report["parent_exists"] is True
             if collector["status"] == "observed_zero":
-                assert listing["files"] == []
+                assert files == []
             if collector["status"] == "observed":
-                assert listing["files"] and listing["exists"] is True
+                assert files and report["exists"] is True
         elif collector["requested"]["options"].get("mode") == "copy":
             # A copied text file: never empty, and the hash of the original is next to it.
             assert text.strip() and collector["status"] == "observed"

@@ -27,6 +27,92 @@ FORBIDDEN = [
 ]
 
 
+# The two native boundaries the helper may declare, each a literal Add-Type block in one named function. The static guard
+# below pins the exact imports (library and entry point), the search path attribute, the access masks and the flags, and
+# fails on anything added, widened or interpolated. Everything else in the helper stays under the ban.
+NATIVE_BLOCKS = {
+    "New-WfDeviceKeyNative": {
+        ("setupapi.dll", "SetupDiCreateDeviceInfoList"), ("setupapi.dll", "SetupDiOpenDeviceInfoW"), ("setupapi.dll", "SetupDiOpenDevRegKey"),
+        ("setupapi.dll", "SetupDiDestroyDeviceInfoList"), ("advapi32.dll", "RegOpenKeyExW"), ("advapi32.dll", "RegEnumValueW"),
+        ("advapi32.dll", "RegQueryValueExW"), ("advapi32.dll", "RegCloseKey"),
+    },
+    "Get-WfLogicalProcessorInformation": {("kernel32.dll", "GetLogicalProcessorInformationEx")},
+}
+# Native names that must never appear anywhere in the helper, inside or outside the two blocks: setters, creators, device
+# state changes, process and timer calls, dynamic loading.
+NATIVE_FORBIDDEN = ["RegSetValue", "RegCreateKey", "RegDeleteKey", "RegDeleteValue", "RegSaveKey", "RegRestoreKey", "RegLoadKey",
+                    "SetupDiCallClassInstaller", "SetupDiSetClassInstallParams", "SetupDiRemoveDevice", "SetupDiCreateDeviceInfo(", "SetupDiChangeState",
+                    "SetupDiInstallDevice", "CM_Set_", "CM_Disable", "CM_Enable", "CM_Uninstall", "OpenProcess", "CreateProcess", "TerminateProcess",
+                    "NtSetTimerResolution", "timeBeginPeriod", "SetThreadAffinityMask", "SetProcessAffinityMask", "KEY_WRITE", "KEY_ALL_ACCESS",
+                    "KEY_SET_VALUE", "0xF003F", "0x20006", "DIOD_CANCEL_REMOVE", "Reflection.Emit", "GetProcAddress", "LoadLibrary", "DynamicMethod"]
+DLL_IMPORT = re.compile(r'\[DllImport\("([a-z0-9]+\.dll)"[^\]]*\)\]\s*public static extern [A-Za-z\.]+ ([A-Za-z0-9_]+)\(')
+
+
+def function_bodies(code: str) -> dict[str, str]:
+    """Each top level helper function's text, from its header to the next header."""
+    bodies: dict[str, str] = {}
+    headers = [(m.start(), m.group(1)) for m in re.finditer(r"^function ([A-Za-z\-]+) \{", code, re.MULTILINE)]
+    for (start, name), (end, _) in zip(headers, headers[1:] + [(len(code), "")]):
+        bodies[name] = code[start:end]
+    return bodies
+
+
+def native_boundary_errors(code: str) -> list[str]:
+    """Why the helper's native boundary is not the audited one; empty when it is."""
+    errors: list[str] = []
+    bodies = function_bodies(code)
+    for token in NATIVE_FORBIDDEN:
+        if token in code:
+            errors.append(f"forbidden native name {token}")
+    for name, body in bodies.items():
+        if name in NATIVE_BLOCKS:
+            continue
+        for token in ("Add-Type", "DllImport", "extern "):
+            if token in body:
+                errors.append(f"{token.strip()} outside the audited blocks, in {name}")
+    for name, expected in NATIVE_BLOCKS.items():
+        body = bodies.get(name)
+        if body is None:
+            errors.append(f"{name} is missing")
+            continue
+        if body.count("Add-Type") != 1:
+            errors.append(f"{name} must call Add-Type exactly once")
+        if "-MemberDefinition $declaration" not in body or "-Path" in body or "-TypeDefinition" in body or "-OutputAssembly" in body or "-CompilerOptions" in body or "-ReferencedAssemblies" in body:
+            errors.append(f"{name} must compile only the literal $declaration member definition")
+        literal = re.search(r"\$declaration = (@'|')", body)
+        if not literal:
+            errors.append(f"{name} must assign $declaration from a single quoted literal")
+        else:
+            start = literal.end()
+            end = body.find("'@" if literal.group(1) == "@'" else "'", start)
+            text = body[start:end]
+            if "$" in text or "`" in text:
+                errors.append(f"{name}: the declaration literal must not interpolate")
+            imports = {(dll, entry) for dll, entry in DLL_IMPORT.findall(text)}
+            if imports != expected:
+                errors.append(f"{name}: imports {sorted(imports)} differ from the audited {sorted(expected)}")
+            if text.count("[DllImport(") != len(expected) or text.count("extern ") != len(expected):
+                errors.append(f"{name}: the declaration holds a declaration that is not one of the audited imports")
+            if text.count("[DefaultDllImportSearchPaths(DllImportSearchPath.System32)]") != len(expected):
+                errors.append(f"{name}: every import must bind to the system directory")
+    device = bodies.get("Get-WfDeviceInterruptPolicy", "")
+    constants = bodies.get("Get-WfDeviceKeyConstants", "")
+    if "KEY_READ                 = [uint32]0x20019" not in constants or "DICS_FLAG_GLOBAL         = [uint32]1" not in constants or "DIREG_DEV                = [uint32]1" not in constants:
+        errors.append("the device key constants are not DICS_FLAG_GLOBAL 1, DIREG_DEV 1, KEY_READ 0x20019")
+    if "$api.SetupDiOpenDevRegKey($set, [ref]$data, $c['DICS_FLAG_GLOBAL'], [uint32]0, $c['DIREG_DEV'], $c['KEY_READ'])" not in device:
+        errors.append("SetupDiOpenDevRegKey is not called with global scope, profile 0, DIREG_DEV and KEY_READ")
+    if "$api.SetupDiOpenDeviceInfoW($set, $InstanceId, [IntPtr]::Zero, [uint32]0, [ref]$data)" not in device:
+        errors.append("SetupDiOpenDeviceInfoW is not called with OpenFlags 0")
+    if re.search(r"RegOpenKeyExW\([^)]*\$c\['KEY_READ'\]", device) is None or re.search(r"RegOpenKeyExW\((?![^)]*\$c\['KEY_READ'\])", device):
+        errors.append("every RegOpenKeyExW must ask for KEY_READ")
+    subkeys = bodies.get("Get-WfInterruptManagementSubkeys", "")
+    if "return @('Interrupt Management\\Affinity Policy', 'Interrupt Management\\MessageSignaledInterruptProperties')" not in subkeys:
+        errors.append("the relative subkeys are not the two documented ones")
+    if "'Interrupt Management'" not in device or "HKLM" in device or "CurrentControlSet" in device or "Enum" in device.replace("enumerat", ""):
+        errors.append("the device sequencing names a physical registry path")
+    return errors
+
+
 def test_the_collector_set_is_the_documented_one():
     assert [p.stem for p in COLLECTORS] == EXPECTED_COLLECTORS
 
@@ -54,15 +140,22 @@ def test_scripts_are_plain_ascii(path):
 def test_shipped_scripts_are_read_only(path):
     text = path.read_text(encoding="ascii")
     code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+    scanned = code
+    if path.name == HELPER:
+        # The two audited native blocks are the only place Add-Type and DllImport may appear; the boundary test pins them.
+        for name in NATIVE_BLOCKS:
+            body = function_bodies(code)[name]
+            scanned = scanned.replace(body, "")
     for token in FORBIDDEN:
-        assert token.lower() not in code.lower(), f"{path.name} uses {token.strip()}"
+        assert token.lower() not in scanned.lower(), f"{path.name} uses {token.strip()}"
     # The only deletions are of the collector's own exports inside the output directory: a failed or
     # over-cap .evtx, and a primary export that must not be left behind ($Path is the primary passed to
     # Remove-WfPrimaryUnlessKept; the others are the primaries of the event, WMI, netsh, file, device,
     # registry and directory sources).
     removals = [line.strip() for line in code.splitlines() if "Remove-Item" in line]
     own = ("-LiteralPath $evtxPath", "-LiteralPath $recordsPath", "-LiteralPath $eventsPath", "-LiteralPath $outputPath",
-           "-LiteralPath $primaryPath", "-LiteralPath $devicesPath", "-LiteralPath $keysPath", "-LiteralPath $listingPath", "-LiteralPath $Path -Force")
+           "-LiteralPath $primaryPath", "-LiteralPath $devicesPath", "-LiteralPath $keysPath", "-LiteralPath $listingPath",
+           "-LiteralPath $topologyPath", "-LiteralPath $Path -Force")
     assert all(any(marker in r for marker in own) for r in removals), removals
     # The only process started is wevtutil, with the export verb and nothing else; the netsh and powercfg
     # listings the collectors run are checked on what the runs record (test_collector_bundles and the Pester suite).
@@ -123,3 +216,43 @@ def test_config_snapshot_sources_are_documented_and_read_only():
     for term in ("Interrupt Management", "MessageSignaledInterruptProperties", "GraphicsDrivers", "Win32_Processor", "Win32_CacheMemory",
                  "Win32_Process", "SetupDiOpenDevRegKey", "GetLogicalProcessorInformationEx", "powercfg /energy", "user-", "mail-"):
         assert term in readme, term
+
+
+
+def helper_code() -> str:
+    text = (COLLECTOR_DIR / HELPER).read_text(encoding="ascii")
+    return "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+
+
+def test_native_boundary_is_exactly_the_audited_one():
+    assert native_boundary_errors(helper_code()) == []
+    for path in COLLECTORS:
+        code = "\n".join(line for line in path.read_text(encoding="ascii").splitlines() if not line.lstrip().startswith("#"))
+        assert "Add-Type" not in code and "DllImport" not in code, path.name
+
+
+@pytest.mark.parametrize("mutation", [
+    "extra_import", "write_access", "setter_import", "interpolated_source", "add_type_elsewhere", "cancel_remove_flag", "physical_path", "write_mask_literal",
+])
+def test_native_boundary_guard_rejects_each_widening(mutation):
+    """Each mutation of the helper widens or moves the native surface; the guard must refuse every one."""
+    code = helper_code()
+    if mutation == "extra_import":
+        code = code.replace('[DllImport("advapi32.dll")] public static extern int RegCloseKey(IntPtr hKey);',
+                            '[DllImport("advapi32.dll")] public static extern int RegCloseKey(IntPtr hKey);\n[DefaultDllImportSearchPaths(DllImportSearchPath.System32)] [DllImport("advapi32.dll")] public static extern int RegFlushKey(IntPtr hKey);')
+    elif mutation == "write_access":
+        code = code.replace("KEY_READ                 = [uint32]0x20019", "KEY_READ                 = [uint32]0x2001F")
+    elif mutation == "setter_import":
+        code = code.replace('public static extern int RegCloseKey(IntPtr hKey);', 'public static extern int RegCloseKey(IntPtr hKey);\n[DefaultDllImportSearchPaths(DllImportSearchPath.System32)] [DllImport("advapi32.dll")] public static extern int RegSetValueExW(IntPtr hKey);')
+    elif mutation == "interpolated_source":
+        code = code.replace("$declaration = @'", "$declaration = @\"").replace("'@\n            Add-Type -MemberDefinition $declaration -Name 'WfDeviceKey'", "\"@\n            Add-Type -MemberDefinition $declaration -Name 'WfDeviceKey'")
+    elif mutation == "add_type_elsewhere":
+        code = code.replace("function Get-WfToolPath {", "function Get-WfToolPath {\n    Add-Type -MemberDefinition $declaration -Name 'X' -Namespace 'Y'")
+    elif mutation == "cancel_remove_flag":
+        code = code.replace("$api.SetupDiOpenDeviceInfoW($set, $InstanceId, [IntPtr]::Zero, [uint32]0, [ref]$data)", "$api.SetupDiOpenDeviceInfoW($set, $InstanceId, [IntPtr]::Zero, [uint32]4, [ref]$data)")
+    elif mutation == "physical_path":
+        code = code.replace("$api.RegOpenKeyExW($hardwareKey, 'Interrupt Management',", "$api.RegOpenKeyExW($hardwareKey, 'HKLM\\SYSTEM\\CurrentControlSet\\Enum',")
+    elif mutation == "write_mask_literal":
+        code = code.replace("$c['DIREG_DEV'], $c['KEY_READ'])", "$c['DIREG_DEV'], [uint32]0xF003F)")
+    assert code != helper_code(), "the mutation did not apply"
+    assert native_boundary_errors(code), mutation

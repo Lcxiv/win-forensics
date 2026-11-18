@@ -10,6 +10,7 @@
   "source_sha256": "0ba93cb109ea4eec1adf4f60cb995ee4782e30f84016f4e2562aab3addf1ded3",
   "last_write_time_utc": "2026-02-28T12:00:00.0000000Z",
   "mode": "copy",
+  "copy_gate": null,
   "summarised": false,
   "copied": true,
   "source_encoding": "utf-8",
@@ -18,6 +19,7 @@
   "protection": {
     "user_profile_names_replaced": 1,
     "email_addresses_replaced": 0,
+    "unc_hosts_replaced": 0,
     "mac_addresses_replaced": 0
   }
 }

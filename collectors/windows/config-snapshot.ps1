@@ -12,21 +12,24 @@
 # the capture ran under and whether it changed during the run. Every source
 # is a snapshot; there is no time window. Sources:
 #
-#   interrupt_policy      for every present Display, Net, USB and MEDIA (audio)
-#                         device: the values under Interrupt Management\
-#                         Affinity Policy and Interrupt Management\
+#   interrupt_policy      for every present PCI function (the display adapter,
+#                         the network adapter, the USB host controllers, the HD
+#                         Audio controller that owns the audio interrupt, the
+#                         storage controllers): the values under Interrupt
+#                         Management\Affinity Policy and Interrupt Management\
 #                         MessageSignaledInterruptProperties of the device's
-#                         hardware key, each with its registry type and bytes,
-#                         next to the device's status and problem code
+#                         hardware key, opened through SetupDiOpenDevRegKey
+#                         (DIREG_DEV, KEY_READ), each with its registry type and
+#                         bytes, next to the device's status and problem code
 #   graphics_tdr          the documented timeout detection and recovery values
 #                         under Control\GraphicsDrivers, present or absent
 #   processors, cpu_caches
 #                         Win32_Processor and Win32_CacheMemory: cores, logical
 #                         processors, threads, cache levels and sizes
-#   logical_processor_map not collected: which logical processor shares a core
-#                         with which (the SMT siblings) needs
-#                         GetLogicalProcessorInformationEx, a native call this
-#                         script cannot make without compiling
+#   logical_processor_map GetLogicalProcessorInformationEx with RelationAll:
+#                         which logical processors share a core (the SMT
+#                         siblings), a cache, a package and a group, from the
+#                         documented buffer layouts
 #   power_active_scheme, power_schemes, power_aliases, power_settings,
 #   power_settings_hidden powercfg /getactivescheme, /list, /aliases, /query
 #                         and /qh: the active scheme, every scheme, the alias
@@ -35,8 +38,8 @@
 #   power_mode            not collected: no documented command prints the
 #                         power mode overlay by itself (see reason.json)
 #   timer_resolution      not collected: the current timer resolution has no
-#                         documented read a 5.1 script can make; the inbox
-#                         report that carries it needs Administrator
+#                         documented read this collector can make without a
+#                         timer request of its own; see reason.json
 #   processes             Win32_Process, the properties the system process list
 #                         carries (no command line, no image path)
 #   timer_helper_process  Win32_Process filtered to DpcTimerRes.exe, with its
@@ -51,7 +54,11 @@
 # Citations for the keys and classes read:
 # https://learn.microsoft.com/windows-hardware/drivers/kernel/interrupt-affinity-and-priority
 # https://learn.microsoft.com/windows-hardware/drivers/kernel/enabling-message-signaled-interrupts-in-the-registry
+# https://learn.microsoft.com/windows-hardware/drivers/install/opening-a-device-s-hardware-key
+# https://learn.microsoft.com/windows/win32/api/setupapi/nf-setupapi-setupdiopendevregkey
 # https://learn.microsoft.com/windows-hardware/drivers/ddi/wdm/ne-wdm-_irq_device_policy
+# https://learn.microsoft.com/windows-hardware/drivers/audio/intel-s-hd-audio-architecture
+# https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex
 # https://learn.microsoft.com/windows-hardware/drivers/display/tdr-registry-keys
 # https://learn.microsoft.com/windows/win32/cimwin32prov/win32-processor
 # https://learn.microsoft.com/windows/win32/cimwin32prov/win32-cachememory
@@ -60,19 +67,24 @@
 # https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options
 #
 # Nothing here applies or changes a setting, creates a registry key, starts
-# or stops a service or process, or opens a handle to a game: the registry is
-# opened for reading, powercfg is run with listing verbs only, and the process
-# list is read through the WMI provider with the properties the system
-# process list carries; the command line is requested only for the timer
-# helper (what the provider does inside the WMI host to fill a property is
-# not documented and is on the README's verification list).
+# or stops a service or process, or opens a handle to any process: the
+# registry is opened for reading (KEY_READ), powercfg is run with listing
+# verbs only, the two native reads (the device hardware keys and the
+# processor topology) are documented queries declared in two literal blocks
+# the static tests pin, and the process list is read through the WMI provider
+# with the properties the system process list carries; the command line is
+# requested only for the timer helper and is protected before it is written
+# (what the provider does inside the WMI host to fill a property is not
+# documented and is on the README's verification list). Take this snapshot
+# with the game and its anti-cheat closed.
 #
 # Access: WMI namespaces grant Enable Account (read) to Authenticated Users
 # by default (https://learn.microsoft.com/windows/win32/wmisdk/access-to-wmi-namespaces).
-# Whether a standard account may open the hardware keys under Enum, run the
-# powercfg listings, and list the Program Files folders is on the README's
-# verification list; each is recorded as a status with Windows' message when
-# it cannot.
+# Whether a standard account may open the device hardware keys through
+# SetupDiOpenDevRegKey, whether the two native declarations compile under
+# Windows PowerShell 5.1, and whether it may run the powercfg listings and
+# list the Program Files folders is on the README's verification list; each
+# is recorded as a status with Windows' message when it cannot.
 [CmdletBinding()]
 param(
     # The only parameter the dispatcher passes. It is checked in the script
@@ -121,9 +133,8 @@ $powercfgExpectation = 'powercfg exits with code 0 and prints at least one line 
 # The questions this collector cannot answer with a documented read only
 # path. Each is recorded as not_collected with its reason, never as an
 # empty observation, and listed under Follow-up in the README.
-$logicalProcessorMapReason = 'the logical processor to core map (which logical processors are SMT siblings, which share a cache, which group each belongs to) is exposed by GetLogicalProcessorInformationEx (https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex), a native call this Windows PowerShell 5.1 script cannot make without compiling code at run time, which the read only posture excludes; no CIM class documents the per logical processor mapping. Win32_Processor gives the core and logical processor counts (processors source), and Microsoft documents that a system with fewer than 64 logical processors has the single group 0 (https://learn.microsoft.com/windows/win32/procthread/processor-groups)'
 $powerModeReason = 'Microsoft documents the power mode (performance power slider) overlays and their GUIDs (https://learn.microsoft.com/windows-hardware/customize/desktop/customize-power-slider) and that "powercfg /q" without arguments enumerates the active overlay scheme when one is active (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options), but no command that prints the active overlay by itself; the decoder compares the scheme GUID printed by /query (power_settings) with /getactivescheme (power_active_scheme) and names a documented overlay GUID when they differ, which is an interpretation of that sentence, not a direct read'
-$timerReason = 'the current timer resolution has no documented read a 5.1 script can make: timeGetDevCaps (https://learn.microsoft.com/windows/win32/api/timeapi/nf-timeapi-timegetdevcaps) returns the minimum and maximum period only and is a native call; the inbox report that lists the platform timer resolution and the outstanding requests is "powercfg /energy", which observes the system for 60 seconds and writes a report file, and Microsoft documents it for an idle system (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options); it is left to the elevated task (collectors/windows/README.md, Needs elevation). "powercfg /requests" lists power requests, not timer requests, and is not timer evidence. Nothing here requests a timer period'
+$timerReason = 'the current timer resolution has no documented read this collector can make: timeGetDevCaps (https://learn.microsoft.com/windows/win32/api/timeapi/nf-timeapi-timegetdevcaps) returns the minimum and maximum period only, and Microsoft documents no public query of the period in effect; "powercfg /energy" observes the system for 60 seconds by default and writes a report file, which Microsoft documents for an idle system with no open programs (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options), so it is left to the elevated task, and whether its report names the timer resolution and its requesters is a verification item, not a fact asserted here. "powercfg /requests" lists power requests, not timer requests, and is not timer evidence. Nothing here requests a timer period'
 
 $definition = @{
     Name     = $collectorName
@@ -131,20 +142,30 @@ $definition = @{
     Question = 'What machine configuration confounds a latency run right now: device interrupt policy and MSI mode, CPU topology, power scheme and settings, timer state, and the state of Process Lasso and Stutter Guard?'
     Sources  = @(
         @{
-            Id          = 'interrupt_policy'
-            Type        = 'registry'
-            Mode        = 'devices'
-            Kind        = 'config_snapshot'
-            Required    = $true
-            Classes     = @('Display', 'Net', 'USB', 'MEDIA')
-            SubKeys     = @('Interrupt Management\Affinity Policy', 'Interrupt Management\MessageSignaledInterruptProperties')
-            Citations   = @(
+            Id               = 'interrupt_policy'
+            Type             = 'registry'
+            Mode             = 'devices'
+            Kind             = 'config_snapshot'
+            Required         = $true
+            # Every present PCI function: the bus whose devices own interrupts and
+            # message signaled interrupt configuration. The display adapter, the
+            # network adapter, the USB host controllers and the HD Audio controller
+            # are PCI functions; the audio codec nodes (HDAUDIO\FUNC_xx) and USB
+            # devices are children that own no interrupt of their own, so they are
+            # not selected.
+            InstancePrefixes = @('PCI\')
+            Classes          = @()
+            MaxValuesPerKey  = 64
+            Citations        = @(
+                'https://learn.microsoft.com/windows-hardware/drivers/install/opening-a-device-s-hardware-key',
+                'https://learn.microsoft.com/windows/win32/api/setupapi/nf-setupapi-setupdiopendevregkey',
                 'https://learn.microsoft.com/windows-hardware/drivers/kernel/interrupt-affinity-and-priority',
                 'https://learn.microsoft.com/windows-hardware/drivers/kernel/enabling-message-signaled-interrupts-in-the-registry',
                 'https://learn.microsoft.com/windows-hardware/drivers/ddi/wdm/ne-wdm-_irq_device_policy',
-                'https://learn.microsoft.com/windows-hardware/drivers/install/hklm-system-currentcontrolset-enum-registry-tree'
+                'https://learn.microsoft.com/windows-hardware/drivers/audio/intel-s-hd-audio-architecture',
+                'https://learn.microsoft.com/windows-hardware/drivers/audio/low-latency-audio'
             )
-            Expectation = 'at least one present Display, Net, USB or MEDIA device exists; for each, the two Interrupt Management subkeys are read or recorded absent. Registry intention is not effective routing: which processor actually services an interrupt is not readable here and comes from a trace'
+            Expectation      = 'at least one present PCI function exists; for each, its hardware key is opened through SetupDiOpenDevRegKey and the two Interrupt Management subkeys are read, recorded absent when the API says they are not there, or recorded unknown when they could not be opened. Registry intention is not effective routing: which processor actually services an interrupt is not readable here and comes from a trace'
         },
         @{
             Id          = 'graphics_tdr'
@@ -181,18 +202,19 @@ $definition = @{
             Properties = @('DeviceID', 'Purpose', 'Level', 'CacheType', 'Associativity', 'InstalledSize', 'MaxCacheSize', 'BlockSize', 'NumberOfBlocks', 'LineSize', 'CacheSpeed', 'Location', 'Status', 'ErrorCorrectType', 'WritePolicy')
         },
         @{
-            Id              = 'logical_processor_map'
-            Type            = 'unavailable'
-            Kind            = 'config_snapshot'
-            Required        = $false
-            Question        = 'Which logical processors are SMT siblings of each other, which share a cache, and in which processor group is each?'
-            Reason          = $logicalProcessorMapReason
-            DocumentedPaths = @(
-                [ordered]@{ path = 'GetLogicalProcessorInformationEx(RelationProcessorCore, RelationCache, RelationGroup)'; citation = 'https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex'; why_not_used = 'native call; needs code compiled at run time, which writes to the temp folder, both excluded by the read only posture' },
-                [ordered]@{ path = 'Win32_Processor NumberOfCores and NumberOfLogicalProcessors'; citation = 'https://learn.microsoft.com/windows/win32/cimwin32prov/win32-processor'; why_not_used = 'read by the processors source; it tells whether SMT is enabled (NumberOfCores less than NumberOfLogicalProcessors), not which logical processor pairs with which' }
+            Id          = 'logical_processor_map'
+            Type        = 'topology'
+            Kind        = 'config_snapshot'
+            Required    = $true
+            Citations   = @(
+                'https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex',
+                'https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-system_logical_processor_information_ex',
+                'https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-processor_relationship',
+                'https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-cache_relationship',
+                'https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-group_relationship',
+                'https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-group_affinity'
             )
-            FollowUp        = 'a later collector with a documented native read, or the trace itself, must establish the sibling map; until then "CPU 6 and its sibling" is not evidence'
-            Expectation     = 'the logical processor to core map is recorded with its group and cache sharing'
+            Expectation = 'GetLogicalProcessorInformationEx returns a buffer that parses by the documented layouts and holds one RelationProcessorCore record per active core, so each logical processor can be placed on its core next to its SMT sibling, its caches and its group'
         },
         @{
             Id             = 'power_active_scheme'
@@ -310,6 +332,7 @@ $definition = @{
             ClassName                  = 'Win32_Process'
             Filter                     = "Name = 'DpcTimerRes.exe'"
             Properties                 = @('Name', 'ProcessId', 'ParentProcessId', 'SessionId', 'CreationDate', 'Priority', 'CommandLine', 'ExecutablePath')
+            ProtectProperties          = @('CommandLine', 'ExecutablePath')
             EmptySnapshotIsObservation = $true
             Options                    = [ordered]@{ snapshot = $Snapshot; command_line_requested = $true; image_path_requested = $true }
         },
@@ -347,6 +370,13 @@ $definition = @{
             AlternatePathTails = @('ProcessLasso\logs\prolasso.log', 'ProcessLasso\prolasso.log')
             PathDocumented     = $false
             FileName           = 'processlasso.log'
+            # Bitsum: process command lines are not logged by default "because they
+            # may contain user sensitive information" and are switched on by the
+            # IncludeCommandLines setting (https://bitsum.com/apps/process-lasso/docs/interface/logging/,
+            # https://bitsum.com/apps/process-lasso/docs/reference/ini-config/). The
+            # log is copied only when the copied INI says that switch is off;
+            # otherwise it is summarised (size, time, hash, line count).
+            CopyGate           = @{ Source = 'process_lasso_config'; Pattern = '(?im)^\s*IncludeCommandLines\s*=\s*(false|0)\s*$'; Reason = 'the INI does not say IncludeCommandLines is off, so the log may carry process command lines, which the vendor documents as possibly sensitive and which no shape rule can protect' }
             MissingHint        = 'Bitsum names the action log prolasso.log (https://bitsum.com/apps/process-lasso/docs/getting-started/how-it-works/) and says its path is set under Options / General / Configure Startup (https://bitsum.com/apps/process-lasso/docs/interface/logging/); the candidates tried are listed in source.json.'
             Expectation        = 'the action log exists at one of the candidate paths and is readable; its protected text and the hash of the original are recorded'
         },
@@ -370,8 +400,15 @@ $definition = @{
             PathTail       = 'Stutter Guard\journal.json'
             PathDocumented = $false
             FileName       = 'journal.json'
-            MissingHint    = 'Stutter Guard keeps its journal under its ProgramData folder according to its published source; no journal means it never applied anything here or keeps it elsewhere.'
-            Expectation    = 'the journal exists and is readable; its protected text and the hash of the original are recorded'
+            # The journal path and the install folder come from the program's published
+            # source (Paths.cs: DataDir is CommonApplicationData\Stutter Guard, JournalFile
+            # is journal.json, InstallDir is ProgramFiles\Stutter Guard); its options are
+            # saved inside the journal's state (Options.cs, Save), so there is no separate
+            # settings file to copy:
+            # https://github.com/Kareem-Shabaka/stutter-guard/blob/4e1a61b13a7b7151552935116655c2264dfc1923/src/DpcTweaker.Core/Infra/Paths.cs#L13
+            # https://github.com/Kareem-Shabaka/stutter-guard/blob/4e1a61b13a7b7151552935116655c2264dfc1923/src/DpcTweaker.Core/Tweaks/Options.cs#L282
+            MissingHint    = 'Stutter Guard keeps its journal at CommonApplicationData\Stutter Guard\journal.json (Paths.cs in its published source, pinned above); no journal means it never applied anything here or keeps its data elsewhere.'
+            Expectation    = 'the journal exists and is readable; its protected text and the hash of the original are recorded; the program''s options are saved inside it'
         }
     )
 }

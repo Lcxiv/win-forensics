@@ -10,9 +10,10 @@ decoder reads the primary artifact of every source that is ``observed`` or
 Table                  Sources                                             Provenance
 =====================  ==================================================  ===================
 ``config_snapshot``    interrupt_policy, graphics_tdr, processors,          ``index:<n>``,
-                       cpu_caches, power_active_scheme, power_settings,     ``line:<n>``,
-                       power_settings_hidden, power_aliases, processes,     ``offset:0``
-                       timer_helper_process, process_lasso_install,
+                       cpu_caches, logical_processor_map,                   ``line:<n>``,
+                       power_active_scheme, power_settings,                 ``offset:0`` (a
+                       power_settings_hidden, power_aliases, processes,     report or an
+                       timer_helper_process, process_lasso_install,         absent process)
                        process_lasso_config, process_lasso_log,
                        stutter_guard_install, stutter_guard_journal
 ``powercfg``           power_active_scheme, power_schemes, power_aliases,   ``line:<n>``,
@@ -21,19 +22,28 @@ Table                  Sources                                             Prove
 =====================  ==================================================  ===================
 
 A table whose sources were all unreadable is reported ``not_collected`` and
-not written: an absent input is never decoded into an empty table. The three
-sources the collector records ``not_collected`` by design (the logical
-processor map, the power mode, the timer resolution) produce no row: a status
-is never turned into evidence.
+not written: an absent input is never decoded into an empty table. The two
+sources the collector records ``not_collected`` by design (the power mode, the
+timer resolution) produce no row, and neither does any source that failed: a
+status is never turned into evidence.
+
+Provenance names the file that carries the fact: a device element or a
+topology record by ``index:<n>`` in its JSON array, a file of an install
+listing by its index, and the folder level and copied file facts by
+``offset:0`` of the ``result.json`` report that holds them (those reports are
+consumed sources in the sidecar).
 
 Registry values are decoded only where Microsoft documents their meaning
 (``DevicePolicy`` by IRQ_DEVICE_POLICY, ``AssignmentSetOverride`` as a
 KAFFINITY mask, ``MSISupported``, ``MessageNumberLimit``, the TDR values);
 every other value present under those keys is kept verbatim with its type and
-bytes and ``documented_by`` null. A mask names logical processors of a group
-by bit position, as Microsoft defines KAFFINITY; it says which processors the
-policy asks for, never which processor services the interrupt, which only a
-trace can show.
+bytes and ``documented_by`` null (a string typed value arrives already omitted
+by the collector). A mask names logical processors of a group by bit position,
+as Microsoft defines KAFFINITY; it says which processors the policy asks for,
+never which processor services the interrupt, which only a trace can show.
+``present`` keeps three states apart: true, false only when the device key API
+answered that the key or value is not there, and null when it could not be
+looked at (denied, device gone, native failure, enumeration cut short).
 
 powercfg output is localized. Scheme, subgroup and setting lines are found by
 the GUID they carry and their indentation; the AC and DC index lines by their
@@ -64,7 +74,7 @@ SCENARIO = "config_snapshot"
 TOOL = {"name": "collectors/windows config-snapshot (registry, Win32_Processor, Win32_CacheMemory, Win32_Process, powercfg, file and folder reads)", "version": None}
 
 TABLE_SOURCES = {
-    "config_snapshot": ["interrupt_policy", "graphics_tdr", "processors", "cpu_caches", "power_active_scheme", "power_settings",
+    "config_snapshot": ["interrupt_policy", "graphics_tdr", "processors", "cpu_caches", "logical_processor_map", "power_active_scheme", "power_settings",
                         "power_settings_hidden", "power_aliases", "processes", "timer_helper_process", "process_lasso_install",
                         "process_lasso_config", "process_lasso_log", "stutter_guard_install", "stutter_guard_journal"],
     "powercfg": ["power_active_scheme", "power_schemes", "power_aliases", "power_settings", "power_settings_hidden"],
@@ -79,6 +89,7 @@ DOC_TDR = "https://learn.microsoft.com/windows-hardware/drivers/display/tdr-regi
 DOC_PROCESSOR = "https://learn.microsoft.com/windows/win32/cimwin32prov/win32-processor"
 DOC_CACHE = "https://learn.microsoft.com/windows/win32/cimwin32prov/win32-cachememory"
 DOC_GROUPS = "https://learn.microsoft.com/windows/win32/procthread/processor-groups"
+DOC_LPI = "https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex"
 DOC_POWERCFG = "https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options"
 DOC_SLIDER = "https://learn.microsoft.com/windows-hardware/customize/desktop/customize-power-slider"
 DOC_PROCESS = "https://learn.microsoft.com/windows/win32/cimwin32prov/win32-process"
@@ -103,7 +114,9 @@ CACHE_ASSOCIATIVITY = {1: "Other", 2: "Unknown", 3: "Direct Mapped", 4: "2-way S
                        6: "Fully Associative", 7: "8-way Set-Associative", 8: "16-way Set-Associative"}
 
 # The two power mode overlays whose GUIDs are not also a power scheme (the Better Performance overlay shares the Balanced scheme's GUID).
-OVERLAYS = {"961cc777-2547-4f9d-8174-7d86181b8a7a": "better_battery", "ded574b5-45a0-4f42-8737-46345c09c238": "best_performance"}
+# The power mode overlays the power slider page documents: two registry setting GUIDs and one INF GUID that is also the Balanced scheme's.
+OVERLAYS = {"961cc777-2547-4f9d-8174-7d86181b8a7a": "better_battery", "3af9b8d9-7c97-431d-ad78-34a8bfea439f": "better_performance",
+            "ded574b5-45a0-4f42-8737-46345c09c238": "best_performance"}
 BALANCED_GUID = "381b4222-f694-41f0-9685-ff5bb260df2e"
 # Processor power settings whose aliases Microsoft documents, and the category each belongs to.
 PROCESSOR_ALIASES = {
@@ -111,7 +124,7 @@ PROCESSOR_ALIASES = {
     "PROCTHROTTLEMAX": ("processor_power", "https://learn.microsoft.com/windows-hardware/customize/power-settings/options-for-perf-state-engine-maxperformance"),
     "PERFBOOSTMODE": ("processor_power", "https://learn.microsoft.com/windows-hardware/customize/power-settings/options-for-perf-state-engine-perfboostmode"),
     "PERFBOOSTPOL": ("processor_power", "https://learn.microsoft.com/windows-hardware/customize/power-settings/legacy-config-options-perfboostpol"),
-    "PERFEPP": ("processor_power", "https://learn.microsoft.com/windows-hardware/customize/power-settings/options-for-perf-state-engine-perfepp"),
+    "PERFEPP": ("processor_power", "https://learn.microsoft.com/windows-hardware/customize/power-settings/options-for-perf-state-engine-perfenergypreference"),
     "IDLEDISABLE": ("processor_power", "https://learn.microsoft.com/windows-hardware/customize/power-settings/configure-processor-power-management-options"),
     "CPMINCORES": ("core_parking", "https://learn.microsoft.com/windows-hardware/customize/power-settings/options-for-core-parking-cpmincores"),
     "CPMAXCORES": ("core_parking", "https://learn.microsoft.com/windows-hardware/customize/power-settings/options-for-core-parking-cpmaxcores"),
@@ -221,11 +234,11 @@ def snapshot_row(category: str, key: str, value_text: str, source_command: str, 
 
 def mask_from_value(kind: str | None, data: Any, bytes_hex: str | None) -> int | None:
     """A KAFFINITY mask from the value as the registry holds it: binary bytes are little endian; the numeric kinds are numbers."""
-    if kind == "Binary" and bytes_hex:
+    if kind == "REG_BINARY" and bytes_hex:
         return int.from_bytes(bytes.fromhex(bytes_hex), "little")
-    if kind in ("DWord", "QWord") and isinstance(data, int) and not isinstance(data, bool):
+    if kind in ("REG_DWORD", "REG_QWORD") and isinstance(data, int) and not isinstance(data, bool):
         return data
-    if kind in ("DWord", "QWord") and isinstance(data, str) and data.isdigit():
+    if kind in ("REG_DWORD", "REG_QWORD") and isinstance(data, str) and data.isdigit():
         return int(data)
     return None
 
@@ -237,6 +250,8 @@ def processors_in(mask: int) -> list[int]:
 def decode_registry_value(subkey: str, value: dict[str, Any]) -> tuple[str, float | None, dict[str, Any] | None, str | None]:
     """value_text, value_number, decoded and documented_by for one value present under an Interrupt Management subkey."""
     name, kind, data, bytes_hex = value.get("name"), value.get("kind"), value.get("data"), value.get("bytes_hex")
+    if value.get("omitted_reason"):
+        return "omitted: " + str(value["omitted_reason"]), None, None, None
     number = data if isinstance(data, (int, float)) and not isinstance(data, bool) else None
     if subkey == AFFINITY_SUBKEY and name == "DevicePolicy":
         policy = IRQ_DEVICE_POLICY.get(data) if isinstance(data, int) else None
@@ -246,9 +261,10 @@ def decode_registry_value(subkey: str, value: dict[str, Any]) -> tuple[str, floa
         if mask is None:
             return f"{data} (kind {kind}, not a mask the documentation allows)", None, {"mask": None, "kind": kind}, DOC_AFFINITY
         cpus = processors_in(mask)
-        decoded = {"mask_hex": hex(mask), "processors": cpus, "kind": kind, "byte_order": "little endian" if kind == "Binary" else "numeric",
+        decoded = {"mask_hex": hex(mask), "processors": cpus, "kind": kind, "byte_order": "little endian" if kind == "REG_BINARY" else "numeric",
                    "note": "bit i names logical processor i of the device's group; the group is not recorded here and the mask is the requested set, not the processor that services the interrupt"}
-        return f"{hex(mask)} (processors {', '.join(str(c) for c in cpus) or 'none'})", float(mask), decoded, DOC_AFFINITY
+        # The exact integer: JSON and Python keep it; a float would round above 2**53.
+        return f"{hex(mask)} (processors {', '.join(str(c) for c in cpus) or 'none'})", mask, decoded, DOC_AFFINITY
     if subkey == MSI_SUBKEY and name == "MSISupported":
         enabled = data == 1
         return f"{data} ({'MSI enabled in configuration' if enabled else 'MSI not enabled in configuration'})", number, {"msi_enabled_in_configuration": enabled, "note": "configuration, not the active message mode or routing"}, DOC_MSI
@@ -258,7 +274,16 @@ def decode_registry_value(subkey: str, value: dict[str, Any]) -> tuple[str, floa
     return text, number, None, None
 
 
+def key_locator(subkey: str | None = None) -> str:
+    """Where a value was read: the API resolved device key, never an absolute path the API did not return."""
+    base = "SetupDiOpenDevRegKey(DICS_FLAG_GLOBAL, DIREG_DEV, KEY_READ)"
+    return base + ("\\" + subkey if subkey else "")
+
+
 def decode_interrupt_policy(elements: list[Any], source: str, entry: dict[str, Any], schema_version: str) -> list[dict[str, Any]]:
+    """Rows for every selected device. exists true, false and null stay three different things: a value or key is called absent
+    only when the API answered that it is not there (hardware key missing, Interrupt Management missing, leaf missing, or a
+    documented name missing under a leaf whose enumeration completed); everything else is unknown (present null)."""
     rows: list[dict[str, Any]] = []
     command = " ".join(entry["command"] or [])
     when = captured_at(entry)
@@ -268,34 +293,55 @@ def decode_interrupt_policy(elements: list[Any], source: str, entry: dict[str, A
         prov = provenance("config_snapshot", source, f"index:{index}", schema_version)
         common = {"device_instance_id": device.get("instance_id"), "device_name": device.get("name"), "device_status": device.get("status"),
                   "device_problem_code": device.get("problem_code"), "source_id": entry["id"]}
-        state = device.get("hardware_key_state") or {}
-        if device.get("registry_error"):
-            rows.append(snapshot_row("interrupt_affinity", "interrupt_management_key", "unreadable: " + str(device["registry_error"]), command, when, prov,
-                                     registry_path=device.get("hardware_key"), present=None, decoded={"error": device["registry_error"]}, documented_by=DOC_MSI, **common))
+        hardware = device.get("hardware_key_state") or {}
+        management = device.get("interrupt_management") or {}
+        stage = device.get("stage")
+        leaves = {k.get("subkey"): k for k in device.get("interrupt_keys") or [] if isinstance(k, dict)}
+        if stage != "read":
+            # The device could not be looked at (gone, denied, native failure): one row, nothing absent.
+            rows.append(snapshot_row("interrupt_affinity", "interrupt_management_key", f"unknown (stage {stage}): " + str(device.get("registry_error")), command, when, prov,
+                                     registry_path=key_locator(), present=None,
+                                     decoded={"stage": stage, "error_code": device.get("error_code"), "hardware_key_exists": hardware.get("exists")}, documented_by=DOC_MSI, **common))
             continue
-        subkeys = {k.get("subkey"): k for k in device.get("interrupt_keys") or [] if isinstance(k, dict)}
-        has_im = any(k.get("exists") for k in subkeys.values()) or "Interrupt Management" in (state.get("subkeys") or [])
-        rows.append(snapshot_row("interrupt_affinity", "interrupt_management_key", "present" if has_im else "absent", command, when, prov,
-                                 registry_path=(device.get("hardware_key") or "") + "\\Interrupt Management", present=has_im,
-                                 decoded={"hardware_key_exists": state.get("exists")}, documented_by=DOC_MSI, **common))
+        if hardware.get("exists") is False:
+            text, present = "absent (the device has no hardware key under global scope)", False
+        elif management.get("exists") is True:
+            text, present = "present", True
+        elif management.get("exists") is False:
+            text, present = "absent", False
+        else:
+            text, present = "unknown: " + str(management.get("error")), None
+        rows.append(snapshot_row("interrupt_affinity", "interrupt_management_key", text, command, when, prov, registry_path=key_locator("Interrupt Management"), present=present,
+                                 decoded={"hardware_key_exists": hardware.get("exists"), "interrupt_management_exists": management.get("exists"),
+                                          "error_code": management.get("error_code") or hardware.get("error_code")}, documented_by=DOC_MSI, **common))
         for subkey, category, doc in ((AFFINITY_SUBKEY, "interrupt_affinity", DOC_AFFINITY), (MSI_SUBKEY, "msi_mode", DOC_MSI)):
-            record = subkeys.get(subkey)
-            path = (device.get("hardware_key") or "") + "\\" + subkey
-            present_names = set()
-            if record and record.get("exists") and not record.get("error_kind"):
-                for value in record.get("values") or []:
-                    name = value.get("name")
-                    present_names.add(name)
-                    text, number, decoded, documented = decode_registry_value(subkey, value)
-                    rows.append(snapshot_row(category, name or "(default)", text, command, when, prov, value_number=number, registry_path=path, present=True,
-                                             registry_value_kind=value.get("kind"), raw_bytes_hex=value.get("bytes_hex"), decoded=decoded, documented_by=documented, **common))
-            elif record and record.get("error_kind"):
-                rows.append(snapshot_row(category, "subkey", "unreadable: " + str(record.get("error")), command, when, prov, registry_path=path, present=None,
-                                         decoded={"error": record.get("error")}, documented_by=doc, **common))
+            leaf = leaves.get(subkey) or {}
+            path = key_locator(subkey)
+            exists = leaf.get("exists")
+            if exists is None:
+                rows.append(snapshot_row(category, "subkey", "unknown: " + str(leaf.get("error") or management.get("error") or "the key could not be opened"), command, when, prov,
+                                         registry_path=path, present=None, decoded={"error_code": leaf.get("error_code")}, documented_by=doc, **common))
                 continue
-            for name in DOCUMENTED_VALUES[subkey]:
-                if name not in present_names:
+            if exists is False:
+                for name in DOCUMENTED_VALUES[subkey]:
                     rows.append(snapshot_row(category, name, "absent", command, when, prov, registry_path=path, present=False, documented_by=doc, **common))
+                continue
+            present_names = set()
+            for value in leaf.get("values") or []:
+                name = value.get("name")
+                present_names.add(name)
+                text, number, decoded, documented = decode_registry_value(subkey, value)
+                rows.append(snapshot_row(category, name or "(default)", text, command, when, prov, value_number=number, registry_path=path, present=True,
+                                         registry_value_kind=value.get("kind"), raw_bytes_hex=value.get("bytes_hex"), decoded=decoded, documented_by=documented, **common))
+            complete = leaf.get("enumeration_complete") is True
+            for name in DOCUMENTED_VALUES[subkey]:
+                if name in present_names:
+                    continue
+                if complete:
+                    rows.append(snapshot_row(category, name, "absent", command, when, prov, registry_path=path, present=False, documented_by=doc, **common))
+                else:
+                    rows.append(snapshot_row(category, name, "unknown: the enumeration did not complete (" + str(leaf.get("error")) + ")", command, when, prov,
+                                             registry_path=path, present=None, decoded={"error_code": leaf.get("error_code")}, documented_by=doc, **common))
     return rows
 
 
@@ -595,7 +641,8 @@ def power_snapshot_rows(powercfg_rows: list[dict[str, Any]], headers: dict[str, 
             q = entries["power_settings"]
             qprov = provenance("config_snapshot", primary_of(q) or "", f"line:{header['line']}", schema_version)
             if header["scheme_guid"] == r["scheme_guid"]:
-                text, present, overlay = "none evident: /query without arguments printed the active scheme's GUID", False, None
+                # Not an absence: whether the /query header prints the overlay GUID is a verification item.
+                text, present, overlay = "none evident: /query without arguments printed the active scheme's GUID", None, None
             else:
                 overlay = OVERLAYS.get(header["scheme_guid"]) or ("better_performance (the GUID Microsoft lists for that overlay is the Balanced scheme's)" if header["scheme_guid"] == BALANCED_GUID else None)
                 text, present = (overlay or f"unknown GUID {header['scheme_guid']}"), True
@@ -703,21 +750,33 @@ def decode_timer_helper(records: list[Any], source: str, entry: dict[str, Any], 
     return rows
 
 
-def decode_install_listing(listing: Any, source: str, entry: dict[str, Any], schema_version: str, category: str) -> list[dict[str, Any]]:
-    if not isinstance(listing, dict) or not isinstance(listing.get("files"), list):
-        raise DecodeError(f"{source}: the listing is not an object with a files array")
+def report_of(entry: dict[str, Any]) -> str | None:
+    reports = [a["path"] for a in entry["artifacts"] if a["role"] == "report"]
+    return reports[0] if reports else None
+
+
+def decode_install_listing(bundle: Path, files: list[Any], source: str, entry: dict[str, Any], schema_version: str, category: str) -> tuple[list[dict[str, Any]], list[str]]:
+    """The folder row comes from result.json (the report that carries the folder's facts); the file rows from the listing array."""
     command = " ".join(entry["command"] or [])
     when = captured_at(entry)
     rows: list[dict[str, Any]] = []
-    prov = provenance("config_snapshot", source, "offset:0", schema_version)
-    exists = bool(listing.get("exists"))
-    rows.append(snapshot_row(category, "install_folder", str(listing.get("path")), command, when, prov, present=exists, value_number=len(listing["files"]),
-                             decoded={"exists": exists, "file_count": len(listing["files"]), "truncated": listing.get("truncated"),
-                                      "note": "the conventional install folder; a program installed elsewhere is not seen here"},
+    consumed = [source]
+    report_path = report_of(entry)
+    if not report_path or not (bundle / report_path).is_file():
+        raise DecodeError(f"{entry['id']}: the listing has no result.json to cite for the folder")
+    report = read_json(bundle / report_path, report_path)
+    if not isinstance(report, dict):
+        raise DecodeError(f"{report_path}: not an object")
+    consumed.append(report_path)
+    exists = report.get("exists") is True
+    rows.append(snapshot_row(category, "install_folder", str(report.get("path")), command, when, provenance("config_snapshot", report_path, "offset:0", schema_version),
+                             present=exists, value_number=len(files),
+                             decoded={"exists": report.get("exists"), "parent_exists": report.get("parent_exists"), "file_count": report.get("file_count"), "truncated": report.get("truncated"),
+                                      "listing": source, "note": "the conventional install folder; a program installed elsewhere is not seen here"},
                              documented_by=None, source_id=entry["id"]))
-    for index, file in enumerate(listing["files"]):
+    for index, file in enumerate(files):
         if not isinstance(file, dict):
-            raise DecodeError(f"{source}: files element {index} is not an object")
+            raise DecodeError(f"{source}: element {index} is not an object")
         fprov = provenance("config_snapshot", source, f"index:{index}", schema_version)
         version = file.get("file_version") or file.get("product_version")
         rows.append(snapshot_row(category, f"file:{file.get('name')}", version or "no version resource", command, when, fprov, present=True,
@@ -725,25 +784,82 @@ def decode_install_listing(listing: Any, source: str, entry: dict[str, Any], sch
                                           "file_version": file.get("file_version"), "product_version": file.get("product_version"), "product_name": file.get("product_name"),
                                           "company_name": file.get("company_name"), "error": file.get("error")},
                                  documented_by=None, source_id=entry["id"]))
-    return rows
+    return rows, consumed
 
 
-def decode_copied_file(bundle: Path, source: str, entry: dict[str, Any], schema_version: str, category: str, key: str) -> list[dict[str, Any]]:
-    """One row for a copied text file: its presence, the hash of the original, and whether the copy is verbatim (from result.json)."""
+def decode_copied_file(bundle: Path, source: str, entry: dict[str, Any], schema_version: str, category: str, key: str) -> tuple[list[dict[str, Any]], list[str]]:
+    """One row for a copied text file. Its facts (the original's hash and size, the replacement counts, whether the copy is
+    verbatim) are in result.json, so the row's provenance points there and the report is a consumed source; the copy itself stays a
+    raw artifact that the row names in decoded.copy."""
     command = " ".join(entry["command"] or [])
     when = captured_at(entry)
-    report_path = [a["path"] for a in entry["artifacts"] if a["role"] == "report"]
-    report: dict[str, Any] = {}
-    if report_path and (bundle / report_path[0]).is_file():
-        loaded = read_json(bundle / report_path[0], report_path[0])
-        if isinstance(loaded, dict):
-            report = loaded
-    size = next((a["bytes"] for a in entry["artifacts"] if a["path"] == source), None)
-    prov = provenance("config_snapshot", source, f"offset:0;len:{size}" if size is not None else "offset:0", schema_version)
+    report_path = report_of(entry)
+    if not report_path or not (bundle / report_path).is_file():
+        raise DecodeError(f"{entry['id']}: the copy has no result.json to cite")
+    report = read_json(bundle / report_path, report_path)
+    if not isinstance(report, dict):
+        raise DecodeError(f"{report_path}: not an object")
+    prov = provenance("config_snapshot", report_path, "offset:0", schema_version)
     return [snapshot_row(category, key, str(report.get("path") or source), command, when, prov, present=True, value_number=report.get("source_bytes"),
-                         decoded={"source_sha256": report.get("source_sha256"), "source_bytes": report.get("source_bytes"), "last_write_time_utc": report.get("last_write_time_utc"),
-                                  "copy_is_verbatim": report.get("copy_is_verbatim"), "protection": report.get("protection"), "source_encoding": report.get("source_encoding")},
-                         documented_by=None, source_id=entry["id"])]
+                         decoded={"copy": source, "source_sha256": report.get("source_sha256"), "source_bytes": report.get("source_bytes"), "last_write_time_utc": report.get("last_write_time_utc"),
+                                  "copy_is_verbatim": report.get("copy_is_verbatim"), "protection": report.get("protection"), "source_encoding": report.get("source_encoding"),
+                                  "copy_gate": report.get("copy_gate")},
+                         documented_by=None, source_id=entry["id"])], [report_path, source]
+
+
+def decode_topology(records: list[Any], source: str, entry: dict[str, Any], schema_version: str) -> list[dict[str, Any]]:
+    """cpu_topology rows from the parsed GetLogicalProcessorInformationEx records: one per core (its logical processors and SMT
+    flag), one per logical processor (its core, its siblings, the caches it shares), one per cache, one per group, one per package."""
+    rows: list[dict[str, Any]] = []
+    command = " ".join(entry["command"] or [])
+    when = captured_at(entry)
+    cores = [(i, r) for i, r in enumerate(records) if isinstance(r, dict) and r.get("relationship") == 0]
+    caches = [(i, r) for i, r in enumerate(records) if isinstance(r, dict) and r.get("relationship") == 2]
+    groups = [(i, r) for i, r in enumerate(records) if isinstance(r, dict) and r.get("relationship") == 4]
+    packages = [(i, r) for i, r in enumerate(records) if isinstance(r, dict) and r.get("relationship") == 3]
+    owner: dict[tuple[int, int], tuple[int, int, list[int]]] = {}
+    for number, (index, core) in enumerate(cores):
+        masks = core.get("group_masks") or []
+        lps = [(m.get("group"), p) for m in masks for p in (m.get("processors") or [])]
+        for group, lp in lps:
+            owner[(group, lp)] = (number, index, [p for g, p in lps if g == group])
+        rows.append(snapshot_row("cpu_topology", f"core:{number}", ", ".join(f"group {g} processor {p}" for g, p in lps), command, when,
+                                 provenance("config_snapshot", source, f"index:{index}", schema_version), value_number=len(lps), present=True,
+                                 decoded={"record_index": index, "logical_processors": [{"group": g, "processor": p} for g, p in lps], "smt": core.get("smt"), "flags": core.get("flags"),
+                                          "efficiency_class": core.get("efficiency_class"), "group_masks": masks},
+                                 documented_by=DOC_LPI, source_id=entry["id"]))
+    for (group, lp), (core_number, index, mates) in sorted(owner.items()):
+        siblings = [p for p in mates if p != lp]
+        shared = []
+        for cache_index, cache in caches:
+            for m in cache.get("group_masks") or []:
+                if m.get("group") == group and lp in (m.get("processors") or []):
+                    shared.append({"record_index": cache_index, "level": cache.get("level"), "type": cache.get("cache_type_name"), "size_bytes": cache.get("cache_size"),
+                                   "shared_with": [p for p in m.get("processors") or [] if p != lp]})
+        rows.append(snapshot_row("cpu_topology", f"logical_processor:{group}:{lp}", f"core {core_number}, siblings {siblings or 'none'}", command, when,
+                                 provenance("config_snapshot", source, f"index:{index}", schema_version), value_number=core_number, present=True,
+                                 decoded={"group": group, "processor": lp, "core": core_number, "siblings": siblings, "caches": shared,
+                                          "note": "siblings come from the RelationProcessorCore record that lists this processor; nothing is assumed from adjacency"},
+                                 documented_by=DOC_LPI, source_id=entry["id"]))
+    for number, (index, cache) in enumerate(caches):
+        masks = cache.get("group_masks") or []
+        rows.append(snapshot_row("cpu_topology", f"cache:{number}", f"L{cache.get('level')} {cache.get('cache_type_name')} {cache.get('cache_size')} bytes", command, when,
+                                 provenance("config_snapshot", source, f"index:{index}", schema_version), value_number=cache.get("cache_size"), present=True,
+                                 decoded={"record_index": index, "level": cache.get("level"), "type": cache.get("cache_type_name"), "size_bytes": cache.get("cache_size"),
+                                          "line_size": cache.get("line_size"), "associativity": cache.get("associativity"), "group_masks": masks},
+                                 documented_by=DOC_LPI, source_id=entry["id"]))
+    for index, group_record in groups:
+        for info in group_record.get("groups") or []:
+            rows.append(snapshot_row("cpu_topology", f"group:{info.get('group')}", f"{info.get('active_processor_count')} active processors, mask {info.get('active_mask_hex')}", command, when,
+                                     provenance("config_snapshot", source, f"index:{index}", schema_version), value_number=info.get("active_processor_count"), present=True,
+                                     decoded={"record_index": index, "group": info.get("group"), "active_processor_count": info.get("active_processor_count"),
+                                              "maximum_processor_count": info.get("maximum_processor_count"), "active_mask_hex": info.get("active_mask_hex"), "processors": info.get("processors"),
+                                              "maximum_group_count": group_record.get("maximum_group_count"), "active_group_count": group_record.get("active_group_count")},
+                                     documented_by=DOC_LPI, source_id=entry["id"]))
+    for number, (index, package) in enumerate(packages):
+        rows.append(snapshot_row("cpu_topology", f"package:{number}", "processor package", command, when, provenance("config_snapshot", source, f"index:{index}", schema_version),
+                                 present=True, decoded={"record_index": index, "group_masks": package.get("group_masks")}, documented_by=DOC_LPI, source_id=entry["id"]))
+    return rows
 
 
 # ---------------------------------------------------------------- tables
@@ -855,20 +971,27 @@ def decode(bundle: Path, decoded_at: str | None = None) -> dict[str, Any]:
                                        "no powercfg listing was observed")
 
     # process_inventory
+    process_rows: list[dict[str, Any]] = []
+    process_sources: list[str] = []
+    process_checks: list[dict[str, Any]] = []
+    process_status, process_reason = "observed", None
     if "processes" in observed:
         try:
             source, path = read_primary(bundle, observed["processes"])
-            rows = decode_process_inventory(read_json_array(path, source), source, observed["processes"], versions["process_inventory"])
-            errors = wf_schema.validate_rows(rows, "decoded/process_inventory.schema.json")
-            checks = [{"name": "processes", "ok": True, "detail": f"{len(rows)} processes, snapshot {rows[0]['snapshot'] if rows else 'n/a'}"},
-                      {"name": "rows_validate", "ok": not errors, "detail": "; ".join(errors[:3]) or None}]
-            status, reason = ("decode_failed", "; ".join(errors[:3])) if errors else ("observed", None) if rows else ("observed_zero", "the process list is empty")
-            results["process_inventory"] = write_table(bundle, "process_inventory", rows if not errors else [], [source], [observed["processes"]], checks, status, reason, decoded_at)
+            process_rows = decode_process_inventory(read_json_array(path, source), source, observed["processes"], versions["process_inventory"])
+            process_sources = [source]
+            errors = wf_schema.validate_rows(process_rows, "decoded/process_inventory.schema.json")
+            process_checks = [{"name": "processes", "ok": True, "detail": f"{len(process_rows)} processes, snapshot {process_rows[0]['snapshot'] if process_rows else 'n/a'}"},
+                              {"name": "rows_validate", "ok": not errors, "detail": "; ".join(errors[:3]) or None}]
+            if errors:
+                process_status, process_reason, process_rows = "decode_failed", "; ".join(errors[:3]), []
+            elif not process_rows:
+                process_status, process_reason = "observed_zero", "the process list is empty"
         except DecodeError as exc:
-            results["process_inventory"] = write_table(bundle, "process_inventory", [], [primary_of(observed["processes"]) or ""], [observed["processes"]],
-                                                       [{"name": "read", "ok": False, "detail": str(exc)}], "decode_failed", str(exc), decoded_at) if primary_of(observed["processes"]) else {"status": "decode_failed", "reason": str(exc), "rows": 0, "sources": 0}
-    else:
-        results["process_inventory"] = {"status": "not_collected", "reason": "the processes source was not observed", "rows": 0, "sources": 0}
+            process_status, process_reason, process_rows = "decode_failed", str(exc), []
+            process_checks.append({"name": "read", "ok": False, "detail": str(exc)})
+    results["process_inventory"] = finish_table(bundle, "process_inventory", process_rows, process_sources, observed, process_checks, process_status, process_reason, decoded_at,
+                                                "the processes source was not observed")
 
     # config_snapshot
     rows: list[dict[str, Any]] = []
@@ -880,10 +1003,11 @@ def decode(bundle: Path, decoded_at: str | None = None) -> dict[str, Any]:
         "graphics_tdr": lambda s, p, e: decode_graphics_tdr(read_json_array(p, s), s, e, versions["config_snapshot"]),
         "processors": lambda s, p, e: decode_processors(read_json_array(p, s), s, e, versions["config_snapshot"]),
         "cpu_caches": lambda s, p, e: decode_caches(read_json_array(p, s), s, e, versions["config_snapshot"]),
+        "logical_processor_map": lambda s, p, e: decode_topology(read_json_array(p, s), s, e, versions["config_snapshot"]),
         "processes": lambda s, p, e: decode_lasso_components(read_json_array(p, s), s, e, versions["config_snapshot"]),
         "timer_helper_process": lambda s, p, e: decode_timer_helper(read_json_array(p, s), s, e, versions["config_snapshot"]),
-        "process_lasso_install": lambda s, p, e: decode_install_listing(read_json(p, s), s, e, versions["config_snapshot"], "process_lasso"),
-        "stutter_guard_install": lambda s, p, e: decode_install_listing(read_json(p, s), s, e, versions["config_snapshot"], "stutter_guard"),
+        "process_lasso_install": lambda s, p, e: decode_install_listing(bundle, read_json_array(p, s), s, e, versions["config_snapshot"], "process_lasso"),
+        "stutter_guard_install": lambda s, p, e: decode_install_listing(bundle, read_json_array(p, s), s, e, versions["config_snapshot"], "stutter_guard"),
         "process_lasso_config": lambda s, p, e: decode_copied_file(bundle, s, e, versions["config_snapshot"], "process_lasso", "config_copied"),
         "process_lasso_log": lambda s, p, e: decode_copied_file(bundle, s, e, versions["config_snapshot"], "process_lasso", "log_copied"),
         "stutter_guard_journal": lambda s, p, e: decode_copied_file(bundle, s, e, versions["config_snapshot"], "stutter_guard", "journal_copied"),
@@ -894,8 +1018,13 @@ def decode(bundle: Path, decoded_at: str | None = None) -> dict[str, Any]:
                 continue
             source, path = read_primary(bundle, observed[sid])
             produced = fn(source, path, observed[sid])
+            consumed = [source]
+            if isinstance(produced, tuple):
+                produced, consumed = produced
             rows += produced
-            sources.append(source)
+            for c in consumed:
+                if c not in sources:
+                    sources.append(c)
             checks.append({"name": sid, "ok": True, "detail": f"{len(produced)} rows"})
         if power_status in OBSERVED and power_rows:
             derived = power_snapshot_rows(power_rows, headers, entries, versions["config_snapshot"])
@@ -904,9 +1033,11 @@ def decode(bundle: Path, decoded_at: str | None = None) -> dict[str, Any]:
                 if sid in observed and primary_of(observed[sid]) not in sources and any(r["source_id"] == sid for r in derived):
                     sources.append(primary_of(observed[sid]) or "")
             checks.append({"name": "power_rows", "ok": True, "detail": f"{len(derived)} rows derived from the powercfg table"})
-        for sid in ("logical_processor_map", "power_mode", "timer_resolution"):
+        for sid in ("power_mode", "timer_resolution"):
             if sid in entries:
                 checks.append({"name": sid, "ok": True, "detail": f"status {entries[sid]['status']}: no row, a status is never turned into evidence"})
+        if "logical_processor_map" in entries and entries["logical_processor_map"]["status"] not in OBSERVED:
+            checks.append({"name": "logical_processor_map", "ok": True, "detail": f"status {entries['logical_processor_map']['status']}: no sibling row, a status is never turned into evidence"})
         errors = wf_schema.validate_rows(rows, "decoded/config_snapshot.schema.json")
         checks.append({"name": "rows_validate", "ok": not errors, "detail": "; ".join(errors[:3]) or None})
         if errors:

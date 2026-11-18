@@ -98,14 +98,14 @@
         "boolean",
         "null"
       ],
-      "description": "True when the value or file or program exists, false when it is recorded absent, null when presence is not what the row is about."
+      "description": "True when the value or file or program exists; false only when the read answered that it is not there (for a device key value: the API reported the hardware key, the subkey or the value missing under a key it opened and enumerated completely); null when it could not be looked at, when the derivation is unverified, or when presence is not what the row is about."
     },
     "registry_value_kind": {
       "type": [
         "string",
         "null"
       ],
-      "description": "RegistryValueKind name of the value as read (DWord, QWord, Binary, String, ExpandString, MultiString, None, Unknown)."
+      "description": "The registry kind of the value as read: the REG_ name from its numeric type code for a value read through the device key API (REG_DWORD, REG_QWORD, REG_BINARY, REG_SZ and the rest), or the RegistryValueKind name for a fixed key read through the registry provider (DWord, QWord, Binary, String, ExpandString, MultiString, None, Unknown)."
     },
     "raw_bytes_hex": {
       "type": [

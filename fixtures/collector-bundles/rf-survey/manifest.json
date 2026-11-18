@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.0.0",
   "bundle_id": "20260301T120001Z_rf_survey_ae3a76a9",
-  "created_utc": "2026-03-01T12:01:27.0000000Z",
+  "created_utc": "2026-03-01T12:01:28.0000000Z",
   "scenario": {
     "id": "rf_survey",
     "version": "1.0.0",
@@ -11,7 +11,7 @@
   },
   "capture": {
     "start_utc": "2026-03-01T12:00:01.0000000Z",
-    "stop_utc": "2026-03-01T12:01:27.0000000Z",
+    "stop_utc": "2026-03-01T12:01:28.0000000Z",
     "orchestrator": "wf-collector:rf-survey",
     "orchestrator_version": "1.2.0",
     "elevated": false,
@@ -779,7 +779,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:39.0000000Z",
+        "at_utc": "2026-03-01T12:00:40.0000000Z",
         "checks": [
           {
             "name": "file_exists",
@@ -798,11 +798,11 @@
         "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html"
       ],
       "started_utc": "2026-03-01T12:00:38.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:41.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:42.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "1b4701a5143225687d7417f3d0c2b4d0447e070b9f7e13e942a66568878792f9"
+        "value": "cec914c956b69dc36834b6bec28f4ff01e7d6182e65e04756a9b90478954d074"
       },
       "filter_hash": null,
       "requested": {
@@ -817,9 +817,12 @@
           ],
           "path_documented": false,
           "max_artifact_bytes": 67108864,
+          "timeout_seconds": 80,
           "mode": "summary",
+          "copy_gate": null,
           "why": "the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded",
-          "protection": null
+          "protection": null,
+          "sharing": "the file is opened for reading with writers allowed to continue; a file being appended may be read mid line, and the hash is of the bytes read"
         }
       },
       "enabled": {
@@ -851,20 +854,20 @@
         },
         {
           "path": "raw/wlan_report/result.json",
-          "bytes": 591,
-          "sha256": "8728ff25832d3cf5e50c3704ffe408e779faefa56ee4e3c74436959be59852b4",
+          "bytes": 612,
+          "sha256": "4edcc53b77edef5f89cf497fd7867cfc04a1daa423405e3c9b8c076d87aa5dd3",
           "role": "report"
         },
         {
           "path": "raw/wlan_report/source.json",
-          "bytes": 444,
-          "sha256": "1b4701a5143225687d7417f3d0c2b4d0447e070b9f7e13e942a66568878792f9",
+          "bytes": 649,
+          "sha256": "cec914c956b69dc36834b6bec28f4ff01e7d6182e65e04756a9b90478954d074",
           "role": "config"
         }
       ],
       "raw_time_range": {
         "start": "2026-03-01T12:00:38.0000000Z",
-        "end": "2026-03-01T12:00:40.0000000Z",
+        "end": "2026-03-01T12:00:41.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -883,7 +886,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:50.0000000Z",
+        "at_utc": "2026-03-01T12:00:51.0000000Z",
         "checks": [
           {
             "name": "channel_found",
@@ -902,12 +905,12 @@
         "Microsoft-Windows-WLAN-AutoConfig/Operational",
         "raw/wlan_autoconfig_events/query.xml"
       ],
-      "started_utc": "2026-03-01T12:00:42.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:51.0000000Z",
+      "started_utc": "2026-03-01T12:00:43.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:52.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "bf8b8b3902d0b48e954c0cbcfa4148574ba5e2a88c6ab0419bd9d97b0007bbab"
+        "value": "457df88c13a0bf8ff690c4ab6d5fdc003e9342781d04a1d2722c76b5b4cdddc2"
       },
       "filter_hash": null,
       "requested": {
@@ -921,12 +924,12 @@
           "channel": "Microsoft-Windows-WLAN-AutoConfig/Operational",
           "event_ids": [],
           "window_days": 30,
-          "window_start_utc": "2026-01-30T12:00:43.0000000Z",
-          "window_end_utc": "2026-03-01T12:00:43.0000000Z",
+          "window_start_utc": "2026-01-30T12:00:44.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:44.0000000Z",
           "max_events": 5000,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 80,
-          "query_sha256": "bf8b8b3902d0b48e954c0cbcfa4148574ba5e2a88c6ab0419bd9d97b0007bbab"
+          "query_sha256": "457df88c13a0bf8ff690c4ab6d5fdc003e9342781d04a1d2722c76b5b4cdddc2"
         }
       },
       "enabled": {
@@ -939,8 +942,8 @@
         "options": {
           "channel": "Microsoft-Windows-WLAN-AutoConfig/Operational",
           "query_accepted": true,
-          "window_start_utc": "2026-01-30T12:00:43.0000000Z",
-          "window_end_utc": "2026-03-01T12:00:43.0000000Z",
+          "window_start_utc": "2026-01-30T12:00:44.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:44.0000000Z",
           "records_read": 2,
           "records_exported": 2,
           "truncated": false,
@@ -958,7 +961,7 @@
         {
           "path": "raw/wlan_autoconfig_events/channel_state.json",
           "bytes": 862,
-          "sha256": "808ffcebf156dda6c29ee022d3a9b2bdf45a7ffe2f8558f757586281532efc7f",
+          "sha256": "510b6adf22d14fa7644f61cf877ec081d1b9de1f4a206dfaf60a89a4a30ab244",
           "role": "report"
         },
         {
@@ -970,20 +973,20 @@
         {
           "path": "raw/wlan_autoconfig_events/query.xml",
           "bytes": 383,
-          "sha256": "bf8b8b3902d0b48e954c0cbcfa4148574ba5e2a88c6ab0419bd9d97b0007bbab",
+          "sha256": "457df88c13a0bf8ff690c4ab6d5fdc003e9342781d04a1d2722c76b5b4cdddc2",
           "role": "config"
         }
       ],
       "raw_time_range": {
-        "start": "2026-01-30T12:00:43.0000000Z",
-        "end": "2026-03-01T12:00:43.0000000Z",
+        "start": "2026-01-30T12:00:44.0000000Z",
+        "end": "2026-03-01T12:00:44.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
         "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
         "met": true,
-        "detail": "2 records read; requested window 2026-01-30T12:00:43.0000000Z to 2026-03-01T12:00:43.0000000Z; covered range starts 2026-01-30T12:00:43.0000000Z"
+        "detail": "2 records read; requested window 2026-01-30T12:00:44.0000000Z to 2026-03-01T12:00:44.0000000Z; covered range starts 2026-01-30T12:00:44.0000000Z"
       },
       "target_process": null
     },
@@ -995,7 +998,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:54.0000000Z",
+        "at_utc": "2026-03-01T12:00:55.0000000Z",
         "checks": [
           {
             "name": "devices_enumerated",
@@ -1014,8 +1017,8 @@
         "-KeyName",
         "DEVPKEY_Device_Parent,DEVPKEY_Device_LocationPaths,DEVPKEY_Device_LocationInfo,DEVPKEY_Device_Address,DEVPKEY_Device_ContainerId,DEVPKEY_Device_BusReportedDeviceDesc,DEVPKEY_Device_EnumeratorName"
       ],
-      "started_utc": "2026-03-01T12:00:52.0000000Z",
-      "stopped_utc": "2026-03-01T12:01:13.0000000Z",
+      "started_utc": "2026-03-01T12:00:53.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:14.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -1088,13 +1091,13 @@
         {
           "path": "raw/usb_device_tree/result.json",
           "bytes": 287,
-          "sha256": "8994fd0f2b2496ea94be3a328598a4383ca7e9e12bb246ae4b885accedc0fad6",
+          "sha256": "18a4d62ca76bbd0910bac55aaac95676833ff03549551d6bf65cf7bc03ea1504",
           "role": "report"
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:00:52.0000000Z",
-        "end": "2026-03-01T12:01:12.0000000Z",
+        "start": "2026-03-01T12:00:53.0000000Z",
+        "end": "2026-03-01T12:01:13.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -1113,7 +1116,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:01:16.0000000Z",
+        "at_utc": "2026-03-01T12:01:17.0000000Z",
         "checks": [
           {
             "name": "devices_enumerated",
@@ -1132,8 +1135,8 @@
         "-KeyName",
         "DEVPKEY_Device_Parent,DEVPKEY_Device_LocationPaths,DEVPKEY_Device_LocationInfo,DEVPKEY_Device_Address,DEVPKEY_Device_ContainerId,DEVPKEY_Device_BusReportedDeviceDesc,DEVPKEY_Device_EnumeratorName"
       ],
-      "started_utc": "2026-03-01T12:01:14.0000000Z",
-      "stopped_utc": "2026-03-01T12:01:26.0000000Z",
+      "started_utc": "2026-03-01T12:01:15.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:27.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -1201,13 +1204,13 @@
         {
           "path": "raw/bluetooth_devices/result.json",
           "bytes": 285,
-          "sha256": "5f94eb7fb936c88024f7e4800f7c4c6886d7e1d40349a4027d02711ff62a8dd5",
+          "sha256": "c71e9fb0e965c5eb025297dbc41b480ef586e4c0ce56a232d8229e1569e56c78",
           "role": "report"
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:01:14.0000000Z",
-        "end": "2026-03-01T12:01:25.0000000Z",
+        "start": "2026-03-01T12:01:15.0000000Z",
+        "end": "2026-03-01T12:01:26.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },

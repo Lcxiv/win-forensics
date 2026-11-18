@@ -3,7 +3,7 @@ source interrupt_policy: status observed, 3 artifacts
 source graphics_tdr: status observed, 3 artifacts
 source processors: status observed, 2 artifacts
 source cpu_caches: status observed, 2 artifacts
-source logical_processor_map: status not_collected, 1 artifacts
+source logical_processor_map: status observed, 3 artifacts
 source power_active_scheme: status observed, 3 artifacts
 source power_schemes: status observed, 3 artifacts
 source power_aliases: status observed, 3 artifacts
@@ -18,4 +18,4 @@ source process_lasso_config: status not_collected, 2 artifacts
 source process_lasso_log: status not_collected, 2 artifacts
 source stutter_guard_install: status observed_zero, 3 artifacts
 source stutter_guard_journal: status not_collected, 2 artifacts
-2026-03-01T12:01:39.0000000Z manifest written: bundle 20260301T120001Z_config_snapshot_ae3a76a9, status partial, 43 artifacts
+2026-03-01T12:01:49.0000000Z manifest written: bundle 20260301T120001Z_config_snapshot_ae3a76a9, status partial, 45 artifacts

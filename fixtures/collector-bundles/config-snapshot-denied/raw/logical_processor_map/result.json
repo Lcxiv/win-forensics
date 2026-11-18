@@ -1,0 +1,12 @@
+{
+  "started_utc": "2026-03-01T12:00:27.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:29.0000000Z",
+  "ok": false,
+  "stage": "compile",
+  "error_code": null,
+  "error": "stage compile: synthetic backend: the compiler is not available",
+  "pointer_size": 8,
+  "byte_count": null,
+  "record_counts": {},
+  "buffer_hex": null
+}

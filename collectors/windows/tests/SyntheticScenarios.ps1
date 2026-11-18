@@ -205,10 +205,10 @@ function Get-WfSyntheticCases {
             }
         })
 
-    # The same machine without any tuning: no Interrupt Management keys under
-    # any device (absent, not missing), no TDR value set, neither program
-    # installed, no timer helper, a German display language for powercfg and
-    # a /qh that fails. Status partial.
+    # The same machine without any tuning: hardware keys that hold no
+    # Interrupt Management (absent, not unknown), no TDR value set, neither
+    # program installed, no timer helper, a German display language for
+    # powercfg and a /qh that fails. Status partial.
     $cases.Add(@{
             Case = 'config-snapshot-clean'; Collector = 'config-snapshot'; ExitCode = 0; Arguments = @{ Snapshot = 'stop' }
             Setup = {
@@ -216,11 +216,12 @@ function Get-WfSyntheticCases {
             }
         })
 
-    # An account that may read nothing: every hardware key and the
-    # GraphicsDrivers key refuse, WMI refuses the processor and process
-    # classes, powercfg is not where Windows keeps it, the folders and files
-    # refuse. Every source is a status with a reason and no export; the
-    # collector exits 1.
+    # An account that may read nothing: every hardware key refuses (access
+    # denied at the SetupDiOpenDevRegKey stage), the GraphicsDrivers key
+    # refuses, WMI refuses the processor and process classes, the topology
+    # declaration does not compile, powercfg is not where Windows keeps it,
+    # the folders and files refuse. Every source is a status with a reason and
+    # no export; the collector exits 1.
     $cases.Add(@{
             Case = 'config-snapshot-denied'; Collector = 'config-snapshot'; ExitCode = 1; Arguments = @{}
             Setup = {
@@ -774,86 +775,105 @@ function New-WfSyntheticConfigMachine {
     #   clean   no tuning keys, nothing installed, German powercfg output
     #   denied  every read refused
     param([string]$Variant)
-    $enum = 'HKLM:\SYSTEM\CurrentControlSet\Enum\'
-    $denied = @{ ErrorKind = 'access_denied'; ErrorMessage = 'Requested registry access is not allowed.' }
     $gpu = 'PCI\VEN_FFFF&DEV_0001\4&1a2b3c4d&0&0008'
     $nic = 'PCI\VEN_FFF0&DEV_8125\4&3a2b1c0d&0&00E0'
     $xhci = 'PCI\VEN_FFF0&DEV_A36D\3&11583659&0&A0'
-    $audio = 'HDAUDIO\FUNC_01&VEN_FFFF&DEV_0002&SUBSYS_00000001\5&2f3e4d5c&0&0001'
+    $hdaController = 'PCI\VEN_FFF0&DEV_A348\3&11583659&0&FB'
+    $nvme = 'PCI\VEN_FFF2&DEV_5017\4&2b3c4d5e&0&0010'
+    $codec = 'HDAUDIO\FUNC_01&VEN_FFFF&DEV_0002&SUBSYS_00000001\5&2f3e4d5c&0&0001'
     $mouse = 'USB\VID_FFF1&PID_C539\6&1234abcd&0&3'
+    # An invented remembered Bluetooth audio peer: class MEDIA, named after its owner, its address in the id.
+    $earbuds = 'BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb}_VID&0001004c_PID&200e\7&1a2b3c4d&0&F0F1F2000001_C00000000'
     $devices = New-Object 'System.Collections.Generic.List[object]'
     $devices.Add(@{ instance_id = 'ROOT\ACPI_HAL\0000'; class = 'Computer'; name = 'ACPI x64-based PC'; description = 'ACPI x64-based PC'; manufacturer = '(Standard computers)'; service = $null; status = 'OK'; problem_code = 0; present = $true; hardware_ids = @('acpiapic'); compatible_ids = @() })
     $devices.Add(@{ instance_id = $gpu; class = 'Display'; name = 'Synthetic Display Adapter'; description = 'Synthetic Display Adapter'; manufacturer = 'Synthetic Graphics'; service = 'syngfx'; status = 'OK'; problem_code = 0; present = $true; hardware_ids = @('PCI\VEN_FFFF&DEV_0001&SUBSYS_0001FFFF&REV_A1'); compatible_ids = @('PCI\CC_030000') })
     $devices.Add(@{ instance_id = $nic; class = 'Net'; name = 'Synthetic 2.5GbE Controller'; description = 'Synthetic 2.5GbE Controller'; manufacturer = 'Synthetic Networks'; service = 'syneth'; status = 'OK'; problem_code = 0; present = $true; hardware_ids = @('PCI\VEN_FFF0&DEV_8125&SUBSYS_0001FFF0&REV_05'); compatible_ids = @('PCI\CC_020000') })
     $devices.Add(@{ instance_id = $xhci; class = 'USB'; name = 'Synthetic USB 3.1 eXtensible Host Controller'; description = 'Synthetic USB 3.1 eXtensible Host Controller'; manufacturer = 'Synthetic Chipsets'; service = 'USBXHCI'; status = 'OK'; problem_code = 0; present = $true; hardware_ids = @('PCI\VEN_FFF0&DEV_A36D&SUBSYS_0001FFF0&REV_10'); compatible_ids = @('PCI\CC_0C0330') })
-    $devices.Add(@{ instance_id = $audio; class = 'MEDIA'; name = 'Synthetic High Definition Audio Device'; description = 'Synthetic High Definition Audio Device'; manufacturer = 'Synthetic Audio'; service = 'synaud'; status = $(if ($Variant -eq 'full') { 'Error' } else { 'OK' }); problem_code = $(if ($Variant -eq 'full') { 22 } else { 0 }); present = $true; hardware_ids = @('HDAUDIO\FUNC_01&VEN_FFFF&DEV_0002'); compatible_ids = @() })
+    $devices.Add(@{ instance_id = $hdaController; class = 'System'; name = 'Synthetic High Definition Audio Controller'; description = 'High Definition Audio Controller'; manufacturer = 'Microsoft'; service = 'HDAudBus'; status = $(if ($Variant -eq 'full') { 'Error' } else { 'OK' }); problem_code = $(if ($Variant -eq 'full') { 22 } else { 0 }); present = $true; hardware_ids = @('PCI\VEN_FFF0&DEV_A348&SUBSYS_0001FFF0&REV_10'); compatible_ids = @('PCI\CC_0403') })
+    $devices.Add(@{ instance_id = $nvme; class = 'SCSIAdapter'; name = 'Synthetic NVMe Controller'; description = 'Standard NVM Express Controller'; manufacturer = 'Microsoft'; service = 'stornvme'; status = 'OK'; problem_code = 0; present = $true; hardware_ids = @('PCI\VEN_FFF2&DEV_5017&SUBSYS_0001FFF2&REV_01'); compatible_ids = @('PCI\CC_010802') })
+    $devices.Add(@{ instance_id = $codec; class = 'MEDIA'; name = 'Synthetic High Definition Audio Device'; description = 'Synthetic High Definition Audio Device'; manufacturer = 'Synthetic Audio'; service = 'synaud'; status = 'OK'; problem_code = 0; present = $true; hardware_ids = @('HDAUDIO\FUNC_01&VEN_FFFF&DEV_0002'); compatible_ids = @() })
     $devices.Add(@{ instance_id = $mouse; class = 'USB'; name = 'Synthetic Wireless Receiver'; description = 'USB Composite Device'; manufacturer = '(Standard USB Host Controller)'; service = 'usbccgp'; status = 'OK'; problem_code = 0; present = $true; hardware_ids = @('USB\VID_FFF1&PID_C539&REV_0401'); compatible_ids = @('USB\COMPOSITE') })
+    $devices.Add(@{ instance_id = $earbuds; class = 'MEDIA'; name = 'Jane Doe Earbuds Stereo'; description = 'Jane Doe Earbuds Stereo'; manufacturer = 'Microsoft'; service = 'BthA2dp'; status = 'OK'; problem_code = 0; present = $true; hardware_ids = @('BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb}_VID&0001004c_PID&200e'); compatible_ids = @() })
     $devices.Add(@{ instance_id = 'SWD\PRINTENUM\{a1b2c3d4-0000-4000-8000-000000000011}'; class = 'PrintQueue'; name = 'Synthetic PDF Printer'; description = 'Synthetic PDF Printer'; manufacturer = 'Synthetic'; service = $null; status = 'OK'; problem_code = 0; present = $true; hardware_ids = @(); compatible_ids = @() })
     $global:WfSynthetic.Pnp = @{ Devices = $devices.ToArray() }
 
+    # The device hardware keys, as the native recorder serves them, and the
+    # fixed GraphicsDrivers key, as the registry provider serves it.
+    $deviceKeys = @{}
     $registry = @{}
     $graphics = 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers'
+    $affinity = 'Interrupt Management\Affinity Policy'
+    $msi = 'Interrupt Management\MessageSignaledInterruptProperties'
     if ($Variant -eq 'denied') {
-        foreach ($instance in @($gpu, $nic, $xhci, $audio, $mouse)) { $registry[$enum + $instance + '\Device Parameters'] = $denied }
-        $registry[$graphics] = $denied
-    } else {
-        # Device Parameters exists for every device; what sits under it depends on the variant.
-        foreach ($instance in @($gpu, $nic, $xhci, $audio, $mouse)) { $registry[$enum + $instance + '\Device Parameters'] = @{ Values = @(); SubKeys = @() } }
+        foreach ($instance in @($gpu, $nic, $xhci, $hdaController, $nvme)) { $deviceKeys[$instance] = @{ HardwareKey = 'denied' } }
+        $registry[$graphics] = @{ ErrorKind = 'access_denied'; ErrorMessage = 'Requested registry access is not allowed.' }
+    } elseif ($Variant -eq 'clean') {
+        # Hardware keys exist (every installed device has one) but hold no Interrupt Management.
+        foreach ($instance in @($gpu, $nic, $xhci, $hdaController, $nvme)) { $deviceKeys[$instance] = @{ HardwareKey = 'exists'; Subkeys = @{} } }
         $registry[$graphics] = @{ Values = @(@{ Name = 'HwSchMode'; Kind = 'DWord'; Data = 2 }); SubKeys = @('Configuration', 'Connectivity') }
-        if ($Variant -eq 'full') {
-            $registry[$enum + $gpu + '\Device Parameters'] = @{ Values = @(); SubKeys = @('Interrupt Management') }
-            $registry[$enum + $gpu + '\Device Parameters\Interrupt Management'] = @{ Values = @(); SubKeys = @('Affinity Policy', 'MessageSignaledInterruptProperties') }
-            # The display adapter pinned to one logical processor (bit 5 of group 0), the mask as REG_BINARY, little endian; a priority
-            # value whose registry name Microsoft does not document is present and recorded as it is.
-            $registry[$enum + $gpu + '\Device Parameters\Interrupt Management\Affinity Policy'] = @{ Values = @(
-                    @{ Name = 'DevicePolicy'; Kind = 'DWord'; Data = 4 },
-                    @{ Name = 'AssignmentSetOverride'; Kind = 'Binary'; Data = [byte[]](0x20, 0, 0, 0, 0, 0, 0, 0) },
-                    @{ Name = 'DevicePriority'; Kind = 'DWord'; Data = 3 }
-                ); SubKeys = @() }
-            $registry[$enum + $gpu + '\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties'] = @{ Values = @(
-                    @{ Name = 'MSISupported'; Kind = 'DWord'; Data = 1 },
-                    @{ Name = 'MessageNumberLimit'; Kind = 'DWord'; Data = 16 }
-                ); SubKeys = @() }
-            # The network adapter spread over four logical processors, the mask as REG_DWORD.
-            $registry[$enum + $nic + '\Device Parameters'] = @{ Values = @(); SubKeys = @('Interrupt Management') }
-            $registry[$enum + $nic + '\Device Parameters\Interrupt Management'] = @{ Values = @(); SubKeys = @('Affinity Policy', 'MessageSignaledInterruptProperties') }
-            $registry[$enum + $nic + '\Device Parameters\Interrupt Management\Affinity Policy'] = @{ Values = @(
-                    @{ Name = 'DevicePolicy'; Kind = 'DWord'; Data = 4 },
-                    @{ Name = 'AssignmentSetOverride'; Kind = 'DWord'; Data = 0x0F00 }
-                ); SubKeys = @() }
-            $registry[$enum + $nic + '\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties'] = @{ Values = @(
-                    @{ Name = 'MSISupported'; Kind = 'DWord'; Data = 1 },
-                    @{ Name = 'MessageNumberLimit'; Kind = 'DWord'; Data = 32 }
-                ); SubKeys = @() }
-            # The USB host controller on one processor, the mask as REG_QWORD, and no MSI key.
-            $registry[$enum + $xhci + '\Device Parameters'] = @{ Values = @(); SubKeys = @('Interrupt Management') }
-            $registry[$enum + $xhci + '\Device Parameters\Interrupt Management'] = @{ Values = @(); SubKeys = @('Affinity Policy') }
-            $registry[$enum + $xhci + '\Device Parameters\Interrupt Management\Affinity Policy'] = @{ Values = @(
-                    @{ Name = 'DevicePolicy'; Kind = 'DWord'; Data = 4 },
-                    @{ Name = 'AssignmentSetOverride'; Kind = 'QWord'; Data = [int64]4 }
-                ); SubKeys = @() }
-            # The audio device, disabled in Device Manager, with MSI switched off and no affinity policy.
-            $registry[$enum + $audio + '\Device Parameters'] = @{ Values = @(); SubKeys = @('Interrupt Management') }
-            $registry[$enum + $audio + '\Device Parameters\Interrupt Management'] = @{ Values = @(); SubKeys = @('MessageSignaledInterruptProperties') }
-            $registry[$enum + $audio + '\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties'] = @{ Values = @(
-                    @{ Name = 'MSISupported'; Kind = 'DWord'; Data = 0 }
-                ); SubKeys = @() }
-            $registry[$graphics] = @{ Values = @(
-                    @{ Name = 'HwSchMode'; Kind = 'DWord'; Data = 2 },
-                    @{ Name = 'TdrLevel'; Kind = 'DWord'; Data = 3 },
-                    @{ Name = 'TdrDelay'; Kind = 'DWord'; Data = 10 }
-                ); SubKeys = @('Configuration', 'Connectivity') }
-        }
+    } else {
+        # The display adapter pinned to one logical processor (bit 5 of group 0), the mask as REG_BINARY little
+        # endian; a priority value whose registry name Microsoft does not document is present and kept as it is.
+        $deviceKeys[$gpu] = @{ HardwareKey = 'exists'; Subkeys = @{
+                $affinity = @{ Values = @(
+                        @{ Name = 'DevicePolicy'; Type = 4; Bytes = [byte[]](4, 0, 0, 0) },
+                        @{ Name = 'AssignmentSetOverride'; Type = 3; Bytes = [byte[]](0x20, 0, 0, 0, 0, 0, 0, 0) },
+                        @{ Name = 'DevicePriority'; Type = 4; Bytes = [byte[]](3, 0, 0, 0) }
+                    ) }
+                $msi = @{ Values = @(
+                        @{ Name = 'MSISupported'; Type = 4; Bytes = [byte[]](1, 0, 0, 0) },
+                        @{ Name = 'MessageNumberLimit'; Type = 4; Bytes = [byte[]](16, 0, 0, 0) }
+                    ) }
+            } }
+        # The network adapter spread over four logical processors, the mask as REG_DWORD; one value needs a larger buffer.
+        $deviceKeys[$nic] = @{ HardwareKey = 'exists'; Subkeys = @{
+                $affinity = @{ Values = @(
+                        @{ Name = 'DevicePolicy'; Type = 4; Bytes = [byte[]](4, 0, 0, 0) },
+                        @{ Name = 'AssignmentSetOverride'; Type = 4; Bytes = [byte[]](0x00, 0x0F, 0, 0) }
+                    ); MoreData = 8192 }
+                $msi = @{ Values = @(
+                        @{ Name = 'MSISupported'; Type = 4; Bytes = [byte[]](1, 0, 0, 0) },
+                        @{ Name = 'MessageNumberLimit'; Type = 4; Bytes = [byte[]](32, 0, 0, 0) }
+                    ) }
+            } }
+        # The USB host controller on one processor, the mask as REG_QWORD, no MSI key, and a string typed note nobody documents.
+        $deviceKeys[$xhci] = @{ HardwareKey = 'exists'; Subkeys = @{
+                $affinity = @{ Values = @(
+                        @{ Name = 'DevicePolicy'; Type = 4; Bytes = [byte[]](4, 0, 0, 0) },
+                        @{ Name = 'AssignmentSetOverride'; Type = 11; Bytes = [byte[]](4, 0, 0, 0, 0, 0, 0, 0) },
+                        @{ Name = 'Comment'; Type = 1; Bytes = [System.Text.Encoding]::Unicode.GetBytes("set by Synthetic Owner`0") }
+                    ) }
+            } }
+        # The HD Audio controller, disabled in Device Manager, with MSI switched off and no affinity policy.
+        $deviceKeys[$hdaController] = @{ HardwareKey = 'exists'; Subkeys = @{
+                $msi = @{ Values = @(@{ Name = 'MSISupported'; Type = 4; Bytes = [byte[]](0, 0, 0, 0) }) }
+            } }
+        # The storage controller spreads its messages (policy 5) and has no mask.
+        $deviceKeys[$nvme] = @{ HardwareKey = 'exists'; Subkeys = @{
+                $affinity = @{ Values = @(@{ Name = 'DevicePolicy'; Type = 4; Bytes = [byte[]](5, 0, 0, 0) }) }
+                $msi = @{ Values = @(@{ Name = 'MSISupported'; Type = 4; Bytes = [byte[]](1, 0, 0, 0) }, @{ Name = 'MessageNumberLimit'; Type = 4; Bytes = [byte[]](8, 0, 0, 0) }) }
+            } }
+        $registry[$graphics] = @{ Values = @(
+                @{ Name = 'HwSchMode'; Kind = 'DWord'; Data = 2 },
+                @{ Name = 'TdrLevel'; Kind = 'DWord'; Data = 3 },
+                @{ Name = 'TdrDelay'; Kind = 'DWord'; Data = 10 }
+            ); SubKeys = @('Configuration', 'Connectivity') }
     }
+    $global:WfSynthetic.DeviceKeys = $deviceKeys
     $global:WfSynthetic.Registry = $registry
 
-    # CPU topology as Win32_Processor and Win32_CacheMemory report it: one
-    # socket, six cores, twelve logical processors, three cache levels.
+    # CPU topology: Win32_Processor and Win32_CacheMemory as WMI reports them
+    # (one socket, six cores, twelve logical processors, three cache levels)
+    # and the GetLogicalProcessorInformationEx buffer with the siblings
+    # interleaved (core i holds logical processors i and i + 6).
     if ($Variant -eq 'denied') {
         $global:WfSynthetic.Cim['Win32_Processor'] = @{ ErrorKind = 'access_denied'; ErrorMessage = 'Access denied' }
         $global:WfSynthetic.Cim['Win32_CacheMemory'] = @{ ErrorKind = 'access_denied'; ErrorMessage = 'Access denied' }
         $global:WfSynthetic.Cim['Win32_Process'] = @{ ErrorKind = 'access_denied'; ErrorMessage = 'Access denied' }
+        $global:WfSynthetic.Topology = @{ Stage = 'compile'; ErrorMessage = 'synthetic backend: the compiler is not available' }
+        $global:WfSynthetic.DeviceKeyCompile = 'ok'
     } else {
+        $global:WfSynthetic.Topology = @{ Bytes = (New-WfSyntheticLpiBuffer -Cores 6 -Groups 1 -Interleaved $true) }
         $global:WfSynthetic.Cim['Win32_Processor'] = @{ Rows = @(
                 [ordered]@{ DeviceID = 'CPU0'; Name = 'Synthetic CPU 6-Core Processor'; Manufacturer = 'SyntheticSilicon'; Description = 'Synthetic Family 1 Model 2 Stepping 3'; SocketDesignation = 'AM0'; NumberOfCores = 6; NumberOfEnabledCore = 6; NumberOfLogicalProcessors = 12; ThreadCount = 12; L2CacheSize = 6144; L3CacheSize = 32768; MaxClockSpeed = 4700; CurrentClockSpeed = 4700; Architecture = 9; Family = 107; Level = 25; Revision = 8448; Stepping = '2'; ProcessorId = '0000000000000000'; VirtualizationFirmwareEnabled = $true; SecondLevelAddressTranslationExtensions = $true; Status = 'OK'; CpuStatus = 1; Availability = 3 }
             )
@@ -873,7 +893,8 @@ function New-WfSyntheticConfigMachine {
             $processes.Add([ordered]@{ Name = 'ProcessLasso.exe'; ProcessId = 6100; ParentProcessId = 4120; SessionId = 1; CreationDate = $created; Priority = 8; ThreadCount = 14; HandleCount = 600; WorkingSetSize = 40960000; PageFaults = 30000; KernelModeTime = 12000000; UserModeTime = 48000000; CommandLine = '"C:\Program Files\Process Lasso\ProcessLasso.exe" /tray'; ExecutablePath = 'C:\Program Files\Process Lasso\ProcessLasso.exe' })
             $processes.Add([ordered]@{ Name = 'ProcessGovernor.exe'; ProcessId = 6140; ParentProcessId = 6100; SessionId = 1; CreationDate = $created; Priority = 13; ThreadCount = 9; HandleCount = 450; WorkingSetSize = 20480000; PageFaults = 12000; KernelModeTime = 30000000; UserModeTime = 25000000; CommandLine = '"C:\Program Files\Process Lasso\ProcessGovernor.exe"'; ExecutablePath = 'C:\Program Files\Process Lasso\ProcessGovernor.exe' })
             $processes.Add([ordered]@{ Name = 'bitsumsessionagent.exe'; ProcessId = 6180; ParentProcessId = 1100; SessionId = 1; CreationDate = $created; Priority = 8; ThreadCount = 3; HandleCount = 120; WorkingSetSize = 8192000; PageFaults = 3000; KernelModeTime = 1000000; UserModeTime = 500000; CommandLine = $null; ExecutablePath = $null })
-            $processes.Add([ordered]@{ Name = 'DpcTimerRes.exe'; ProcessId = 7000; ParentProcessId = 1100; SessionId = 0; CreationDate = $created; Priority = 8; ThreadCount = 2; HandleCount = 60; WorkingSetSize = 4096000; PageFaults = 900; KernelModeTime = 500000; UserModeTime = 200000; CommandLine = '"C:\Program Files\Stutter Guard\DpcTimerRes.exe" 10000'; ExecutablePath = 'C:\Program Files\Stutter Guard\DpcTimerRes.exe' })
+            # The timer helper started from a copy under the owner's profile: its path must leave as a pseudonym.
+            $processes.Add([ordered]@{ Name = 'DpcTimerRes.exe'; ProcessId = 7000; ParentProcessId = 1100; SessionId = 0; CreationDate = $created; Priority = 8; ThreadCount = 2; HandleCount = 60; WorkingSetSize = 4096000; PageFaults = 900; KernelModeTime = 500000; UserModeTime = 200000; CommandLine = '"C:\Users\Synthetic Owner\Downloads\Stutter Guard\DpcTimerRes.exe" 10000'; ExecutablePath = 'C:\Users\Synthetic Owner\Downloads\Stutter Guard\DpcTimerRes.exe' })
         }
         $global:WfSynthetic.Cim['Win32_Process'] = @{ Rows = $processes.ToArray() }
     }
@@ -896,9 +917,9 @@ function New-WfSyntheticConfigMachine {
         }
     }
 
-    # The install folders and the owner's files. The INI and the log carry a
-    # user profile path and an e-mail shaped token on purpose, so the tests
-    # can show that neither reaches the bundle in clear.
+    # The install folders and the owner's files. The INI, the log and the
+    # journal carry a user profile path, an e-mail shaped token and a UNC host
+    # on purpose, so the tests can show that none reaches the bundle in clear.
     $global:WfSynthetic.Directories = @{}
     $global:WfSynthetic.Files = @{}
     if ($Variant -eq 'full') {
@@ -921,7 +942,7 @@ function New-WfSyntheticConfigMachine {
         $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\config\prolasso.ini'] = @{ Text = (@(
                     '[Administration]',
                     'LogPath=C:\ProgramData\ProcessLasso\logs',
-                    'ConfigPath=C:\ProgramData\ProcessLasso\config',
+                    'ConfigPath=\\DESKTOP-SYNTH01\ProcessLasso\config',
                     '[OutOfControlProcessRestraint]',
                     'Enabled=true',
                     'RestraintPriority=belownormal',
@@ -931,6 +952,9 @@ function New-WfSyntheticConfigMachine {
                     'SupportContact=owner@example.test',
                     '[GPUAdapters]',
                     'Preferences=C:\Users\Synthetic Owner\Games\game.exe,1',
+                    '[Logging]',
+                    'LogDisable=false',
+                    'IncludeCommandLines=false',
                     '[PowerManagement]',
                     'TargetPowerPlan=Synthetic Low Latency',
                     ''
@@ -1145,4 +1169,102 @@ function Get-WfSyntheticPowercfgText {
         }
     }
     throw ('no synthetic powercfg text named ' + $Name)
+}
+
+function New-WfSyntheticGroupAffinity {
+    # One GROUP_AFFINITY: KAFFINITY mask (8), WORD group, WORD Reserved[3].
+    param([uint64]$Mask, [int]$Group = 0)
+    $bytes = New-Object byte[] 16
+    [System.Array]::Copy([System.BitConverter]::GetBytes($Mask), 0, $bytes, 0, 8)
+    [System.Array]::Copy([System.BitConverter]::GetBytes([uint16]$Group), 0, $bytes, 8, 2)
+    return , $bytes
+}
+
+function New-WfSyntheticLpiRecord {
+    # One SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX record: DWORD relationship, DWORD size, body.
+    param([int]$Relationship, [byte[]]$Body)
+    $size = 8 + $Body.Length
+    $bytes = New-Object byte[] $size
+    [System.Array]::Copy([System.BitConverter]::GetBytes([uint32]$Relationship), 0, $bytes, 0, 4)
+    [System.Array]::Copy([System.BitConverter]::GetBytes([uint32]$size), 0, $bytes, 4, 4)
+    [System.Array]::Copy($Body, 0, $bytes, 8, $Body.Length)
+    return , $bytes
+}
+
+function New-WfSyntheticLpiBuffer {
+    # An invented GetLogicalProcessorInformationEx buffer following the
+    # documented 64 bit layouts: $Cores cores in group 0, each with two logical
+    # processors whose indices are i and i + $Cores (interleaved siblings, so
+    # the decoder cannot get them right by assuming adjacency), an L1 data and
+    # L1 instruction cache per core, an L2 per core, one L3 shared by every
+    # core, one package, one NUMA node and one group. -Groups 2 adds a second
+    # group with its own cores, for the parser test.
+    param([int]$Cores = 6, [int]$Groups = 1, [bool]$Interleaved = $true)
+    $parts = New-Object 'System.Collections.Generic.List[byte[]]'
+    $groupMasks = New-Object 'System.Collections.Generic.List[uint64]'
+    for ($group = 0; $group -lt $Groups; $group++) {
+        $all = [uint64]0
+        for ($core = 0; $core -lt $Cores; $core++) {
+            $first = $core
+            $second = $core + $Cores
+            if (-not $Interleaved) { $first = 2 * $core; $second = 2 * $core + 1 }
+            $mask = ([uint64]1 -shl $first) -bor ([uint64]1 -shl $second)
+            $all = $all -bor $mask
+            # PROCESSOR_RELATIONSHIP: Flags (LTP_PC_SMT = 1), EfficiencyClass, RelativePerformance, RelativeEfficiency, Reserved[16], GroupCount at 22, GroupMask at 24.
+            $body = New-Object byte[] 40
+            $body[0] = 1
+            [System.Array]::Copy([System.BitConverter]::GetBytes([uint16]1), 0, $body, 22, 2)
+            [System.Array]::Copy((New-WfSyntheticGroupAffinity -Mask $mask -Group $group), 0, $body, 24, 16)
+            $parts.Add((New-WfSyntheticLpiRecord -Relationship 0 -Body $body))
+            # Caches per core: L1 data (type 2), L1 instruction (type 1), L2 unified (type 0).
+            foreach ($cache in @(@{ Level = 1; Type = 2; Size = 32768 }, @{ Level = 1; Type = 1; Size = 32768 }, @{ Level = 2; Type = 0; Size = 1048576 })) {
+                $cacheBody = New-Object byte[] 48
+                $cacheBody[0] = [byte]$cache['Level']
+                $cacheBody[1] = 8
+                [System.Array]::Copy([System.BitConverter]::GetBytes([uint16]64), 0, $cacheBody, 2, 2)
+                [System.Array]::Copy([System.BitConverter]::GetBytes([uint32]$cache['Size']), 0, $cacheBody, 4, 4)
+                [System.Array]::Copy([System.BitConverter]::GetBytes([uint32]$cache['Type']), 0, $cacheBody, 8, 4)
+                [System.Array]::Copy([System.BitConverter]::GetBytes([uint16]1), 0, $cacheBody, 30, 2)
+                [System.Array]::Copy((New-WfSyntheticGroupAffinity -Mask $mask -Group $group), 0, $cacheBody, 32, 16)
+                $parts.Add((New-WfSyntheticLpiRecord -Relationship 2 -Body $cacheBody))
+            }
+        }
+        $groupMasks.Add($all)
+        # One L3 shared by every core of the group, 32 MiB.
+        $l3 = New-Object byte[] 48
+        $l3[0] = 3
+        $l3[1] = 16
+        [System.Array]::Copy([System.BitConverter]::GetBytes([uint16]64), 0, $l3, 2, 2)
+        [System.Array]::Copy([System.BitConverter]::GetBytes([uint32]33554432), 0, $l3, 4, 4)
+        [System.Array]::Copy([System.BitConverter]::GetBytes([uint16]1), 0, $l3, 30, 2)
+        [System.Array]::Copy((New-WfSyntheticGroupAffinity -Mask $all -Group $group), 0, $l3, 32, 16)
+        $parts.Add((New-WfSyntheticLpiRecord -Relationship 2 -Body $l3))
+        # One package and one NUMA node per group.
+        $package = New-Object byte[] 40
+        [System.Array]::Copy([System.BitConverter]::GetBytes([uint16]1), 0, $package, 22, 2)
+        [System.Array]::Copy((New-WfSyntheticGroupAffinity -Mask $all -Group $group), 0, $package, 24, 16)
+        $parts.Add((New-WfSyntheticLpiRecord -Relationship 3 -Body $package))
+        $numa = New-Object byte[] 40
+        [System.Array]::Copy([System.BitConverter]::GetBytes([uint32]$group), 0, $numa, 0, 4)
+        [System.Array]::Copy([System.BitConverter]::GetBytes([uint16]1), 0, $numa, 22, 2)
+        [System.Array]::Copy((New-WfSyntheticGroupAffinity -Mask $all -Group $group), 0, $numa, 24, 16)
+        $parts.Add((New-WfSyntheticLpiRecord -Relationship 1 -Body $numa))
+    }
+    # GROUP_RELATIONSHIP: MaximumGroupCount, ActiveGroupCount, Reserved[20], then one PROCESSOR_GROUP_INFO (48 bytes) per group.
+    $groupBody = New-Object byte[] (24 + 48 * $Groups)
+    [System.Array]::Copy([System.BitConverter]::GetBytes([uint16]$Groups), 0, $groupBody, 0, 2)
+    [System.Array]::Copy([System.BitConverter]::GetBytes([uint16]$Groups), 0, $groupBody, 2, 2)
+    for ($group = 0; $group -lt $Groups; $group++) {
+        $at = 24 + 48 * $group
+        $groupBody[$at] = [byte](2 * $Cores)
+        $groupBody[$at + 1] = [byte](2 * $Cores)
+        [System.Array]::Copy([System.BitConverter]::GetBytes([uint64]$groupMasks[$group]), 0, $groupBody, $at + 40, 8)
+    }
+    $parts.Add((New-WfSyntheticLpiRecord -Relationship 4 -Body $groupBody))
+    $total = 0
+    foreach ($part in $parts) { $total += $part.Length }
+    $buffer = New-Object byte[] $total
+    $offset = 0
+    foreach ($part in $parts) { [System.Array]::Copy($part, 0, $buffer, $offset, $part.Length); $offset += $part.Length }
+    return , $buffer
 }

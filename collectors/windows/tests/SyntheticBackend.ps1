@@ -32,7 +32,9 @@
 #              or @{ ErrorKind; ErrorMessage }
 #   PowercfgPresent  $false makes the powercfg preflight fail
 #   Registry   key path (case insensitive) -> @{ Values = <list of @{ Name; Kind; Data }>; SubKeys = <names> }
-#              or @{ ErrorKind; ErrorMessage }; a missing path does not exist
+#              or @{ ErrorKind; ErrorMessage }; a missing path does not exist (the fixed key reader)
+#   DeviceKeys instance id -> the device hardware key model read by the native recorder (see below)
+#   Topology   @{ Bytes = <GetLogicalProcessorInformationEx buffer> } or @{ Stage; ErrorCode; ErrorMessage }
 #   Directories  folder path -> @{ Files = <list of file maps> } or @{ ErrorKind; ErrorMessage }; a missing path does not exist
 #   Salt       the pseudonym salt (fixed, so fixtures are reproducible)
 #   Stdout     list that receives what a collector prints on stdout
@@ -52,6 +54,11 @@ function Reset-WfSynthetic {
         NetshPresent = $true
         PowercfgPresent = $true
         Registry     = @{}
+        DeviceKeys   = @{}
+        NativeCalls  = New-Object 'System.Collections.Generic.List[object]'
+        NativeHandles = @{}
+        NativeMoreDataSeen = New-Object 'System.Collections.Generic.HashSet[string]'
+        Topology     = $null
         Directories  = @{}
         Files        = @{}
         Pnp          = @{ Devices = @() }
@@ -411,7 +418,7 @@ function Invoke-WfProcess {
 }
 
 function Read-WfFileBytes {
-    param([string]$Path, [int64]$MaxBytes)
+    param([string]$Path, [int64]$MaxBytes, [datetime]$DeadlineUtc = [datetime]::MaxValue)
     $result = [ordered]@{ Exists = $false; Readable = $false; Bytes = $null; Length = $null; LastWriteUtc = $null; ErrorKind = $null; ErrorMessage = $null }
     if (-not $global:WfSynthetic.Files.ContainsKey($Path)) {
         $result.ErrorKind = 'not_found'
@@ -420,6 +427,7 @@ function Read-WfFileBytes {
     }
     $entry = $global:WfSynthetic.Files[$Path]
     $result.Exists = $true
+    if ($entry['SecondsToRead']) { $global:WfSynthetic.Ticks += [int]$entry['SecondsToRead'] }
     if ($entry['ErrorKind']) {
         $result.ErrorKind = [string]$entry['ErrorKind']
         $result.ErrorMessage = [string]$entry['ErrorMessage']
@@ -501,6 +509,7 @@ function Get-WfRegistryKey {
         $result.ErrorMessage = [string]$entry['ErrorMessage']
         return $result
     }
+    if ($entry['SecondsToRead']) { $global:WfSynthetic.Ticks += [int]$entry['SecondsToRead'] }
     $result.Exists = $true
     $result.SubKeyNames = Get-WfList -Value $entry['SubKeys']
     $result.Values = Get-WfList -Value $entry['Values']
@@ -526,6 +535,7 @@ function Get-WfDirectoryListing {
     $listed = Get-WfList -Value $entry['Files']
     foreach ($file in $listed) {
         if ($files.Count -ge $MaxFiles) { $result.Truncated = $true; break }
+        if ($entry['SecondsPerFile']) { $global:WfSynthetic.Ticks += [int]$entry['SecondsPerFile'] }
         $record = [ordered]@{}
         foreach ($name in @('name', 'bytes', 'last_write_time_utc', 'sha256', 'file_version', 'product_version', 'product_name', 'company_name', 'original_filename', 'error')) {
             if ($file.Contains($name)) { $record[$name] = $file[$name] } else { $record[$name] = $null }
@@ -533,5 +543,156 @@ function Get-WfDirectoryListing {
         $files.Add($record)
     }
     $result.Files = $files.ToArray()
+    return $result
+}
+
+# --- the device key native recorder --------------------------------------------
+#
+# Stands in for New-WfDeviceKeyNative. The model is $global:WfSynthetic.DeviceKeys,
+# instance id (case insensitive) -> @{
+#   HardwareKey = 'exists' | 'missing' | 'denied' | 'error:<code>'
+#   Device      = 'present' (default) | 'gone' (SetupDiOpenDeviceInfoW fails with ERROR_NO_SUCH_DEVINST)
+#   Subkeys     = @{ '<relative subkey>' -> @{ Values = @(@{ Name; Type; Bytes }); Denied = $true; MoreData = $n (the
+#                 first enumeration of every value answers ERROR_MORE_DATA with that size); SecondsPerValue = $n } }
+#                 a subkey that is not in the map does not exist (ERROR_FILE_NOT_FOUND)
+# }
+# A device not in the model does not exist (ERROR_NO_SUCH_DEVINST). Every call is
+# appended to $global:WfSynthetic.NativeCalls with its arguments, every handle
+# handed out is tracked in $global:WfSynthetic.NativeHandles until closed, and
+# $global:WfSynthetic.DeviceKeyCompile = 'fail' makes New-WfDeviceKeyNative
+# report a compile failure.
+
+function New-WfDeviceKeyNative {
+    if ($global:WfSynthetic.ContainsKey('DeviceKeyCompile') -and $global:WfSynthetic.DeviceKeyCompile -eq 'fail') {
+        return @{ Ok = $false; Error = 'the device key declaration could not be compiled or loaded: synthetic compiler failure'; Api = $null }
+    }
+    $api = New-Object psobject
+    $api | Add-Member -MemberType NoteProperty -Name 'LastErrorValue' -Value 0
+    $api | Add-Member -MemberType NoteProperty -Name 'NextHandle' -Value 1000
+    $api | Add-Member -MemberType ScriptMethod -Name 'Record' -Value { param($name, $arguments) $global:WfSynthetic.NativeCalls.Add(@{ Call = $name; Arguments = $arguments }) }
+    $api | Add-Member -MemberType ScriptMethod -Name 'Issue' -Value {
+        param($kind, $target)
+        $this.NextHandle += 1
+        $handle = [IntPtr]$this.NextHandle
+        $global:WfSynthetic.NativeHandles[[string]$this.NextHandle] = @{ Kind = $kind; Target = $target }
+        return $handle
+    }
+    $api | Add-Member -MemberType ScriptMethod -Name 'NewDeviceInfoData' -Value { return @{ cbSize = 32; InstanceId = $null } }
+    $api | Add-Member -MemberType ScriptMethod -Name 'LastError' -Value { return [int]$this.LastErrorValue }
+    $api | Add-Member -MemberType ScriptMethod -Name 'SetupDiCreateDeviceInfoList' -Value {
+        param($classGuid, $parent)
+        $this.Record('SetupDiCreateDeviceInfoList', @($classGuid, $parent))
+        return $this.Issue('set', $null)
+    }
+    $api | Add-Member -MemberType ScriptMethod -Name 'SetupDiOpenDeviceInfoW' -Value {
+        param($set, $id, $parent, $flags, $data)
+        $this.Record('SetupDiOpenDeviceInfoW', @($set, $id, $parent, $flags))
+        $entry = $null
+        foreach ($key in $global:WfSynthetic.DeviceKeys.Keys) { if (([string]$key).Equals([string]$id, [System.StringComparison]::OrdinalIgnoreCase)) { $entry = $global:WfSynthetic.DeviceKeys[$key] } }
+        if ($null -eq $entry -or [string]$entry['Device'] -eq 'gone' -or -not $id) {
+            $this.LastErrorValue = [int](-536870389)
+            return $false
+        }
+        $data.Value['InstanceId'] = [string]$id
+        return $true
+    }
+    $api | Add-Member -MemberType ScriptMethod -Name 'SetupDiOpenDevRegKey' -Value {
+        param($set, $data, $scope, $hwProfile, $keyType, $access)
+        $id = [string]$data.Value['InstanceId']
+        $this.Record('SetupDiOpenDevRegKey', @($set, $id, $scope, $hwProfile, $keyType, $access))
+        $entry = $null
+        foreach ($key in $global:WfSynthetic.DeviceKeys.Keys) { if (([string]$key).Equals($id, [System.StringComparison]::OrdinalIgnoreCase)) { $entry = $global:WfSynthetic.DeviceKeys[$key] } }
+        $state = [string]$entry['HardwareKey']
+        if ($state -eq 'missing') { $this.LastErrorValue = [int](-536870396); return [IntPtr](-1) }
+        if ($state -eq 'denied') { $this.LastErrorValue = 5; return [IntPtr](-1) }
+        if ($state -like 'error:*') { $this.LastErrorValue = [int]($state.Substring(6)); return [IntPtr](-1) }
+        return $this.Issue('hardware_key', $id)
+    }
+    $api | Add-Member -MemberType ScriptMethod -Name 'SetupDiDestroyDeviceInfoList' -Value {
+        param($set)
+        $this.Record('SetupDiDestroyDeviceInfoList', @($set))
+        $global:WfSynthetic.NativeHandles.Remove([string][int64]$set)
+        return $true
+    }
+    $api | Add-Member -MemberType ScriptMethod -Name 'RegOpenKeyExW' -Value {
+        param($key, $subkey, $options, $access, $handle)
+        $this.Record('RegOpenKeyExW', @($key, $subkey, $options, $access))
+        $parent = $global:WfSynthetic.NativeHandles[[string][int64]$key]
+        if ($null -eq $parent -or $parent['Kind'] -ne 'hardware_key') { return 6 }
+        $entry = $null
+        foreach ($k in $global:WfSynthetic.DeviceKeys.Keys) { if (([string]$k).Equals([string]$parent['Target'], [System.StringComparison]::OrdinalIgnoreCase)) { $entry = $global:WfSynthetic.DeviceKeys[$k] } }
+        $subkeys = $entry['Subkeys']
+        if ($null -eq $subkeys) { $subkeys = @{} }
+        $model = $null
+        foreach ($k in $subkeys.Keys) { if (([string]$k).Equals([string]$subkey, [System.StringComparison]::OrdinalIgnoreCase)) { $model = $subkeys[$k] } }
+        if ($null -eq $model) {
+            # The parent exists when any leaf under it exists.
+            if ([string]$subkey -eq 'Interrupt Management') {
+                foreach ($k in $subkeys.Keys) { if (([string]$k).StartsWith('Interrupt Management\', [System.StringComparison]::OrdinalIgnoreCase)) { $handle.Value = $this.Issue('subkey', $subkey); return 0 } }
+            }
+            return 2
+        }
+        if ($model['Denied']) { return 5 }
+        $handle.Value = $this.Issue('subkey', (([string]$parent['Target']) + '|' + [string]$subkey))
+        return 0
+    }
+    $api | Add-Member -MemberType ScriptMethod -Name 'RegEnumValueW' -Value {
+        param($key, $index, $name, $nameLength, $reserved, $type, $data, $dataLength)
+        $this.Record('RegEnumValueW', @($key, $index))
+        $opened = $global:WfSynthetic.NativeHandles[[string][int64]$key]
+        if ($null -eq $opened -or $opened['Kind'] -ne 'subkey') { return 6 }
+        $parts = ([string]$opened['Target']) -split '\|'
+        $entry = $null
+        foreach ($k in $global:WfSynthetic.DeviceKeys.Keys) { if (([string]$k).Equals($parts[0], [System.StringComparison]::OrdinalIgnoreCase)) { $entry = $global:WfSynthetic.DeviceKeys[$k] } }
+        $model = $null
+        foreach ($k in $entry['Subkeys'].Keys) { if (([string]$k).Equals($parts[1], [System.StringComparison]::OrdinalIgnoreCase)) { $model = $entry['Subkeys'][$k] } }
+        $values = @($model['Values'])
+        if ([int]$index -ge $values.Count) { return 259 }
+        if ($model['SecondsPerValue']) { $global:WfSynthetic.Ticks += [int]$model['SecondsPerValue'] }
+        $value = $values[[int]$index]
+        $bytes = [byte[]]$value['Bytes']
+        if ($null -eq $bytes) { $bytes = New-Object byte[] 0 }
+        if ($model['MoreData'] -and -not $global:WfSynthetic.NativeMoreDataSeen.Contains([string]$key + ':' + $index)) {
+            $null = $global:WfSynthetic.NativeMoreDataSeen.Add([string]$key + ':' + $index)
+            $dataLength.Value = [uint32]$model['MoreData']
+            return 234
+        }
+        if ($bytes.Length -gt [int]$dataLength.Value) { $dataLength.Value = [uint32]$bytes.Length; return 234 }
+        $null = $name.Clear()
+        $null = $name.Append([string]$value['Name'])
+        $nameLength.Value = [uint32]([string]$value['Name']).Length
+        $type.Value = [uint32]$value['Type']
+        if ($bytes.Length -gt 0) { [System.Array]::Copy($bytes, $data, $bytes.Length) }
+        $dataLength.Value = [uint32]$bytes.Length
+        return 0
+    }
+    $api | Add-Member -MemberType ScriptMethod -Name 'RegQueryValueExW' -Value {
+        param($key, $name, $reserved, $type, $data, $dataLength)
+        $this.Record('RegQueryValueExW', @($key, $name))
+        return 2
+    }
+    $api | Add-Member -MemberType ScriptMethod -Name 'RegCloseKey' -Value {
+        param($key)
+        $this.Record('RegCloseKey', @($key))
+        $global:WfSynthetic.NativeHandles.Remove([string][int64]$key)
+        return 0
+    }
+    return @{ Ok = $true; Error = $null; Api = $api }
+}
+
+function Get-WfLogicalProcessorInformation {
+    $model = $global:WfSynthetic.Topology
+    $result = [ordered]@{ Ok = $false; Stage = $null; ErrorCode = $null; ErrorMessage = $null; Bytes = $null; PointerSize = 8 }
+    if ($null -eq $model) { $result.Stage = 'compile'; $result.ErrorMessage = 'synthetic backend: no topology defined'; return $result }
+    if ($model.ContainsKey('PointerSize')) { $result.PointerSize = [int]$model['PointerSize'] }
+    if ($model['Stage']) {
+        $result.Stage = [string]$model['Stage']
+        $result.ErrorCode = $model['ErrorCode']
+        $result.ErrorMessage = [string]$model['ErrorMessage']
+        return $result
+    }
+    $result.Stage = 'read'
+    $result.Bytes = [byte[]]$model['Bytes']
+    $result.Ok = $true
     return $result
 }

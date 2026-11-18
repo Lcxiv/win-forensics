@@ -5,7 +5,10 @@
   ],
   "path_documented": false,
   "max_artifact_bytes": 67108864,
+  "timeout_seconds": 80,
   "mode": "summary",
+  "copy_gate": null,
   "why": "the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded",
-  "protection": null
+  "protection": null,
+  "sharing": "the file is opened for reading with writers allowed to continue; a file being appended may be read mid line, and the hash is of the bytes read"
 }

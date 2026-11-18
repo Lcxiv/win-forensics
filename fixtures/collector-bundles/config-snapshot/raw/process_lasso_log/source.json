@@ -7,14 +7,24 @@
   ],
   "path_documented": false,
   "max_artifact_bytes": 67108864,
+  "timeout_seconds": 50,
   "mode": "copy",
-  "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens and hardware addresses replaced by pseudonyms (see protection)",
+  "copy_gate": {
+    "source": "process_lasso_config",
+    "pattern": "(?im)^\\s*IncludeCommandLines\\s*=\\s*(false|0)\\s*$",
+    "passed": true,
+    "detail": "the gating file matches the pattern"
+  },
+  "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)",
   "protection": {
     "mode": "copy",
     "user_pseudonym": "user-<first 12 hex of SHA-256(salt, name)>, every folder name after \\Users\\ in a path, except the standard folders Public, Default, Default User and All Users",
     "mail_pseudonym": "mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token",
+    "host_pseudonym": "host-<first 12 hex of SHA-256(salt, name)>, the host of every UNC path (two leading separators)",
     "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+    "limits": "a DOMAIN\\\\user pair, an account name in a command line argument, or a computer name standing alone has no shape of its own and is not caught; a copy gate keeps vendor text that can carry command lines out (see copy_gate)",
     "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
     "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json"
-  }
+  },
+  "sharing": "the file is opened for reading with writers allowed to continue; a file being appended may be read mid line, and the hash is of the bytes read"
 }

@@ -10,6 +10,7 @@
   "source_sha256": null,
   "last_write_time_utc": null,
   "mode": "summary",
+  "copy_gate": null,
   "summarised": false,
   "copied": false,
   "source_encoding": null,

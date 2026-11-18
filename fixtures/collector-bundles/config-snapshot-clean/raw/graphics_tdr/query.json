@@ -1,8 +1,11 @@
 {
   "mode": "keys",
   "classes": [],
-  "hardware_key_root": null,
-  "subkeys": [],
+  "instance_prefixes": [],
+  "selection": null,
+  "resolver": "Get-Item on the fixed key path (the registry provider)",
+  "subkeys": null,
+  "max_values_per_key": null,
   "key_list": [
     {
       "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
@@ -20,8 +23,9 @@
   "citations": [
     "https://learn.microsoft.com/windows-hardware/drivers/display/tdr-registry-keys"
   ],
+  "protection": null,
   "max_records": 5000,
   "max_artifact_bytes": 67108864,
   "timeout_seconds": 50,
-  "read_only": "keys are opened for reading; a missing key is recorded as absent and never created"
+  "read_only": "keys are opened for reading only (KEY_READ); a missing key is recorded as absent and never created; a key that could not be opened is recorded as unknown"
 }

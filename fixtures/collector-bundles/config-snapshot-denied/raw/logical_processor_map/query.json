@@ -1,0 +1,17 @@
+{
+  "function": "GetLogicalProcessorInformationEx",
+  "library": "kernel32.dll",
+  "relationship_type": "RelationAll (0xffff)",
+  "layout": "64 bit: KAFFINITY 8 bytes, GROUP_AFFINITY 16 bytes, PROCESSOR_GROUP_INFO 48 bytes",
+  "citations": [
+    "https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex",
+    "https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-system_logical_processor_information_ex",
+    "https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-processor_relationship",
+    "https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-cache_relationship",
+    "https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-group_relationship",
+    "https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-group_affinity"
+  ],
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 50,
+  "read_only": "a query of the processor topology; nothing is set"
+}

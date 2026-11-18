@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.0.0",
   "bundle_id": "20260301T120001Z_config_snapshot_ae3a76a9",
-  "created_utc": "2026-03-01T12:01:25.0000000Z",
+  "created_utc": "2026-03-01T12:01:27.0000000Z",
   "scenario": {
     "id": "config_snapshot",
     "version": "1.0.0",
@@ -11,7 +11,7 @@
   },
   "capture": {
     "start_utc": "2026-03-01T12:00:01.0000000Z",
-    "stop_utc": "2026-03-01T12:01:25.0000000Z",
+    "stop_utc": "2026-03-01T12:01:27.0000000Z",
     "orchestrator": "wf-collector:config-snapshot",
     "orchestrator_version": "1.2.0",
     "elevated": false,
@@ -65,7 +65,7 @@
       "kind": "config_snapshot",
       "required": true,
       "status": "not_collected",
-      "status_reason": "preflight failed, the account cannot read the source: none of the hardware keys of the 5 selected devices could be opened; the first error was: Requested registry access is not allowed.",
+      "status_reason": "preflight failed, the account cannot read the source: none of the 5 selected devices could be read; the first reason was: ERROR_ACCESS_DENIED: the account may not open the hardware key for reading; its contents are unknown",
       "preflight": {
         "ok": false,
         "at_utc": "2026-03-01T12:00:09.0000000Z",
@@ -73,7 +73,7 @@
           {
             "name": "keys_readable",
             "ok": false,
-            "detail": "none of the hardware keys of the 5 selected devices could be opened; the first error was: Requested registry access is not allowed."
+            "detail": "none of the 5 selected devices could be read; the first reason was: ERROR_ACCESS_DENIED: the account may not open the hardware key for reading; its contents are unknown"
           }
         ]
       },
@@ -83,15 +83,20 @@
         "Win32_PnPEntity",
         "-Filter",
         "Present = TRUE",
-        "Microsoft.Win32.RegistryKey.GetValue",
-        "HKLM:\\SYSTEM\\CurrentControlSet\\Enum\\<instance id>\\Device Parameters\\Interrupt Management\\Affinity Policy;Interrupt Management\\MessageSignaledInterruptProperties"
+        "SetupDiOpenDevRegKey",
+        "DICS_FLAG_GLOBAL",
+        "DIREG_DEV",
+        "KEY_READ",
+        "RegOpenKeyExW",
+        "Interrupt Management\\Affinity Policy;Interrupt Management\\MessageSignaledInterruptProperties",
+        "RegEnumValueW"
       ],
       "started_utc": "2026-03-01T12:00:02.0000000Z",
       "stopped_utc": "2026-03-01T12:00:11.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "e149a6cb5244a5744f38fba499ccac5f159cd75a623539a0a4ce9a0758c8175f"
+        "value": "75bdc563a826c9c722ea82faf4ca2726c4660e39272d883d03f24a6d3ba6c1e1"
       },
       "filter_hash": null,
       "requested": {
@@ -101,28 +106,40 @@
         "counters": [],
         "options": {
           "mode": "devices",
-          "classes": [
-            "Display",
-            "Net",
-            "USB",
-            "MEDIA"
+          "classes": [],
+          "instance_prefixes": [
+            "PCI\\"
           ],
-          "hardware_key_root": "HKLM:\\SYSTEM\\CurrentControlSet\\Enum\\<instance id>\\Device Parameters",
+          "selection": "a present device is selected when its instance id starts with one of the prefixes or its class is one of the classes",
+          "resolver": {
+            "function": "SetupDiOpenDevRegKey",
+            "scope": "DICS_FLAG_GLOBAL",
+            "key_type": "DIREG_DEV",
+            "access": "KEY_READ (0x20019)",
+            "device": "SetupDiOpenDeviceInfoW on the instance id, OpenFlags 0, in a private device information set",
+            "subkeys": "RegOpenKeyExW relative to the returned handle, options 0, KEY_READ",
+            "values": "RegEnumValueW on the two leaves only"
+          },
           "subkeys": [
             "Interrupt Management\\Affinity Policy",
             "Interrupt Management\\MessageSignaledInterruptProperties"
           ],
+          "max_values_per_key": 64,
           "key_list": [],
           "citations": [
+            "https://learn.microsoft.com/windows-hardware/drivers/install/opening-a-device-s-hardware-key",
+            "https://learn.microsoft.com/windows/win32/api/setupapi/nf-setupapi-setupdiopendevregkey",
             "https://learn.microsoft.com/windows-hardware/drivers/kernel/interrupt-affinity-and-priority",
             "https://learn.microsoft.com/windows-hardware/drivers/kernel/enabling-message-signaled-interrupts-in-the-registry",
             "https://learn.microsoft.com/windows-hardware/drivers/ddi/wdm/ne-wdm-_irq_device_policy",
-            "https://learn.microsoft.com/windows-hardware/drivers/install/hklm-system-currentcontrolset-enum-registry-tree"
+            "https://learn.microsoft.com/windows-hardware/drivers/audio/intel-s-hd-audio-architecture",
+            "https://learn.microsoft.com/windows-hardware/drivers/audio/low-latency-audio"
           ],
+          "protection": "a Bluetooth peer node (any BTH enumerator other than the radio's own, or a Bluetooth service UUID in the id) has its name fields and twelve digit addresses replaced by name- and mac- pseudonyms before anything is written; string typed values are not kept (free text)",
           "max_records": 5000,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 50,
-          "read_only": "keys are opened for reading; a missing key is recorded as absent and never created"
+          "read_only": "keys are opened for reading only (KEY_READ); a missing key is recorded as absent and never created; a key that could not be opened is recorded as unknown"
         }
       },
       "enabled": {
@@ -132,36 +149,37 @@
         "counters": [],
         "options": {
           "mode": "devices",
-          "devices_present": 7,
+          "devices_present": 10,
+          "devices_selected": 5,
           "elements": 0,
           "keys_read": 0,
           "keys_absent": 0,
-          "key_errors": 5,
+          "keys_unknown": 10,
           "truncated": false
         },
-        "verified_by": "every element records whether its key exists, the error if it could not be opened, and each value with its registry type and bytes; the counts are in result.json"
+        "verified_by": "every element records the stage each device reached, the Win32 or registry code of a failure, whether its hardware key and each leaf exists (true, false, or null for unknown), and every value with its numeric type and bytes; the counts are in result.json"
       },
       "events_lost": null,
       "buffers": null,
       "artifacts": [
         {
           "path": "raw/interrupt_policy/query.json",
-          "bytes": 972,
-          "sha256": "e149a6cb5244a5744f38fba499ccac5f159cd75a623539a0a4ce9a0758c8175f",
+          "bytes": 2047,
+          "sha256": "75bdc563a826c9c722ea82faf4ca2726c4660e39272d883d03f24a6d3ba6c1e1",
           "role": "config"
         },
         {
           "path": "raw/interrupt_policy/result.json",
-          "bytes": 367,
-          "sha256": "6045fe2a4931d6427ed938b2a65b7271abbe8cdd29914ce7c64ba652514b5ed3",
+          "bytes": 490,
+          "sha256": "1a1ff93c4cc176cb9b0f390ac5f38312df2184f1259827f5330d43b19501b180",
           "role": "report"
         }
       ],
       "raw_time_range": null,
       "expectation": {
-        "declared": "at least one present Display, Net, USB or MEDIA device exists; for each, the two Interrupt Management subkeys are read or recorded absent. Registry intention is not effective routing: which processor actually services an interrupt is not readable here and comes from a trace",
+        "declared": "at least one present PCI function exists; for each, its hardware key is opened through SetupDiOpenDevRegKey and the two Interrupt Management subkeys are read, recorded absent when the API says they are not there, or recorded unknown when they could not be opened. Registry intention is not effective routing: which processor actually services an interrupt is not readable here and comes from a trace",
         "met": false,
-        "detail": "5 elements; 0 keys read, 0 absent, 5 could not be opened"
+        "detail": "5 elements; 0 keys read, 0 absent, 10 unknown"
       },
       "target_process": null
     },
@@ -173,7 +191,7 @@
       "status_reason": "preflight failed, the account cannot read the source: none of the 1 registry keys could be opened; the first error was: Requested registry access is not allowed.",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:00:13.0000000Z",
+        "at_utc": "2026-03-01T12:00:14.0000000Z",
         "checks": [
           {
             "name": "keys_readable",
@@ -187,11 +205,11 @@
         "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers"
       ],
       "started_utc": "2026-03-01T12:00:12.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:15.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:16.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "fd4336c5e6e0894c0f5e454b4f7adc59c25a900ee5c9a21f3c5e397cad5db75d"
+        "value": "2b79a0cfcc1194b236830c764f6cede9ef2cdbf6bb4ddba83b37ae5bf4a92f15"
       },
       "filter_hash": null,
       "requested": {
@@ -202,8 +220,11 @@
         "options": {
           "mode": "keys",
           "classes": [],
-          "hardware_key_root": null,
-          "subkeys": [],
+          "instance_prefixes": [],
+          "selection": null,
+          "resolver": "Get-Item on the fixed key path (the registry provider)",
+          "subkeys": null,
+          "max_values_per_key": null,
           "key_list": [
             {
               "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
@@ -221,10 +242,11 @@
           "citations": [
             "https://learn.microsoft.com/windows-hardware/drivers/display/tdr-registry-keys"
           ],
+          "protection": null,
           "max_records": 5000,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 50,
-          "read_only": "keys are opened for reading; a missing key is recorded as absent and never created"
+          "read_only": "keys are opened for reading only (KEY_READ); a missing key is recorded as absent and never created; a key that could not be opened is recorded as unknown"
         }
       },
       "enabled": {
@@ -235,10 +257,11 @@
         "options": {
           "mode": "keys",
           "devices_present": null,
+          "devices_selected": null,
           "elements": 0,
           "keys_read": 0,
           "keys_absent": 0,
-          "key_errors": 1,
+          "keys_unknown": 1,
           "truncated": false
         },
         "verified_by": "every element records whether its key exists, the error if it could not be opened, and each value with its registry type and bytes; the counts are in result.json"
@@ -248,14 +271,14 @@
       "artifacts": [
         {
           "path": "raw/graphics_tdr/query.json",
-          "bytes": 672,
-          "sha256": "fd4336c5e6e0894c0f5e454b4f7adc59c25a900ee5c9a21f3c5e397cad5db75d",
+          "bytes": 888,
+          "sha256": "2b79a0cfcc1194b236830c764f6cede9ef2cdbf6bb4ddba83b37ae5bf4a92f15",
           "role": "config"
         },
         {
           "path": "raw/graphics_tdr/result.json",
-          "bytes": 346,
-          "sha256": "7b91043545e94c9a0fa31da799de10cedefc27e9246bade851018ae539f8455f",
+          "bytes": 436,
+          "sha256": "18cd2feb4c7bf0409c6997d1f7f3d3fb726abc4d432c3480e0dbc794b0aa37c3",
           "role": "report"
         }
       ],
@@ -263,7 +286,7 @@
       "expectation": {
         "declared": "the GraphicsDrivers key is opened and each documented TDR value is recorded as present (with type and bytes) or absent",
         "met": false,
-        "detail": "1 elements; 0 keys read, 0 absent, 1 could not be opened"
+        "detail": "1 elements; 0 keys read, 0 absent, 1 unknown"
       },
       "target_process": null
     },
@@ -275,7 +298,7 @@
       "status_reason": "preflight failed, the account cannot read the source: synthetic:access_denied: Access denied",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:00:19.0000000Z",
+        "at_utc": "2026-03-01T12:00:20.0000000Z",
         "checks": [
           {
             "name": "class_readable",
@@ -295,8 +318,8 @@
         "-OperationTimeoutSec",
         "50"
       ],
-      "started_utc": "2026-03-01T12:00:16.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:20.0000000Z",
+      "started_utc": "2026-03-01T12:00:17.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:21.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -420,7 +443,7 @@
       "status_reason": "preflight failed, the account cannot read the source: synthetic:access_denied: Access denied",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:00:24.0000000Z",
+        "at_utc": "2026-03-01T12:00:25.0000000Z",
         "checks": [
           {
             "name": "class_readable",
@@ -440,8 +463,8 @@
         "-OperationTimeoutSec",
         "50"
       ],
-      "started_utc": "2026-03-01T12:00:21.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:25.0000000Z",
+      "started_utc": "2026-03-01T12:00:22.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:26.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -542,29 +565,35 @@
     {
       "id": "logical_processor_map",
       "kind": "config_snapshot",
-      "required": false,
+      "required": true,
       "status": "not_collected",
-      "status_reason": "preflight failed, no documented read only path reachable from this collector: the logical processor to core map (which logical processors are SMT siblings, which share a cache, which group each belongs to) is exposed by GetLogicalProcessorInformationEx (https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex), a native call this Windows PowerShell 5.1 script cannot make without compiling code at run time, which the read only posture excludes; no CIM class documents the per logical processor mapping. Win32_Processor gives the core and logical processor counts (processors source), and Microsoft documents that a system with fewer than 64 logical processors has the single group 0 (https://learn.microsoft.com/windows/win32/procthread/processor-groups)",
+      "status_reason": "preflight failed, the source could not be opened: stage compile: synthetic backend: the compiler is not available",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:00:27.0000000Z",
+        "at_utc": "2026-03-01T12:00:28.0000000Z",
         "checks": [
           {
-            "name": "read_path_available",
+            "name": "declaration_compiled",
             "ok": false,
-            "detail": "the logical processor to core map (which logical processors are SMT siblings, which share a cache, which group each belongs to) is exposed by GetLogicalProcessorInformationEx (https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex), a native call this Windows PowerShell 5.1 script cannot make without compiling code at run time, which the read only posture excludes; no CIM class documents the per logical processor mapping. Win32_Processor gives the core and logical processor counts (processors source), and Microsoft documents that a system with fewer than 64 logical processors has the single group 0 (https://learn.microsoft.com/windows/win32/procthread/processor-groups)"
+            "detail": "synthetic backend: the compiler is not available"
+          },
+          {
+            "name": "call_succeeded",
+            "ok": false,
+            "detail": "synthetic backend: the compiler is not available"
           }
         ]
       },
       "command": [
-        "none"
+        "kernel32.dll!GetLogicalProcessorInformationEx",
+        "RelationAll"
       ],
-      "started_utc": "2026-03-01T12:00:26.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:28.0000000Z",
+      "started_utc": "2026-03-01T12:00:27.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:30.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "3805e63c06e15bede34a0babc2b4d9e7ca350f6346bab2e92f6e7529c38540d8"
+        "value": "119e8914dab49a4b2a25d44560c50b2d81f1a3e2945777d45853eef2c5295e25"
       },
       "filter_hash": null,
       "requested": {
@@ -573,21 +602,21 @@
         "stack_walk": [],
         "counters": [],
         "options": {
-          "question": "Which logical processors are SMT siblings of each other, which share a cache, and in which processor group is each?",
-          "reason": "the logical processor to core map (which logical processors are SMT siblings, which share a cache, which group each belongs to) is exposed by GetLogicalProcessorInformationEx (https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex), a native call this Windows PowerShell 5.1 script cannot make without compiling code at run time, which the read only posture excludes; no CIM class documents the per logical processor mapping. Win32_Processor gives the core and logical processor counts (processors source), and Microsoft documents that a system with fewer than 64 logical processors has the single group 0 (https://learn.microsoft.com/windows/win32/procthread/processor-groups)",
-          "documented_paths": [
-            {
-              "path": "GetLogicalProcessorInformationEx(RelationProcessorCore, RelationCache, RelationGroup)",
-              "citation": "https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex",
-              "why_not_used": "native call; needs code compiled at run time, which writes to the temp folder, both excluded by the read only posture"
-            },
-            {
-              "path": "Win32_Processor NumberOfCores and NumberOfLogicalProcessors",
-              "citation": "https://learn.microsoft.com/windows/win32/cimwin32prov/win32-processor",
-              "why_not_used": "read by the processors source; it tells whether SMT is enabled (NumberOfCores less than NumberOfLogicalProcessors), not which logical processor pairs with which"
-            }
+          "function": "GetLogicalProcessorInformationEx",
+          "library": "kernel32.dll",
+          "relationship_type": "RelationAll (0xffff)",
+          "layout": "64 bit: KAFFINITY 8 bytes, GROUP_AFFINITY 16 bytes, PROCESSOR_GROUP_INFO 48 bytes",
+          "citations": [
+            "https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex",
+            "https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-system_logical_processor_information_ex",
+            "https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-processor_relationship",
+            "https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-cache_relationship",
+            "https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-group_relationship",
+            "https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-group_affinity"
           ],
-          "follow_up": "a later collector with a documented native read, or the trace itself, must establish the sibling map; until then \"CPU 6 and its sibling\" is not evidence"
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 50,
+          "read_only": "a query of the processor topology; nothing is set"
         }
       },
       "enabled": {
@@ -595,24 +624,36 @@
         "keywords": [],
         "stack_walk": [],
         "counters": [],
-        "options": null,
-        "verified_by": null
+        "options": {
+          "byte_count": null,
+          "records": 0,
+          "cores": 0,
+          "record_counts": {},
+          "pointer_size": 8
+        },
+        "verified_by": "the call returned TRUE and the buffer parsed by the documented layouts; the buffer itself is in result.json as hex"
       },
       "events_lost": null,
       "buffers": null,
       "artifacts": [
         {
-          "path": "raw/logical_processor_map/reason.json",
-          "bytes": 1829,
-          "sha256": "3805e63c06e15bede34a0babc2b4d9e7ca350f6346bab2e92f6e7529c38540d8",
+          "path": "raw/logical_processor_map/query.json",
+          "bytes": 941,
+          "sha256": "119e8914dab49a4b2a25d44560c50b2d81f1a3e2945777d45853eef2c5295e25",
           "role": "config"
+        },
+        {
+          "path": "raw/logical_processor_map/result.json",
+          "bytes": 326,
+          "sha256": "4efdea043ce7cbb7833cb68abcbcea68a1a4da91b7d6d1c629307981b72be5e0",
+          "role": "report"
         }
       ],
       "raw_time_range": null,
       "expectation": {
-        "declared": "the logical processor to core map is recorded with its group and cache sharing",
+        "declared": "GetLogicalProcessorInformationEx returns a buffer that parses by the documented layouts and holds one RelationProcessorCore record per active core, so each logical processor can be placed on its core next to its SMT sibling, its caches and its group",
         "met": false,
-        "detail": "not attempted"
+        "detail": "stage compile: synthetic backend: the compiler is not available"
       },
       "target_process": null
     },
@@ -624,7 +665,7 @@
       "status_reason": "preflight failed, the source could not be opened: the executable does not exist: C:\\Windows\\System32\\powercfg.exe",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:00:30.0000000Z",
+        "at_utc": "2026-03-01T12:00:32.0000000Z",
         "checks": [
           {
             "name": "tool_present",
@@ -637,8 +678,8 @@
         "C:\\Windows\\System32\\powercfg.exe",
         "/getactivescheme"
       ],
-      "started_utc": "2026-03-01T12:00:29.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:32.0000000Z",
+      "started_utc": "2026-03-01T12:00:31.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:34.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -696,7 +737,7 @@
         {
           "path": "raw/power_active_scheme/result.json",
           "bytes": 463,
-          "sha256": "4afdc2991e9fd7a8b843c9a301f09a5f63daa9c90dc1cb1f596926cee305b551",
+          "sha256": "fb054691c76c9b72800512f645faf338b3e98c468c7cb9499468b40bb06252c4",
           "role": "report"
         }
       ],
@@ -716,7 +757,7 @@
       "status_reason": "preflight failed, the source could not be opened: the executable does not exist: C:\\Windows\\System32\\powercfg.exe",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:00:34.0000000Z",
+        "at_utc": "2026-03-01T12:00:36.0000000Z",
         "checks": [
           {
             "name": "tool_present",
@@ -729,8 +770,8 @@
         "C:\\Windows\\System32\\powercfg.exe",
         "/list"
       ],
-      "started_utc": "2026-03-01T12:00:33.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:36.0000000Z",
+      "started_utc": "2026-03-01T12:00:35.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:38.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -788,7 +829,7 @@
         {
           "path": "raw/power_schemes/result.json",
           "bytes": 460,
-          "sha256": "91ad45404c798b28a920598c9c309cf7c4e08ac52d10dd690c5ea23f4abac978",
+          "sha256": "ca37b0f2d6c022fd7961435a343ef004a1a243ec3c78c3b11f78388cae703a8c",
           "role": "report"
         }
       ],
@@ -808,7 +849,7 @@
       "status_reason": "preflight failed, the source could not be opened: the executable does not exist: C:\\Windows\\System32\\powercfg.exe",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:00:38.0000000Z",
+        "at_utc": "2026-03-01T12:00:40.0000000Z",
         "checks": [
           {
             "name": "tool_present",
@@ -821,8 +862,8 @@
         "C:\\Windows\\System32\\powercfg.exe",
         "/aliases"
       ],
-      "started_utc": "2026-03-01T12:00:37.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:40.0000000Z",
+      "started_utc": "2026-03-01T12:00:39.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:42.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -880,7 +921,7 @@
         {
           "path": "raw/power_aliases/result.json",
           "bytes": 459,
-          "sha256": "d7807ff4a5f1a58a2c7db6c0dc78f397a551fe3465d8c9daea1d8af477a9b7ff",
+          "sha256": "28670f646d3301a477ac36d8ff4e59aab994ff6a2915b0f2f4b6b9d0810dc757",
           "role": "report"
         }
       ],
@@ -900,7 +941,7 @@
       "status_reason": "preflight failed, the source could not be opened: the executable does not exist: C:\\Windows\\System32\\powercfg.exe",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:00:42.0000000Z",
+        "at_utc": "2026-03-01T12:00:44.0000000Z",
         "checks": [
           {
             "name": "tool_present",
@@ -913,8 +954,8 @@
         "C:\\Windows\\System32\\powercfg.exe",
         "/query"
       ],
-      "started_utc": "2026-03-01T12:00:41.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:44.0000000Z",
+      "started_utc": "2026-03-01T12:00:43.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:46.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -972,7 +1013,7 @@
         {
           "path": "raw/power_settings/result.json",
           "bytes": 485,
-          "sha256": "1fe53f311e669d63b6d679d17dab749d5d24a5db5a9e83d17ace7ba7d1c941be",
+          "sha256": "33c3e2dea79502cd8243bca2b4ecd1472e31e9417ffbd0782fb634027e72ff5b",
           "role": "report"
         }
       ],
@@ -992,7 +1033,7 @@
       "status_reason": "preflight failed, the source could not be opened: the executable does not exist: C:\\Windows\\System32\\powercfg.exe",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:00:46.0000000Z",
+        "at_utc": "2026-03-01T12:00:48.0000000Z",
         "checks": [
           {
             "name": "tool_present",
@@ -1005,8 +1046,8 @@
         "C:\\Windows\\System32\\powercfg.exe",
         "/qh"
       ],
-      "started_utc": "2026-03-01T12:00:45.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:48.0000000Z",
+      "started_utc": "2026-03-01T12:00:47.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:50.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -1064,7 +1105,7 @@
         {
           "path": "raw/power_settings_hidden/result.json",
           "bytes": 511,
-          "sha256": "39a81ad4ea82823bc9362c3f74b961f65b280a12851daaf3afefd8b1f71688ee",
+          "sha256": "4ae4321fd5b98d7e8b265406f7d89b76695e1e9877fd84791500e854a5828688",
           "role": "report"
         }
       ],
@@ -1084,7 +1125,7 @@
       "status_reason": "preflight failed, no documented read only path reachable from this collector: Microsoft documents the power mode (performance power slider) overlays and their GUIDs (https://learn.microsoft.com/windows-hardware/customize/desktop/customize-power-slider) and that \"powercfg /q\" without arguments enumerates the active overlay scheme when one is active (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options), but no command that prints the active overlay by itself; the decoder compares the scheme GUID printed by /query (power_settings) with /getactivescheme (power_active_scheme) and names a documented overlay GUID when they differ, which is an interpretation of that sentence, not a direct read",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:00:50.0000000Z",
+        "at_utc": "2026-03-01T12:00:52.0000000Z",
         "checks": [
           {
             "name": "read_path_available",
@@ -1096,8 +1137,8 @@
       "command": [
         "none"
       ],
-      "started_utc": "2026-03-01T12:00:49.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:51.0000000Z",
+      "started_utc": "2026-03-01T12:00:51.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:53.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -1158,27 +1199,27 @@
       "kind": "other",
       "required": false,
       "status": "not_collected",
-      "status_reason": "preflight failed, no documented read only path reachable from this collector: the current timer resolution has no documented read a 5.1 script can make: timeGetDevCaps (https://learn.microsoft.com/windows/win32/api/timeapi/nf-timeapi-timegetdevcaps) returns the minimum and maximum period only and is a native call; the inbox report that lists the platform timer resolution and the outstanding requests is \"powercfg /energy\", which observes the system for 60 seconds and writes a report file, and Microsoft documents it for an idle system (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options); it is left to the elevated task (collectors/windows/README.md, Needs elevation). \"powercfg /requests\" lists power requests, not timer requests, and is not timer evidence. Nothing here requests a timer period",
+      "status_reason": "preflight failed, no documented read only path reachable from this collector: the current timer resolution has no documented read this collector can make: timeGetDevCaps (https://learn.microsoft.com/windows/win32/api/timeapi/nf-timeapi-timegetdevcaps) returns the minimum and maximum period only, and Microsoft documents no public query of the period in effect; \"powercfg /energy\" observes the system for 60 seconds by default and writes a report file, which Microsoft documents for an idle system with no open programs (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options), so it is left to the elevated task, and whether its report names the timer resolution and its requesters is a verification item, not a fact asserted here. \"powercfg /requests\" lists power requests, not timer requests, and is not timer evidence. Nothing here requests a timer period",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:00:53.0000000Z",
+        "at_utc": "2026-03-01T12:00:55.0000000Z",
         "checks": [
           {
             "name": "read_path_available",
             "ok": false,
-            "detail": "the current timer resolution has no documented read a 5.1 script can make: timeGetDevCaps (https://learn.microsoft.com/windows/win32/api/timeapi/nf-timeapi-timegetdevcaps) returns the minimum and maximum period only and is a native call; the inbox report that lists the platform timer resolution and the outstanding requests is \"powercfg /energy\", which observes the system for 60 seconds and writes a report file, and Microsoft documents it for an idle system (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options); it is left to the elevated task (collectors/windows/README.md, Needs elevation). \"powercfg /requests\" lists power requests, not timer requests, and is not timer evidence. Nothing here requests a timer period"
+            "detail": "the current timer resolution has no documented read this collector can make: timeGetDevCaps (https://learn.microsoft.com/windows/win32/api/timeapi/nf-timeapi-timegetdevcaps) returns the minimum and maximum period only, and Microsoft documents no public query of the period in effect; \"powercfg /energy\" observes the system for 60 seconds by default and writes a report file, which Microsoft documents for an idle system with no open programs (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options), so it is left to the elevated task, and whether its report names the timer resolution and its requesters is a verification item, not a fact asserted here. \"powercfg /requests\" lists power requests, not timer requests, and is not timer evidence. Nothing here requests a timer period"
           }
         ]
       },
       "command": [
         "none"
       ],
-      "started_utc": "2026-03-01T12:00:52.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:54.0000000Z",
+      "started_utc": "2026-03-01T12:00:54.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:56.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "01e8b92bf0415915991ab468f9a905d6ce39032ac6681280cb5e2452bc5244f7"
+        "value": "b4af7ae635db9e32dc6c50b67dd8ac35d393102fc53f38cbe4e849093bbc5efb"
       },
       "filter_hash": null,
       "requested": {
@@ -1188,7 +1229,7 @@
         "counters": [],
         "options": {
           "question": "What are the current, minimum and maximum timer resolutions, and which processes hold a request?",
-          "reason": "the current timer resolution has no documented read a 5.1 script can make: timeGetDevCaps (https://learn.microsoft.com/windows/win32/api/timeapi/nf-timeapi-timegetdevcaps) returns the minimum and maximum period only and is a native call; the inbox report that lists the platform timer resolution and the outstanding requests is \"powercfg /energy\", which observes the system for 60 seconds and writes a report file, and Microsoft documents it for an idle system (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options); it is left to the elevated task (collectors/windows/README.md, Needs elevation). \"powercfg /requests\" lists power requests, not timer requests, and is not timer evidence. Nothing here requests a timer period",
+          "reason": "the current timer resolution has no documented read this collector can make: timeGetDevCaps (https://learn.microsoft.com/windows/win32/api/timeapi/nf-timeapi-timegetdevcaps) returns the minimum and maximum period only, and Microsoft documents no public query of the period in effect; \"powercfg /energy\" observes the system for 60 seconds by default and writes a report file, which Microsoft documents for an idle system with no open programs (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options), so it is left to the elevated task, and whether its report names the timer resolution and its requesters is a verification item, not a fact asserted here. \"powercfg /requests\" lists power requests, not timer requests, and is not timer evidence. Nothing here requests a timer period",
           "documented_paths": [
             {
               "path": "timeGetDevCaps (TIMECAPS wPeriodMin, wPeriodMax)",
@@ -1222,8 +1263,8 @@
       "artifacts": [
         {
           "path": "raw/timer_resolution/reason.json",
-          "bytes": 2032,
-          "sha256": "01e8b92bf0415915991ab468f9a905d6ce39032ac6681280cb5e2452bc5244f7",
+          "bytes": 2087,
+          "sha256": "b4af7ae635db9e32dc6c50b67dd8ac35d393102fc53f38cbe4e849093bbc5efb",
           "role": "config"
         }
       ],
@@ -1243,7 +1284,7 @@
       "status_reason": "preflight failed, the account cannot read the source: synthetic:access_denied: Access denied",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:00:58.0000000Z",
+        "at_utc": "2026-03-01T12:01:00.0000000Z",
         "checks": [
           {
             "name": "class_readable",
@@ -1263,8 +1304,8 @@
         "-OperationTimeoutSec",
         "50"
       ],
-      "started_utc": "2026-03-01T12:00:55.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:59.0000000Z",
+      "started_utc": "2026-03-01T12:00:57.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:01.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -1370,7 +1411,7 @@
       "status_reason": "preflight failed, the account cannot read the source: synthetic:access_denied: Access denied",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:01:03.0000000Z",
+        "at_utc": "2026-03-01T12:01:05.0000000Z",
         "checks": [
           {
             "name": "class_readable",
@@ -1392,12 +1433,12 @@
         "-Filter",
         "Name = 'DpcTimerRes.exe'"
       ],
-      "started_utc": "2026-03-01T12:01:00.0000000Z",
-      "stopped_utc": "2026-03-01T12:01:04.0000000Z",
+      "started_utc": "2026-03-01T12:01:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:06.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "5c9c2a041f8a57e9b853574f23f99080e21ce9b0e73f7541ab2f6ec4deb4f6be"
+        "value": "42c106761f0dadaa1368efc1c9242fe52c8a8c0247b207d502ce7e78ebffeff3"
       },
       "filter_hash": null,
       "requested": {
@@ -1429,7 +1470,21 @@
           "timeout_seconds": 50,
           "snapshot": "start",
           "command_line_requested": true,
-          "image_path_requested": true
+          "image_path_requested": true,
+          "protected_properties": [
+            "CommandLine",
+            "ExecutablePath"
+          ],
+          "protection": {
+            "mode": "copy",
+            "user_pseudonym": "user-<first 12 hex of SHA-256(salt, name)>, every folder name after \\Users\\ in a path, except the standard folders Public, Default, Default User and All Users",
+            "mail_pseudonym": "mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token",
+            "host_pseudonym": "host-<first 12 hex of SHA-256(salt, name)>, the host of every UNC path (two leading separators)",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "limits": "a DOMAIN\\\\user pair, an account name in a command line argument, or a computer name standing alone has no shape of its own and is not caught; a copy gate keeps vendor text that can carry command lines out (see copy_gate)",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
+            "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json"
+          }
         }
       },
       "enabled": {
@@ -1470,8 +1525,8 @@
       "artifacts": [
         {
           "path": "raw/timer_helper_process/query.json",
-          "bytes": 574,
-          "sha256": "5c9c2a041f8a57e9b853574f23f99080e21ce9b0e73f7541ab2f6ec4deb4f6be",
+          "bytes": 1643,
+          "sha256": "42c106761f0dadaa1368efc1c9242fe52c8a8c0247b207d502ce7e78ebffeff3",
           "role": "config"
         }
       ],
@@ -1491,7 +1546,7 @@
       "status_reason": "preflight failed, the account cannot read the source: Access to the path is denied.",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:01:06.0000000Z",
+        "at_utc": "2026-03-01T12:01:08.0000000Z",
         "checks": [
           {
             "name": "parent_folder_exists",
@@ -1515,8 +1570,8 @@
         "C:\\Program Files\\Process Lasso",
         "System.Diagnostics.FileVersionInfo.GetVersionInfo"
       ],
-      "started_utc": "2026-03-01T12:01:05.0000000Z",
-      "stopped_utc": "2026-03-01T12:01:08.0000000Z",
+      "started_utc": "2026-03-01T12:01:07.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:10.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -1559,8 +1614,8 @@
       "artifacts": [
         {
           "path": "raw/process_lasso_install/result.json",
-          "bytes": 196,
-          "sha256": "84776a35736ef7399d2bbcc6eadd1f5e12fcccf4bd27b9b5b2660c188f9adf64",
+          "bytes": 280,
+          "sha256": "e28dbd9336bc0e8cb2f0ecd0850fd0c923e4adb3f800c6e893fadb3cfc0deb1e",
           "role": "report"
         },
         {
@@ -1586,7 +1641,7 @@
       "status_reason": "preflight failed, the account cannot read the source: Access to the path is denied.",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:01:10.0000000Z",
+        "at_utc": "2026-03-01T12:01:12.0000000Z",
         "checks": [
           {
             "name": "file_exists",
@@ -1604,12 +1659,12 @@
         "System.IO.File.ReadAllBytes",
         "C:\\ProgramData\\ProcessLasso\\config\\prolasso.ini"
       ],
-      "started_utc": "2026-03-01T12:01:09.0000000Z",
-      "stopped_utc": "2026-03-01T12:01:12.0000000Z",
+      "started_utc": "2026-03-01T12:01:11.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:14.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "17aaae8b26ca307e33c3f1368ba6ad662bc2223c58aaed6903540c679a44114f"
+        "value": "0a135fa48ef4d632eeec66a6de8d07104f76ede1eaa9b49bb56affe32413303d"
       },
       "filter_hash": null,
       "requested": {
@@ -1624,16 +1679,21 @@
           ],
           "path_documented": false,
           "max_artifact_bytes": 67108864,
+          "timeout_seconds": 50,
           "mode": "copy",
-          "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens and hardware addresses replaced by pseudonyms (see protection)",
+          "copy_gate": null,
+          "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)",
           "protection": {
             "mode": "copy",
             "user_pseudonym": "user-<first 12 hex of SHA-256(salt, name)>, every folder name after \\Users\\ in a path, except the standard folders Public, Default, Default User and All Users",
             "mail_pseudonym": "mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token",
+            "host_pseudonym": "host-<first 12 hex of SHA-256(salt, name)>, the host of every UNC path (two leading separators)",
             "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "limits": "a DOMAIN\\\\user pair, an account name in a command line argument, or a computer name standing alone has no shape of its own and is not caught; a copy gate keeps vendor text that can carry command lines out (see copy_gate)",
             "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
             "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json"
-          }
+          },
+          "sharing": "the file is opened for reading with writers allowed to continue; a file being appended may be read mid line, and the hash is of the bytes read"
         }
       },
       "enabled": {
@@ -1659,14 +1719,14 @@
       "artifacts": [
         {
           "path": "raw/process_lasso_config/result.json",
-          "bytes": 488,
-          "sha256": "f4eb34048957fc639fefc3d6f24e88def5ad505d2834fbdf83d8f38d749cce54",
+          "bytes": 509,
+          "sha256": "047f3aa819e80c8573428d964c43fae7f234207bb7229271c1e3378dc0393cf3",
           "role": "report"
         },
         {
           "path": "raw/process_lasso_config/source.json",
-          "bytes": 1065,
-          "sha256": "17aaae8b26ca307e33c3f1368ba6ad662bc2223c58aaed6903540c679a44114f",
+          "bytes": 1647,
+          "sha256": "0a135fa48ef4d632eeec66a6de8d07104f76ede1eaa9b49bb56affe32413303d",
           "role": "config"
         }
       ],
@@ -1686,7 +1746,7 @@
       "status_reason": "preflight failed, the account cannot read the source: Access to the path is denied.",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:01:14.0000000Z",
+        "at_utc": "2026-03-01T12:01:16.0000000Z",
         "checks": [
           {
             "name": "file_exists",
@@ -1706,12 +1766,12 @@
         "C:\\ProgramData\\ProcessLasso\\logs\\prolasso.log",
         "C:\\ProgramData\\ProcessLasso\\prolasso.log"
       ],
-      "started_utc": "2026-03-01T12:01:13.0000000Z",
-      "stopped_utc": "2026-03-01T12:01:16.0000000Z",
+      "started_utc": "2026-03-01T12:01:15.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:18.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "783c8810b50921eb1466efdbdd1f2fc9d68c0502c872ce9a93c5fa806432d7d5"
+        "value": "e2dee7d92f9cee298d653867456c61a8b7230ff2d6f1d601962914ab60a0aaa5"
       },
       "filter_hash": null,
       "requested": {
@@ -1728,16 +1788,17 @@
           ],
           "path_documented": false,
           "max_artifact_bytes": 67108864,
-          "mode": "copy",
-          "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens and hardware addresses replaced by pseudonyms (see protection)",
-          "protection": {
-            "mode": "copy",
-            "user_pseudonym": "user-<first 12 hex of SHA-256(salt, name)>, every folder name after \\Users\\ in a path, except the standard folders Public, Default, Default User and All Users",
-            "mail_pseudonym": "mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token",
-            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
-            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
-            "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json"
-          }
+          "timeout_seconds": 50,
+          "mode": "summary",
+          "copy_gate": {
+            "source": "process_lasso_config",
+            "pattern": "(?im)^\\s*IncludeCommandLines\\s*=\\s*(false|0)\\s*$",
+            "passed": false,
+            "detail": "the gating file process_lasso_config was not copied in this run, so the switch it carries is unknown"
+          },
+          "why": "the file was to be copied, but its copy gate did not pass (the gating file process_lasso_config was not copied in this run, so the switch it carries is unknown), so only its size, time, hash and token counts are recorded",
+          "protection": null,
+          "sharing": "the file is opened for reading with writers allowed to continue; a file being appended may be read mid line, and the hash is of the bytes read"
         }
       },
       "enabled": {
@@ -1752,25 +1813,25 @@
           "source_bytes": null,
           "source_sha256": null,
           "last_write_time_utc": null,
-          "mode": "copy",
+          "mode": "summary",
           "content_kept": false,
           "copy_is_verbatim": null
         },
-        "verified_by": "the source size, time and hash are in result.json next to the replacement counts; the primary is the protected copy"
+        "verified_by": "the source size, time and hash are in the summary artifact; the text itself is not in the bundle"
       },
       "events_lost": null,
       "buffers": null,
       "artifacts": [
         {
           "path": "raw/process_lasso_log/result.json",
-          "bytes": 600,
-          "sha256": "285733bf5e3698d94ab96cccbcc99c7ca4546f3f86d99af3d44f732bc671cd2d",
+          "bytes": 872,
+          "sha256": "044b67d6cfe3dd8cedf95f9e594bdc222d479337a1a637499a500c4d6a092285",
           "role": "report"
         },
         {
           "path": "raw/process_lasso_log/source.json",
-          "bytes": 1177,
-          "sha256": "783c8810b50921eb1466efdbdd1f2fc9d68c0502c872ce9a93c5fa806432d7d5",
+          "bytes": 1057,
+          "sha256": "e2dee7d92f9cee298d653867456c61a8b7230ff2d6f1d601962914ab60a0aaa5",
           "role": "config"
         }
       ],
@@ -1790,7 +1851,7 @@
       "status_reason": "preflight failed, the account cannot read the source: Access to the path is denied.",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:01:18.0000000Z",
+        "at_utc": "2026-03-01T12:01:20.0000000Z",
         "checks": [
           {
             "name": "parent_folder_exists",
@@ -1814,8 +1875,8 @@
         "C:\\Program Files\\Stutter Guard",
         "System.Diagnostics.FileVersionInfo.GetVersionInfo"
       ],
-      "started_utc": "2026-03-01T12:01:17.0000000Z",
-      "stopped_utc": "2026-03-01T12:01:20.0000000Z",
+      "started_utc": "2026-03-01T12:01:19.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:22.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -1858,8 +1919,8 @@
       "artifacts": [
         {
           "path": "raw/stutter_guard_install/result.json",
-          "bytes": 196,
-          "sha256": "397f21a16dcb80ffce31767852f3ba20b1bd89041f1752531cb76d1134cda76a",
+          "bytes": 280,
+          "sha256": "59a86b0755c1677444e9017a32d056a8ce5750771beaf935c425ea66a4ea872f",
           "role": "report"
         },
         {
@@ -1885,7 +1946,7 @@
       "status_reason": "preflight failed, the account cannot read the source: Access to the path is denied.",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:01:22.0000000Z",
+        "at_utc": "2026-03-01T12:01:24.0000000Z",
         "checks": [
           {
             "name": "file_exists",
@@ -1903,12 +1964,12 @@
         "System.IO.File.ReadAllBytes",
         "C:\\ProgramData\\Stutter Guard\\journal.json"
       ],
-      "started_utc": "2026-03-01T12:01:21.0000000Z",
-      "stopped_utc": "2026-03-01T12:01:24.0000000Z",
+      "started_utc": "2026-03-01T12:01:23.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:26.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "6a7111e7dc3ba090b72725dbd2be005225b821ce55e343e14a582df2303ac391"
+        "value": "aaf3fd6fa65ac6df75ca44d42c35a55181dcd2f3c9eea12c30f9963e7b5b2319"
       },
       "filter_hash": null,
       "requested": {
@@ -1923,16 +1984,21 @@
           ],
           "path_documented": false,
           "max_artifact_bytes": 67108864,
+          "timeout_seconds": 50,
           "mode": "copy",
-          "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens and hardware addresses replaced by pseudonyms (see protection)",
+          "copy_gate": null,
+          "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)",
           "protection": {
             "mode": "copy",
             "user_pseudonym": "user-<first 12 hex of SHA-256(salt, name)>, every folder name after \\Users\\ in a path, except the standard folders Public, Default, Default User and All Users",
             "mail_pseudonym": "mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token",
+            "host_pseudonym": "host-<first 12 hex of SHA-256(salt, name)>, the host of every UNC path (two leading separators)",
             "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "limits": "a DOMAIN\\\\user pair, an account name in a command line argument, or a computer name standing alone has no shape of its own and is not caught; a copy gate keeps vendor text that can carry command lines out (see copy_gate)",
             "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
             "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json"
-          }
+          },
+          "sharing": "the file is opened for reading with writers allowed to continue; a file being appended may be read mid line, and the hash is of the bytes read"
         }
       },
       "enabled": {
@@ -1958,20 +2024,20 @@
       "artifacts": [
         {
           "path": "raw/stutter_guard_journal/result.json",
-          "bytes": 474,
-          "sha256": "f805f475ce958498d20877509337f2c9808f2a1114185ac190e2af8f50cdf2cc",
+          "bytes": 495,
+          "sha256": "273d0d84205a7836209b60f40624e42105b3aee3a2342bd9b064ff2e6c3dc7af",
           "role": "report"
         },
         {
           "path": "raw/stutter_guard_journal/source.json",
-          "bytes": 1051,
-          "sha256": "6a7111e7dc3ba090b72725dbd2be005225b821ce55e343e14a582df2303ac391",
+          "bytes": 1633,
+          "sha256": "aaf3fd6fa65ac6df75ca44d42c35a55181dcd2f3c9eea12c30f9963e7b5b2319",
           "role": "config"
         }
       ],
       "raw_time_range": null,
       "expectation": {
-        "declared": "the journal exists and is readable; its protected text and the hash of the original are recorded",
+        "declared": "the journal exists and is readable; its protected text and the hash of the original are recorded; the program's options are saved inside it",
         "met": false,
         "detail": "Access to the path is denied."
       },
@@ -2027,7 +2093,7 @@
     "Read only collector config-snapshot version 1.0.0: What machine configuration confounds a latency run right now: device interrupt policy and MSI mode, CPU topology, power scheme and settings, timer state, and the state of Process Lasso and Stutter Guard?",
     "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
-    "Copied text files are the owner's own configuration and logs and stay readable, except that every Windows user profile folder name, every e-mail shaped token and every hardware address in them is a pseudonym (user-<12 hex>, mail-<12 hex>, mac-<12 hex>) keyed with a random salt that was not stored; result.json of each copy records the SHA-256 of the original bytes and the replacement counts, so a copy with zero replacements and the same hash is verbatim.",
+    "Copied text (the owner's own configuration and log files, and the command line and image path of the one named helper process) stays readable, except that every Windows user profile folder name, every e-mail shaped token, every UNC host name and every hardware address in it is a pseudonym (user-<12 hex>, mail-<12 hex>, host-<12 hex>, mac-<12 hex>) keyed with a random salt that was not stored; result.json of each copy records the SHA-256 of the original bytes and the replacement counts, so a copy with zero replacements and the same hash is verbatim.",
     "Network names, hardware addresses and Bluetooth peer names are pseudonyms (ssid-<12 hex>, mac-<12 hex>, name-<12 hex>) keyed with a random salt that was not stored: the same value maps to the same pseudonym inside this bundle and to nothing outside it. The saved Wi-Fi profiles of this PC are the exception: they are the owner's own networks and stay readable, each with its pseudonym, so an explicit owner selection can be matched at analysis time.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine."
   ]

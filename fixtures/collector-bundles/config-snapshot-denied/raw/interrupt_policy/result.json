@@ -1,11 +1,14 @@
 {
   "started_utc": "2026-03-01T12:00:02.0000000Z",
   "stopped_utc": "2026-03-01T12:00:10.0000000Z",
-  "devices_present": 7,
+  "devices_present": 10,
+  "devices_selected": 5,
+  "devices_unknown": 5,
   "elements": 5,
   "keys_read": 0,
   "keys_absent": 0,
-  "key_errors": 5,
+  "keys_unknown": 10,
+  "peer_nodes_pseudonymised": 0,
   "truncated": false,
-  "error": "none of the hardware keys of the 5 selected devices could be opened; the first error was: Requested registry access is not allowed."
+  "error": "none of the 5 selected devices could be read; the first reason was: ERROR_ACCESS_DENIED: the account may not open the hardware key for reading; its contents are unknown"
 }

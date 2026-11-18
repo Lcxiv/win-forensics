@@ -17,9 +17,11 @@
 # fixed netsh or powercfg query), file (one known file, summarised or copied
 # read only), directory (the files of one known folder, hashed and versioned,
 # never copied), registry (documented values under documented keys, read
-# only, with their type and bytes), pnp (present Plug and Play devices with
-# their parent chain), unavailable (a question the collector cannot answer
-# with a documented read only path, recorded as a status with its reason).
+# only, with their type and bytes; device hardware keys through the documented
+# device key API), topology (the logical processor map through the documented
+# API), pnp (present Plug and Play devices with their parent chain),
+# unavailable (a question the collector cannot answer with a documented read
+# only path, recorded as a status with its reason).
 #
 # Target: Windows PowerShell 5.1 as a standard account in Event Log Readers.
 # Contracts: docs/contracts/bundle.md, docs/contracts/measurement-status.md,
@@ -996,10 +998,14 @@ function Invoke-WfCimSource {
         [int64]$MaxArtifactBytes,
         [int]$TimeoutSeconds,
         [System.Collections.Generic.List[string]]$Log,
-        [System.Collections.Generic.List[string]]$Notes
+        [System.Collections.Generic.List[string]]$Notes,
+        [hashtable]$Context = $null
     )
     $id = [string]$Source['Id']
     $className = [string]$Source['ClassName']
+    # String properties that can carry a path or free text (a command line)
+    # go through Protect-WfCopiedText before anything is written.
+    $protectProperties = Get-WfList -Value $Source['ProtectProperties']
     $namespace = 'root/cimv2'
     if ($Source['Namespace']) { $namespace = [string]$Source['Namespace'] }
     $timeProperty = $null
@@ -1049,6 +1055,10 @@ function Invoke-WfCimSource {
         # Fixed options the definition wants recorded next to the query (for
         # example which snapshot of a before and after pair this read is).
         if ($Source['Options']) { foreach ($key in $Source['Options'].Keys) { $query[[string]$key] = $Source['Options'][$key] } }
+        if (@($protectProperties).Count -gt 0) {
+            $query['protected_properties'] = @($protectProperties)
+            $query['protection'] = Get-WfCopiedTextProtectionDescription
+        }
         $queryPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/query.json')
         Write-WfJsonFile -Path $queryPath -Object $query
         $entry.config_hash = [ordered]@{ algorithm = 'sha256'; value = (Get-WfSha256OfFile -Path $queryPath) }
@@ -1077,6 +1087,29 @@ function Invoke-WfCimSource {
         $lines = Get-WfList -Value $read['Lines']
         $truncated = [bool]$read['Truncated']
         $sourceRowCount = @($rows).Count
+        $protectionCounts = $null
+        if (@($protectProperties).Count -gt 0 -and -not $readErrorKind) {
+            if ($null -eq $Context) { throw 'a source with ProtectProperties needs the run context (the salt)' }
+            # Protect at the collection boundary, then serialise again so the
+            # file holds exactly the protected rows.
+            $protectionCounts = [ordered]@{ user_profile_names_replaced = 0; email_addresses_replaced = 0; unc_hosts_replaced = 0; mac_addresses_replaced = 0 }
+            $rebuilt = New-Object 'System.Collections.Generic.List[string]'
+            foreach ($row in @($rows)) {
+                foreach ($name in $protectProperties) {
+                    $key = [string]$name
+                    if ($row.Contains($key) -and $row[$key] -is [string]) {
+                        $protected = Protect-WfCopiedText -Text ([string]$row[$key]) -Salt ([string]$Context['Salt'])
+                        $row[$key] = [string]$protected['Text']
+                        $protectionCounts.user_profile_names_replaced += [int]$protected['UserCount']
+                        $protectionCounts.email_addresses_replaced += [int]$protected['MailCount']
+                        $protectionCounts.unc_hosts_replaced += [int]$protected['HostCount']
+                        $protectionCounts.mac_addresses_replaced += [int]$protected['MacCount']
+                    }
+                }
+                $rebuilt.Add((ConvertTo-WfJson -Value $row))
+            }
+            $lines = $rebuilt.ToArray()
+        }
         $oldest = $null
         $probe = $null
         if (-not $readErrorKind) {
@@ -1166,6 +1199,7 @@ function Invoke-WfCimSource {
             }
             if ($timeProperty) { $enabledOptions.window_start_utc = $coveredText }
             if ($Source['Options']) { foreach ($key in $Source['Options'].Keys) { $enabledOptions[[string]$key] = $Source['Options'][$key] } }
+            if ($null -ne $protectionCounts) { $enabledOptions['protection'] = $protectionCounts }
             $entry.enabled = [ordered]@{
                 providers = @(); keywords = @(); stack_walk = @(); counters = @()
                 options = $enabledOptions
@@ -1751,6 +1785,7 @@ function Invoke-WfFileSource {
         [hashtable]$Source,
         [string]$BundleRoot,
         [int64]$MaxArtifactBytes,
+        [int]$TimeoutSeconds = 300,
         [System.Collections.Generic.List[string]]$Log,
         [System.Collections.Generic.List[string]]$Notes,
         [hashtable]$Context = $null
@@ -1759,6 +1794,27 @@ function Invoke-WfFileSource {
     $fileName = [string]$Source['FileName']
     $mode = 'summary'
     if ($Source['Mode']) { $mode = [string]$Source['Mode'] }
+    # A copy gate: the copy is allowed only when another copied file of this
+    # run (a configuration) matches a pattern, for example the vendor's switch
+    # that keeps process command lines out of its log being off. When the gate
+    # does not pass, or the gating file was not copied, the file is
+    # summarised instead, and result.json says which.
+    $gate = $Source['CopyGate']
+    $gateResult = $null
+    if ($mode -eq 'copy' -and $null -ne $gate) {
+        $gateResult = [ordered]@{ source = [string]$gate['Source']; pattern = [string]$gate['Pattern']; passed = $false; detail = $null }
+        $gatingText = $null
+        if ($null -ne $Context -and $Context.ContainsKey('CopiedTexts') -and $Context['CopiedTexts'].ContainsKey([string]$gate['Source'])) { $gatingText = [string]$Context['CopiedTexts'][[string]$gate['Source']] }
+        if ($null -eq $gatingText) {
+            $gateResult.detail = 'the gating file ' + [string]$gate['Source'] + ' was not copied in this run, so the switch it carries is unknown'
+        } elseif ($gatingText -match [string]$gate['Pattern']) {
+            $gateResult.passed = $true
+            $gateResult.detail = 'the gating file matches the pattern'
+        } else {
+            $gateResult.detail = 'the gating file does not match the pattern: ' + [string]$gate['Reason']
+        }
+        if (-not $gateResult.passed) { $mode = 'summary' }
+    }
     $kind = 'other'
     if ($Source['Kind']) { $kind = [string]$Source['Kind'] }
     $entry = New-WfCollectorEntry -Id $id -Kind $kind -Required ([bool]$Source['Required'])
@@ -1767,6 +1823,7 @@ function Invoke-WfFileSource {
     $relativeDir = 'raw/' + $id
     $dir = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath $relativeDir
     $started = Get-WfUtcNow
+    $deadline = $started.AddSeconds($TimeoutSeconds)
     $entry.started_utc = ConvertTo-WfUtcString -Value $started
     $primaryPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/' + $fileName)
     try {
@@ -1784,8 +1841,10 @@ function Invoke-WfFileSource {
         }
         $protection = $null
         $why = 'the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded'
-        if ($mode -eq 'copy') {
-            $why = 'the file is the owner''s own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens and hardware addresses replaced by pseudonyms (see protection)'
+        if ($null -ne $gateResult -and -not $gateResult.passed) {
+            $why = 'the file was to be copied, but its copy gate did not pass (' + [string]$gateResult.detail + '), so only its size, time, hash and token counts are recorded'
+        } elseif ($mode -eq 'copy') {
+            $why = 'the file is the owner''s own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)'
             $protection = Get-WfCopiedTextProtectionDescription
         }
         $config = [ordered]@{
@@ -1793,9 +1852,12 @@ function Invoke-WfFileSource {
             path_candidates    = @($candidates.ToArray())
             path_documented    = [bool]$Source['PathDocumented']
             max_artifact_bytes = $MaxArtifactBytes
+            timeout_seconds    = $TimeoutSeconds
             mode               = $mode
+            copy_gate          = $gateResult
             why                = $why
             protection         = $protection
+            sharing            = 'the file is opened for reading with writers allowed to continue; a file being appended may be read mid line, and the hash is of the bytes read'
         }
         $configPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/source.json')
         Write-WfJsonFile -Path $configPath -Object $config
@@ -1809,7 +1871,7 @@ function Invoke-WfFileSource {
         $read = $null
         foreach ($candidate in $candidates) {
             $path = $candidate
-            $read = Read-WfFileBytes -Path $candidate -MaxBytes $MaxArtifactBytes
+            $read = Read-WfFileBytes -Path $candidate -MaxBytes $MaxArtifactBytes -DeadlineUtc $deadline
             if ($read['Exists']) { break }
         }
         $readErrorKind = ''
@@ -1817,6 +1879,9 @@ function Invoke-WfFileSource {
         if (-not $read['Exists']) {
             $readErrorKind = 'preflight'
             $readErrorMessage = 'the file does not exist: ' + ($candidates.ToArray() -join ' or ') + '. ' + [string]$Source['MissingHint']
+        } elseif ($read['ErrorKind'] -eq 'timeout' -or (-not $read['ErrorKind'] -and (Get-WfUtcNow) -ge $deadline)) {
+            $readErrorKind = 'timeout'
+            $readErrorMessage = 'the read did not finish before the deadline ' + (ConvertTo-WfUtcString -Value $deadline)
         } elseif ($read['ErrorKind'] -eq 'access_denied') {
             $readErrorKind = 'access_denied'
             $readErrorMessage = [string]$read['ErrorMessage']
@@ -1847,6 +1912,7 @@ function Invoke-WfFileSource {
                 $copy = Protect-WfCopiedText -Text ([string]$decoded['Text']) -Salt ([string]$Context['Salt'])
                 $copy['Encoding'] = [string]$decoded['Encoding']
                 $copy['HadByteOrderMark'] = [bool]$decoded['HadByteOrderMark']
+                if ($Context.ContainsKey('CopiedTexts')) { $Context['CopiedTexts'][$id] = [string]$copy['Text'] }
                 Write-WfTextFile -Path $primaryPath -Text ([string]$copy['Text'])
                 $copySize = (Get-Item -LiteralPath $primaryPath).Length
                 if ($copySize -gt $MaxArtifactBytes) {
@@ -1871,7 +1937,7 @@ function Invoke-WfFileSource {
         $stopped = Get-WfUtcNow
         $verbatim = $null
         if ($null -ne $copy) {
-            $verbatim = ((-not $copy['HadByteOrderMark']) -and $copy['Encoding'] -eq 'utf-8' -and ([int]$copy['UserCount'] + [int]$copy['MailCount'] + [int]$copy['MacCount']) -eq 0)
+            $verbatim = ((-not $copy['HadByteOrderMark']) -and $copy['Encoding'] -eq 'utf-8' -and ([int]$copy['UserCount'] + [int]$copy['MailCount'] + [int]$copy['HostCount'] + [int]$copy['MacCount']) -eq 0)
         }
         $report = [ordered]@{
             path                = $path
@@ -1883,12 +1949,13 @@ function Invoke-WfFileSource {
             source_sha256       = $sourceSha
             last_write_time_utc = $read['LastWriteUtc']
             mode                = $mode
+            copy_gate           = $gateResult
             summarised          = ($null -ne $summary)
             copied              = ($null -ne $copy -and -not $readErrorKind)
             source_encoding     = $(if ($null -ne $copy) { $copy['Encoding'] } else { $null })
             source_byte_order_mark = $(if ($null -ne $copy) { $copy['HadByteOrderMark'] } else { $null })
             copy_is_verbatim    = $verbatim
-            protection          = $(if ($null -ne $copy) { [ordered]@{ user_profile_names_replaced = $copy['UserCount']; email_addresses_replaced = $copy['MailCount']; mac_addresses_replaced = $copy['MacCount'] } } else { $null })
+            protection          = $(if ($null -ne $copy) { [ordered]@{ user_profile_names_replaced = $copy['UserCount']; email_addresses_replaced = $copy['MailCount']; unc_hosts_replaced = $copy['HostCount']; mac_addresses_replaced = $copy['MacCount'] } } else { $null })
         }
         Write-WfJsonFile -Path (Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/result.json')) -Object $report
         if ($readErrorKind) {
@@ -1902,7 +1969,9 @@ function Invoke-WfFileSource {
             $met = $true
             $entry.raw_time_range = New-WfTimeRange -StartUtc $started -EndUtc $stopped
             if ($mode -eq 'copy') {
-                $Notes.Add(('source {0}: the file was copied with {1} user profile folder names, {2} e-mail shaped tokens and {3} hardware addresses replaced by pseudonyms; result.json holds the SHA-256 of the original bytes' -f $id, $copy['UserCount'], $copy['MailCount'], $copy['MacCount']))
+                $Notes.Add(('source {0}: the file was copied with {1} user profile folder names, {2} e-mail shaped tokens, {3} UNC host names and {4} hardware addresses replaced by pseudonyms; result.json holds the SHA-256 of the original bytes' -f $id, $copy['UserCount'], $copy['MailCount'], $copy['HostCount'], $copy['MacCount']))
+            } elseif ($null -ne $gateResult) {
+                $Notes.Add('source ' + $id + ': the file exists and was summarised, not copied, because its copy gate did not pass: ' + [string]$gateResult.detail)
             } else {
                 $Notes.Add('source ' + $id + ': the file exists and was summarised, not copied; its text can name networks the current run never saw')
             }
@@ -2190,8 +2259,9 @@ function Invoke-WfPnpSource {
 # to publish or identify a person: a Windows user profile folder name in a
 # path (\Users\<name>\), an e-mail shaped token, and a hardware address. Each
 # is found by its shape, never by a label, and replaced by a pseudonym keyed
-# with the run's salt. The standard profile folders Windows documents (Public,
-# Default, Default User, All Users) are not personal and stay readable:
+# with the run's salt; so is the host of a UNC path, which names a computer.
+# The standard profile folders Windows documents (Public, Default, Default
+# User, All Users) are not personal and stay readable:
 # https://learn.microsoft.com/windows/win32/shell/knownfolderid
 # ---------------------------------------------------------------------------
 
@@ -2207,6 +2277,14 @@ function Get-WfEmailPattern {
 
 function Get-WfStandardProfileFolders {
     return @('Public', 'Default', 'Default User', 'All Users')
+}
+
+function Get-WfUncHostPattern {
+    # The host part of a UNC path, \\host\share, which names a computer: two
+    # separators (up to four when the text is JSON escaped) at the start of a
+    # token, then the host, then a separator. A separator pair inside a path
+    # (an escaped C:\\Users) is not a UNC root.
+    return '(?<=(?:^|[\s="''(,\[])[\\/]{2,4})[^\\/\r\n"''<>|:*?\s]+(?=[\\/])'
 }
 
 function ConvertTo-WfPseudonymisedMatches {
@@ -2237,14 +2315,17 @@ function ConvertTo-WfPseudonymisedMatches {
 }
 
 function Protect-WfCopiedText {
-    # The protection applied to every copied text file: user profile folder
-    # names, e-mail shaped tokens, hardware addresses. Line endings and
-    # everything else stay as they are.
+    # The protection applied to every copied text: user profile folder names,
+    # e-mail shaped tokens, UNC host names, hardware addresses, each found by
+    # its shape. Line endings and everything else stay as they are. What has
+    # no shape (an account name inside an argument) is not caught, which is
+    # why vendor text that can carry command lines is kept out by a gate.
     param([string]$Text, [string]$Salt)
     $users = ConvertTo-WfPseudonymisedMatches -Text $Text -Pattern (Get-WfUserProfilePattern) -Kind 'user' -Salt $Salt -Keep (Get-WfStandardProfileFolders)
     $mails = ConvertTo-WfPseudonymisedMatches -Text ([string]$users['Text']) -Pattern (Get-WfEmailPattern) -Kind 'mail' -Salt $Salt
-    $macs = Protect-WfMacAddresses -Text ([string]$mails['Text']) -Salt $Salt
-    return [ordered]@{ Text = [string]$macs['Text']; UserCount = [int]$users['Count']; MailCount = [int]$mails['Count']; MacCount = [int]$macs['Count'] }
+    $hosts = ConvertTo-WfPseudonymisedMatches -Text ([string]$mails['Text']) -Pattern (Get-WfUncHostPattern) -Kind 'host' -Salt $Salt
+    $macs = Protect-WfMacAddresses -Text ([string]$hosts['Text']) -Salt $Salt
+    return [ordered]@{ Text = [string]$macs['Text']; UserCount = [int]$users['Count']; MailCount = [int]$mails['Count']; HostCount = [int]$hosts['Count']; MacCount = [int]$macs['Count'] }
 }
 
 function Get-WfCopiedTextProtectionDescription {
@@ -2252,7 +2333,9 @@ function Get-WfCopiedTextProtectionDescription {
         mode           = 'copy'
         user_pseudonym = 'user-<first 12 hex of SHA-256(salt, name)>, every folder name after \Users\ in a path, except the standard folders Public, Default, Default User and All Users'
         mail_pseudonym = 'mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token'
+        host_pseudonym = 'host-<first 12 hex of SHA-256(salt, name)>, the host of every UNC path (two leading separators)'
         mac_pseudonym  = 'mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address'
+        limits         = 'a DOMAIN\\user pair, an account name in a command line argument, or a computer name standing alone has no shape of its own and is not caught; a copy gate keeps vendor text that can carry command lines out (see copy_gate)'
         salt           = 'random per run, never written; pseudonyms are consistent inside this bundle only'
         encoding       = 'the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json'
     }
@@ -2387,30 +2470,312 @@ function Read-WfRegistryKeyRecord {
     return $record
 }
 
+# ---------------------------------------------------------------------------
+# Device hardware keys. Microsoft: "You must not directly open a device's
+# hardware key"; an existing one is opened with SetupDiOpenDevRegKey and
+# DIREG_DEV, with minimal access:
+# https://learn.microsoft.com/windows-hardware/drivers/install/opening-a-device-s-hardware-key
+# https://learn.microsoft.com/windows/win32/api/setupapi/nf-setupapi-setupdiopendevregkey
+# The two subkeys read under it are the ones the interrupt pages name:
+# https://learn.microsoft.com/windows-hardware/drivers/kernel/interrupt-affinity-and-priority
+# https://learn.microsoft.com/windows-hardware/drivers/kernel/enabling-message-signaled-interrupts-in-the-registry
+# The sequencing below is plain PowerShell over eight native calls exposed by
+# New-WfDeviceKeyNative (the real one compiles one literal declaration; the
+# test suite substitutes a recorder), so every branch runs under Pester: a
+# missing hardware key, a missing leaf, a denied key, a device that is gone, a
+# value that needs a larger buffer, a cap, a deadline. Nothing here creates,
+# writes or deletes; the access asked for is KEY_READ (0x20019), which holds no
+# set, create or delete right:
+# https://learn.microsoft.com/windows/win32/sysinfo/registry-key-security-and-access-rights
+# ---------------------------------------------------------------------------
+
+function Get-WfDeviceKeyConstants {
+    # SetupAPI flags and the error codes the sequencing tells apart. Learn
+    # documents KEY_READ as 0x20019 (registry key security and access rights),
+    # the two SetupAPI codes in their HRESULT form (COM error codes:
+    # SPAPI_E_KEY_DOES_NOT_EXIST 0x800F0204 "the requested device registry key
+    # does not exist", SPAPI_E_NO_SUCH_DEVINST 0x800F020B "the device instance
+    # does not exist in the hardware tree") and that a SetupDi function's
+    # GetLastError value is a setupapi.h code which HRESULT_FROM_SETUPAPI maps
+    # to that form; the Win32 form the API returns (0xE0000204, 0xE000020B) and
+    # the flag values come from the public SDK header setupapi.h:
+    # https://learn.microsoft.com/windows/win32/sysinfo/registry-key-security-and-access-rights
+    # https://learn.microsoft.com/windows/win32/com/com-error-codes-4
+    # https://learn.microsoft.com/windows-hardware/drivers/install/guidelines-for-using-setupapi
+    # https://github.com/microsoft/win32metadata/blob/main/generation/WinSDK/RecompiledIdlHeaders/um/SetupAPI.h
+    return @{
+        DICS_FLAG_GLOBAL         = [uint32]1
+        DIREG_DEV                = [uint32]1
+        KEY_READ                 = [uint32]0x20019
+        ERROR_SUCCESS            = 0
+        ERROR_FILE_NOT_FOUND     = 2
+        ERROR_ACCESS_DENIED      = 5
+        ERROR_MORE_DATA          = 234
+        ERROR_NO_MORE_ITEMS      = 259
+        ERROR_KEY_DOES_NOT_EXIST = [int64]3758096900
+        ERROR_NO_SUCH_DEVINST    = [int64]3758096907
+    }
+    # The last two are 0xE0000204 and 0xE000020B (APPLICATION_ERROR_MASK |
+    # ERROR_SEVERITY_ERROR | 0x204 and 0x20B), written in decimal because a
+    # hexadecimal literal above 0x7FFFFFFF is a negative [int32] in PowerShell.
+}
+
+function Get-WfInterruptManagementSubkeys {
+    # The fixed relative subkeys, and nothing else, ever opened under a hardware key.
+    return @('Interrupt Management\Affinity Policy', 'Interrupt Management\MessageSignaledInterruptProperties')
+}
+
+function ConvertTo-WfUnsignedCode {
+    # GetLastWin32Error returns an int; SetupAPI codes are above 0x80000000, so
+    # compare as unsigned.
+    param($Code)
+    if ($null -eq $Code) { return $null }
+    return ([int64]$Code -band [int64]4294967295)
+}
+
+function Get-WfRegistryTypeName {
+    # Registry value types: https://learn.microsoft.com/windows/win32/sysinfo/registry-value-types
+    param([int64]$Type)
+    switch ($Type) {
+        0 { return 'REG_NONE' }
+        1 { return 'REG_SZ' }
+        2 { return 'REG_EXPAND_SZ' }
+        3 { return 'REG_BINARY' }
+        4 { return 'REG_DWORD' }
+        5 { return 'REG_DWORD_BIG_ENDIAN' }
+        6 { return 'REG_LINK' }
+        7 { return 'REG_MULTI_SZ' }
+        8 { return 'REG_RESOURCE_LIST' }
+        9 { return 'REG_FULL_RESOURCE_DESCRIPTOR' }
+        10 { return 'REG_RESOURCE_REQUIREMENTS_LIST' }
+        11 { return 'REG_QWORD' }
+    }
+    return $null
+}
+
+function ConvertFrom-WfRawRegistryValue {
+    # One value as the API returned it (name, numeric type, bytes) into the
+    # record keys.json carries: the type code and its name, the bytes as hex,
+    # and a scalar decoded from the bytes for the numeric kinds. String kinds
+    # are free text that could name a person or a machine; under an interrupt
+    # policy key they have no documented meaning, so their text and bytes are
+    # omitted with a reason and only the name, type and size are kept.
+    param([string]$Name, [int64]$Type, [byte[]]$Bytes)
+    $count = 0
+    if ($null -ne $Bytes) { $count = $Bytes.Length }
+    $record = [ordered]@{ name = $Name; type_code = $Type; kind = (Get-WfRegistryTypeName -Type $Type); data = $null; bytes_hex = $null; byte_count = $count; present = $true; omitted_reason = $null }
+    switch ($Type) {
+        4 { if ($count -ge 4) { $record['data'] = [int64][System.BitConverter]::ToUInt32($Bytes, 0) } }
+        5 { if ($count -ge 4) { $copy = [byte[]]$Bytes[0..3]; [System.Array]::Reverse($copy); $record['data'] = [int64][System.BitConverter]::ToUInt32($copy, 0) } }
+        11 { if ($count -ge 8) { $record['data'] = ConvertTo-WfScalar -Value ([System.BitConverter]::ToUInt64($Bytes, 0)) } }
+        { $_ -eq 1 -or $_ -eq 2 -or $_ -eq 7 -or $_ -eq 6 } {
+            $record['omitted_reason'] = 'a string typed value is free text with no documented meaning under this key; its text and bytes are not kept'
+            return $record
+        }
+    }
+    if ($count -gt 0) { $record['bytes_hex'] = (([System.BitConverter]::ToString($Bytes)) -replace '-', '').ToLowerInvariant() } else { $record['bytes_hex'] = '' }
+    if ($null -eq $record['data'] -and $Type -eq 3) { $record['data'] = $record['bytes_hex'] }
+    return $record
+}
+
+function New-WfDeviceKeyLeafRecord {
+    param([string]$Subkey)
+    return [ordered]@{ subkey = $Subkey; exists = $null; error_code = $null; error = $null; enumeration_complete = $null; values = @() }
+}
+
+function Read-WfDeviceKeyLeaf {
+    # Enumerates the values of one opened key with RegEnumValueW, growing the
+    # data buffer on ERROR_MORE_DATA up to the byte cap, stopping at the value
+    # cap or the deadline (both leave enumeration_complete false, so a reader
+    # knows unvisited values are unknown, not absent).
+    param($Api, [IntPtr]$Handle, [hashtable]$Constants, [int]$MaxValues, [int64]$MaxBytes, [datetime]$DeadlineUtc, $Record)
+    $values = New-Object 'System.Collections.Generic.List[object]'
+    $index = [uint32]0
+    $dataSize = 4096
+    $Record['enumeration_complete'] = $false
+    while ($true) {
+        if ((Get-WfUtcNow) -ge $DeadlineUtc) { $Record['error'] = 'the deadline passed while enumerating values; the values read so far are kept and the rest are unknown'; break }
+        if ($values.Count -ge $MaxValues) { $Record['error'] = ('the cap of ' + $MaxValues + ' values was reached; the rest are unknown'); break }
+        $name = New-Object System.Text.StringBuilder 16384
+        $nameLength = [uint32]16383
+        $type = [uint32]0
+        $data = New-Object byte[] $dataSize
+        $dataLength = [uint32]$dataSize
+        $status = [int]$Api.RegEnumValueW($Handle, $index, $name, [ref]$nameLength, [IntPtr]::Zero, [ref]$type, $data, [ref]$dataLength)
+        if ($status -eq $Constants['ERROR_NO_MORE_ITEMS']) { $Record['enumeration_complete'] = $true; break }
+        if ($status -eq $Constants['ERROR_MORE_DATA']) {
+            if ([int64]$dataLength -gt $MaxBytes) { $Record['error'] = ('a value needs ' + $dataLength + ' bytes, above the cap of ' + $MaxBytes + '; the values read so far are kept and the rest are unknown'); break }
+            $dataSize = [int][math]::Max([int64]$dataLength, [int64]$dataSize * 2)
+            if ($dataSize -gt $MaxBytes) { $dataSize = [int]$MaxBytes }
+            continue
+        }
+        if ($status -ne $Constants['ERROR_SUCCESS']) {
+            $Record['error_code'] = $status
+            $Record['error'] = 'RegEnumValueW returned ' + $status + ' at index ' + $index + '; the values read so far are kept and the rest are unknown'
+            break
+        }
+        $bytes = New-Object byte[] ([int]$dataLength)
+        if ($dataLength -gt 0) { [System.Array]::Copy($data, $bytes, [int]$dataLength) }
+        $values.Add((ConvertFrom-WfRawRegistryValue -Name $name.ToString() -Type ([int64]$type) -Bytes $bytes))
+        $index += 1
+    }
+    $Record['values'] = @($values.ToArray())
+    return $Record
+}
+
+function Get-WfDeviceInterruptPolicy {
+    # The interrupt policy of one present device, read through the documented
+    # device key API: a private device information set, the device opened by
+    # its instance id (never an empty id, which would open the root device),
+    # its hardware key opened with global scope, DIREG_DEV and KEY_READ, and the
+    # two fixed relative subkeys opened and enumerated under that handle. Every
+    # handle is closed and the set destroyed on every path.
+    # The result separates stages so a reader can tell "the key is not there"
+    # (the hardware key stage answered ERROR_KEY_DOES_NOT_EXIST, or a leaf
+    # answered ERROR_FILE_NOT_FOUND under an opened hardware key) from "could
+    # not look" (denied, device gone, native load failed, deadline): only the
+    # first establishes absence; the second leaves exists null.
+    param([string]$InstanceId, [int]$MaxValues = 64, [int64]$MaxBytes = 1048576, [datetime]$DeadlineUtc = [datetime]::MaxValue)
+    $c = Get-WfDeviceKeyConstants
+    $result = [ordered]@{
+        Ok = $false; Stage = 'argument'; ErrorCode = $null; ErrorMessage = $null; DeviceOpened = $false
+        HardwareKey = [ordered]@{ exists = $null; error_code = $null; error = $null }
+        InterruptManagement = [ordered]@{ exists = $null; error_code = $null; error = $null }
+        Leaves = @()
+    }
+    $leaves = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($subkey in (Get-WfInterruptManagementSubkeys)) { $leaves.Add((New-WfDeviceKeyLeafRecord -Subkey $subkey)) }
+    $result.Leaves = @($leaves.ToArray())
+    if (-not $InstanceId -or $InstanceId.Trim().Length -eq 0) {
+        $result.ErrorMessage = 'the instance id is empty; an empty id would open the root device instead of the selected one'
+        return $result
+    }
+    $result.Stage = 'compile'
+    $native = New-WfDeviceKeyNative
+    if (-not $native['Ok']) {
+        $result.ErrorMessage = [string]$native['Error']
+        return $result
+    }
+    $api = $native['Api']
+    $invalid = [IntPtr](-1)
+    $set = $invalid
+    $hardwareKey = [IntPtr]::Zero
+    $open = New-Object 'System.Collections.Generic.List[IntPtr]'
+    try {
+        $result.Stage = 'create_set'
+        $set = [IntPtr]$api.SetupDiCreateDeviceInfoList([IntPtr]::Zero, [IntPtr]::Zero)
+        if ($set -eq $invalid) {
+            $result.ErrorCode = ConvertTo-WfUnsignedCode -Code $api.LastError()
+            $result.ErrorMessage = 'SetupDiCreateDeviceInfoList failed'
+            return $result
+        }
+        $result.Stage = 'open_device'
+        $data = $api.NewDeviceInfoData()
+        $opened = [bool]$api.SetupDiOpenDeviceInfoW($set, $InstanceId, [IntPtr]::Zero, [uint32]0, [ref]$data)
+        if (-not $opened) {
+            $result.ErrorCode = ConvertTo-WfUnsignedCode -Code $api.LastError()
+            if ($result.ErrorCode -eq $c['ERROR_NO_SUCH_DEVINST']) { $result.ErrorMessage = 'SetupDiOpenDeviceInfoW: the device instance is not there (ERROR_NO_SUCH_DEVINST); its keys are unknown, not absent' }
+            else { $result.ErrorMessage = 'SetupDiOpenDeviceInfoW failed' }
+            return $result
+        }
+        $result.DeviceOpened = $true
+        $result.Stage = 'open_hardware_key'
+        $hardwareKey = [IntPtr]$api.SetupDiOpenDevRegKey($set, [ref]$data, $c['DICS_FLAG_GLOBAL'], [uint32]0, $c['DIREG_DEV'], $c['KEY_READ'])
+        if ($hardwareKey -eq $invalid) {
+            $hardwareKey = [IntPtr]::Zero
+            $code = ConvertTo-WfUnsignedCode -Code $api.LastError()
+            $result.HardwareKey.error_code = $code
+            if ($code -eq $c['ERROR_KEY_DOES_NOT_EXIST']) {
+                # Positively missing at the API resolved location: the two leaves cannot exist either.
+                $result.HardwareKey.exists = $false
+                $result.HardwareKey.error = 'ERROR_KEY_DOES_NOT_EXIST: the device has no hardware key under global scope'
+                $result.InterruptManagement.exists = $false
+                foreach ($leaf in $result.Leaves) { $leaf['exists'] = $false; $leaf['enumeration_complete'] = $true }
+                $result.Stage = 'read'
+                $result.Ok = $true
+                return $result
+            }
+            $result.ErrorCode = $code
+            if ($code -eq $c['ERROR_ACCESS_DENIED']) { $result.HardwareKey.error = 'ERROR_ACCESS_DENIED: the account may not open the hardware key for reading; its contents are unknown' }
+            else { $result.HardwareKey.error = 'SetupDiOpenDevRegKey failed; the contents are unknown' }
+            $result.ErrorMessage = [string]$result.HardwareKey.error
+            return $result
+        }
+        $open.Add($hardwareKey)
+        $result.HardwareKey.exists = $true
+        $result.Stage = 'open_subkey'
+        # The parent, for its existence only: nothing under it is enumerated.
+        $parentHandle = [IntPtr]::Zero
+        $status = [int]$api.RegOpenKeyExW($hardwareKey, 'Interrupt Management', [uint32]0, $c['KEY_READ'], [ref]$parentHandle)
+        if ($status -eq $c['ERROR_SUCCESS']) {
+            $open.Add($parentHandle)
+            $result.InterruptManagement.exists = $true
+        } elseif ($status -eq $c['ERROR_FILE_NOT_FOUND']) {
+            $result.InterruptManagement.exists = $false
+            foreach ($leaf in $result.Leaves) { $leaf['exists'] = $false; $leaf['enumeration_complete'] = $true }
+        } else {
+            $result.InterruptManagement.error_code = $status
+            $result.InterruptManagement.error = 'RegOpenKeyExW on Interrupt Management returned ' + $status + '; its contents are unknown'
+        }
+        if ($result.InterruptManagement.exists -ne $false) {
+            foreach ($leaf in $result.Leaves) {
+                if ((Get-WfUtcNow) -ge $DeadlineUtc) { $result.Stage = 'timeout'; $result.ErrorMessage = 'the deadline passed before every subkey was read'; return $result }
+                $leafHandle = [IntPtr]::Zero
+                $status = [int]$api.RegOpenKeyExW($hardwareKey, [string]$leaf['subkey'], [uint32]0, $c['KEY_READ'], [ref]$leafHandle)
+                if ($status -eq $c['ERROR_SUCCESS']) {
+                    $open.Add($leafHandle)
+                    $leaf['exists'] = $true
+                    $result.Stage = 'enumerate'
+                    $null = Read-WfDeviceKeyLeaf -Api $api -Handle $leafHandle -Constants $c -MaxValues $MaxValues -MaxBytes $MaxBytes -DeadlineUtc $DeadlineUtc -Record $leaf
+                    $result.Stage = 'open_subkey'
+                } elseif ($status -eq $c['ERROR_FILE_NOT_FOUND']) {
+                    $leaf['exists'] = $false
+                    $leaf['enumeration_complete'] = $true
+                } else {
+                    $leaf['error_code'] = $status
+                    $leaf['error'] = 'RegOpenKeyExW returned ' + $status + '; the contents are unknown'
+                }
+            }
+        }
+        if ((Get-WfUtcNow) -ge $DeadlineUtc) { $result.Stage = 'timeout'; $result.ErrorMessage = 'the deadline passed while the subkeys were read'; return $result }
+        $result.Stage = 'read'
+        $result.Ok = $true
+        return $result
+    } catch {
+        $result.ErrorMessage = 'the native call raised: ' + $_.Exception.Message
+        return $result
+    } finally {
+        foreach ($handle in $open) { try { $null = $api.RegCloseKey($handle) } catch { $null = $_ } }
+        if ($set -ne $invalid) { try { $null = $api.SetupDiDestroyDeviceInfoList($set) } catch { $null = $_ } }
+    }
+}
+
 function Invoke-WfRegistrySource {
     # Reads documented registry values read only and writes, under raw/<id>/:
-    #   query.json   the mode, the classes or key paths, the value names and
+    #   query.json   the mode, the selection or key paths, the value names and
     #                the citations (role config, hashed as config_hash)
-    #   result.json  counts: devices, keys read, keys absent, read errors (role report)
+    #   result.json  counts: devices, keys read, keys absent, keys unknown (role report)
     #   keys.json    one element per device (Mode devices) or per key (Mode
     #                keys) (role primary)
-    # Mode devices: for every present Plug and Play device of the named
-    # classes, the subkeys the definition names under the device's hardware
-    # key, HKLM\SYSTEM\CurrentControlSet\Enum\<instance id>\Device Parameters,
-    # the location Microsoft names for Interrupt Management:
-    # https://learn.microsoft.com/windows-hardware/drivers/kernel/enabling-message-signaled-interrupts-in-the-registry
-    # Every value present under those subkeys is recorded with its type and
-    # bytes; the device's documented identity, status and problem code
-    # (Win32_PnPEntity) are recorded next to them. Microsoft directs
-    # applications to SetupDiOpenDevRegKey rather than the Enum tree, whose
-    # layout it reserves; this script cannot call that function without
-    # compiling, so it reads the path Microsoft's own MSI page names and says
-    # so (collectors/windows/README.md, verification list).
-    # Mode keys: fixed key paths with the documented value names each may
-    # hold, each recorded as present (with type and bytes) or absent.
-    # A key that does not exist is an observation (the setting is absent). A
-    # key the account may not open is an error recorded on that element; when
-    # no element could be read at all the source is not_collected.
+    # Mode devices: for every present Plug and Play device the selection names
+    # (instance id prefixes or setup classes), the device's hardware key is
+    # opened through the documented device key API, SetupDiOpenDevRegKey with
+    # global scope, DIREG_DEV and KEY_READ, and the two fixed relative subkeys
+    # Interrupt Management\Affinity Policy and Interrupt Management\
+    # MessageSignaledInterruptProperties are opened and enumerated under that
+    # handle (Get-WfDeviceInterruptPolicy). No path under HKLM\SYSTEM\
+    # CurrentControlSet\Enum is ever built or opened: Microsoft reserves that
+    # tree and says applications must not open a hardware key directly:
+    # https://learn.microsoft.com/windows-hardware/drivers/install/opening-a-device-s-hardware-key
+    # Every value present under the two leaves is recorded with its numeric
+    # type and bytes; the device's documented identity, status and problem
+    # code (Win32_PnPEntity) sit next to them. A hardware key or a leaf that
+    # the API says is not there is absent (an observation); a key that could
+    # not be opened, a device that is gone, a declaration that did not compile
+    # or a deadline that passed leave the contents unknown, never absent.
+    # Mode keys: fixed, independently documented key paths (the GraphicsDrivers
+    # TDR values) with the value names each may hold, each recorded present
+    # (with type and bytes) or absent, read through the registry provider.
     param(
         [hashtable]$Source,
         [string]$BundleRoot,
@@ -2418,7 +2783,8 @@ function Invoke-WfRegistrySource {
         [int64]$MaxArtifactBytes,
         [int]$TimeoutSeconds,
         [System.Collections.Generic.List[string]]$Log,
-        [System.Collections.Generic.List[string]]$Notes
+        [System.Collections.Generic.List[string]]$Notes,
+        [hashtable]$Context = $null
     )
     $id = [string]$Source['Id']
     $mode = [string]$Source['Mode']
@@ -2433,29 +2799,36 @@ function Invoke-WfRegistrySource {
     $entry.started_utc = ConvertTo-WfUtcString -Value $started
     $keysPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/keys.json')
     $classes = Get-WfList -Value $Source['Classes']
-    $subKeys = Get-WfList -Value $Source['SubKeys']
+    $prefixes = Get-WfList -Value $Source['InstancePrefixes']
     $fixedKeys = Get-WfList -Value $Source['Keys']
-    $enumRoot = 'HKLM:\SYSTEM\CurrentControlSet\Enum'
     $citations = Get-WfList -Value $Source['Citations']
+    $subkeys = Get-WfInterruptManagementSubkeys
+    $peers = 0
+    $maxValues = 64
+    if ($Source['MaxValuesPerKey']) { $maxValues = [int]$Source['MaxValuesPerKey'] }
     try {
         $null = New-Item -ItemType Directory -Force -Path $dir
         $query = [ordered]@{
             mode               = $mode
             classes            = @($classes)
-            hardware_key_root  = $(if ($mode -eq 'devices') { $enumRoot + '\<instance id>\Device Parameters' } else { $null })
-            subkeys            = @($subKeys)
+            instance_prefixes  = @($prefixes)
+            selection          = $(if ($mode -eq 'devices') { 'a present device is selected when its instance id starts with one of the prefixes or its class is one of the classes' } else { $null })
+            resolver           = $(if ($mode -eq 'devices') { [ordered]@{ function = 'SetupDiOpenDevRegKey'; scope = 'DICS_FLAG_GLOBAL'; key_type = 'DIREG_DEV'; access = 'KEY_READ (0x20019)'; device = 'SetupDiOpenDeviceInfoW on the instance id, OpenFlags 0, in a private device information set'; subkeys = 'RegOpenKeyExW relative to the returned handle, options 0, KEY_READ'; values = 'RegEnumValueW on the two leaves only' } } else { 'Get-Item on the fixed key path (the registry provider)' })
+            subkeys            = $(if ($mode -eq 'devices') { @($subkeys) } else { @() })
+            max_values_per_key = $(if ($mode -eq 'devices') { $maxValues } else { $null })
             key_list           = @(foreach ($fixed in $fixedKeys) { $names = Get-WfList -Value $fixed['Values']; [ordered]@{ path = [string]$fixed['Path']; value_names = @($names) } })
             citations          = $citations
+            protection         = $(if ($mode -eq 'devices') { 'a Bluetooth peer node (any BTH enumerator other than the radio''s own, or a Bluetooth service UUID in the id) has its name fields and twelve digit addresses replaced by name- and mac- pseudonyms before anything is written; string typed values are not kept (free text)' } else { $null })
             max_records        = $MaxEvents
             max_artifact_bytes = $MaxArtifactBytes
             timeout_seconds    = $TimeoutSeconds
-            read_only          = 'keys are opened for reading; a missing key is recorded as absent and never created'
+            read_only          = 'keys are opened for reading only (KEY_READ); a missing key is recorded as absent and never created; a key that could not be opened is recorded as unknown'
         }
         $queryPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/query.json')
         Write-WfJsonFile -Path $queryPath -Object $query
         $entry.config_hash = [ordered]@{ algorithm = 'sha256'; value = (Get-WfSha256OfFile -Path $queryPath) }
         if ($mode -eq 'devices') {
-            $entry.command = @('Get-CimInstance', '-ClassName', 'Win32_PnPEntity', '-Filter', 'Present = TRUE', 'Microsoft.Win32.RegistryKey.GetValue', ($enumRoot + '\<instance id>\Device Parameters\' + (@($subKeys) -join ';')))
+            $entry.command = @('Get-CimInstance', '-ClassName', 'Win32_PnPEntity', '-Filter', 'Present = TRUE', 'SetupDiOpenDevRegKey', 'DICS_FLAG_GLOBAL', 'DIREG_DEV', 'KEY_READ', 'RegOpenKeyExW', (@($subkeys) -join ';'), 'RegEnumValueW')
         } else {
             $entry.command = @('Microsoft.Win32.RegistryKey.GetValue') + @($fixedKeys | ForEach-Object { [string]$_['Path'] })
         }
@@ -2468,10 +2841,12 @@ function Invoke-WfRegistrySource {
         $selected = 0
         $keysRead = 0
         $keysAbsent = 0
-        $keyErrors = 0
-        $deniedErrors = 0
+        $keysUnknown = 0
+        $deniedCount = 0
+        $devicesUnknown = 0
         $truncated = $false
         $preflightDetail = $null
+        $nativeFailure = $null
         if ($mode -eq 'devices') {
             $enumeration = Get-WfPnpDevices -TimeoutSeconds ([int][math]::Ceiling((Get-WfRemainingSeconds -DeadlineUtc $deadline)))
             if (-not $enumeration['Ok']) {
@@ -2479,7 +2854,7 @@ function Invoke-WfRegistrySource {
                 if (-not $readErrorKind) { $readErrorKind = 'other' }
                 $readErrorMessage = [string]$enumeration['ErrorMessage']
             }
-            $preflightDetail = $(if ($readErrorKind) { $readErrorMessage } else { 'Win32_PnPEntity' })
+            $preflightDetail = $(if ($readErrorKind) { $readErrorMessage } else { 'Win32_PnPEntity, then SetupDiOpenDevRegKey per selected device' })
             if (-not $readErrorKind) {
                 $present = @($enumeration['Devices']).Count
                 if ($present -eq 0) {
@@ -2489,7 +2864,7 @@ function Invoke-WfRegistrySource {
             }
             if (-not $readErrorKind) {
                 foreach ($device in @($enumeration['Devices'])) {
-                    if (-not (Test-WfPnpSeed -Device $device -Classes $classes -InstancePrefixes @())) { continue }
+                    if (-not (Test-WfPnpSeed -Device $device -Classes $classes -InstancePrefixes $prefixes)) { continue }
                     if ((Get-WfUtcNow) -ge $deadline) {
                         $readErrorKind = 'timeout'
                         $readErrorMessage = ('the device keys were not all read before the deadline ' + (ConvertTo-WfUtcString -Value $deadline) + '; ' + $accumulator.Rows.Count + ' devices had been read')
@@ -2497,7 +2872,17 @@ function Invoke-WfRegistrySource {
                     }
                     $selected += 1
                     $instance = [string]$device['instance_id']
-                    $hardwareKey = $enumRoot + '\' + $instance + '\Device Parameters'
+                    $policy = Get-WfDeviceInterruptPolicy -InstanceId $instance -MaxValues $maxValues -MaxBytes $MaxArtifactBytes -DeadlineUtc $deadline
+                    if ([string]$policy['Stage'] -eq 'compile') {
+                        # The declaration did not compile or load: no device can be read in this run.
+                        $nativeFailure = [string]$policy['ErrorMessage']
+                        break
+                    }
+                    if ([string]$policy['Stage'] -eq 'timeout') {
+                        $readErrorKind = 'timeout'
+                        $readErrorMessage = [string]$policy['ErrorMessage']
+                        break
+                    }
                     $row = [ordered]@{
                         instance_id   = $instance
                         class         = $device['class']
@@ -2508,60 +2893,78 @@ function Invoke-WfRegistrySource {
                         status        = $device['status']
                         problem_code  = $device['problem_code']
                         hardware_ids  = (Get-WfList -Value $device['hardware_ids'])
-                        hardware_key  = $hardwareKey
-                        hardware_key_state = $null
-                        registry_error = $null
-                        interrupt_keys = @()
+                        device_key    = [ordered]@{ resolver = 'SetupDiOpenDevRegKey'; scope = 'DICS_FLAG_GLOBAL'; key_type = 'DIREG_DEV'; access = 'KEY_READ'; device_opened = [bool]$policy['DeviceOpened'] }
+                        stage         = [string]$policy['Stage']
+                        error_code    = $policy['ErrorCode']
+                        registry_error = $policy['ErrorMessage']
+                        hardware_key_state = $policy['HardwareKey']
+                        interrupt_management = $policy['InterruptManagement']
+                        interrupt_keys = @($policy['Leaves'])
                     }
-                    $parent = Read-WfRegistryKeyRecord -Path $hardwareKey
-                    $row['hardware_key_state'] = [ordered]@{ exists = $parent['exists']; error_kind = $parent['error_kind']; error = $parent['error']; subkeys = $parent['subkeys'] }
-                    $records = New-Object 'System.Collections.Generic.List[object]'
-                    if ($parent['error_kind']) {
-                        $keyErrors += 1
-                        if ($parent['error_kind'] -eq 'access_denied') { $deniedErrors += 1 }
-                        $row['registry_error'] = [string]$parent['error']
-                    } elseif ($parent['exists']) {
-                        foreach ($subKey in $subKeys) {
-                            $record = Read-WfRegistryKeyRecord -Path ($hardwareKey + '\' + [string]$subKey)
-                            $record['subkey'] = [string]$subKey
-                            if ($record['error_kind']) {
-                                $keyErrors += 1
-                                if ($record['error_kind'] -eq 'access_denied') { $deniedErrors += 1 }
-                                if ($null -eq $row['registry_error']) { $row['registry_error'] = [string]$record['error'] }
-                            } elseif ($record['exists']) { $keysRead += 1 } else { $keysAbsent += 1 }
-                            $records.Add($record)
+                    if ($policy['Ok']) {
+                        if ($policy['HardwareKey']['exists'] -eq $false) { $keysAbsent += @($subkeys).Count }
+                        else {
+                            foreach ($leaf in @($policy['Leaves'])) {
+                                if ($leaf['exists'] -eq $true) { $keysRead += 1 }
+                                elseif ($leaf['exists'] -eq $false) { $keysAbsent += 1 }
+                                else { $keysUnknown += 1 }
+                            }
                         }
                     } else {
-                        # No Device Parameters key: there is no Interrupt Management under it either.
-                        $keysAbsent += @($subKeys).Count
+                        $devicesUnknown += 1
+                        $keysUnknown += @($subkeys).Count
+                        if ($policy['ErrorCode'] -eq 5) { $deniedCount += 1 }
                     }
-                    $row['interrupt_keys'] = @($records.ToArray())
+                    if ($null -ne $Context -and (Test-WfBluetoothPeerInstance -InstanceId $instance)) {
+                        # A remembered Bluetooth peer is someone's device: its name and
+                        # address leave as pseudonyms.
+                        $peers += 1
+                        $row = Protect-WfBluetoothPeerRow -Row $row -Salt ([string]$Context['Salt'])
+                    }
                     if (-not (Add-WfRow -Accumulator $accumulator -Row $row)) { $truncated = $true; break }
                 }
-                if (-not $readErrorKind -and $selected -eq 0) {
+                if ($null -ne $nativeFailure) {
+                    $readErrorKind = 'preflight'
+                    $readErrorMessage = $nativeFailure
+                } elseif (-not $readErrorKind -and $selected -eq 0) {
                     $readErrorKind = 'other'
-                    $readErrorMessage = ('none of the {0} present devices is of class {1}, which never happens for these classes on a running machine' -f $present, (@($classes) -join ', '))
+                    $readErrorMessage = ('none of the {0} present devices matched the prefixes {1} or the classes {2}, which never happens for a PCI bus on a running machine' -f $present, (@($prefixes) -join ', '), (@($classes) -join ', '))
+                } elseif (-not $readErrorKind -and $selected -gt 0 -and $devicesUnknown -ge $selected) {
+                    # Not one device could be looked at: a status, with the first reason.
+                    if ($deniedCount -eq $devicesUnknown) { $readErrorKind = 'access_denied' } else { $readErrorKind = 'other' }
+                    $readErrorMessage = ('none of the {0} selected devices could be read; the first reason was: {1}' -f $selected, [string]$accumulator.Rows[0]['registry_error'])
+                }
+                if (-not $readErrorKind -and (Get-WfUtcNow) -ge $deadline) {
+                    $readErrorKind = 'timeout'
+                    $readErrorMessage = ('the last device key read ran past the deadline ' + (ConvertTo-WfUtcString -Value $deadline))
                 }
             }
         } else {
             $preflightDetail = (@($fixedKeys | ForEach-Object { [string]$_['Path'] }) -join '; ')
             foreach ($fixed in $fixedKeys) {
+                if ((Get-WfUtcNow) -ge $deadline) {
+                    $readErrorKind = 'timeout'
+                    $readErrorMessage = ('the keys were not all read before the deadline ' + (ConvertTo-WfUtcString -Value $deadline) + '; ' + $accumulator.Rows.Count + ' had been read')
+                    break
+                }
                 $selected += 1
                 $wanted = Get-WfList -Value $fixed['Values']
                 $record = Read-WfRegistryKeyRecord -Path ([string]$fixed['Path']) -ValueNames @(foreach ($name in $wanted) { [string]$name })
                 $record['citation'] = $fixed['Citation']
                 if ($record['error_kind']) {
-                    $keyErrors += 1
-                    if ($record['error_kind'] -eq 'access_denied') { $deniedErrors += 1 }
+                    $keysUnknown += 1
+                    if ($record['error_kind'] -eq 'access_denied') { $deniedCount += 1 }
                 } elseif ($record['exists']) { $keysRead += 1 } else { $keysAbsent += 1 }
                 if (-not (Add-WfRow -Accumulator $accumulator -Row $record)) { $truncated = $true; break }
             }
-        }
-        $readAll = ($selected -gt 0 -and $keyErrors -ge $selected -and $keysRead -eq 0 -and $keysAbsent -eq 0)
-        if (-not $readErrorKind -and $readAll) {
-            if ($deniedErrors -eq $keyErrors) { $readErrorKind = 'access_denied' } else { $readErrorKind = 'other' }
-            $readErrorMessage = ('none of the {0} registry keys could be opened; the first error was: {1}' -f $selected, [string]$accumulator.Rows[0]['error'])
-            if ($mode -eq 'devices') { $readErrorMessage = ('none of the hardware keys of the {0} selected devices could be opened; the first error was: {1}' -f $selected, [string]$accumulator.Rows[0]['registry_error']) }
+            if (-not $readErrorKind -and $selected -gt 0 -and $keysUnknown -ge $selected) {
+                if ($deniedCount -eq $keysUnknown) { $readErrorKind = 'access_denied' } else { $readErrorKind = 'other' }
+                $readErrorMessage = ('none of the {0} registry keys could be opened; the first error was: {1}' -f $selected, [string]$accumulator.Rows[0]['error'])
+            }
+            if (-not $readErrorKind -and (Get-WfUtcNow) -ge $deadline) {
+                $readErrorKind = 'timeout'
+                $readErrorMessage = ('the last key read ran past the deadline ' + (ConvertTo-WfUtcString -Value $deadline))
+            }
         }
         $entry.preflight = [ordered]@{
             ok     = (-not $readErrorKind)
@@ -2577,8 +2980,8 @@ function Invoke-WfRegistrySource {
                 $readErrorMessage = ('keys.json was ' + $size + ' bytes, above the cap of ' + $MaxArtifactBytes + ', and was removed')
             }
         }
-        if ($keyErrors -gt 0 -and -not $readErrorKind) {
-            $message = ('source {0}: {1} registry keys could not be opened; those elements carry registry_error and their values are unknown, not absent' -f $id, $keyErrors)
+        if ($keysUnknown -gt 0 -and -not $readErrorKind) {
+            $message = ('source {0}: {1} keys could not be read; those elements carry the stage and code and their values are unknown, not absent' -f $id, $keysUnknown)
             $Notes.Add($message)
             $Log.Add($message)
         }
@@ -2587,10 +2990,13 @@ function Invoke-WfRegistrySource {
             started_utc      = ConvertTo-WfUtcString -Value $started
             stopped_utc      = ConvertTo-WfUtcString -Value $stopped
             devices_present  = $(if ($mode -eq 'devices') { $present } else { $null })
+            devices_selected = $(if ($mode -eq 'devices') { $selected } else { $null })
+            devices_unknown  = $(if ($mode -eq 'devices') { $devicesUnknown } else { $null })
             elements         = $accumulator.Rows.Count
             keys_read        = $keysRead
             keys_absent      = $keysAbsent
-            key_errors       = $keyErrors
+            keys_unknown     = $keysUnknown
+            peer_nodes_pseudonymised = $peers
             truncated        = $truncated
             error            = $(if ($readErrorKind) { $readErrorMessage } else { $null })
         }
@@ -2611,20 +3017,21 @@ function Invoke-WfRegistrySource {
         $entry.enabled = [ordered]@{
             providers = @(); keywords = @(); stack_walk = @(); counters = @()
             options   = [ordered]@{
-                mode            = $mode
-                devices_present = $report.devices_present
-                elements        = $(if (Test-Path -LiteralPath $keysPath) { $accumulator.Rows.Count } else { 0 })
-                keys_read       = $keysRead
-                keys_absent     = $keysAbsent
-                key_errors      = $keyErrors
-                truncated       = $truncated
+                mode             = $mode
+                devices_present  = $report.devices_present
+                devices_selected = $report.devices_selected
+                elements         = $(if (Test-Path -LiteralPath $keysPath) { $accumulator.Rows.Count } else { 0 })
+                keys_read        = $keysRead
+                keys_absent      = $keysAbsent
+                keys_unknown     = $keysUnknown
+                truncated        = $truncated
             }
-            verified_by = 'every element records whether its key exists, the error if it could not be opened, and each value with its registry type and bytes; the counts are in result.json'
+            verified_by = $(if ($mode -eq 'devices') { 'every element records the stage each device reached, the Win32 or registry code of a failure, whether its hardware key and each leaf exists (true, false, or null for unknown), and every value with its numeric type and bytes; the counts are in result.json' } else { 'every element records whether its key exists, the error if it could not be opened, and each value with its registry type and bytes; the counts are in result.json' })
         }
         $entry.expectation = [ordered]@{
             declared = [string]$Source['Expectation']
             met      = $met
-            detail   = ('{0} elements; {1} keys read, {2} absent, {3} could not be opened' -f $accumulator.Rows.Count, $keysRead, $keysAbsent, $keyErrors)
+            detail   = ('{0} elements; {1} keys read, {2} absent, {3} unknown' -f $accumulator.Rows.Count, $keysRead, $keysAbsent, $keysUnknown)
         }
     } catch {
         $entry.status = 'capture_failed'
@@ -2642,10 +3049,12 @@ function Invoke-WfDirectorySource {
     # Lists the files of one known folder (not its subfolders) read only and
     # writes, under raw/<id>/:
     #   source.json   the folder, the cap and why nothing is copied (role config)
-    #   result.json   whether the folder exists and could be listed, the counts (role report)
-    #   listing.json  one element per file: name, size, last write time,
-    #                 SHA-256 and the version resource (file version, product
-    #                 version, product name, company) (role primary)
+    #   result.json   whether the folder and its parent exist, whether it could
+    #                 be listed, the counts (role report; the folder level facts
+    #                 a decoder cites live here)
+    #   listing.json  a JSON array, one element per file: name, size, last
+    #                 write time, SHA-256 and the version resource (file
+    #                 version, product version, product name, company) (role primary)
     # The question is "is this program installed here, which build, which
     # components": binaries are hashed and versioned, never copied. A folder
     # that does not exist is an observation (the program is not installed at
@@ -2704,6 +3113,11 @@ function Invoke-WfDirectorySource {
         if ($listing['ErrorKind']) {
             $readErrorKind = [string]$listing['ErrorKind']
             $readErrorMessage = [string]$listing['ErrorMessage']
+        } elseif ((Get-WfUtcNow) -ge $deadline) {
+            # The adapter checks the deadline between files; this catches a last
+            # file whose hash ran past it.
+            $readErrorKind = 'timeout'
+            $readErrorMessage = 'the listing did not finish before the deadline ' + (ConvertTo-WfUtcString -Value $deadline)
         } elseif (-not $listing['Exists'] -and -not $listing['ParentExists']) {
             # "Not installed here" is an observation only when the folder that would hold it
             # exists (Program Files always does on Windows); otherwise this is not Windows or
@@ -2723,15 +3137,11 @@ function Invoke-WfDirectorySource {
         $files = Get-WfList -Value $listing['Files']
         $truncated = [bool]$listing['Truncated']
         if (-not $readErrorKind) {
-            $primary = [ordered]@{
-                path      = $path
-                exists    = [bool]$listing['Exists']
-                listed_at_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
-                file_count = $files.Count
-                truncated = $truncated
-                files     = @($files)
-            }
-            Write-WfJsonFile -Path $listingPath -Object $primary
+            # The primary is a JSON array, one element per file, so a decoded row
+            # can cite index:<n>; the folder's own facts are in result.json.
+            $lines = New-Object 'System.Collections.Generic.List[string]'
+            foreach ($file in @($files)) { $lines.Add((ConvertTo-WfJson -Value $file)) }
+            Write-WfJsonLinesFile -Path $listingPath -Lines $lines.ToArray()
             $size = (Get-Item -LiteralPath $listingPath).Length
             if ($size -gt $MaxArtifactBytes) {
                 Remove-Item -LiteralPath $listingPath -Force
@@ -2742,9 +3152,11 @@ function Invoke-WfDirectorySource {
         $stopped = Get-WfUtcNow
         $report = [ordered]@{
             path       = $path
+            parent     = $parent
             parent_exists = [bool]$listing['ParentExists']
             exists     = [bool]$listing['Exists']
             listed     = (-not $readErrorKind)
+            listed_at_utc = ConvertTo-WfUtcString -Value $stopped
             error      = $(if ($readErrorKind) { $readErrorMessage } else { $null })
             file_count = $files.Count
             truncated  = $truncated
@@ -2842,6 +3254,336 @@ function Invoke-WfUnavailableSource {
         $entry.status = 'capture_failed'
         $entry.status_reason = 'the collector raised while recording this source: ' + $_.Exception.Message
         $Log.Add('source ' + $id + ' raised: ' + $_.Exception.Message)
+    }
+    $entry.stopped_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
+    $entry.artifacts = Get-WfArtifactRecords -BundleRoot $BundleRoot -SourceId $id -Roles $roles
+    $Log.Add(('source {0}: status {1}, {2} artifacts' -f $id, $entry.status, @($entry.artifacts).Count))
+    return [ordered]@{ Entry = $entry; Rows = @() }
+}
+
+# ---------------------------------------------------------------------------
+# Logical processor topology. GetLogicalProcessorInformationEx returns a
+# sequence of variable sized SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX records;
+# the parser below walks that buffer by the documented layouts, so the raw
+# bytes are the evidence and every decoded field can be checked against them:
+# https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex
+# https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-system_logical_processor_information_ex
+# https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-processor_relationship
+# https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-cache_relationship
+# https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-group_relationship
+# https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-processor_group_info
+# https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-numa_node_relationship
+# https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-group_affinity
+# https://learn.microsoft.com/windows/win32/api/winnt/ne-winnt-logical_processor_relationship
+# The layouts are the 64 bit ones (KAFFINITY is 8 bytes, GROUP_AFFINITY 16,
+# PROCESSOR_GROUP_INFO 48). The collector refuses a 32 bit process: Microsoft
+# documents KAFFINITY as 32 bits on 32 bit Windows (interrupt affinity page
+# above), and that a 32 bit process under WOW64 sees affinity masks folded
+# into 32 bits, so the function's masks can be wrong for it:
+# https://learn.microsoft.com/windows/win32/winprog64/processor-affinity
+# https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex#remarks
+# ---------------------------------------------------------------------------
+
+function Get-WfRelationshipName {
+    param([int]$Relationship)
+    switch ($Relationship) {
+        0 { return 'RelationProcessorCore' }
+        1 { return 'RelationNumaNode' }
+        2 { return 'RelationCache' }
+        3 { return 'RelationProcessorPackage' }
+        4 { return 'RelationGroup' }
+        5 { return 'RelationProcessorDie' }
+        6 { return 'RelationNumaNodeEx' }
+        7 { return 'RelationProcessorModule' }
+        8 { return 'RelationProcessorSharedComputeUnit' }
+    }
+    return $null
+}
+
+function Get-WfCacheTypeName {
+    # PROCESSOR_CACHE_TYPE: https://learn.microsoft.com/windows/win32/api/winnt/ne-winnt-processor_cache_type
+    param([int]$Type)
+    switch ($Type) {
+        0 { return 'CacheUnified' }
+        1 { return 'CacheInstruction' }
+        2 { return 'CacheData' }
+        3 { return 'CacheTrace' }
+    }
+    return $null
+}
+
+function ConvertTo-WfProcessorList {
+    # The logical processor indices whose bits are set in a KAFFINITY mask.
+    param([uint64]$Mask)
+    $list = New-Object 'System.Collections.Generic.List[int]'
+    for ($bit = 0; $bit -lt 64; $bit++) { if ((($Mask -shr $bit) -band [uint64]1) -eq [uint64]1) { $list.Add($bit) } }
+    return , $list.ToArray()
+}
+
+function ConvertFrom-WfGroupAffinity {
+    # One GROUP_AFFINITY (16 bytes): KAFFINITY Mask, WORD Group, WORD Reserved[3].
+    param([byte[]]$Bytes, [int]$Offset)
+    $mask = [System.BitConverter]::ToUInt64($Bytes, $Offset)
+    $group = [int][System.BitConverter]::ToUInt16($Bytes, $Offset + 8)
+    return [ordered]@{ group = $group; mask_hex = ('0x' + $mask.ToString('x')); processors = (ConvertTo-WfProcessorList -Mask $mask) }
+}
+
+function ConvertFrom-WfLogicalProcessorInformation {
+    # Every record in a GetLogicalProcessorInformationEx buffer, as ordered
+    # maps with the documented fields decoded and the record's offset and
+    # size kept, so a reader can go back to the bytes. Throws on a buffer that
+    # does not follow the documented layout (a record that runs past the end,
+    # a size below the fixed part), because a half parsed topology is worse
+    # than none.
+    param([byte[]]$Bytes)
+    $records = New-Object 'System.Collections.Generic.List[object]'
+    if ($null -eq $Bytes) { return , $records.ToArray() }
+    $offset = 0
+    $index = 0
+    while ($offset + 8 -le $Bytes.Length) {
+        $relationship = [int][System.BitConverter]::ToUInt32($Bytes, $offset)
+        $size = [int][System.BitConverter]::ToUInt32($Bytes, $offset + 4)
+        if ($size -lt 8 -or $offset + $size -gt $Bytes.Length) { throw ('record ' + $index + ' at offset ' + $offset + ' has size ' + $size + ', which does not fit the buffer of ' + $Bytes.Length + ' bytes') }
+        $body = $offset + 8
+        $record = [ordered]@{ index = $index; offset = $offset; size = $size; relationship = $relationship; relationship_name = (Get-WfRelationshipName -Relationship $relationship) }
+        switch ($relationship) {
+            { $_ -eq 0 -or $_ -eq 3 -or $_ -eq 5 -or $_ -eq 7 } {
+                # PROCESSOR_RELATIONSHIP: Flags, EfficiencyClass, RelativePerformance, RelativeEfficiency, Reserved[16], GroupCount at 22, GroupMask[] at 24.
+                if ($size -lt 8 + 24) { throw ('record ' + $index + ' is a processor relationship of ' + $size + ' bytes, below the fixed part') }
+                $flags = [int]$Bytes[$body]
+                $groupCount = [int][System.BitConverter]::ToUInt16($Bytes, $body + 22)
+                $masks = New-Object 'System.Collections.Generic.List[object]'
+                for ($g = 0; $g -lt $groupCount; $g++) {
+                    $at = $body + 24 + 16 * $g
+                    if ($at + 16 -gt $offset + $size) { throw ('record ' + $index + ' declares ' + $groupCount + ' group masks but is ' + $size + ' bytes') }
+                    $masks.Add((ConvertFrom-WfGroupAffinity -Bytes $Bytes -Offset $at))
+                }
+                $record['flags'] = $flags
+                $record['smt'] = $(if ($relationship -eq 0) { (($flags -band 1) -eq 1) } else { $null })
+                $record['efficiency_class'] = [int]$Bytes[$body + 1]
+                $record['group_count'] = $groupCount
+                $record['group_masks'] = @($masks.ToArray())
+            }
+            2 {
+                # CACHE_RELATIONSHIP: Level, Associativity, LineSize (2), CacheSize (4), Type (4), Reserved[18], GroupCount at 30, GroupMask(s) at 32.
+                if ($size -lt 8 + 32) { throw ('record ' + $index + ' is a cache relationship of ' + $size + ' bytes, below the fixed part') }
+                $groupCount = [int][System.BitConverter]::ToUInt16($Bytes, $body + 30)
+                # Before Windows 10 20H2 GroupCount is 0 and one GroupMask follows (Microsoft: NUMA_NODE_RELATIONSHIP notes the same rule).
+                $count = $(if ($groupCount -gt 0) { $groupCount } else { 1 })
+                $masks = New-Object 'System.Collections.Generic.List[object]'
+                for ($g = 0; $g -lt $count; $g++) {
+                    $at = $body + 32 + 16 * $g
+                    if ($at + 16 -gt $offset + $size) { throw ('record ' + $index + ' declares ' + $count + ' cache group masks but is ' + $size + ' bytes') }
+                    $masks.Add((ConvertFrom-WfGroupAffinity -Bytes $Bytes -Offset $at))
+                }
+                $type = [int][System.BitConverter]::ToUInt32($Bytes, $body + 8)
+                $record['level'] = [int]$Bytes[$body]
+                $record['associativity'] = [int]$Bytes[$body + 1]
+                $record['line_size'] = [int][System.BitConverter]::ToUInt16($Bytes, $body + 2)
+                $record['cache_size'] = [int64][System.BitConverter]::ToUInt32($Bytes, $body + 4)
+                $record['cache_type'] = $type
+                $record['cache_type_name'] = Get-WfCacheTypeName -Type $type
+                $record['group_count'] = $groupCount
+                $record['group_masks'] = @($masks.ToArray())
+            }
+            4 {
+                # GROUP_RELATIONSHIP: MaximumGroupCount (2), ActiveGroupCount (2), Reserved[20], GroupInfo[] at 24, each 48 bytes with the mask at 40.
+                if ($size -lt 8 + 24) { throw ('record ' + $index + ' is a group relationship of ' + $size + ' bytes, below the fixed part') }
+                $active = [int][System.BitConverter]::ToUInt16($Bytes, $body + 2)
+                $groups = New-Object 'System.Collections.Generic.List[object]'
+                for ($g = 0; $g -lt $active; $g++) {
+                    $at = $body + 24 + 48 * $g
+                    if ($at + 48 -gt $offset + $size) { throw ('record ' + $index + ' declares ' + $active + ' groups but is ' + $size + ' bytes') }
+                    $mask = [System.BitConverter]::ToUInt64($Bytes, $at + 40)
+                    $groups.Add([ordered]@{ group = $g; maximum_processor_count = [int]$Bytes[$at]; active_processor_count = [int]$Bytes[$at + 1]; active_mask_hex = ('0x' + $mask.ToString('x')); processors = (ConvertTo-WfProcessorList -Mask $mask) })
+                }
+                $record['maximum_group_count'] = [int][System.BitConverter]::ToUInt16($Bytes, $body)
+                $record['active_group_count'] = $active
+                $record['groups'] = @($groups.ToArray())
+            }
+            { $_ -eq 1 -or $_ -eq 6 } {
+                # NUMA_NODE_RELATIONSHIP: NodeNumber (4), Reserved[18], GroupCount at 22, GroupMask(s) at 24.
+                if ($size -lt 8 + 24) { throw ('record ' + $index + ' is a NUMA relationship of ' + $size + ' bytes, below the fixed part') }
+                $groupCount = [int][System.BitConverter]::ToUInt16($Bytes, $body + 22)
+                $count = $(if ($groupCount -gt 0) { $groupCount } else { 1 })
+                $masks = New-Object 'System.Collections.Generic.List[object]'
+                for ($g = 0; $g -lt $count; $g++) {
+                    $at = $body + 24 + 16 * $g
+                    if ($at + 16 -gt $offset + $size) { throw ('record ' + $index + ' declares ' + $count + ' NUMA group masks but is ' + $size + ' bytes') }
+                    $masks.Add((ConvertFrom-WfGroupAffinity -Bytes $Bytes -Offset $at))
+                }
+                $record['node_number'] = [int64][System.BitConverter]::ToUInt32($Bytes, $body)
+                $record['group_count'] = $groupCount
+                $record['group_masks'] = @($masks.ToArray())
+            }
+            default {
+                # A relationship this parser does not lay out is kept as its bytes.
+                $record['body_hex'] = (([System.BitConverter]::ToString($Bytes, $body, $size - 8)) -replace '-', '').ToLowerInvariant()
+            }
+        }
+        $records.Add($record)
+        $offset += $size
+        $index += 1
+    }
+    if ($offset -ne $Bytes.Length) { throw ('the buffer has ' + ($Bytes.Length - $offset) + ' trailing bytes after the last record') }
+    return , $records.ToArray()
+}
+
+function Invoke-WfTopologySource {
+    # Reads the logical processor topology through the documented API and
+    # writes, under raw/<id>/:
+    #   query.json     the function, the relationship asked for (RelationAll),
+    #                  the pointer size and the citations (role config)
+    #   result.json    whether the call succeeded, the stage that failed, the
+    #                  Win32 error code, the byte count, the record counts per
+    #                  relationship, and the buffer itself as hex (role report)
+    #   topology.json  one element per record, decoded by the documented
+    #                  layouts (role primary)
+    # The read is the one native call this collector set makes; the adapter
+    # compiles its declaration once per process (see Get-WfLogicalProcessorInformation
+    # and the README). A compiler that is not available is not_collected
+    # (preflight); a call that fails, a buffer that does not parse, or a buffer
+    # without a processor core record is capture_failed with the code or
+    # message; a 32 bit host is unsupported (Microsoft documents folded masks).
+    param(
+        [hashtable]$Source,
+        [string]$BundleRoot,
+        [int64]$MaxArtifactBytes,
+        [int]$TimeoutSeconds,
+        [System.Collections.Generic.List[string]]$Log,
+        [System.Collections.Generic.List[string]]$Notes
+    )
+    $id = [string]$Source['Id']
+    $kind = 'config_snapshot'
+    if ($Source['Kind']) { $kind = [string]$Source['Kind'] }
+    $entry = New-WfCollectorEntry -Id $id -Kind $kind -Required ([bool]$Source['Required'])
+    $roles = @{ 'query.json' = 'config'; 'result.json' = 'report'; 'topology.json' = 'primary' }
+    $relativeDir = 'raw/' + $id
+    $dir = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath $relativeDir
+    $started = Get-WfUtcNow
+    $deadline = $started.AddSeconds($TimeoutSeconds)
+    $entry.started_utc = ConvertTo-WfUtcString -Value $started
+    $topologyPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/topology.json')
+    $records = @()
+    try {
+        $null = New-Item -ItemType Directory -Force -Path $dir
+        $query = [ordered]@{
+            function           = 'GetLogicalProcessorInformationEx'
+            library            = 'kernel32.dll'
+            relationship_type  = 'RelationAll (0xffff)'
+            layout             = '64 bit: KAFFINITY 8 bytes, GROUP_AFFINITY 16 bytes, PROCESSOR_GROUP_INFO 48 bytes'
+            citations          = (Get-WfList -Value $Source['Citations'])
+            max_artifact_bytes = $MaxArtifactBytes
+            timeout_seconds    = $TimeoutSeconds
+            read_only          = 'a query of the processor topology; nothing is set'
+        }
+        $queryPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/query.json')
+        Write-WfJsonFile -Path $queryPath -Object $query
+        $entry.config_hash = [ordered]@{ algorithm = 'sha256'; value = (Get-WfSha256OfFile -Path $queryPath) }
+        $entry.command = @('kernel32.dll!GetLogicalProcessorInformationEx', 'RelationAll')
+        $entry.requested = [ordered]@{ providers = @(); keywords = @(); stack_walk = @(); counters = @(); options = $query }
+
+        $read = Get-WfLogicalProcessorInformation
+        $readErrorKind = ''
+        $readErrorMessage = ''
+        $parseError = $null
+        if ([int]$read['PointerSize'] -ne 8) {
+            $readErrorKind = 'not_found'
+            $readErrorMessage = ('the process is not 64 bit (pointer size ' + $read['PointerSize'] + '); KAFFINITY is 32 bits there and a 32 bit process under WOW64 sees folded affinity masks (Microsoft documents both), so the 64 bit layouts this parser uses do not apply and the topology is not read')
+        } elseif (-not $read['Ok']) {
+            if ([string]$read['Stage'] -eq 'compile') { $readErrorKind = 'preflight' } else { $readErrorKind = 'other' }
+            $readErrorMessage = ('stage ' + [string]$read['Stage'] + ': ' + [string]$read['ErrorMessage'])
+            if ($null -ne $read['ErrorCode']) { $readErrorMessage += (' (Win32 error ' + $read['ErrorCode'] + ')') }
+        } elseif ((Get-WfUtcNow) -ge $deadline) {
+            $readErrorKind = 'timeout'
+            $readErrorMessage = 'the call did not return before the deadline ' + (ConvertTo-WfUtcString -Value $deadline)
+        } else {
+            try {
+                $records = ConvertFrom-WfLogicalProcessorInformation -Bytes ([byte[]]$read['Bytes'])
+            } catch {
+                $parseError = $_.Exception.Message
+                $readErrorKind = 'other'
+                $readErrorMessage = 'the buffer does not follow the documented layout: ' + $parseError
+                $records = @()
+            }
+        }
+        $entry.preflight = [ordered]@{
+            ok     = (-not $readErrorKind)
+            at_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
+            checks = @(
+                [ordered]@{ name = 'declaration_compiled'; ok = ([string]$read['Stage'] -ne 'compile'); detail = $(if ([string]$read['Stage'] -eq 'compile') { [string]$read['ErrorMessage'] } else { 'the GetLogicalProcessorInformationEx declaration is loaded' }) },
+                [ordered]@{ name = 'call_succeeded'; ok = [bool]$read['Ok']; detail = $(if ($read['Ok']) { ([string]$read['Bytes'].Length + ' bytes') } else { [string]$read['ErrorMessage'] }) }
+            )
+        }
+        $counts = [ordered]@{}
+        foreach ($record in @($records)) {
+            $name = [string]$record['relationship_name']
+            if (-not $name) { $name = 'relationship_' + $record['relationship'] }
+            if ($counts.Contains($name)) { $counts[$name] = [int]$counts[$name] + 1 } else { $counts[$name] = 1 }
+        }
+        $cores = 0
+        if ($counts.Contains('RelationProcessorCore')) { $cores = [int]$counts['RelationProcessorCore'] }
+        $undecoded = 0
+        foreach ($record in @($records)) { if ($record.Contains('body_hex')) { $undecoded += 1 } }
+        if ($undecoded -gt 0) { $Notes.Add(('source ' + $id + ': ' + $undecoded + ' records of a relationship type without a documented layout here are kept as bytes (body_hex) and not decoded')) }
+        if (-not $readErrorKind -and $cores -eq 0) {
+            $readErrorKind = 'other'
+            $readErrorMessage = 'the buffer holds no RelationProcessorCore record, which the documentation promises for every active core'
+        }
+        if (-not $readErrorKind) {
+            $lines = New-Object 'System.Collections.Generic.List[string]'
+            foreach ($record in @($records)) { $lines.Add((ConvertTo-WfJson -Value $record)) }
+            Write-WfJsonLinesFile -Path $topologyPath -Lines $lines.ToArray()
+            $size = (Get-Item -LiteralPath $topologyPath).Length
+            if ($size -gt $MaxArtifactBytes) {
+                Remove-Item -LiteralPath $topologyPath -Force
+                $readErrorKind = 'other'
+                $readErrorMessage = ('topology.json was ' + $size + ' bytes, above the cap of ' + $MaxArtifactBytes + ', and was removed')
+            }
+        }
+        $stopped = Get-WfUtcNow
+        $bufferHex = $null
+        if ($null -ne $read['Bytes']) { $bufferHex = (([System.BitConverter]::ToString([byte[]]$read['Bytes'])) -replace '-', '').ToLowerInvariant() }
+        $report = [ordered]@{
+            started_utc   = ConvertTo-WfUtcString -Value $started
+            stopped_utc   = ConvertTo-WfUtcString -Value $stopped
+            ok            = [bool]$read['Ok']
+            stage         = $read['Stage']
+            error_code    = $read['ErrorCode']
+            error         = $(if ($readErrorKind) { $readErrorMessage } else { $null })
+            pointer_size  = $read['PointerSize']
+            byte_count    = $(if ($null -ne $read['Bytes']) { [int]$read['Bytes'].Length } else { $null })
+            record_counts = $counts
+            buffer_hex    = $bufferHex
+        }
+        Write-WfJsonFile -Path (Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/result.json')) -Object $report
+        if ($readErrorKind) {
+            $resolved = Resolve-WfSourceStatus -ReadErrorKind $readErrorKind -ReadErrorMessage $readErrorMessage -WindowStartUtc $started
+            $entry.status = $resolved['Status']
+            $entry.status_reason = $resolved['Reason']
+            $met = $false
+        } else {
+            $entry.status = 'observed'
+            $entry.status_reason = $null
+            $met = $true
+            $entry.raw_time_range = New-WfTimeRange -StartUtc $started -EndUtc $stopped
+        }
+        Remove-WfPrimaryUnlessKept -Path $topologyPath -Status $entry.status -Truncated $false -RecordCount @($records).Count -Log $Log -SourceId $id
+        $entry.enabled = [ordered]@{
+            providers = @(); keywords = @(); stack_walk = @(); counters = @()
+            options   = [ordered]@{ byte_count = $report.byte_count; records = @($records).Count; cores = $cores; record_counts = $counts; pointer_size = $report.pointer_size }
+            verified_by = 'the call returned TRUE and the buffer parsed by the documented layouts; the buffer itself is in result.json as hex'
+        }
+        $entry.expectation = [ordered]@{
+            declared = [string]$Source['Expectation']
+            met      = $met
+            detail   = $(if ($met) { ('{0} records, {1} processor cores' -f @($records).Count, $cores) } else { $readErrorMessage })
+        }
+    } catch {
+        $entry.status = 'capture_failed'
+        $entry.status_reason = 'the collector raised while reading this source: ' + $_.Exception.Message
+        $Log.Add('source ' + $id + ' raised: ' + $_.Exception.Message)
+        if (Test-Path -LiteralPath $topologyPath) { Remove-Item -LiteralPath $topologyPath -Force }
     }
     $entry.stopped_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
     $entry.artifacts = Get-WfArtifactRecords -BundleRoot $BundleRoot -SourceId $id -Roles $roles
@@ -2958,7 +3700,7 @@ function Invoke-WfCollector {
     $driverResult = $null
     # Shared by the sources that pseudonymise names and addresses: one salt
     # for the run, and the network names learned so far, kept in memory only.
-    $context = @{ Salt = (New-WfPseudonymSalt); Ssids = (New-Object 'System.Collections.Generic.List[string]') }
+    $context = @{ Salt = (New-WfPseudonymSalt); Ssids = (New-Object 'System.Collections.Generic.List[string]'); CopiedTexts = @{} }
     $protects = $false
     $copies = $false
     foreach ($source in $sources) {
@@ -2968,8 +3710,9 @@ function Invoke-WfCollector {
             $result = Invoke-WfEventSource -Source $source -BundleRoot $bundleRoot -WindowDays $WindowDays -MaxEvents $MaxEvents `
                 -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes -Context $context
         } elseif ($type -eq 'cim') {
+            if ($source['ProtectProperties']) { $copies = $true }
             $result = Invoke-WfCimSource -Source $source -BundleRoot $bundleRoot -WindowDays $WindowDays -MaxEvents $MaxEvents `
-                -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes
+                -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes -Context $context
             if ($source['FillsMachineDrivers']) { $driverResult = $result }
         } elseif ($type -eq 'command') {
             $protects = $true
@@ -2978,7 +3721,7 @@ function Invoke-WfCollector {
         } elseif ($type -eq 'file') {
             if ([string]$source['Mode'] -eq 'copy') { $copies = $true } else { $protects = $true }
             $result = Invoke-WfFileSource -Source $source -BundleRoot $bundleRoot -MaxArtifactBytes $MaxArtifactBytes `
-                -Log $log -Notes $notes -Context $context
+                -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes -Context $context
         } elseif ($type -eq 'pnp') {
             $protects = $true
             $result = Invoke-WfPnpSource -Source $source -BundleRoot $bundleRoot -MaxEvents $MaxEvents `
@@ -2987,8 +3730,12 @@ function Invoke-WfCollector {
             $result = Invoke-WfDirectorySource -Source $source -BundleRoot $bundleRoot -MaxEvents $MaxEvents `
                 -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes
         } elseif ($type -eq 'registry') {
+            if ([string]$source['Mode'] -eq 'devices') { $protects = $true }
             $result = Invoke-WfRegistrySource -Source $source -BundleRoot $bundleRoot -MaxEvents $MaxEvents `
-                -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes
+                -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes -Context $context
+        } elseif ($type -eq 'topology') {
+            $result = Invoke-WfTopologySource -Source $source -BundleRoot $bundleRoot -MaxArtifactBytes $MaxArtifactBytes `
+                -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes
         } elseif ($type -eq 'unavailable') {
             $result = Invoke-WfUnavailableSource -Source $source -BundleRoot $bundleRoot -Log $log
         } else {
@@ -2997,6 +3744,7 @@ function Invoke-WfCollector {
         $entries.Add($result['Entry'])
     }
     $context['Ssids'].Clear()
+    $context['CopiedTexts'].Clear()
     $stop = Get-WfUtcNow
 
     $machine = $machineInfo['machine']
@@ -3029,7 +3777,7 @@ function Invoke-WfCollector {
         $allNotes.Add('Each event log query selects a fixed interval, window_end_utc minus the window to window_end_utc, so records raised while the query ran are not part of the result.')
     }
     if ($copies) {
-        $allNotes.Add('Copied text files are the owner''s own configuration and logs and stay readable, except that every Windows user profile folder name, every e-mail shaped token and every hardware address in them is a pseudonym (user-<12 hex>, mail-<12 hex>, mac-<12 hex>) keyed with a random salt that was not stored; result.json of each copy records the SHA-256 of the original bytes and the replacement counts, so a copy with zero replacements and the same hash is verbatim.')
+        $allNotes.Add('Copied text (the owner''s own configuration and log files, and the command line and image path of the one named helper process) stays readable, except that every Windows user profile folder name, every e-mail shaped token, every UNC host name and every hardware address in it is a pseudonym (user-<12 hex>, mail-<12 hex>, host-<12 hex>, mac-<12 hex>) keyed with a random salt that was not stored; result.json of each copy records the SHA-256 of the original bytes and the replacement counts, so a copy with zero replacements and the same hash is verbatim.')
     }
     if ($protects) {
         $allNotes.Add('Network names, hardware addresses and Bluetooth peer names are pseudonyms (ssid-<12 hex>, mac-<12 hex>, name-<12 hex>) keyed with a random salt that was not stored: the same value maps to the same pseudonym inside this bundle and to nothing outside it. The saved Wi-Fi profiles of this PC are the exception: they are the owner''s own networks and stay readable, each with its pseudonym, so an explicit owner selection can be matched at analysis time.')
@@ -3688,9 +4436,16 @@ function Get-WfKnownFolderPath {
 
 function Read-WfFileBytes {
     # One file, read only, or the reason it could not be read. A file above
-    # the cap is not read at all.
-    param([string]$Path, [int64]$MaxBytes)
+    # the cap is not read at all. The file is opened with FileShare ReadWrite
+    # and Delete, so a program that is appending to it (a vendor's action log)
+    # is never refused while this reads:
+    # https://learn.microsoft.com/dotnet/api/system.io.fileshare
+    # The bytes are read in chunks under the source deadline; a read that
+    # passes it stops and is a timeout, so one slow volume cannot hold the
+    # collector.
+    param([string]$Path, [int64]$MaxBytes, [datetime]$DeadlineUtc = [datetime]::MaxValue)
     $result = [ordered]@{ Exists = $false; Readable = $false; Bytes = $null; Length = $null; LastWriteUtc = $null; ErrorKind = $null; ErrorMessage = $null }
+    $stream = $null
     try {
         if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
             $result.ErrorKind = 'not_found'
@@ -3706,14 +4461,61 @@ function Read-WfFileBytes {
             $result.ErrorMessage = 'the file is above the cap'
             return $result
         }
-        $result.Bytes = [System.IO.File]::ReadAllBytes($Path)
+        $share = [System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete
+        $stream = New-Object System.IO.FileStream($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, $share)
+        $collected = New-Object System.IO.MemoryStream
+        $chunk = New-Object byte[] 65536
+        while ($true) {
+            if ((Get-WfUtcNow) -ge $DeadlineUtc) {
+                $result.ErrorKind = 'timeout'
+                $result.ErrorMessage = ('the read did not finish before the deadline; ' + $collected.Length + ' bytes had been read')
+                return $result
+            }
+            $count = $stream.Read($chunk, 0, $chunk.Length)
+            if ($count -le 0) { break }
+            $collected.Write($chunk, 0, $count)
+            if ($collected.Length -gt $MaxBytes) {
+                $result.ErrorKind = 'too_large'
+                $result.ErrorMessage = 'the file grew above the cap while it was read'
+                return $result
+            }
+        }
+        $result.Bytes = $collected.ToArray()
+        $result.Length = [int64]$result.Bytes.Length
         $result.Readable = $true
     } catch {
         $result.ErrorKind = Get-WfEventReadErrorKind -Exception $_.Exception
         if ($result.ErrorKind -eq 'not_found') { $result.ErrorKind = 'other' }
         $result.ErrorMessage = $_.Exception.Message
+    } finally {
+        if ($null -ne $stream) { $stream.Dispose() }
     }
     return $result
+}
+
+function Get-WfSha256OfFileBounded {
+    # SHA-256 of a file read in chunks under a deadline, with writers allowed
+    # to continue. Returns the hash, or $null when the deadline passed, in
+    # which case the caller reports a timeout rather than a partial hash.
+    param([string]$Path, [datetime]$DeadlineUtc)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $stream = $null
+    try {
+        $share = [System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete
+        $stream = New-Object System.IO.FileStream($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, $share)
+        $chunk = New-Object byte[] 1048576
+        while ($true) {
+            if ((Get-WfUtcNow) -ge $DeadlineUtc) { return $null }
+            $count = $stream.Read($chunk, 0, $chunk.Length)
+            if ($count -le 0) { break }
+            $null = $sha.TransformBlock($chunk, 0, $count, $null, 0)
+        }
+        $null = $sha.TransformFinalBlock($chunk, 0, 0)
+        return (([System.BitConverter]::ToString($sha.Hash)) -replace '-', '').ToLowerInvariant()
+    } finally {
+        if ($null -ne $stream) { $stream.Dispose() }
+        $sha.Dispose()
+    }
 }
 
 function Get-WfPnpDevices {
@@ -3862,8 +4664,11 @@ function Get-WfRegistryKey {
             if ($current -is [System.Management.Automation.ItemNotFoundException]) { $kind = 'not_found'; break }
             $current = $current.InnerException
         }
-        # Test-Path answers false for a key the account may not open as well as
-        # for a missing one; when the open itself failed the error says which.
+        # Classify the open/read exception. An unreadable key has unknown
+        # contents; do not infer absence from access denial. Windows PowerShell
+        # 5.1 provider behavior remains a verification item (the provider's
+        # Test-Path answers true for a key the account may not open, so a
+        # refused key reaches Get-Item and raises; the error says which).
         $result.Exists = ($kind -ne 'not_found')
         $result.ErrorKind = $kind
         $result.ErrorMessage = $_.Exception.Message
@@ -3883,10 +4688,12 @@ function Get-WfDirectoryListing {
     param([string]$Path, [string]$Parent, [int]$MaxFiles, [datetime]$DeadlineUtc)
     $result = [ordered]@{ Exists = $false; Parent = $Parent; ParentExists = $false; ErrorKind = $null; ErrorMessage = $null; Files = @(); Truncated = $false }
     try {
+        if ((Get-WfUtcNow) -ge $DeadlineUtc) { throw 'the listing did not finish before the deadline' }
         $result.ParentExists = [bool]($Parent -and (Test-Path -LiteralPath $Parent -PathType Container))
         if (-not (Test-Path -LiteralPath $Path -PathType Container)) { return $result }
         $result.Exists = $true
         $items = @(Get-ChildItem -LiteralPath $Path -File -Force -ErrorAction Stop | Sort-Object -Property Name)
+        if ((Get-WfUtcNow) -ge $DeadlineUtc) { throw 'the listing did not finish before the deadline' }
         $files = New-Object 'System.Collections.Generic.List[object]'
         foreach ($item in $items) {
             if ($files.Count -ge $MaxFiles) { $result.Truncated = $true; break }
@@ -3904,7 +4711,8 @@ function Get-WfDirectoryListing {
                 error               = $null
             }
             try {
-                $record.sha256 = Get-WfSha256OfFile -Path $item.FullName
+                $record.sha256 = Get-WfSha256OfFileBounded -Path $item.FullName -DeadlineUtc $DeadlineUtc
+                if ($null -eq $record.sha256) { throw 'the listing did not finish before the deadline (hashing ' + $item.Name + ')' }
                 $version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($item.FullName)
                 if ($version.FileVersion) { $record.file_version = [string]$version.FileVersion }
                 if ($version.ProductVersion) { $record.product_version = [string]$version.ProductVersion }
@@ -3912,16 +4720,138 @@ function Get-WfDirectoryListing {
                 if ($version.CompanyName) { $record.company_name = [string]$version.CompanyName }
                 if ($version.OriginalFilename) { $record.original_filename = [string]$version.OriginalFilename }
             } catch {
+                if ($_.Exception.Message -like '*deadline*') { throw }
                 $record.error = $_.Exception.Message
             }
             $files.Add($record)
         }
+        if ((Get-WfUtcNow) -ge $DeadlineUtc) { throw 'the listing did not finish before the deadline' }
         $result.Files = $files.ToArray()
     } catch {
         $result.ErrorKind = Get-WfEventReadErrorKind -Exception $_.Exception
         if ($result.ErrorKind -eq 'not_found') { $result.ErrorKind = 'other' }
         if ($_.Exception.Message -like '*deadline*') { $result.ErrorKind = 'timeout' }
         $result.ErrorMessage = $_.Exception.Message
+    }
+    return $result
+}
+
+function Get-WfLogicalProcessorInformation {
+    # The one native call in this collector set: GetLogicalProcessorInformationEx
+    # with RelationAll, which returns the processor core, cache, group, package
+    # and NUMA relationships Microsoft documents:
+    # https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex
+    # No CIM class carries the logical processor to core map, so the
+    # declaration is compiled with Add-Type, which Microsoft documents as the
+    # way to make a Platform Invoke call from PowerShell:
+    # https://learn.microsoft.com/powershell/module/microsoft.powershell.utility/add-type?view=powershell-5.1
+    # Microsoft documents that Add-Type compiles the source and generates an
+    # in-memory assembly that lives in this process only; whether the Windows
+    # PowerShell 5.1 compiler starts a compiler process or writes temporary
+    # files while it does so is not documented on Learn and is unverified
+    # (README verification item 23). The declaration names one function and
+    # nothing else, and the static test pins it. The call reads; it has no
+    # setter.
+    # The first call with a null buffer asks for the size (ERROR_INSUFFICIENT_BUFFER,
+    # 122, is the documented answer); the second fills a buffer of that size.
+    $result = [ordered]@{ Ok = $false; Stage = $null; ErrorCode = $null; ErrorMessage = $null; Bytes = $null; PointerSize = [System.IntPtr]::Size }
+    $typeName = 'WfNative.WfSysInfo'
+    try {
+        $result.Stage = 'compile'
+        if (-not ([System.Management.Automation.PSTypeName]$typeName).Type) {
+            $declaration = '[DefaultDllImportSearchPaths(DllImportSearchPath.System32)] [DllImport("kernel32.dll", SetLastError = true)] public static extern bool GetLogicalProcessorInformationEx(int RelationshipType, byte[] Buffer, ref uint ReturnedLength);'
+            Add-Type -MemberDefinition $declaration -Name 'WfSysInfo' -Namespace 'WfNative' -UsingNamespace 'System.Runtime.InteropServices' -ErrorAction Stop
+        }
+    } catch {
+        $result.ErrorMessage = $_.Exception.Message
+        return $result
+    }
+    try {
+        $result.Stage = 'size'
+        $length = [uint32]0
+        $null = [WfNative.WfSysInfo]::GetLogicalProcessorInformationEx(0xffff, $null, [ref]$length)
+        $code = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+        if ($length -eq 0 -or $length -gt 16777216) {
+            $result.ErrorCode = $code
+            $result.ErrorMessage = ('the size query returned length ' + $length + ' with Win32 error ' + $code)
+            return $result
+        }
+        $result.Stage = 'read'
+        $buffer = New-Object byte[] ([int]$length)
+        $ok = [WfNative.WfSysInfo]::GetLogicalProcessorInformationEx(0xffff, $buffer, [ref]$length)
+        if (-not $ok) {
+            $result.ErrorCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            $result.ErrorMessage = 'the call returned FALSE'
+            return $result
+        }
+        $bytes = New-Object byte[] ([int]$length)
+        [System.Array]::Copy($buffer, $bytes, [int]$length)
+        $result.Bytes = $bytes
+        $result.Ok = $true
+    } catch {
+        $result.ErrorMessage = $_.Exception.Message
+    }
+    return $result
+}
+
+function New-WfDeviceKeyNative {
+    # The native boundary for the device hardware key reads: eight imports,
+    # bound to the system directory (DefaultDllImportSearchPaths System32,
+    # https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca5392),
+    # compiled once per process with Add-Type from the literal below and
+    # exposed as an object whose methods forward to them, so the sequencing in
+    # Get-WfDeviceInterruptPolicy runs the same way over this object and over
+    # the test suite's recorder. Nothing else is declared: no setter, no
+    # creator, no process or device state call.
+    # https://learn.microsoft.com/windows/win32/api/setupapi/nf-setupapi-setupdicreatedeviceinfolist
+    # https://learn.microsoft.com/windows/win32/api/setupapi/nf-setupapi-setupdiopendeviceinfow
+    # https://learn.microsoft.com/windows/win32/api/setupapi/nf-setupapi-setupdiopendevregkey
+    # https://learn.microsoft.com/windows/win32/api/setupapi/nf-setupapi-setupdidestroydeviceinfolist
+    # https://learn.microsoft.com/windows/win32/api/winreg/nf-winreg-regopenkeyexw
+    # https://learn.microsoft.com/windows/win32/api/winreg/nf-winreg-regenumvaluew
+    # https://learn.microsoft.com/windows/win32/api/winreg/nf-winreg-regqueryvalueexw
+    # https://learn.microsoft.com/windows/win32/api/winreg/nf-winreg-regclosekey
+    # Microsoft documents that Add-Type compiles the source and generates an
+    # in-memory assembly; whether the Windows PowerShell 5.1 compiler starts a
+    # compiler process or writes temporary files while it does so is not
+    # documented on Learn and is unverified (README verification item 23):
+    # https://learn.microsoft.com/powershell/module/microsoft.powershell.utility/add-type?view=powershell-5.1
+    $result = @{ Ok = $false; Error = $null; Api = $null }
+    $typeName = 'WfNative.WfDeviceKey'
+    try {
+        if (-not ([System.Management.Automation.PSTypeName]$typeName).Type) {
+            $declaration = @'
+[StructLayout(LayoutKind.Sequential)] public struct SP_DEVINFO_DATA { public uint cbSize; public Guid ClassGuid; public uint DevInst; public IntPtr Reserved; }
+[DefaultDllImportSearchPaths(DllImportSearchPath.System32)] [DllImport("setupapi.dll", SetLastError = true)] public static extern IntPtr SetupDiCreateDeviceInfoList(IntPtr ClassGuid, IntPtr hwndParent);
+[DefaultDllImportSearchPaths(DllImportSearchPath.System32)] [DllImport("setupapi.dll", SetLastError = true, CharSet = CharSet.Unicode)] public static extern bool SetupDiOpenDeviceInfoW(IntPtr DeviceInfoSet, string DeviceInstanceId, IntPtr hwndParent, uint OpenFlags, ref SP_DEVINFO_DATA DeviceInfoData);
+[DefaultDllImportSearchPaths(DllImportSearchPath.System32)] [DllImport("setupapi.dll", SetLastError = true)] public static extern IntPtr SetupDiOpenDevRegKey(IntPtr DeviceInfoSet, ref SP_DEVINFO_DATA DeviceInfoData, uint Scope, uint HwProfile, uint KeyType, uint samDesired);
+[DefaultDllImportSearchPaths(DllImportSearchPath.System32)] [DllImport("setupapi.dll", SetLastError = true)] public static extern bool SetupDiDestroyDeviceInfoList(IntPtr DeviceInfoSet);
+[DefaultDllImportSearchPaths(DllImportSearchPath.System32)] [DllImport("advapi32.dll", CharSet = CharSet.Unicode)] public static extern int RegOpenKeyExW(IntPtr hKey, string lpSubKey, uint ulOptions, uint samDesired, out IntPtr phkResult);
+[DefaultDllImportSearchPaths(DllImportSearchPath.System32)] [DllImport("advapi32.dll", CharSet = CharSet.Unicode)] public static extern int RegEnumValueW(IntPtr hKey, uint dwIndex, System.Text.StringBuilder lpValueName, ref uint lpcchValueName, IntPtr lpReserved, out uint lpType, byte[] lpData, ref uint lpcbData);
+[DefaultDllImportSearchPaths(DllImportSearchPath.System32)] [DllImport("advapi32.dll", CharSet = CharSet.Unicode)] public static extern int RegQueryValueExW(IntPtr hKey, string lpValueName, IntPtr lpReserved, out uint lpType, byte[] lpData, ref uint lpcbData);
+[DefaultDllImportSearchPaths(DllImportSearchPath.System32)] [DllImport("advapi32.dll")] public static extern int RegCloseKey(IntPtr hKey);
+'@
+            Add-Type -MemberDefinition $declaration -Name 'WfDeviceKey' -Namespace 'WfNative' -UsingNamespace 'System.Runtime.InteropServices' -ErrorAction Stop
+        }
+        $api = New-Object psobject
+        $api | Add-Member -MemberType ScriptMethod -Name 'NewDeviceInfoData' -Value {
+            $data = New-Object 'WfNative.WfDeviceKey+SP_DEVINFO_DATA'
+            $data.cbSize = [uint32][System.Runtime.InteropServices.Marshal]::SizeOf($data)
+            return $data
+        }
+        $api | Add-Member -MemberType ScriptMethod -Name 'LastError' -Value { return [System.Runtime.InteropServices.Marshal]::GetLastWin32Error() }
+        $api | Add-Member -MemberType ScriptMethod -Name 'SetupDiCreateDeviceInfoList' -Value { param($classGuid, $parent) return [WfNative.WfDeviceKey]::SetupDiCreateDeviceInfoList($classGuid, $parent) }
+        $api | Add-Member -MemberType ScriptMethod -Name 'SetupDiOpenDeviceInfoW' -Value { param($set, $id, $parent, $flags, $data) return [WfNative.WfDeviceKey]::SetupDiOpenDeviceInfoW($set, $id, $parent, $flags, $data) }
+        $api | Add-Member -MemberType ScriptMethod -Name 'SetupDiOpenDevRegKey' -Value { param($set, $data, $scope, $hwProfile, $keyType, $access) return [WfNative.WfDeviceKey]::SetupDiOpenDevRegKey($set, $data, $scope, $hwProfile, $keyType, $access) }
+        $api | Add-Member -MemberType ScriptMethod -Name 'SetupDiDestroyDeviceInfoList' -Value { param($set) return [WfNative.WfDeviceKey]::SetupDiDestroyDeviceInfoList($set) }
+        $api | Add-Member -MemberType ScriptMethod -Name 'RegOpenKeyExW' -Value { param($key, $subkey, $options, $access, $handle) return [WfNative.WfDeviceKey]::RegOpenKeyExW($key, $subkey, $options, $access, $handle) }
+        $api | Add-Member -MemberType ScriptMethod -Name 'RegEnumValueW' -Value { param($key, $index, $name, $nameLength, $reserved, $type, $data, $dataLength) return [WfNative.WfDeviceKey]::RegEnumValueW($key, $index, $name, $nameLength, $reserved, $type, $data, $dataLength) }
+        $api | Add-Member -MemberType ScriptMethod -Name 'RegQueryValueExW' -Value { param($key, $name, $reserved, $type, $data, $dataLength) return [WfNative.WfDeviceKey]::RegQueryValueExW($key, $name, $reserved, $type, $data, $dataLength) }
+        $api | Add-Member -MemberType ScriptMethod -Name 'RegCloseKey' -Value { param($key) return [WfNative.WfDeviceKey]::RegCloseKey($key) }
+        $result.Api = $api
+        $result.Ok = $true
+    } catch {
+        $result.Error = 'the device key declaration could not be compiled or loaded: ' + $_.Exception.Message
     }
     return $result
 }

@@ -758,7 +758,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "1b4701a5143225687d7417f3d0c2b4d0447e070b9f7e13e942a66568878792f9"
+        "value": "cec914c956b69dc36834b6bec28f4ff01e7d6182e65e04756a9b90478954d074"
       },
       "filter_hash": null,
       "requested": {
@@ -773,9 +773,12 @@
           ],
           "path_documented": false,
           "max_artifact_bytes": 67108864,
+          "timeout_seconds": 80,
           "mode": "summary",
+          "copy_gate": null,
           "why": "the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded",
-          "protection": null
+          "protection": null,
+          "sharing": "the file is opened for reading with writers allowed to continue; a file being appended may be read mid line, and the hash is of the bytes read"
         }
       },
       "enabled": {
@@ -801,14 +804,14 @@
       "artifacts": [
         {
           "path": "raw/wlan_report/result.json",
-          "bytes": 528,
-          "sha256": "1653b57225e44b7f446f79bef99adf65d198c312cfc9d0eb970358fb93028af4",
+          "bytes": 549,
+          "sha256": "6e2e4a0addaf288d5d2d54be10c16d6d5ed3f754b15f758cfe04682b0786d906",
           "role": "report"
         },
         {
           "path": "raw/wlan_report/source.json",
-          "bytes": 444,
-          "sha256": "1b4701a5143225687d7417f3d0c2b4d0447e070b9f7e13e942a66568878792f9",
+          "bytes": 649,
+          "sha256": "cec914c956b69dc36834b6bec28f4ff01e7d6182e65e04756a9b90478954d074",
           "role": "config"
         }
       ],

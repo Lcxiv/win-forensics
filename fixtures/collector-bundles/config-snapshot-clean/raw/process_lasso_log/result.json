@@ -11,7 +11,13 @@
   "source_bytes": null,
   "source_sha256": null,
   "last_write_time_utc": null,
-  "mode": "copy",
+  "mode": "summary",
+  "copy_gate": {
+    "source": "process_lasso_config",
+    "pattern": "(?im)^\\s*IncludeCommandLines\\s*=\\s*(false|0)\\s*$",
+    "passed": false,
+    "detail": "the gating file process_lasso_config was not copied in this run, so the switch it carries is unknown"
+  },
   "summarised": false,
   "copied": false,
   "source_encoding": null,

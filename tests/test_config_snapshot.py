@@ -19,7 +19,7 @@ BUNDLES = REPO_ROOT / "fixtures" / "collector-bundles"
 CASES = ["config-snapshot", "config-snapshot-clean", "config-snapshot-denied"]
 OBSERVED = ("observed", "observed_zero")
 # What the synthetic owner's files carry on purpose, and what must never reach a bundle or a table in clear.
-SECRETS = ("Synthetic Owner", "owner@example.test")
+SECRETS = ("Synthetic Owner", "owner@example.test", "DESKTOP-SYNTH01", "Jane Doe", "F0F1F2000001")
 
 
 @pytest.fixture()
@@ -94,7 +94,8 @@ def test_copied_files_are_protected_and_their_original_hash_is_recorded(bundle_c
     assert "ExcludedProcesses=C:\\Users\\user-" in ini and "SupportContact=mail-" in ini
     assert "TargetPowerPlan=Synthetic Low Latency" in ini, "the owner's own settings stay readable"
     report = json.loads((bundle / "raw" / "process_lasso_config" / "result.json").read_text(encoding="utf-8"))
-    assert report["protection"] == {"user_profile_names_replaced": 2, "email_addresses_replaced": 1, "mac_addresses_replaced": 0}
+    assert report["protection"] == {"user_profile_names_replaced": 2, "email_addresses_replaced": 1, "unc_hosts_replaced": 1, "mac_addresses_replaced": 0}
+    assert "ConfigPath=\\\\host-" in ini, "a UNC host is a computer name and leaves as a pseudonym"
     assert report["copy_is_verbatim"] is False and len(report["source_sha256"]) == 64
     assert report["source_sha256"] != wf_schema.sha256_of(bundle / "raw" / "process_lasso_config" / "prolasso.ini"), "a protected copy differs from the original"
     journal = (bundle / "raw" / "stutter_guard_journal" / "journal.json").read_text(encoding="utf-8")
@@ -107,7 +108,13 @@ def test_copied_files_are_protected_and_their_original_hash_is_recorded(bundle_c
     copied = {r["key"]: r for r in rows(bundle, "config_snapshot") if r["key"] in ("config_copied", "log_copied", "journal_copied")}
     assert set(copied) == {"config_copied", "log_copied", "journal_copied"}
     assert copied["config_copied"]["decoded"]["source_sha256"] == report["source_sha256"]
-    assert copied["config_copied"]["provenance"]["row_id_or_offset"].startswith("offset:0;len:")
+    # The row's facts live in result.json, so that is what the provenance names; the copy is a raw artifact the row points at.
+    assert copied["config_copied"]["provenance"]["source_file"] == "raw/process_lasso_config/result.json"
+    assert copied["config_copied"]["provenance"]["row_id_or_offset"] == "offset:0"
+    assert copied["config_copied"]["decoded"]["copy"] == "raw/process_lasso_config/prolasso.ini"
+    assert copied["log_copied"]["decoded"]["copy_gate"]["passed"] is True, "the vendor log was copied because the INI says command lines are off"
+    sidecar = meta(bundle, "config_snapshot")
+    assert {"raw/process_lasso_config/result.json", "raw/process_lasso_config/prolasso.ini"} <= {f["path"] for f in sidecar["source_files"]}
 
 
 def test_interrupt_policy_rows_carry_raw_bytes_and_documented_decodings(bundle_copy):
@@ -117,12 +124,15 @@ def test_interrupt_policy_rows_carry_raw_bytes_and_documented_decodings(bundle_c
     gpu = [r for r in table if r["device_name"] == "Synthetic Display Adapter"]
     by_key = {r["key"]: r for r in gpu}
     assert by_key["interrupt_management_key"]["present"] is True
+    assert by_key["interrupt_management_key"]["registry_path"] == "SetupDiOpenDevRegKey(DICS_FLAG_GLOBAL, DIREG_DEV, KEY_READ)\\Interrupt Management"
     policy = by_key["DevicePolicy"]
-    assert policy["category"] == "interrupt_affinity" and policy["raw_bytes_hex"] == "04000000" and policy["registry_value_kind"] == "DWord"
+    assert policy["category"] == "interrupt_affinity" and policy["raw_bytes_hex"] == "04000000" and policy["registry_value_kind"] == "REG_DWORD"
     assert policy["decoded"] == {"policy": "IrqPolicySpecifiedProcessors", "value": 4} and "ne-wdm-_irq_device_policy" in policy["documented_by"]
+    assert policy["registry_path"].endswith("\\Interrupt Management\\Affinity Policy") and "Enum" not in policy["registry_path"]
     mask = by_key["AssignmentSetOverride"]
-    assert mask["raw_bytes_hex"] == "2000000000000000" and mask["registry_value_kind"] == "Binary"
+    assert mask["raw_bytes_hex"] == "2000000000000000" and mask["registry_value_kind"] == "REG_BINARY"
     assert mask["decoded"]["processors"] == [5] and mask["decoded"]["mask_hex"] == "0x20" and mask["decoded"]["byte_order"] == "little endian"
+    assert mask["value_number"] == 32 and isinstance(mask["value_number"], int), "a mask is an exact integer, never a float"
     assert "not the processor that services the interrupt" in mask["decoded"]["note"], "registry intention is not effective routing"
     priority = by_key["DevicePriority"]
     assert priority["documented_by"] is None and priority["decoded"] is None and priority["value_text"] == "3", "an undocumented value is kept verbatim, never named"
@@ -130,19 +140,59 @@ def test_interrupt_policy_rows_carry_raw_bytes_and_documented_decodings(bundle_c
     assert by_key["MessageNumberLimit"]["value_number"] == 16
     # The network adapter's mask is a REG_DWORD, the host controller's a REG_QWORD; both decode to processors by bit.
     nic = {r["key"]: r for r in table if r["device_name"] == "Synthetic 2.5GbE Controller"}
-    assert nic["AssignmentSetOverride"]["decoded"]["processors"] == [8, 9, 10, 11] and nic["AssignmentSetOverride"]["registry_value_kind"] == "DWord"
+    assert nic["AssignmentSetOverride"]["decoded"]["processors"] == [8, 9, 10, 11] and nic["AssignmentSetOverride"]["registry_value_kind"] == "REG_DWORD"
     xhci = {r["key"]: r for r in table if r["device_name"] == "Synthetic USB 3.1 eXtensible Host Controller"}
-    assert xhci["AssignmentSetOverride"]["decoded"]["processors"] == [2] and xhci["AssignmentSetOverride"]["registry_value_kind"] == "QWord"
+    assert xhci["AssignmentSetOverride"]["decoded"]["processors"] == [2] and xhci["AssignmentSetOverride"]["registry_value_kind"] == "REG_QWORD"
     assert xhci["MSISupported"]["present"] is False and xhci["MSISupported"]["value_text"] == "absent", "an absent documented value is a row that says absent"
-    # The disabled audio device: problem code 22 next to its MSI row, and no affinity policy at all.
-    audio = {r["key"]: r for r in table if r["device_name"] == "Synthetic High Definition Audio Device"}
+    assert xhci["Comment"]["value_text"].startswith("omitted:") and xhci["Comment"]["raw_bytes_hex"] is None, "a string typed value arrives omitted and stays so"
+    # The HD Audio controller (the PCI function whose bus driver owns the interrupt), disabled in Device Manager: problem code 22
+    # next to its MSI row, MSI switched off, and no affinity policy at all.
+    audio = {r["key"]: r for r in table if r["device_name"] == "Synthetic High Definition Audio Controller"}
     assert audio["MSISupported"]["device_problem_code"] == 22 and audio["MSISupported"]["device_status"] == "Error"
     assert audio["MSISupported"]["decoded"]["msi_enabled_in_configuration"] is False
     assert audio["DevicePolicy"]["present"] is False and audio["AssignmentSetOverride"]["present"] is False
-    # The receiver has no Interrupt Management key: absent, with the four documented values absent.
-    mouse = [r for r in table if r["device_name"] == "Synthetic Wireless Receiver"]
-    assert {r["key"]: r["present"] for r in mouse} == {"interrupt_management_key": False, "DevicePolicy": False, "AssignmentSetOverride": False,
-                                                        "MSISupported": False, "MessageNumberLimit": False}
+    # The storage controller: policy 5 and no mask, which is a documented combination.
+    nvme = {r["key"]: r for r in table if r["device_name"] == "Synthetic NVMe Controller"}
+    assert nvme["DevicePolicy"]["decoded"]["policy"] == "IrqPolicySpreadMessagesAcrossAllProcessors" and nvme["AssignmentSetOverride"]["present"] is False
+    # Only PCI functions are selected: the codec, the USB receiver and the Bluetooth peer never reach the table.
+    assert {r["device_instance_id"].split("\\")[0] for r in table if r["source_id"] == "interrupt_policy"} == {"PCI"}
+    assert not [r for r in table if r["device_name"] in ("Synthetic Wireless Receiver", "Synthetic High Definition Audio Device")]
+
+
+def test_unknown_is_never_written_as_absent(bundle_copy):
+    """A device whose hardware key could not be opened, or whose enumeration was cut short, leaves present null in every row."""
+    bundle = bundle_copy("config-snapshot")
+    path = bundle / "raw" / "interrupt_policy" / "keys.json"
+    devices = json.loads(path.read_text(encoding="utf-8"))
+    nic = next(d for d in devices if d["class"] == "Net")
+    nic.update({"stage": "open_hardware_key", "error_code": 5, "registry_error": "ERROR_ACCESS_DENIED", "device_opened": True})
+    nic["hardware_key_state"] = {"exists": None, "error_code": 5, "error": "ERROR_ACCESS_DENIED"}
+    nic["interrupt_management"] = {"exists": None, "error_code": None, "error": None}
+    for leaf in nic["interrupt_keys"]:
+        leaf.update({"exists": None, "values": [], "enumeration_complete": False})
+    xhci = next(d for d in devices if d["service"] == "USBXHCI")
+    affinity = next(k for k in xhci["interrupt_keys"] if k["subkey"].endswith("Affinity Policy"))
+    affinity["values"] = [v for v in affinity["values"] if v["name"] == "DevicePolicy"]
+    affinity["enumeration_complete"] = False
+    affinity["error"] = "the cap of 1 values was reached; the rest are unknown"
+    path.write_text(json.dumps(devices), encoding="utf-8")
+    manifest_path = bundle / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for c in manifest["collectors"]:
+        for a in c["artifacts"]:
+            if a["path"] == "raw/interrupt_policy/keys.json":
+                a["sha256"] = wf_schema.sha256_of(path)
+                a["bytes"] = path.stat().st_size
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    assert decoded(bundle)["tables"]["config_snapshot"]["status"] == "observed"
+    table = rows(bundle, "config_snapshot")
+    denied = [r for r in table if r["device_name"] == "Synthetic 2.5GbE Controller"]
+    assert len(denied) == 1 and denied[0]["present"] is None and denied[0]["value_text"].startswith("unknown (stage open_hardware_key)")
+    assert denied[0]["decoded"]["error_code"] == 5
+    capped = {r["key"]: r for r in table if r["device_name"] == "Synthetic USB 3.1 eXtensible Host Controller" and r["category"] == "interrupt_affinity"}
+    assert capped["DevicePolicy"]["present"] is True
+    assert capped["AssignmentSetOverride"]["present"] is None and "did not complete" in capped["AssignmentSetOverride"]["value_text"]
+    assert wf_schema.validate_rows(table, "decoded/config_snapshot.schema.json") == []
 
 
 def test_a_clean_machine_records_absence_not_missing_data(bundle_copy):
@@ -151,7 +201,8 @@ def test_a_clean_machine_records_absence_not_missing_data(bundle_copy):
     table = rows(bundle, "config_snapshot")
     affinity = [r for r in table if r["category"] in ("interrupt_affinity", "msi_mode")]
     assert affinity and all(r["present"] is False for r in affinity)
-    assert all(r["value_text"] in ("absent",) for r in affinity if r["key"] != "interrupt_management_key")
+    assert all(r["value_text"] == "absent" for r in affinity), "the hardware keys open and hold no Interrupt Management: absence, not an unknown"
+    assert {r["device_instance_id"].split("\\")[0] for r in affinity} == {"PCI"} and len({r["device_instance_id"] for r in affinity}) == 5
     tdr = {r["key"]: r for r in table if r["category"] == "tdr"}
     assert set(tdr) == {"TdrLevel", "TdrDelay", "TdrDdiDelay", "TdrDebugMode", "TdrLimitTime", "TdrLimitCount", "TdrTestMode"}
     assert all(r["present"] is False and "default" in r["value_text"] for r in tdr.values())
@@ -173,24 +224,51 @@ def test_tdr_rows_name_the_documented_level(bundle_copy):
     assert all(r["registry_path"].endswith("\\Control\\GraphicsDrivers") for r in tdr.values())
 
 
-def test_cpu_topology_rows_say_what_cim_can_and_cannot_tell(bundle_copy):
+def test_cpu_topology_rows_come_from_the_documented_api_and_cim_rows_say_what_they_cannot_tell(bundle_copy):
     bundle = bundle_copy("config-snapshot")
     manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
-    unavailable = next(c for c in manifest["collectors"] if c["id"] == "logical_processor_map")
-    assert unavailable["status"] == "not_collected" and "GetLogicalProcessorInformationEx" in unavailable["status_reason"]
-    assert [a["role"] for a in unavailable["artifacts"]] == ["config"]
+    topology_source = next(c for c in manifest["collectors"] if c["id"] == "logical_processor_map")
+    assert topology_source["status"] == "observed" and topology_source["command"] == ["kernel32.dll!GetLogicalProcessorInformationEx", "RelationAll"]
     decoded(bundle)
-    topo = {r["key"]: r for r in rows(bundle, "config_snapshot") if r["category"] == "cpu_topology" and r["key"] != "cache"}
-    assert topo["number_of_cores"]["value_number"] == 6 and topo["number_of_logical_processors"]["value_number"] == 12
-    assert topo["smt_enabled"]["value_text"] == "true" and "siblings is not recorded" in topo["smt_enabled"]["decoded"]["note"]
-    assert topo["processor_groups"]["decoded"]["groups"] == [0] and "processor-groups" in topo["processor_groups"]["documented_by"]
-    caches = [r for r in rows(bundle, "config_snapshot") if r["key"] == "cache"]
+    table = rows(bundle, "config_snapshot")
+    cim = {r["key"]: r for r in table if r["category"] == "cpu_topology" and r["source_id"] in ("processors", "cpu_caches") and r["key"] != "cache"}
+    assert cim["number_of_cores"]["value_number"] == 6 and cim["number_of_logical_processors"]["value_number"] == 12
+    assert cim["smt_enabled"]["value_text"] == "true" and "siblings is not recorded" in cim["smt_enabled"]["decoded"]["note"]
+    assert cim["processor_groups"]["decoded"]["groups"] == [0] and "processor-groups" in cim["processor_groups"]["documented_by"]
+    caches = [r for r in table if r["key"] == "cache"]
     assert [c["decoded"]["level"] for c in caches] == ["Primary", "Secondary", "Tertiary"]
     assert all("not which logical processors share it" in c["decoded"]["note"] for c in caches)
-    # No row says which logical processor is the sibling of which: that source is a status, not evidence.
-    assert not [r for r in rows(bundle, "config_snapshot") if r["source_id"] == "logical_processor_map"]
-    sidecar = meta(bundle, "config_snapshot")
-    assert any(c["name"] == "logical_processor_map" and "never turned into evidence" in c["detail"] for c in sidecar["checks"])
+    # The sibling map comes from GetLogicalProcessorInformationEx records, by index into topology.json, never from adjacency.
+    topo = {r["key"]: r for r in table if r["source_id"] == "logical_processor_map"}
+    assert all(r["provenance"]["source_file"] == "raw/logical_processor_map/topology.json" and r["provenance"]["row_id_or_offset"].startswith("index:") for r in topo.values())
+    assert all("getlogicalprocessorinformationex" in r["documented_by"] for r in topo.values())
+    assert topo["core:0"]["decoded"]["logical_processors"] == [{"group": 0, "processor": 0}, {"group": 0, "processor": 6}] and topo["core:0"]["decoded"]["smt"] is True
+    assert topo["logical_processor:0:6"]["decoded"]["siblings"] == [0] and topo["logical_processor:0:6"]["decoded"]["core"] == 0
+    assert topo["logical_processor:0:5"]["decoded"]["siblings"] == [11] and topo["logical_processor:0:11"]["decoded"]["siblings"] == [5]
+    assert [c["level"] for c in topo["logical_processor:0:6"]["decoded"]["caches"]] == [1, 1, 2, 3]
+    assert topo["logical_processor:0:6"]["decoded"]["caches"][3]["shared_with"] == [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11]
+    assert topo["group:0"]["decoded"]["active_processor_count"] == 12 and topo["group:0"]["decoded"]["active_mask_hex"] == "0xfff"
+    assert len([k for k in topo if k.startswith("cache:")]) == 19 and topo["package:0"]["present"] is True
+    assert len([k for k in topo if k.startswith("logical_processor:")]) == 12
+
+
+def test_a_failed_topology_read_is_a_status_and_no_sibling_row(bundle_copy):
+    bundle = bundle_copy("config-snapshot-denied")
+    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+    failed = next(c for c in manifest["collectors"] if c["id"] == "logical_processor_map")
+    assert failed["status"] == "not_collected" and "stage compile" in failed["status_reason"]
+    assert sorted(a["role"] for a in failed["artifacts"]) == ["config", "report"], "the report says why; there is no primary"
+    # A full bundle whose topology source is marked failed decodes the rest and writes no sibling row.
+    partial = bundle_copy("config-snapshot")
+    path = partial / "manifest.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    entry = next(c for c in manifest["collectors"] if c["id"] == "logical_processor_map")
+    entry["status"], entry["status_reason"] = "capture_failed", "stage read: the call returned FALSE (Win32 error 1450)"
+    entry["artifacts"] = [a for a in entry["artifacts"] if a["role"] == "config"]
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    assert decoded(partial)["tables"]["config_snapshot"]["status"] == "observed"
+    assert not [r for r in rows(partial, "config_snapshot") if r["source_id"] == "logical_processor_map"]
+    assert any(c["name"] == "logical_processor_map" and "never turned into evidence" in c["detail"] for c in meta(partial, "config_snapshot")["checks"])
 
 
 def test_powercfg_rows_follow_the_structure_in_english_and_by_shape_in_german(bundle_copy):
@@ -236,7 +314,7 @@ def test_power_rows_in_config_snapshot_are_derived_and_say_so(bundle_copy):
     power = {r["key"]: r for r in table if r["category"] in ("power_scheme", "processor_power", "core_parking")}
     assert power["active_scheme_guid"]["value_text"] == "11111111-2222-4333-8444-555555555555"
     overlay = power["active_overlay"]
-    assert overlay["present"] is False and overlay["value_text"].startswith("none evident")
+    assert overlay["present"] is None and overlay["value_text"].startswith("none evident"), "whether /query prints the overlay GUID is unverified, so this is not an absence"
     assert "currently active overlay scheme" in overlay["decoded"]["rule"] and "customize-power-slider" in overlay["documented_by"]
     assert power["cpmincores"]["category"] == "core_parking" and power["cpmincores"]["decoded"]["ac"] == 100 and "cpmincores" in power["cpmincores"]["documented_by"]
     assert power["idledisable"]["decoded"] == {"ac": 1, "dc": 0, "unit": None, "possible_values": ["000: Enable idle", "001: Disable idle"],
@@ -266,7 +344,8 @@ def test_process_inventory_rows_carry_the_snapshot_and_no_handles_were_asked_for
     assert helper_row["base_priority"] == 8 and helper_row["cpu_time_s"] == 0.07 and helper_row["start_time_utc"].endswith("Z")
     stutter = [r for r in rows(bundle, "config_snapshot") if r["key"] == "timer_helper_running"]
     assert len(stutter) == 1 and stutter[0]["present"] is True
-    assert stutter[0]["decoded"]["command_line"] == '"C:\\Program Files\\Stutter Guard\\DpcTimerRes.exe" 10000'
+    assert stutter[0]["decoded"]["command_line"].startswith('"C:\\Users\\user-') and stutter[0]["decoded"]["command_line"].endswith('\\Stutter Guard\\DpcTimerRes.exe" 10000')
+    assert "Synthetic Owner" not in json.dumps(stutter[0]), "the helper's path under the owner's profile leaves as a pseudonym"
     assert stutter[0]["source_id"] == "timer_helper_process"
     components = {r["key"]: r for r in rows(bundle, "config_snapshot") if r["key"].startswith("running:")}
     assert components["running:governor"]["decoded"]["pids"] == [6140] and "how-it-works" in components["running:governor"]["documented_by"]
@@ -284,7 +363,11 @@ def test_install_listings_hash_and_version_without_copying(bundle_copy):
     guard = {r["key"]: r for r in rows(bundle, "config_snapshot") if r["category"] == "stutter_guard" and r["key"].startswith("file:")}
     assert set(guard) == {"file:DpcTimerRes.exe", "file:StutterGuard.exe"}
     listing = json.loads((bundle / "raw" / "stutter_guard_install" / "listing.json").read_text(encoding="utf-8"))
-    assert listing["exists"] is True and all(len(f["sha256"]) == 64 for f in listing["files"])
+    assert isinstance(listing, list) and all(len(f["sha256"]) == 64 for f in listing)
+    folder = next(r for r in rows(bundle, "config_snapshot") if r["category"] == "stutter_guard" and r["key"] == "install_folder")
+    assert folder["present"] is True and folder["provenance"] ["source_file"] == "raw/stutter_guard_install/result.json" and folder["provenance"]["row_id_or_offset"] == "offset:0"
+    assert folder["decoded"]["file_count"] == 2 and folder["value_number"] == 2
+    assert guard["file:StutterGuard.exe"]["provenance"]["source_file"] == "raw/stutter_guard_install/listing.json" and guard["file:StutterGuard.exe"]["provenance"]["row_id_or_offset"] == "index:1"
     assert not any(p.suffix == ".exe" for p in every_file(bundle)), "binaries are never copied"
 
 
@@ -299,7 +382,8 @@ def test_denied_bundle_decodes_to_no_table_and_a_status(bundle_copy):
         assert collector["status"] == "not_collected" and collector["status_reason"]
         assert [a for a in collector["artifacts"] if a["role"] == "primary"] == []
     registry = next(c for c in manifest["collectors"] if c["id"] == "interrupt_policy")
-    assert "none of the hardware keys" in registry["status_reason"] and "not allowed" in registry["status_reason"]
+    assert "none of the 5 selected devices could be read" in registry["status_reason"] and "ERROR_ACCESS_DENIED" in registry["status_reason"]
+    assert "CurrentControlSet\\Enum" not in json.dumps(manifest), "no physical Enum path is named anywhere"
 
 
 def test_decoder_refuses_a_foreign_bundle_and_a_missing_primary(bundle_copy, tmp_path):
@@ -321,6 +405,12 @@ def test_decoder_refuses_a_foreign_bundle_and_a_missing_primary(bundle_copy, tmp
     (broken / "raw" / "processes" / "records.json").write_text('[{"Name": "x"}]', encoding="utf-8")
     result = decoded(broken)
     assert result["tables"]["process_inventory"]["status"] == "decode_failed" and "no ProcessId" in result["tables"]["process_inventory"]["reason"]
+
+    gone = bundle_copy("config-snapshot")
+    (gone / "raw" / "processes" / "records.json").unlink()
+    result = decoded(gone)
+    assert result["tables"]["process_inventory"]["status"] == "decode_failed" and "missing from the bundle" in result["tables"]["process_inventory"]["reason"]
+    assert not (gone / "decoded" / "process_inventory.meta.json").exists(), "with no primary on disk nothing can be named honestly, so nothing is written"
 
 
 def test_decoder_cli_exit_codes(bundle_copy, capsys):
