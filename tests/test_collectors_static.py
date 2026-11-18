@@ -49,12 +49,31 @@ DLL_IMPORT = re.compile(r'\[DllImport\("([a-z0-9]+\.dll)"[^\]]*\)\]\s*public sta
 
 
 def function_bodies(code: str) -> dict[str, str]:
-    """Each top level helper function's text, from its header to the next header."""
+    """Each top level helper function's text, from its header to its closing brace at column 0."""
     bodies: dict[str, str] = {}
-    headers = [(m.start(), m.group(1)) for m in re.finditer(r"^function ([A-Za-z\-]+) \{", code, re.MULTILINE)]
-    for (start, name), (end, _) in zip(headers, headers[1:] + [(len(code), "")]):
-        bodies[name] = code[start:end]
+    for header in re.finditer(r"^function ([A-Za-z0-9\-]+) \{", code, re.MULTILINE):
+        close = re.compile(r"^\}[ \t]*$", re.MULTILINE).search(code, header.end())
+        bodies[header.group(1)] = code[header.start():close.end() if close else len(code)]
     return bodies
+
+
+def outside_native_blocks(code: str) -> str:
+    """The helper without the two audited functions: every other function and all top level code."""
+    bodies = function_bodies(code)
+    for name in NATIVE_BLOCKS:
+        code = code.replace(bodies.get(name, "\0"), "")
+    return code
+
+
+def forbidden_tokens(code: str, helper: bool) -> list[str]:
+    """The FORBIDDEN commands a script uses. In the helper, Add-Type and DllImport are excused inside the two audited functions
+    and nowhere else; every other forbidden command counts there as everywhere."""
+    scanned = code
+    if helper:
+        for name, body in function_bodies(code).items():
+            if name in NATIVE_BLOCKS:
+                scanned = scanned.replace(body, body.replace("Add-Type", "").replace("DllImport", ""))
+    return [token.strip() for token in FORBIDDEN if token.lower() in scanned.lower()]
 
 
 def native_boundary_errors(code: str) -> list[str]:
@@ -64,12 +83,10 @@ def native_boundary_errors(code: str) -> list[str]:
     for token in NATIVE_FORBIDDEN:
         if token in code:
             errors.append(f"forbidden native name {token}")
-    for name, body in bodies.items():
-        if name in NATIVE_BLOCKS:
-            continue
-        for token in ("Add-Type", "DllImport", "extern "):
-            if token in body:
-                errors.append(f"{token.strip()} outside the audited blocks, in {name}")
+    outside = outside_native_blocks(code)
+    for token in ("Add-Type", "DllImport", "extern "):
+        if token in outside:
+            errors.append(f"{token.strip()} outside the audited blocks")
     for name, expected in NATIVE_BLOCKS.items():
         body = bodies.get(name)
         if body is None:
@@ -140,14 +157,8 @@ def test_scripts_are_plain_ascii(path):
 def test_shipped_scripts_are_read_only(path):
     text = path.read_text(encoding="ascii")
     code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
-    scanned = code
-    if path.name == HELPER:
-        # The two audited native blocks are the only place Add-Type and DllImport may appear; the boundary test pins them.
-        for name in NATIVE_BLOCKS:
-            body = function_bodies(code)[name]
-            scanned = scanned.replace(body, "")
-    for token in FORBIDDEN:
-        assert token.lower() not in scanned.lower(), f"{path.name} uses {token.strip()}"
+    # In the helper, the two audited native blocks are the only place Add-Type and DllImport may appear; the boundary test pins them.
+    assert forbidden_tokens(code, path.name == HELPER) == [], path.name
     # The only deletions are of the collector's own exports inside the output directory: a failed or
     # over-cap .evtx, and a primary export that must not be left behind ($Path is the primary passed to
     # Remove-WfPrimaryUnlessKept; the others are the primaries of the event, WMI, netsh, file, device,
@@ -256,3 +267,27 @@ def test_native_boundary_guard_rejects_each_widening(mutation):
         code = code.replace("$c['DIREG_DEV'], $c['KEY_READ'])", "$c['DIREG_DEV'], [uint32]0xF003F)")
     assert code != helper_code(), "the mutation did not apply"
     assert native_boundary_errors(code), mutation
+
+
+@pytest.mark.parametrize("mutation, token", [
+    ("start_process_in_device_key_block", "Start-Process"), ("set_item_property_in_topology_block", "Set-ItemProperty"),
+    ("invoke_expression_after_last_function", "Invoke-Expression"), ("add_type_after_last_function", "Add-Type"),
+])
+def test_read_only_guard_reaches_into_and_past_the_native_blocks(mutation, token):
+    """The exemption is two tokens inside two functions: a forbidden command inside either function, or top level code after the
+    last function, is still refused."""
+    code = helper_code()
+    assert forbidden_tokens(code, True) == []
+    if mutation == "start_process_in_device_key_block":
+        code = code.replace("    $typeName = 'WfNative.WfDeviceKey'\n", "    $typeName = 'WfNative.WfDeviceKey'\n    Start-Process -FilePath 'x.exe'\n")
+    elif mutation == "set_item_property_in_topology_block":
+        body = function_bodies(code)["Get-WfLogicalProcessorInformation"]
+        code = code.replace(body, body.replace("{\n", "{\n    Set-ItemProperty -Path 'HKLM:\\X' -Name 'Y' -Value 1\n", 1))
+    elif mutation == "invoke_expression_after_last_function":
+        code = code + "\nInvoke-Expression $env:X\n"
+    elif mutation == "add_type_after_last_function":
+        code = code + "\nAdd-Type -MemberDefinition $env:X -Name 'Y' -Namespace 'Z'\n"
+    assert code != helper_code(), "the mutation did not apply"
+    assert token in forbidden_tokens(code, True), mutation
+    if mutation == "add_type_after_last_function":
+        assert native_boundary_errors(code), mutation

@@ -2266,9 +2266,11 @@ function Invoke-WfPnpSource {
 # ---------------------------------------------------------------------------
 
 function Get-WfUserProfilePattern {
-    # The folder name after \Users\ or /Users/, up to the next separator. A
-    # separator may be doubled, as in a JSON or INI escaped path.
-    return '(?<=[\\/]{1,2}[Uu][Ss][Ee][Rr][Ss][\\/]{1,2})[^\\/\r\n"''<>|:*?]+(?=[\\/]|$|["''\s,;])'
+    # The folder name after \Users\ or /Users/, up to the first character a
+    # folder name cannot hold (a separator, a quote, a line end, one of
+    # < > | : * ?) or the end of the text. A separator may be doubled, as in
+    # a JSON or INI escaped path.
+    return '(?<=[\\/]{1,2}[Uu][Ss][Ee][Rr][Ss][\\/]{1,2})[^\\/\r\n"''<>|:*?]+'
 }
 
 function Get-WfEmailPattern {

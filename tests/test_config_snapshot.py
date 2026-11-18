@@ -117,6 +117,63 @@ def test_copied_files_are_protected_and_their_original_hash_is_recorded(bundle_c
     assert {"raw/process_lasso_config/result.json", "raw/process_lasso_config/prolasso.ini"} <= {f["path"] for f in sidecar["source_files"]}
 
 
+def test_a_summarised_log_is_never_labelled_a_copy(bundle_copy):
+    """The copy gate did not pass (the INI does not say command lines are off), so the collector wrote a summary as the primary."""
+    bundle = bundle_copy("config-snapshot")
+    folder = bundle / "raw" / "process_lasso_log"
+    report = json.loads((folder / "result.json").read_text(encoding="utf-8"))
+    gate = dict(report["copy_gate"], passed=False, detail="the gating file does not match the pattern")
+    report.update({"mode": "summary", "copy_gate": gate, "summarised": True, "copied": False, "source_encoding": None,
+                   "source_byte_order_mark": None, "copy_is_verbatim": None, "protection": None})
+    summary = {"path": report["path"], "bytes": report["source_bytes"], "last_write_time_utc": report["last_write_time_utc"],
+               "sha256": report["source_sha256"], "lines": 4, "address_tokens": 0, "content_kept": False}
+    (folder / "result.json").write_text(json.dumps(report), encoding="utf-8")
+    (folder / "processlasso.log").write_text(json.dumps(summary), encoding="utf-8")
+    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+    entry = next(c for c in manifest["collectors"] if c["id"] == "process_lasso_log")
+    for artifact in entry["artifacts"]:
+        artifact["bytes"] = (bundle / artifact["path"]).stat().st_size
+        artifact["sha256"] = wf_schema.sha256_of(bundle / artifact["path"])
+    (bundle / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    assert decoded(bundle)["tables"]["config_snapshot"]["status"] == "observed"
+    table = rows(bundle, "config_snapshot")
+    assert wf_schema.validate_rows(table, "decoded/config_snapshot.schema.json") == []
+    by_key = {r["key"]: r for r in table if r["source_id"] in ("process_lasso_config", "process_lasso_log", "stutter_guard_journal")}
+    assert set(by_key) == {"config_copied", "log_summarised", "journal_copied"}, "a summary is never keyed as a copy"
+    row = by_key["log_summarised"]
+    assert row["present"] is True and row["category"] == "process_lasso"
+    assert "summarised" in row["value_text"] and "copy gate did not pass" in row["value_text"]
+    assert row["decoded"]["copy"] is None and row["decoded"]["summary"] == "raw/process_lasso_log/processlasso.log"
+    assert row["decoded"]["copy_gate"]["passed"] is False and row["decoded"]["copy_is_verbatim"] is None and row["decoded"]["protection"] is None
+    assert row["decoded"]["source_sha256"] == report["source_sha256"] and row["value_number"] == report["source_bytes"]
+    assert row["provenance"]["source_file"] == "raw/process_lasso_log/result.json" and row["provenance"]["row_id_or_offset"] == "offset:0"
+    assert by_key["config_copied"]["decoded"]["summary"] is None
+
+    unclear = bundle_copy("config-snapshot")
+    report_path = unclear / "raw" / "process_lasso_log" / "result.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["copied"] = False
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    result = decoded(unclear)
+    assert result["tables"]["config_snapshot"]["status"] == "decode_failed" and "a copy or a summary" in result["tables"]["config_snapshot"]["reason"]
+
+
+@pytest.mark.parametrize("value", [
+    {"name": "MSISupported", "kind": "REG_BINARY", "data": "01000000", "bytes_hex": "01000000"},
+    {"name": "MSISupported", "kind": "REG_DWORD", "data": None, "bytes_hex": "0100"},
+    {"name": "MSISupported", "kind": "REG_DWORD", "data": 2, "bytes_hex": "02000000"},
+], ids=["binary", "short_dword", "other_number"])
+def test_msi_supported_that_is_not_a_readable_dword_reads_as_unknown(value):
+    text, number, reading, documented_by = decode_config_snapshot.decode_registry_value(decode_config_snapshot.MSI_SUBKEY, value)
+    assert reading["msi_enabled_in_configuration"] is None and number is None
+    assert "not a readable REG_DWORD" in text and "not enabled" not in text
+    assert documented_by == decode_config_snapshot.DOC_MSI
+    for data, expected in ((1, True), (0, False)):
+        known = decode_config_snapshot.decode_registry_value(decode_config_snapshot.MSI_SUBKEY, {"name": "MSISupported", "kind": "REG_DWORD", "data": data, "bytes_hex": f"0{data}000000"})
+        assert known[2]["msi_enabled_in_configuration"] is expected and known[1] == data
+
+
 def test_interrupt_policy_rows_carry_raw_bytes_and_documented_decodings(bundle_copy):
     bundle = bundle_copy("config-snapshot")
     decoded(bundle)
@@ -211,7 +268,7 @@ def test_a_clean_machine_records_absence_not_missing_data(bundle_copy):
     running = {r["key"]: r for r in table if r["key"].startswith("running:") or r["key"] == "timer_helper_running"}
     assert set(running) == {"running:gui", "running:governor", "running:session_agent", "timer_helper_running"}
     assert all(r["present"] is False and r["provenance"]["row_id_or_offset"] == "offset:0" for r in running.values())
-    assert not [r for r in table if r["key"] in ("config_copied", "log_copied", "journal_copied")], "a not_collected file produces no row"
+    assert not [r for r in table if r["key"].endswith(("_copied", "_summarised"))], "a not_collected file produces no row"
 
 
 def test_tdr_rows_name_the_documented_level(bundle_copy):

@@ -266,8 +266,12 @@ def decode_registry_value(subkey: str, value: dict[str, Any]) -> tuple[str, floa
         # The exact integer: JSON and Python keep it; a float would round above 2**53.
         return f"{hex(mask)} (processors {', '.join(str(c) for c in cpus) or 'none'})", mask, decoded, DOC_AFFINITY
     if subkey == MSI_SUBKEY and name == "MSISupported":
+        note = "configuration, not the active message mode or routing"
+        if kind != "REG_DWORD" or not isinstance(data, int) or isinstance(data, bool) or data not in (0, 1):
+            shown = data if data is not None else bytes_hex
+            return f"{shown} (kind {kind}, not a readable REG_DWORD of 0 or 1; MSI configuration unknown)", None, {"msi_enabled_in_configuration": None, "note": note}, DOC_MSI
         enabled = data == 1
-        return f"{data} ({'MSI enabled in configuration' if enabled else 'MSI not enabled in configuration'})", number, {"msi_enabled_in_configuration": enabled, "note": "configuration, not the active message mode or routing"}, DOC_MSI
+        return f"{data} ({'MSI enabled in configuration' if enabled else 'MSI not enabled in configuration'})", number, {"msi_enabled_in_configuration": enabled, "note": note}, DOC_MSI
     if subkey == MSI_SUBKEY and name == "MessageNumberLimit":
         return str(data), number, {"message_number_limit": data}, DOC_MSI
     text = data if isinstance(data, str) else json.dumps(data) if data is not None else "null"
@@ -787,23 +791,41 @@ def decode_install_listing(bundle: Path, files: list[Any], source: str, entry: d
     return rows, consumed
 
 
-def decode_copied_file(bundle: Path, source: str, entry: dict[str, Any], schema_version: str, category: str, key: str) -> tuple[list[dict[str, Any]], list[str]]:
-    """One row for a copied text file. Its facts (the original's hash and size, the replacement counts, whether the copy is
-    verbatim) are in result.json, so the row's provenance points there and the report is a consumed source; the copy itself stays a
-    raw artifact that the row names in decoded.copy."""
+def decode_copied_file(bundle: Path, source: str, entry: dict[str, Any], schema_version: str, category: str, stem: str) -> tuple[list[dict[str, Any]], list[str]]:
+    """One row for a text file the collector copied or summarised. result.json says which (mode, copied, summarised): a protected
+    copy is keyed <stem>_copied and named in decoded.copy; a summary, written when the copy gate did not pass, is keyed
+    <stem>_summarised and named in decoded.summary, never as a copy. The facts (the original's hash and size, the replacement
+    counts, the gate's outcome) are in result.json, so the row's provenance points there and the report is a consumed source; the
+    primary itself stays a raw artifact."""
     command = " ".join(entry["command"] or [])
     when = captured_at(entry)
     report_path = report_of(entry)
     if not report_path or not (bundle / report_path).is_file():
-        raise DecodeError(f"{entry['id']}: the copy has no result.json to cite")
+        raise DecodeError(f"{entry['id']}: the file source has no result.json to cite")
     report = read_json(bundle / report_path, report_path)
     if not isinstance(report, dict):
         raise DecodeError(f"{report_path}: not an object")
+    mode = report.get("mode")
+    if mode == "copy" and report.get("copied") is True and report.get("summarised") is not True:
+        copied = True
+    elif mode == "summary" and report.get("summarised") is True and report.get("copied") is not True:
+        copied = False
+    else:
+        raise DecodeError(f"{report_path}: mode, copied and summarised do not say whether the primary is a copy or a summary")
+    path = str(report.get("path") or source)
+    gate = report.get("copy_gate")
+    if copied:
+        value_text = path
+    elif isinstance(gate, dict) and gate.get("passed") is False:
+        value_text = f"{path} (summarised, not copied, because the copy gate did not pass)"
+    else:
+        value_text = f"{path} (summarised, not copied)"
     prov = provenance("config_snapshot", report_path, "offset:0", schema_version)
-    return [snapshot_row(category, key, str(report.get("path") or source), command, when, prov, present=True, value_number=report.get("source_bytes"),
-                         decoded={"copy": source, "source_sha256": report.get("source_sha256"), "source_bytes": report.get("source_bytes"), "last_write_time_utc": report.get("last_write_time_utc"),
+    return [snapshot_row(category, f"{stem}_copied" if copied else f"{stem}_summarised", value_text, command, when, prov, present=True, value_number=report.get("source_bytes"),
+                         decoded={"copy": source if copied else None, "summary": None if copied else source, "source_sha256": report.get("source_sha256"),
+                                  "source_bytes": report.get("source_bytes"), "last_write_time_utc": report.get("last_write_time_utc"),
                                   "copy_is_verbatim": report.get("copy_is_verbatim"), "protection": report.get("protection"), "source_encoding": report.get("source_encoding"),
-                                  "copy_gate": report.get("copy_gate")},
+                                  "copy_gate": gate},
                          documented_by=None, source_id=entry["id"])], [report_path, source]
 
 
@@ -1008,9 +1030,9 @@ def decode(bundle: Path, decoded_at: str | None = None) -> dict[str, Any]:
         "timer_helper_process": lambda s, p, e: decode_timer_helper(read_json_array(p, s), s, e, versions["config_snapshot"]),
         "process_lasso_install": lambda s, p, e: decode_install_listing(bundle, read_json_array(p, s), s, e, versions["config_snapshot"], "process_lasso"),
         "stutter_guard_install": lambda s, p, e: decode_install_listing(bundle, read_json_array(p, s), s, e, versions["config_snapshot"], "stutter_guard"),
-        "process_lasso_config": lambda s, p, e: decode_copied_file(bundle, s, e, versions["config_snapshot"], "process_lasso", "config_copied"),
-        "process_lasso_log": lambda s, p, e: decode_copied_file(bundle, s, e, versions["config_snapshot"], "process_lasso", "log_copied"),
-        "stutter_guard_journal": lambda s, p, e: decode_copied_file(bundle, s, e, versions["config_snapshot"], "stutter_guard", "journal_copied"),
+        "process_lasso_config": lambda s, p, e: decode_copied_file(bundle, s, e, versions["config_snapshot"], "process_lasso", "config"),
+        "process_lasso_log": lambda s, p, e: decode_copied_file(bundle, s, e, versions["config_snapshot"], "process_lasso", "log"),
+        "stutter_guard_journal": lambda s, p, e: decode_copied_file(bundle, s, e, versions["config_snapshot"], "stutter_guard", "journal"),
     }
     try:
         for sid, fn in decoders.items():

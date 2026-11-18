@@ -1875,6 +1875,19 @@ Describe 'config-snapshot sources against the synthetic backend' {
         @([regex]::Matches($r['Text'], [regex]::Escape($one))).Count | Should -Be 2
     }
 
+    It 'replaces a profile folder name that ends at a character a folder name cannot hold' {
+        $cases = @('<p>C:\Users\alice</p>', 'a=C:\Users\alice|b', 'C:\Users\alice>out.txt', 'C:\Users\alice:stream', 'C:\Users\alice?', 'C:\Users\alice*', 'cannot write C:\\Users\\alice: access denied')
+        foreach ($case in $cases) {
+            $r = Protect-WfCopiedText -Text $case -Salt 'test-salt'
+            $r['Text'] | Should -Not -Match 'alice' -Because $case
+            $r['Text'] | Should -Match 'Users[\\]{1,2}user-[0-9a-f]{12}' -Because $case
+            $r['UserCount'] | Should -Be 1 -Because $case
+        }
+        $kept = Protect-WfCopiedText -Text '<p>C:\Users\Public</p> C:\Users\Default User|x C:\Users\All Users:y' -Salt 'test-salt'
+        $kept['UserCount'] | Should -Be 0
+        $kept['Text'] | Should -BeExactly '<p>C:\Users\Public</p> C:\Users\Default User|x C:\Users\All Users:y'
+    }
+
     It 'decodes text by its byte order mark and says so' {
         $utf16 = [byte[]](0xFF, 0xFE) + [System.Text.Encoding]::Unicode.GetBytes('x=1')
         $d = ConvertFrom-WfTextBytes -Bytes $utf16
