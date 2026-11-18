@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/clock_segments.schema.json",
   "title": "clock_segments: the piecewise affine model between consecutive calibration pairs",
-  "description": "One row per pair of consecutive calibration pairs, fitted the way docs/contracts/timestamps.md section 4.3 describes for system_time sources: rate from the two pairs, the error bound from their half widths plus the system clock's increment term for pairs not taken at a clock edge, and the clock step flag when the rate is more than 1000 ppm off nominal, with the bound then the larger of the file time span and the elapsed counter span. The bound here is the calibration's own; a source adds its own resolution. See docs/contracts/decoded-tables.md section 5.18.",
+  "description": "One row per pair of consecutive calibration pairs, fitted the way docs/contracts/timestamps.md section 4.3 describes for system_time sources: rate from the two pairs, the error bound from their half widths plus the system clock's increment term for pairs not taken at a clock edge, and the clock step flag when the rate is more than 1000 ppm off nominal beyond what the two pairs' own uncertainty can explain, with the bound then the larger of the file time span and the elapsed counter span. The bound here is the calibration's own; a source adds its own resolution. See docs/contracts/decoded-tables.md section 5.18.",
   "x-schema-version": "1.0.0",
   "x-decoded-table": "clock_segments",
   "type": "object",
