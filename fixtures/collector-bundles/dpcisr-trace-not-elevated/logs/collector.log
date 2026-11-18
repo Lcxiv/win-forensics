@@ -1,0 +1,4 @@
+2026-03-01T12:00:01.0000000Z collector dpcisr-trace version 1.0.0, helper version 1.2.0, no time window (snapshot), 240 s per source
+source wpr_trace: status not_collected, 2 artifacts
+source dpcisr_report: status not_collected, 2 artifacts
+2026-03-01T12:00:08.0000000Z manifest written: bundle 20260301T120001Z_dpcisr_trace_ae3a76a9, status failed, 4 artifacts

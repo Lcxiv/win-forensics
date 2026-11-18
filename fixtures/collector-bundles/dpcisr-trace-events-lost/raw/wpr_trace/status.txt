@@ -1,0 +1,23 @@
+WPR recording is in progress...
+
+Time since start        : 00:00:10
+
+Dropped event           : 544
+
+Logging mode            : File
+
+Recording system activity using the following set of profiles:
+Profile                 : WfDpcIsrTrace.Verbose.File
+
+Actively recording collectors:
+Collector Name          : NT Kernel Logger
+Buffer Size (KB)        : 1024
+Events Lost             : 544
+System Keywords
+Interrupt
+DPC
+Loader
+ProcessThread
+CSwitch
+ReadyThread
+System Stacks

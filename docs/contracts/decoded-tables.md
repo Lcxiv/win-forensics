@@ -1,6 +1,6 @@
 # Decoded tables contract
 
-Status: phase 0a, version 1.1.0 (1.0.0 plus the five `rf-survey` tables in sections 5.12 to 5.16; `netsh_fields` and `pnp_device` are at schema version 1.1.0 after the saved profile mapping and the Bluetooth peer node rename). Companion contracts: [timestamps.md](timestamps.md), [measurement-status.md](measurement-status.md), [bundle.md](bundle.md). Schemas live under `schemas/decoded/`.
+Status: phase 0a, version 1.2.0 (1.1.0 plus the first fixtured source of the `tracestats` table in section 5.3 and the manifest check of the `dpcisr` decoder in section 5.1; 1.1.0 was 1.0.0 plus the five `rf-survey` tables in sections 5.12 to 5.16; `netsh_fields` and `pnp_device` are at schema version 1.1.0 after the saved profile mapping and the Bluetooth peer node rename). Companion contracts: [timestamps.md](timestamps.md), [measurement-status.md](measurement-status.md), [bundle.md](bundle.md). Schemas live under `schemas/decoded/`.
 
 ## 1. What a decoded table is
 
@@ -66,6 +66,8 @@ Per module, per CPU DPC and ISR time from the `CPU Usage Summing By Module For t
 
 The decoder also checks the report's own reconciliation line (`All Module = X, Total = Y, EQUAL`) and records the result in the sidecar as `consistency_check`; a report that fails its own reconciliation decodes with status `decode_failed`.
 
+The report a live capture produces is `raw/dpcisr_report/dpcisr.txt`, written by the `dpcisr-trace` collector from a hash pinned `xperf` ([collectors/windows/README.md](../../collectors/windows/README.md)). When the bundle has a manifest the decoder (1.1.0) accepts only a normalised bundle relative path that the manifest lists as the primary artifact of an `xperf` collector, and records that collector's measurement status in the sidecar as the `collector_status` check without letting it change the decoder's own status: a report made from a trace that lost events still yields rows, the check says `capture_failed` and why, and the manifest and the `tracestats` table are where the loss is read. A decoder never upgrades a collector's status ([measurement-status.md](measurement-status.md) section 2, rule 3).
+
 ### 5.2 `dpcisr_interval`
 
 Per CPU DPC and ISR usage per interval from the `Usage From ... Summing In N second intervals` tables of the same report. Decoder: `scripts/decode_dpcisr.py`. One row per `(kind, interval, cpu)`. Time domain: `etw_qpc_relative` in milliseconds from trace start.
@@ -94,6 +96,8 @@ Session statistics from `xperf -i trace.etl -a tracestats -timezone utc` (with `
 | `provenance` | object | yes | `line:<n>` |
 
 A bundle with a kernel trace must decode `tracestats` and it must contain a row with `normalized_key = events_lost`; the manifest's `events_lost` for the `wpr` collector must equal it.
+
+The first fixtured source is not the `xperf` action but the text the `dpcisr-trace` collector writes as `raw/wpr_trace/status.txt`: the output of `wpr -status profiles collectors -details` read just before the session is stopped, whose shape Microsoft documents ([WPR Command-Line Options, Status](https://learn.microsoft.com/windows-hardware/test/wpt/wpr-command-line-options#status)). Decoder: `scripts/decode_tracestats.py` (1.0.0), which reads the manifest and decodes that report artifact of every `wpr` collector that has one, whatever its status, because a lossy trace is exactly the one whose loss must be visible in a table. `section` is `recording` for the lines before the first `Collector Name` line and the collector's name after it; `key` is the verbatim label of a labelled line, or the list header (`System Keywords`, `System Stacks`) for a bare item under it, whose `value_text` is the item. Normalized: `Events Lost` and `Dropped event` to `events_lost` (per collector and for the recording), `Buffer Size (KB)` to `buffer_size_kb`, `Number of Buffers` to `buffer_count`; every other key is null. The rule above is checked in the sidecar: the sum of the collector rows' `events_lost` (or the recording row when there is no collector row) must equal the manifest's `events_lost` for that collector, else `decode_failed`. The `xperf -a tracestats` form of the same table waits for a fixture; when it arrives the same decoder gains a second source and the normalized subset is reviewed as open question 2 says.
 
 ### 5.4 `pdh_counters`
 

@@ -27,6 +27,13 @@ OBSERVED = ("observed", "observed_zero")
 # writes a file outside the bundle and "connect", "disconnect", "refresh" and "reportissues" act on
 # the machine, so an allowlist, not a denylist, decides.
 ALLOWED_NETSH = re.compile(r"^wlan show (interfaces|drivers|networks mode=bssid|profiles)$")
+# The only wpr verbs the live capture collector may use: read the status, enumerate the profile file,
+# start the one session it owns, stop it, cancel it. No boot trace, no marker, no configuration change.
+ALLOWED_WPR_VERBS = {"-status", "-profiles", "-start", "-stop", "-cancel"}
+# The only xperf action: the DPC and ISR report of the trace in the bundle, with -tle only after a loss.
+ALLOWED_XPERF = re.compile(r"^-i <bundle>/raw/wpr_trace/trace\.etl -a dpcisr( -tle)?$")
+# Collectors whose cases run elevated (the live capture needs it) and carry a QPC trace.
+LIVE_CAPTURE = {"dpcisr-trace"}
 
 # What each committed case is there to show: summary status and the status of every source.
 EXPECTED = {
@@ -53,6 +60,10 @@ EXPECTED = {
                                           "wlan_autoconfig_events": "observed_zero", "usb_device_tree": "observed", "bluetooth_devices": "observed"}),
     "tdr-events-partial": ("partial", {"system_display_events": "capture_failed", "system_bugcheck_events": "observed_zero"}),
     "whea-errors-quiet": ("ok", {"system_whea_events": "observed_zero"}),
+    "dpcisr-trace": ("ok", {"wpr_trace": "observed", "dpcisr_report": "observed"}),
+    "dpcisr-trace-no-xperf": ("partial", {"wpr_trace": "observed", "dpcisr_report": "not_collected"}),
+    "dpcisr-trace-events-lost": ("failed", {"wpr_trace": "capture_failed", "dpcisr_report": "capture_failed"}),
+    "dpcisr-trace-not-elevated": ("failed", {"wpr_trace": "not_collected", "dpcisr_report": "not_collected"}),
 }
 
 
@@ -109,11 +120,25 @@ def test_manifest_identifies_the_collector(case):
     start = manifest["capture"]["start_utc"]
     compact = start[:19].replace("-", "").replace(":", "") + "Z"
     assert manifest["bundle_id"] == f"{compact}_{scenario}_{manifest['machine']['machine_id'][:8]}"
-    assert manifest["capture"]["elevated"] is False, "the collectors run as a standard account"
-    assert manifest["calibration"]["status"] == "not_applicable" and manifest["calibration"]["pairs"] == []
+    if name in LIVE_CAPTURE:
+        # The kernel trace needs an elevated account (the not-elevated case shows the refusal), its
+        # timestamps are QPC and the calibration pairs come from the clock collector, a separate piece.
+        assert manifest["capture"]["elevated"] is (case != "dpcisr-trace-not-elevated")
+        assert manifest["calibration"]["status"] == "not_collected" and manifest["calibration"]["pairs"] == []
+        assert manifest["scenario"]["requested_duration_s"] == 10
+    else:
+        assert manifest["capture"]["elevated"] is False, "the history collectors run as a standard account"
+        assert manifest["calibration"]["status"] == "not_applicable" and manifest["calibration"]["pairs"] == []
     assert manifest["machine"]["hostname"] == "SYNTHETIC-PC", "fixtures never carry a real host name"
     tool_names = [t["name"] for t in manifest["tools"]]
-    assert tool_names == ["powershell", "wevtutil", f"collector:{name}", "collector-helper:_common.ps1"]
+    base = ["powershell", "wevtutil", f"collector:{name}", "collector-helper:_common.ps1"]
+    extra = [t for t in tool_names[len(base):]]
+    assert tool_names[:len(base)] == base
+    ran_xperf = any(c["id"] == "dpcisr_report" and c["status"] in OBSERVED + ("capture_failed",) and c["exit_code"] is not None for c in manifest["collectors"])
+    assert extra == ([] if name not in LIVE_CAPTURE else ["wpr"] + (["xperf"] if ran_xperf else [])), extra
+    for tool in manifest["tools"]:
+        if tool["name"] == "xperf":
+            assert re.fullmatch(r"[0-9a-f]{64}", tool["sha256"]) and tool["version"], "the pinned tool is recorded with hash and version"
 
 
 @pytest.mark.parametrize("case", CASES)
@@ -145,8 +170,14 @@ def test_status_and_evidence_stay_separate(case):
             assert primary == [], "a source that was not read leaves no export, not an empty one"
             assert collector["raw_time_range"] is None
         if collector["status"] not in OBSERVED:
-            # Only a capped export may survive a failed source, and it says so.
-            assert primary == [] or "cap" in collector["status_reason"], collector["id"]
+            # Only a capped export may survive a failed source, and it says so. The trace rule is the
+            # same idea stated for a kernel trace: a saved trace (or the report made from it) is kept
+            # when every event in it is real, with a status reason that names the loss, the cap or the
+            # unconfirmed stop, so a decoder can never read it as a clean absence.
+            if collector["kind"] in ("wpr", "xperf"):
+                assert primary == [] or any(word in collector["status_reason"] for word in ("lost", "cap", "confirm", "unknown")), collector["id"]
+            else:
+                assert primary == [] or "cap" in collector["status_reason"], collector["id"]
         if collector["kind"] == "eventlog":
             options = collector["requested"]["options"]
             # rf-survey shares the dispatcher's budget across ten sources and defaults to 80 seconds per source.
@@ -171,6 +202,30 @@ def test_status_and_evidence_stay_separate(case):
             assert collector["requested"]["options"]["mode"] == "summary", "the report's text never leaves the machine"
             if collector["status"] in OBSERVED:
                 assert primary[0]["path"].endswith("/report-summary.json")
+        elif collector["kind"] == "wpr":
+            assert collector["command"][0].endswith("\\wpr.exe") and collector["command"][1] == "-start"
+            assert collector["command"][2:] == ["<bundle>/raw/wpr_trace/dpcisr-trace.wprp!WfDpcIsrTrace.Verbose", "-filemode", "-recordtempto", "<bundle>/raw/wpr_trace/temp"], "file mode, the profile and the recording inside the bundle, no absolute path recorded"
+            session = json.loads((BUNDLES / case / "raw" / collector["id"] / "session.json").read_text(encoding="utf-8"))
+            verbs = ["-" + run["verb"] for run in session["runs"]]
+            assert set(verbs) <= ALLOWED_WPR_VERBS, verbs
+            assert verbs.count("-start") <= 1 and verbs.count("-stop") <= 1
+            if "-start" in verbs:
+                assert verbs[-1] == "-status", "every started session ends with a status check that confirms the stop"
+            assert collector["buffers"] == {"size_kb": 1024, "count": 64, "mode": "file"}
+            assert collector["requested"]["keywords"] == ["Interrupt", "DPC", "Loader", "ProcessThread", "CSwitch", "ReadyThread"]
+            if collector["status"] in OBSERVED:
+                assert collector["events_lost"] == 0 and collector["enabled"]["keywords"] == collector["requested"]["keywords"]
+                assert collector["enabled"]["options"]["session_confirmed_stopped"] is True
+            if collector["status_reason"] and "events lost" in collector["status_reason"]:
+                assert collector["events_lost"] > 0 and primary[0]["path"].endswith("/trace.etl")
+        elif collector["kind"] == "xperf":
+            if collector["preflight"]["ok"]:
+                assert collector["command"][0].endswith("\\xperf.exe")
+                arguments = " ".join(collector["command"][1:])
+                assert ALLOWED_XPERF.fullmatch(arguments), arguments
+                assert ("-tle" in collector["command"]) is (collector["status"] == "capture_failed"), "tolerate lost events only after a loss, and then the report inherits the failure"
+            else:
+                assert primary == []
         else:
             assert "Win32_PnPEntity" in collector["command"] and "Get-PnpDeviceProperty" in collector["command"]
         config = [a for a in collector["artifacts"] if a["role"] == "config"]
@@ -204,6 +259,11 @@ def test_observed_zero_is_an_empty_export_inside_a_covered_range(case):
                 assert records == []
             if collector["status"] == "observed":
                 assert records
+        elif primary[0]["path"].endswith("/trace.etl"):
+            # The synthetic recorder's trace: bytes that say what they are not. Never a real capture.
+            assert primary[0]["bytes"] > 0 and text.startswith("synthetic trace, not an event trace log")
+        elif primary[0]["path"].endswith("/dpcisr.txt"):
+            assert "DPC Info" in text and "Interrupt Info" in text
         else:
             # A netsh output: text, kept whole, never empty.
             assert text.strip(), "a text primary is never empty"

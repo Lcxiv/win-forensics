@@ -1,0 +1,412 @@
+{
+  "manifest_version": "1.0.0",
+  "bundle_id": "20260301T120001Z_dpcisr_trace_ae3a76a9",
+  "created_utc": "2026-03-01T12:00:21.0000000Z",
+  "scenario": {
+    "id": "dpcisr_trace",
+    "version": "1.0.0",
+    "requested_duration_s": 10,
+    "target_process": null,
+    "marks": []
+  },
+  "capture": {
+    "start_utc": "2026-03-01T12:00:01.0000000Z",
+    "stop_utc": "2026-03-01T12:00:21.0000000Z",
+    "orchestrator": "wf-collector:dpcisr-trace",
+    "orchestrator_version": "1.2.0",
+    "elevated": true,
+    "incomplete": true
+  },
+  "machine": {
+    "machine_id": "ae3a76a9f32fa71b72616118339e376c",
+    "hostname": "SYNTHETIC-PC",
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26100",
+      "build": 26100,
+      "ubr": 1,
+      "display_version": "24H2",
+      "architecture": "64-bit",
+      "edition": "Professional"
+    },
+    "cpu": {
+      "name": "Synthetic CPU",
+      "logical_processors": 16,
+      "qpc_frequency_hz": 10000000
+    },
+    "memory_bytes": 34359738368,
+    "gpus": [
+      {
+        "name": "Synthetic Display Adapter",
+        "driver_version": "1.2.3.4",
+        "driver_date": "2026-01-15T00:00:00.0000000Z",
+        "device_id": "PCI\\VEN_FFFF&DEV_0001"
+      }
+    ],
+    "bios": {
+      "vendor": "Synthetic Firmware",
+      "version": "S1.00",
+      "release_date": "2025-11-01T00:00:00.0000000Z"
+    },
+    "board": {
+      "manufacturer": "Synthetic Boards",
+      "product": "SB-1"
+    },
+    "drivers": [],
+    "time_zone": {
+      "name": "UTC",
+      "utc_offset_minutes": 0,
+      "dst_active": false
+    }
+  },
+  "collectors": [
+    {
+      "id": "wpr_trace",
+      "kind": "wpr",
+      "required": true,
+      "status": "capture_failed",
+      "status_reason": "wpr -status reported 544 events lost (the scenario bound is 0); the trace is kept because every event in it is real, but it is not the complete record and can never support an absence claim. Raise the buffer count in the profile or shorten the capture",
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:03.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\wpr.exe"
+          },
+          {
+            "name": "account_elevated",
+            "ok": true,
+            "detail": "SYNTHETIC-PC\\wf-collector; kernel tracing needs an elevated account (see the collector header for the citation)"
+          },
+          {
+            "name": "no_recording_in_progress",
+            "ok": true,
+            "detail": "wpr -status reports no recording"
+          },
+          {
+            "name": "profile_accepted",
+            "ok": true,
+            "detail": "wpr -profiles enumerated the profile file"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\wpr.exe",
+        "-start",
+        "<bundle>/raw/wpr_trace/dpcisr-trace.wprp!WfDpcIsrTrace.Verbose",
+        "-filemode",
+        "-recordtempto",
+        "<bundle>/raw/wpr_trace/temp"
+      ],
+      "started_utc": "2026-03-01T12:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:17.0000000Z",
+      "exit_code": 0,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "9a46ff4c93e19224130b0a427abe3686e4441009035677d3ffb47a86d6d59eef"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [
+          "NT Kernel Logger"
+        ],
+        "keywords": [
+          "Interrupt",
+          "DPC",
+          "Loader",
+          "ProcessThread",
+          "CSwitch",
+          "ReadyThread"
+        ],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "profile_name": "WfDpcIsrTrace",
+          "profile_id": "WfDpcIsrTrace.Verbose.File",
+          "logging_mode": "file",
+          "buffer_size_kb": 1024,
+          "buffer_count": 64,
+          "duration_seconds": 10,
+          "max_trace_bytes": 2147483648,
+          "events_lost_bound": 0,
+          "record_temp_to": "raw/wpr_trace/temp",
+          "stop_arguments": [
+            "-stop",
+            "<bundle>/raw/wpr_trace/trace.etl",
+            "win-forensics dpcisr-trace 20260301T120002Z",
+            "-skipPdbGen"
+          ]
+        }
+      },
+      "enabled": {
+        "providers": [
+          "NT Kernel Logger"
+        ],
+        "keywords": [
+          "Interrupt",
+          "DPC",
+          "Loader",
+          "ProcessThread",
+          "CSwitch",
+          "ReadyThread"
+        ],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "dropped_events": 544,
+          "logging_mode": "File",
+          "session_started_utc": "2026-03-01T12:00:04.0000000Z",
+          "session_stopped_utc": "2026-03-01T12:00:16.0000000Z",
+          "trace_bytes": 4096,
+          "temp_bytes_seen": 4096,
+          "stopped_early_at_cap": false,
+          "session_confirmed_stopped": true
+        },
+        "verified_by": "wpr -status profiles collectors -details, run before wpr -stop; its text is status.txt and the events lost it reports is events_lost"
+      },
+      "events_lost": 544,
+      "buffers": {
+        "size_kb": 1024,
+        "count": 64,
+        "mode": "file"
+      },
+      "artifacts": [
+        {
+          "path": "raw/wpr_trace/dpcisr-trace.wprp",
+          "bytes": 1800,
+          "sha256": "9a46ff4c93e19224130b0a427abe3686e4441009035677d3ffb47a86d6d59eef",
+          "role": "config"
+        },
+        {
+          "path": "raw/wpr_trace/session.json",
+          "bytes": 3998,
+          "sha256": "f570d68cd06c871c4c19ce3fd82e4bb6fb4ce3a17aea904d26ee2c1dd4c37f8e",
+          "role": "report"
+        },
+        {
+          "path": "raw/wpr_trace/status.txt",
+          "bytes": 469,
+          "sha256": "c65c24878413898914bfb95c547ef60a5d0ffbedb9a559846411fd9454561dbc",
+          "role": "report"
+        },
+        {
+          "path": "raw/wpr_trace/trace.etl",
+          "bytes": 4096,
+          "sha256": "d7726ba3832ddd6c5cc7ea0c52b3076b551fce5a84c0c6f1022f502c91ed4987",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:04.0000000Z",
+        "end": "2026-03-01T12:00:16.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "wpr starts the profile, records for the requested duration, reports zero events lost for every collector just before the stop, saves a non empty trace within the cap, and wpr -status confirms no recording remains",
+        "met": false,
+        "detail": "events lost 544; trace 4096 bytes; session confirmed stopped True; stopped early at cap False"
+      },
+      "target_process": null
+    },
+    {
+      "id": "dpcisr_report",
+      "kind": "xperf",
+      "required": false,
+      "status": "capture_failed",
+      "status_reason": "the report was produced with -tle (tolerate lost events) from a trace that lost 544 events; its numbers describe the events that were recorded and not the whole window, so the report is kept with this status and never supports an absence claim",
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:19.0000000Z",
+        "checks": [
+          {
+            "name": "trace_present",
+            "ok": true,
+            "detail": "raw/wpr_trace/trace.etl"
+          },
+          {
+            "name": "tool_named",
+            "ok": true,
+            "detail": "C:\\Tools\\WindowsPerformanceToolkit\\xperf.exe"
+          },
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "sha256 7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b, version 10.0.26100.1 (synthetic)"
+          },
+          {
+            "name": "tool_pinned",
+            "ok": true,
+            "detail": "matches the pinned build 10.0.26100.1 (synthetic) from synthetic Windows Performance Toolkit build for the test suite"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Tools\\WindowsPerformanceToolkit\\xperf.exe",
+        "-i",
+        "<bundle>/raw/wpr_trace/trace.etl",
+        "-a",
+        "dpcisr",
+        "-tle"
+      ],
+      "started_utc": "2026-03-01T12:00:18.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:20.0000000Z",
+      "exit_code": 0,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "3f1a00f055f6bda78efbb071db8af3e0ccd385f01f6a5746e9c472daa072a132"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\Tools\\WindowsPerformanceToolkit\\xperf.exe",
+          "tool_source": "operator supplied (-XperfPath); xperf.exe is part of the Windows Performance Toolkit in the Windows ADK, not inbox on Windows, and runs only when its SHA-256 and version match a pinned build",
+          "pinned_builds": [
+            {
+              "version": "10.0.26100.1 (synthetic)",
+              "sha256": "7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b",
+              "source": "synthetic Windows Performance Toolkit build for the test suite"
+            }
+          ],
+          "arguments": [
+            "-i",
+            "<bundle>/raw/wpr_trace/trace.etl",
+            "-a",
+            "dpcisr",
+            "-tle"
+          ],
+          "trace": "raw/wpr_trace/trace.etl",
+          "trace_events_lost": 544,
+          "timeout_seconds": 240,
+          "max_artifact_bytes": 67108864,
+          "output_encoding": "utf-8",
+          "output_code_page": 65001,
+          "line_endings": "lf"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 13,
+          "stdout_bytes": 13888,
+          "sections_found": [
+            "DPC Info",
+            "Interrupt Info"
+          ],
+          "tool_sha256": "7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b",
+          "tool_version": "10.0.26100.1 (synthetic)"
+        },
+        "verified_by": "the tool file hash and version in result.json matched the pinned build before the run; the process exit code, timing and byte count are in result.json; the report is dpcisr.txt"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/dpcisr_report/command.json",
+          "bytes": 839,
+          "sha256": "3f1a00f055f6bda78efbb071db8af3e0ccd385f01f6a5746e9c472daa072a132",
+          "role": "config"
+        },
+        {
+          "path": "raw/dpcisr_report/dpcisr.txt",
+          "bytes": 13888,
+          "sha256": "c3da7a95e98b75428f7e2bd71f81e95cf5b9964ebb0f8f60499f660d1c740f1d",
+          "role": "primary"
+        },
+        {
+          "path": "raw/dpcisr_report/result.json",
+          "bytes": 655,
+          "sha256": "d0b1527d7c29a3f68bd9b96b751b158d260200f94142cfe095b576e1c099d2b8",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:18.0000000Z",
+        "end": "2026-03-01T12:00:20.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "a pinned xperf.exe exits 0 on \"xperf -i trace.etl -a dpcisr\" and prints the DPC Info and Interrupt Info sections, from a trace with zero events lost",
+        "met": false,
+        "detail": "exit code 0; sections DPC Info, Interrupt Info; trace events lost 544"
+      },
+      "target_process": null
+    }
+  ],
+  "calibration": {
+    "status": "not_collected",
+    "method": "none in this collector: the trace timestamps are QPC (the ETW default clock) and the calibration pairs that relate them to system time come from the clock collector, which is a separate piece; until it runs alongside, the trace is unaligned to every system_time source",
+    "qpc_frequency_hz": 10000000,
+    "expected_pairs": 0,
+    "pairs": [],
+    "missing_pairs": 0,
+    "time_adjustment": {
+      "start": null,
+      "stop": null
+    },
+    "boot_time_utc": "2026-02-27T12:00:00.0000000Z"
+  },
+  "tools": [
+    {
+      "name": "powershell",
+      "version": "5.1.26100.1",
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "sha256": null
+    },
+    {
+      "name": "wevtutil",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wevtutil.exe",
+      "sha256": null
+    },
+    {
+      "name": "collector:dpcisr-trace",
+      "version": "1.0.0",
+      "path": "<install directory>\\dpcisr-trace.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector-helper:_common.ps1",
+      "version": "1.2.0",
+      "path": "<install directory>\\_common.ps1",
+      "sha256": null
+    },
+    {
+      "name": "wpr",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wpr.exe",
+      "sha256": null
+    },
+    {
+      "name": "xperf",
+      "version": "10.0.26100.1 (synthetic)",
+      "path": "C:\\Tools\\WindowsPerformanceToolkit\\xperf.exe",
+      "sha256": "7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b"
+    }
+  ],
+  "symbols": {
+    "symbol_path": null,
+    "cache_path": null,
+    "dbghelp_version": null
+  },
+  "checksum_algorithm": "sha256",
+  "notes": [
+    "Read only collector dpcisr-trace version 1.0.0: Where do DPC and interrupt time land, per CPU and per module, while the PC is in use, and what ran on those CPUs?",
+    "Ran as SYNTHETIC-PC\\wf-collector; elevated: True; member of Event Log Readers (S-1-5-32-573): True.",
+    "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
+    "source dpcisr_report: the dpcisr report comes from a trace with lost events and is kept as capture_failed; read it as a lower bound, never as an absence"
+  ]
+}

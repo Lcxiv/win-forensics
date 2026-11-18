@@ -9,13 +9,17 @@
 # pseudonyms that keep other people's network names out of a bundle) and is
 # what the Pester suite exercises off Windows. The second half is a small set
 # of adapter functions that touch Windows (event log, WMI, wevtutil, netsh,
-# one file under ProgramData, Plug and Play device properties, identity).
+# one file under ProgramData, Plug and Play device properties, identity, the
+# inbox wpr.exe path, the hash and version of an operator supplied tool, and
+# the clock and sleep a live capture waits on).
 # The test suite replaces the adapters with synthetic ones; nothing else in
 # this file calls a Windows only API.
 #
 # Source types a collector definition may use: eventlog, cim, command (a
 # fixed netsh query), file (one known file copied read only), pnp (present
-# Plug and Play devices with their parent chain).
+# Plug and Play devices with their parent chain), and script (a source the
+# collector implements itself with a scriptblock, used by the live capture
+# collector dpcisr-trace, which keeps its session control local).
 #
 # Target: Windows PowerShell 5.1 as a standard account in Event Log Readers.
 # Contracts: docs/contracts/bundle.md, docs/contracts/measurement-status.md,
@@ -34,7 +38,7 @@ if (Get-Command -Name 'Invoke-WfCollectorScript' -CommandType Function -ErrorAct
 # Constants are functions, not script scoped variables: a function that is
 # called from another script file would look a script variable up in that
 # file's scope and not find it.
-function Get-WfCollectorsVersion { return '1.1.0' }
+function Get-WfCollectorsVersion { return '1.2.0' }
 function Get-WfManifestVersion { return '1.0.0' }
 function Get-WfCollectorNamePattern { return '^[a-z][a-z0-9-]{1,40}$' }
 
@@ -2188,7 +2192,9 @@ function Invoke-WfCollector {
     $driverResult = $null
     # Shared by the sources that pseudonymise names and addresses: one salt
     # for the run, and the network names learned so far, kept in memory only.
-    $context = @{ Salt = (New-WfPseudonymSalt); Ssids = (New-Object 'System.Collections.Generic.List[string]') }
+    # Tools receives the record of any executable a script source ran (a
+    # pinned external tool, the inbox wpr.exe) for the manifest tools list.
+    $context = @{ Salt = (New-WfPseudonymSalt); Ssids = (New-Object 'System.Collections.Generic.List[string]'); Tools = (New-Object 'System.Collections.Generic.List[object]') }
     $protects = $false
     foreach ($source in $sources) {
         $type = [string]$source['Type']
@@ -2212,6 +2218,18 @@ function Invoke-WfCollector {
             $protects = $true
             $result = Invoke-WfPnpSource -Source $source -BundleRoot $bundleRoot -MaxEvents $MaxEvents `
                 -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes -Context $context
+        } elseif ($type -eq 'script') {
+            # The collector implements the source itself (a live capture, for
+            # one) and hands over a scriptblock that returns the same
+            # @{ Entry; Rows } shape as the built in types. The scriptblock is
+            # a literal in the collector script, so it sees the helper
+            # functions through the script's scope; it must not be a closure.
+            if (-not ($source['Invoke'] -is [scriptblock])) { throw ('source ' + [string]$source['Id'] + ' of type script has no Invoke scriptblock') }
+            $result = & $source['Invoke'] -Source $source -BundleRoot $bundleRoot -MaxArtifactBytes $MaxArtifactBytes `
+                -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes -Context $context
+            $last = @($result)[-1]
+            if (-not ($last -is [System.Collections.IDictionary]) -or -not $last.Contains('Entry')) { throw ('source ' + [string]$source['Id'] + ' returned no Entry') }
+            $result = $last
         } else {
             throw ('unknown source type: ' + $type)
         }
@@ -2241,6 +2259,25 @@ function Invoke-WfCollector {
         $notes.Add($message)
         $log.Add($message)
     }
+    if ($context['Tools'].Count -gt 0) { $tools = @($tools) + @($context['Tools'].ToArray()) }
+
+    # A live capture collector states its own calibration section and the
+    # duration it was asked for; history collectors keep the defaults below.
+    $calibration = [ordered]@{
+        status           = 'not_applicable'
+        method           = 'none: this collector reads historical records that carry their own UTC system time, so there is no QPC session to calibrate'
+        qpc_frequency_hz = $machineInfo['qpc_frequency_hz']
+        expected_pairs   = 0
+        pairs            = @()
+        missing_pairs    = 0
+        time_adjustment  = [ordered]@{ start = $null; stop = $null }
+        boot_time_utc    = $machineInfo['boot_time_utc']
+    }
+    if ($Definition['Calibration']) {
+        foreach ($key in @('status', 'method')) { if ($Definition['Calibration'].Contains($key)) { $calibration[$key] = [string]$Definition['Calibration'][$key] } }
+    }
+    $requestedDuration = $(if ($windowed) { [int64]$WindowDays * 86400 } else { 0 })
+    if ($Definition['RequestedDurationSeconds']) { $requestedDuration = [int64]$Definition['RequestedDurationSeconds'] }
 
     $allNotes = New-Object 'System.Collections.Generic.List[string]'
     $allNotes.Add(('Read only collector {0} version {1}: {2}' -f $name, [string]$Definition['Version'], [string]$Definition['Question']))
@@ -2262,7 +2299,7 @@ function Invoke-WfCollector {
         scenario           = [ordered]@{
             id                   = $scenarioId
             version              = [string]$Definition['Version']
-            requested_duration_s = $(if ($windowed) { [int64]$WindowDays * 86400 } else { 0 })
+            requested_duration_s = $requestedDuration
             target_process       = $null
             marks                = @()
         }
@@ -2276,17 +2313,8 @@ function Invoke-WfCollector {
         }
         machine            = $machine
         collectors         = @($entries.ToArray())
-        calibration        = [ordered]@{
-            status           = 'not_applicable'
-            method           = 'none: this collector reads historical records that carry their own UTC system time, so there is no QPC session to calibrate'
-            qpc_frequency_hz = $machineInfo['qpc_frequency_hz']
-            expected_pairs   = 0
-            pairs            = @()
-            missing_pairs    = 0
-            time_adjustment  = [ordered]@{ start = $null; stop = $null }
-            boot_time_utc    = $machineInfo['boot_time_utc']
-        }
-        tools              = $tools
+        calibration        = $calibration
+        tools              = @($tools)
         symbols            = [ordered]@{ symbol_path = $null; cache_path = $null; dbghelp_version = $null }
         checksum_algorithm = 'sha256'
         notes              = @($allNotes.ToArray())
@@ -2772,7 +2800,10 @@ function Invoke-WfProcess {
     # an oversized run keeps only the first 4096 characters of each stream as
     # a diagnostic. MaxBytes 0 means the caller enforces its own cap on what
     # it writes (wevtutil prints a line or two). The only executables started
-    # through this are wevtutil (export verb) and netsh (wlan show queries).
+    # through this are wevtutil (export verb), netsh (wlan show queries), the
+    # inbox wpr.exe (status, profiles, start, stop and cancel of the one
+    # session dpcisr-trace owns) and a pinned xperf.exe (report actions on a
+    # trace file in the bundle).
     param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null, [int64]$MaxBytes = 0)
     $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Oversized = $false; Error = $null; DurationMs = $null; StdOutBytes = [int64]0; StdErrBytes = [int64]0; Diagnostic = $null }
     if ($TimeoutSeconds -lt 1) {
@@ -3014,4 +3045,55 @@ function New-WfCimProducer {
         Producer = { Get-CimInstance @parameters }.GetNewClosure()
         Convert  = { param($Instance) return (ConvertFrom-WfCimInstance -Instance $Instance -Properties $names) }.GetNewClosure()
     }
+}
+
+function Get-WfWprPath {
+    # Windows Performance Recorder ships with Windows 8.1 and later and needs
+    # no installation (Microsoft: "WPR.exe ships together with the Windows
+    # operating system (Windows 8.1 or a later version) and doesn't require
+    # additional installation"):
+    # https://learn.microsoft.com/troubleshoot/windows-server/support-tools/support-tools-xperf-wpa-wpr
+    return [System.IO.Path]::Combine([string]$env:SystemRoot, 'System32', 'wpr.exe')
+}
+
+function Get-WfExternalToolInfo {
+    # What is known about an executable an operator pointed at: whether it
+    # exists, the SHA-256 of its bytes and the file version Windows records
+    # in it (System.Diagnostics.FileVersionInfo:
+    # https://learn.microsoft.com/dotnet/api/system.diagnostics.fileversioninfo).
+    # The caller compares both with a pinned build before running anything.
+    param([string]$Path)
+    $info = [ordered]@{ Exists = $false; Sha256 = $null; Version = $null; Error = $null }
+    try {
+        if (-not $Path -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $info }
+        $info.Exists = $true
+        $info.Sha256 = Get-WfSha256OfFile -Path $Path
+        $version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($Path)
+        if ($version.FileVersion) { $info.Version = ([string]$version.FileVersion).Trim() }
+    } catch {
+        $info.Error = $_.Exception.Message
+    }
+    return $info
+}
+
+function Get-WfPinnedToolBuilds {
+    # The builds of tools that are not inbox on Windows which a collector may
+    # run: one entry per accepted build with the file version and the SHA-256
+    # of the executable, and where that build comes from. A collector never
+    # downloads or installs a tool; it runs the file the operator names only
+    # when the file's hash and version are listed here, and records both in
+    # the manifest. No xperf build is pinned yet: which Windows Performance
+    # Toolkit (Windows ADK) release goes on the PC is an open decision, listed
+    # in collectors/windows/README.md. Until one is pinned the dpcisr report
+    # source of dpcisr-trace reports not_collected and says so.
+    param([string]$Name)
+    if ($Name -eq 'xperf') { return , @() }
+    return , @()
+}
+
+function Start-WfSleep {
+    # The wait of a live capture, in whole seconds, so the synthetic backend
+    # can advance its clock instead.
+    param([int]$Seconds)
+    if ($Seconds -gt 0) { Start-Sleep -Seconds $Seconds }
 }

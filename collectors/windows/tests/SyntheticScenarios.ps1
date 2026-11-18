@@ -191,7 +191,165 @@ function Get-WfSyntheticCases {
             }
         })
 
+    # The live DPC and interrupt capture. The synthetic recorder starts and
+    # stops cleanly; the synthetic xperf is a pinned build whose report puts
+    # the invented graphics driver's DPC and interrupt time on CPU 6. Status
+    # ok, exit 0, both sources observed.
+    $cases.Add(@{
+            Case = 'dpcisr-trace'; Collector = 'dpcisr-trace'; ExitCode = 0; Arguments = @{ DurationSeconds = 10; XperfPath = 'C:\Tools\WindowsPerformanceToolkit\xperf.exe' }
+            Setup = { New-WfSyntheticTraceMachine -EventsLost 0 -Xperf 'pinned' }
+        })
+
+    # The same capture without an xperf on the machine: the trace is observed
+    # and in the bundle, the report is not_collected and says where it can be
+    # produced. Status partial, exit 0.
+    $cases.Add(@{
+            Case = 'dpcisr-trace-no-xperf'; Collector = 'dpcisr-trace'; ExitCode = 0; Arguments = @{ DurationSeconds = 10 }
+            Setup = { New-WfSyntheticTraceMachine -EventsLost 0 -Xperf 'absent' }
+        })
+
+    # The recorder lost events (the number is the one Microsoft's tracelog
+    # example shows). The trace is kept but capture_failed, the report is
+    # produced with -tle and inherits the status, nothing is observed, exit 1.
+    $cases.Add(@{
+            Case = 'dpcisr-trace-events-lost'; Collector = 'dpcisr-trace'; ExitCode = 1; Arguments = @{ DurationSeconds = 10; XperfPath = 'C:\Tools\WindowsPerformanceToolkit\xperf.exe' }
+            Setup = { New-WfSyntheticTraceMachine -EventsLost 544 -Xperf 'pinned' }
+        })
+
+    # The account is not elevated, which is what the front door's standard
+    # account looks like today: no session is started, both sources are
+    # not_collected with the reason, exit 1.
+    $cases.Add(@{
+            Case = 'dpcisr-trace-not-elevated'; Collector = 'dpcisr-trace'; ExitCode = 1; Arguments = @{ DurationSeconds = 10; XperfPath = 'C:\Tools\WindowsPerformanceToolkit\xperf.exe' }
+            Setup = { New-WfSyntheticTraceMachine -EventsLost 0 -Xperf 'pinned'; $global:WfSynthetic.Elevated = $false }
+        })
+
     return $cases.ToArray()
+}
+
+function New-WfSyntheticTraceMachine {
+    # The machine behind the dpcisr-trace cases: an elevated account, the
+    # synthetic recorder, and an xperf that is pinned, present but not pinned,
+    # or absent. Every value is invented.
+    param([int]$EventsLost = 0, [string]$Xperf = 'pinned')
+    $global:WfSynthetic.Elevated = $true
+    $global:WfSynthetic.Wpr.EventsLost = $EventsLost
+    $global:WfSynthetic.Wpr.DroppedEvents = $EventsLost
+    $path = 'C:\Tools\WindowsPerformanceToolkit\xperf.exe'
+    $pinnedHash = '7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b'
+    if ($Xperf -ne 'absent') {
+        $hash = $(if ($Xperf -eq 'pinned') { $pinnedHash } else { '0000000000000000000000000000000000000000000000000000000000000001' })
+        $global:WfSynthetic.Tools[$path] = @{ Sha256 = $hash; Version = '10.0.26100.1 (synthetic)' }
+    }
+    $global:WfSynthetic.PinnedTools['xperf'] = @(@{ Version = '10.0.26100.1 (synthetic)'; Sha256 = $pinnedHash; Source = 'synthetic Windows Performance Toolkit build for the test suite' })
+    $global:WfSynthetic.Xperf = @{ ExitCode = 0; StdOut = (Get-WfSyntheticDpcIsrReport); StdErr = ''; Stuck = $false }
+}
+
+function Get-WfSyntheticDpcIsrReport {
+    # An "xperf -i trace.etl -a dpcisr" report in the shape
+    # scripts/decode_dpcisr.py reads (the format fixture under
+    # fixtures/example-bundle shows the real tool's layout): a DPC Info and
+    # an Interrupt Info section, each with the per module, per CPU table for
+    # the whole trace, the section total, one total per module, the
+    # reconciliation line, and the per interval table. Sixteen CPUs; the
+    # invented graphics driver's time sits on CPU 6, as a GPU interrupt
+    # affinity pin would put it. Every number and module name is made up.
+    $cpuCount = 16
+    $spanUs = 10000000
+    $intervalMs = 1000
+    $nl = "`r`n"
+    $sections = @(
+        @{
+            Name    = 'DPC Info'
+            Modules = @(
+                @{ Module = 'synthgfx.sys'; Count = 41200; Usec = @{ 6 = 912345 } },
+                @{ Module = 'synthnic.sys'; Count = 9800; Usec = @{ 0 = 24810 } },
+                @{ Module = 'synthusb.sys'; Count = 12050; Usec = @{ 2 = 18630; 3 = 2210 } },
+                @{ Module = 'synthaudio.sys'; Count = 3100; Usec = @{ 4 = 9950 } },
+                @{ Module = 'ntoskrnl.exe'; Count = 60300; Usec = @{ 0 = 3300; 1 = 1608; 2 = 2260; 3 = 1694; 4 = 2594; 5 = 2067; 6 = 2833; 7 = 2319; 8 = 3186; 9 = 2732; 10 = 2711; 11 = 1500; 12 = 1420; 13 = 1377; 14 = 1266; 15 = 1190 } }
+            )
+        },
+        @{
+            Name    = 'Interrupt Info'
+            Modules = @(
+                @{ Module = 'synthgfx.sys'; Count = 38900; Usec = @{ 6 = 486210 } },
+                @{ Module = 'synthnic.sys'; Count = 9800; Usec = @{ 0 = 8120 } },
+                @{ Module = 'synthusb.sys'; Count = 12050; Usec = @{ 2 = 6020; 3 = 740 } },
+                @{ Module = 'ntoskrnl.exe'; Count = 5400; Usec = @{ 0 = 190; 1 = 217; 2 = 278; 3 = 465; 4 = 577; 5 = 346; 6 = 516; 7 = 245; 8 = 462; 9 = 331; 10 = 262; 11 = 169; 12 = 134; 13 = 150; 14 = 121; 15 = 118 } }
+            )
+        }
+    )
+    $lines = New-Object 'System.Collections.Generic.List[string]'
+    $lines.Add('')
+    foreach ($section in $sections) {
+        $lines.Add('--------------------------')
+        $lines.Add($section.Name)
+        $lines.Add('')
+        $lines.Add('--------------------------')
+        $lines.Add('CPU Usage Summing By Module For the Whole Trace')
+        $lines.Add('')
+        $lines.Add(('CPU Usage from 0 us to {0} us:' -f $spanUs))
+        $lines.Add('')
+        $header = ''
+        $legend = ''
+        for ($cpu = 0; $cpu -lt $cpuCount; $cpu++) {
+            $header += ('      CPU {0} Usage,' -f $cpu)
+            $legend += '      usec      %,'
+        }
+        $lines.Add($header + '  ')
+        $lines.Add($legend + '   ')
+        $total = 0
+        foreach ($module in $section.Modules) {
+            $row = ''
+            for ($cpu = 0; $cpu -lt $cpuCount; $cpu++) {
+                $usec = 0
+                if ($module.Usec.ContainsKey($cpu)) { $usec = [int]$module.Usec[$cpu] }
+                $percent = [math]::Round(100.0 * $usec / $spanUs, 2)
+                $row += ('{0,9} {1,6:0.00},' -f $usec, $percent)
+            }
+            $lines.Add($row + ' ' + $module.Module)
+            $total += [int]$module.Count
+        }
+        $lines.Add('')
+        $lines.Add(('Total = {0}' -f $total))
+        $lines.Add(('Elapsed Time, >        0 usecs AND <=        1 usecs,  {0}, or  50.00%' -f [int]($total / 2)))
+        $lines.Add(('Elapsed Time, >        1 usecs AND <=      256 usecs,  {0}, or  50.00%' -f ($total - [int]($total / 2))))
+        $lines.Add(('Total,                                                {0}' -f $total))
+        $lines.Add('')
+        foreach ($module in $section.Modules) {
+            $lines.Add(('Total = {0} for module {1}' -f $module.Count, $module.Module))
+            $lines.Add(('Elapsed Time, >        0 usecs AND <=      256 usecs,  {0}, or 100.00%' -f $module.Count))
+            $lines.Add(('Total,                                                {0}' -f $module.Count))
+            $lines.Add('')
+        }
+        $lines.Add(('All Module = {0},  Total = {0},   EQUAL' -f $total))
+        $lines.Add('')
+        $lines.Add('--------------------------')
+        $intervals = [int]($spanUs / 1000 / $intervalMs)
+        $lines.Add(('Usage From 0 ms to {0} ms, Summing In 1 second intervals. Intervals={1}' -f ($spanUs / 1000), $intervals))
+        $lines.Add('')
+        $header = '                       ,'
+        $legend = 'Start (ms) End (ms)    ,'
+        for ($cpu = 0; $cpu -lt $cpuCount; $cpu++) {
+            $header += ('      CPU {0} Usage ,' -f $cpu)
+            $legend += '    (usec)      % ,'
+        }
+        $lines.Add($header)
+        $lines.Add($legend)
+        for ($i = 0; $i -lt $intervals; $i++) {
+            $row = ('{0,10}-{1,-10}:,' -f ($i * $intervalMs), (($i + 1) * $intervalMs))
+            $cells = New-Object 'System.Collections.Generic.List[string]'
+            for ($cpu = 0; $cpu -lt $cpuCount; $cpu++) {
+                $usec = 0
+                foreach ($module in $section.Modules) { if ($module.Usec.ContainsKey($cpu)) { $usec += [int]([int]$module.Usec[$cpu] / $intervals) } }
+                $percent = [math]::Round(100.0 * $usec / ($intervalMs * 1000), 2)
+                $cells.Add(('{0,10} {1,6:0.00}' -f $usec, $percent))
+            }
+            $lines.Add($row + ($cells.ToArray() -join ','))
+        }
+        $lines.Add('')
+    }
+    return (($lines.ToArray() -join $nl) + $nl)
 }
 
 function New-WfSyntheticRfMachine {

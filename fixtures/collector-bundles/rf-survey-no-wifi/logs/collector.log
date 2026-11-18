@@ -1,4 +1,4 @@
-2026-03-01T12:00:01.0000000Z collector rf-survey version 1.0.0, helper version 1.1.0, window 30 days, 80 s per source
+2026-03-01T12:00:01.0000000Z collector rf-survey version 1.0.0, helper version 1.2.0, window 30 days, 80 s per source
 source net_adapters: status observed, 2 artifacts
 source default_routes: status observed, 2 artifacts
 source wlan_profiles: status capture_failed, 2 artifacts

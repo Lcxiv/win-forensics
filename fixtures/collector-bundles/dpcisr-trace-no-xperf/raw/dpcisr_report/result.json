@@ -1,0 +1,14 @@
+{
+  "started_utc": "2026-03-01T12:00:18.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:20.0000000Z",
+  "tool_sha256": null,
+  "tool_version": null,
+  "pinned_build": null,
+  "exit_code": null,
+  "timed_out": false,
+  "duration_ms": null,
+  "stdout_bytes": 0,
+  "stderr": null,
+  "sections_found": [],
+  "trace_events_lost": 0
+}

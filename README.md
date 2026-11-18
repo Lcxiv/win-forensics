@@ -18,6 +18,8 @@ This is phase 0a of the build order in the captain's implementation plan (kept o
 
 One set of collectors exists ahead of that order, because the captain's plan for reaching the gaming PC over SSH needs it: `collectors/windows/` holds named, read only PowerShell collectors that read history the machine already keeps (bug check and restart events, hardware error events, application crashes and hangs, GPU driver timeouts, reliability records, the driver inventory) as a standard account in Event Log Readers. Each writes a bundle to this contract with every source's measurement status, and `scripts/decode_eventlog.py` decodes the event exports into the `eventlog_events` table. They have never run on Windows; [collectors/windows/README.md](collectors/windows/README.md) lists what is still to be verified on the PC, and what needs Administrator and is therefore left for a later elevated task.
 
+It also holds the first live capture, `dpcisr-trace`: one bounded Windows Performance Recorder session from a committed profile (kernel Interrupt, DPC, Loader, ProcessThread, CSwitch and ReadyThread events, no stacks), with the trace loss read from the tool's own status before the stop, the session stopped on every exit path, and, when the operator names a hash pinned `xperf.exe`, the `xperf -a dpcisr` report that `scripts/decode_dpcisr.py` turns into the per CPU, per module tables. `scripts/decode_tracestats.py` decodes the status text into the `tracestats` table so the loss is readable without the tool's wording. Kernel tracing needs an elevated account, so the collector refuses the front door's standard account and says so; the decoding half that needs the Windows Performance Toolkit on the PC waits for a decision on which build to pin ([collectors/windows/README.md](collectors/windows/README.md), "The dpcisr-trace sources").
+
 The same directory holds `rf-survey`, a read only survey of the 2.4 GHz band around the desk for a PC that is on Ethernet but drives a wireless mouse and headset: which adapter carries the traffic, which networks are on the air on which channels, where the receivers sit on the USB tree, and which radios are on. Network names and hardware addresses are pseudonymised before anything is written. `scripts/decode_rf_survey.py` decodes it into five typed tables and `scripts/analyze_rf_survey.py` writes evidence rows and a plain language report with a cited recommendation for the router channel, the receiver ports and the unused radios. The method, its limits (a packet capture cannot see RF noise), and the before and after test the owner runs are in [docs/rf-survey.md](docs/rf-survey.md).
 
 ## The four contracts
@@ -41,6 +43,7 @@ schemas/                 JSON Schema (draft 2020-12), one file per table, plus m
 collectors/windows/      read only PowerShell collectors for the PC, their shared helper _common.ps1, and README.md;
                          tests/ holds the Pester suite, the synthetic backend, and the fixture generator
 scripts/                 wf_schema.py (schema registry and validation), decode_dpcisr.py, decode_pdh.py, decode_eventlog.py,
+                         decode_tracestats.py (trace loss from the recorder's status text),
                          decode_rf_survey.py and analyze_rf_survey.py (the RF survey tables, evidence rows and report),
                          verify_bundle.py (manifest, checksums, no unlisted raw file), fetch_pwsh.sh (PowerShell 7 into tools/),
                          make_procmon_pmc.py, procmon_facts.ps1 and procmon_facts_summarize.py (runner harness)
@@ -78,6 +81,15 @@ A bundle a collector wrote on the PC is checked and decoded on the Mac with:
 python scripts/verify_bundle.py <bundle directory>
 python scripts/decode_eventlog.py --bundle <bundle directory>
 ```
+
+A `dpcisr-trace` bundle is decoded with:
+
+```
+python scripts/decode_tracestats.py --bundle <bundle directory>
+python scripts/decode_dpcisr.py --bundle <bundle directory> --source raw/dpcisr_report/dpcisr.txt
+```
+
+The first reads the trace loss out of the recorder's status text; the second needs the report a pinned `xperf` produced on the PC, and refuses a source the manifest does not list.
 
 An `rf-survey` bundle is decoded and analysed with:
 

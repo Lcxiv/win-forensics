@@ -1,0 +1,130 @@
+{
+  "tool": "C:\\Windows\\System32\\wpr.exe",
+  "profile_file": "raw/wpr_trace/dpcisr-trace.wprp",
+  "profile_name": "WfDpcIsrTrace",
+  "profile_id": "WfDpcIsrTrace.Verbose.File",
+  "requested_keywords": [
+    "Interrupt",
+    "DPC",
+    "Loader",
+    "ProcessThread",
+    "CSwitch",
+    "ReadyThread"
+  ],
+  "buffer_size_kb": 1024,
+  "buffer_count": 64,
+  "logging_mode": "file",
+  "duration_seconds": 10,
+  "max_trace_bytes": 2147483648,
+  "tool_timeout_seconds": 240,
+  "events_lost_bound": 0,
+  "start_arguments": [
+    "<bundle>/raw/wpr_trace/dpcisr-trace.wprp!WfDpcIsrTrace.Verbose",
+    "-filemode",
+    "-recordtempto",
+    "<bundle>/raw/wpr_trace/temp"
+  ],
+  "stop_arguments": [
+    "<bundle>/raw/wpr_trace/trace.etl",
+    "win-forensics dpcisr-trace 20260301T120002Z",
+    "-skipPdbGen"
+  ],
+  "session_started_utc": "2026-03-01T12:00:04.0000000Z",
+  "session_stopped_utc": "2026-03-01T12:00:16.0000000Z",
+  "stopped_early_at_cap": false,
+  "temp_bytes_seen": 4096,
+  "trace_bytes": 4096,
+  "status": {
+    "recording": true,
+    "dropped_events": 0,
+    "logging_mode": "File",
+    "time_since_start": "00:00:10",
+    "collectors": [
+      {
+        "name": "NT Kernel Logger",
+        "buffer_size_kb": 1024,
+        "events_lost": 0,
+        "keywords": [
+          "Interrupt",
+          "DPC",
+          "Loader",
+          "ProcessThread",
+          "CSwitch",
+          "ReadyThread"
+        ],
+        "stacks": [],
+        "providers": []
+      }
+    ]
+  },
+  "events_lost": 0,
+  "session_confirmed_stopped": true,
+  "runs": [
+    {
+      "verb": "status",
+      "arguments": "-status",
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 11,
+      "error": null,
+      "stdout_head": "WPR is not recording\r\n",
+      "stderr_head": ""
+    },
+    {
+      "verb": "profiles",
+      "arguments": "-profiles <bundle>/raw/wpr_trace/dpcisr-trace.wprp",
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 11,
+      "error": null,
+      "stdout_head": "Profile                 : WfDpcIsrTrace.Verbose.File\r\nProfile                 : WfDpcIsrTrace.Verbose.Memory\r\n",
+      "stderr_head": ""
+    },
+    {
+      "verb": "start",
+      "arguments": "-start <bundle>/raw/wpr_trace/dpcisr-trace.wprp!WfDpcIsrTrace.Verbose -filemode -recordtempto <bundle>/raw/wpr_trace/temp",
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 11,
+      "error": null,
+      "stdout_head": "synthetic wpr: recording started\r\n",
+      "stderr_head": ""
+    },
+    {
+      "verb": "status",
+      "arguments": "-status profiles collectors -details",
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 11,
+      "error": null,
+      "stdout_head": "WPR recording is in progress...\r\n\r\nTime since start        : 00:00:10\r\n\r\nDropped event           : 0\r\n\r\nLogging mode            : File\r\n\r\nRecording system activity using the following set of profiles:\r\nProfile                 : WfDpcIsrTrace.Verbose.File\r\n\r\nActively recording collectors:\r\nCollector Name          : NT Kernel Logger\r\nBuffer Size (KB)        : 1024\r\nEvents Lost             : 0\r\nSystem Keywords\r\nInterrupt\r\nDPC\r\nLoader\r\nProcessThread\r\nCSwitch\r\nReadyThread\r\nSystem Stacks\r\n",
+      "stderr_head": ""
+    },
+    {
+      "verb": "stop",
+      "arguments": "-stop <bundle>/raw/wpr_trace/trace.etl \"win-forensics dpcisr-trace 20260301T120002Z\" -skipPdbGen",
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 11,
+      "error": null,
+      "stdout_head": "synthetic wpr: trace saved\r\n",
+      "stderr_head": ""
+    },
+    {
+      "verb": "status",
+      "arguments": "-status",
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "duration_ms": 11,
+      "error": null,
+      "stdout_head": "WPR is not recording\r\n",
+      "stderr_head": ""
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "tool": "C:\\Windows\\System32\\wpr.exe",
+  "profile_file": "raw/wpr_trace/dpcisr-trace.wprp",
+  "profile_name": "WfDpcIsrTrace",
+  "profile_id": "WfDpcIsrTrace.Verbose.File",
+  "requested_keywords": [
+    "Interrupt",
+    "DPC",
+    "Loader",
+    "ProcessThread",
+    "CSwitch",
+    "ReadyThread"
+  ],
+  "buffer_size_kb": 1024,
+  "buffer_count": 64,
+  "logging_mode": "file",
+  "duration_seconds": 10,
+  "max_trace_bytes": 2147483648,
+  "tool_timeout_seconds": 240,
+  "events_lost_bound": 0,
+  "start_arguments": [
+    "<bundle>/raw/wpr_trace/dpcisr-trace.wprp!WfDpcIsrTrace.Verbose",
+    "-filemode",
+    "-recordtempto",
+    "<bundle>/raw/wpr_trace/temp"
+  ],
+  "stop_arguments": [
+    "<bundle>/raw/wpr_trace/trace.etl",
+    "win-forensics dpcisr-trace 20260301T120002Z",
+    "-skipPdbGen"
+  ],
+  "session_started_utc": null,
+  "session_stopped_utc": null,
+  "stopped_early_at_cap": false,
+  "temp_bytes_seen": 0,
+  "trace_bytes": null,
+  "status": null,
+  "events_lost": null,
+  "session_confirmed_stopped": null,
+  "runs": []
+}

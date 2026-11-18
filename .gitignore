@@ -3,6 +3,9 @@
 bundles/
 captures/
 *.etl
+# The one exception: the synthetic recorder's trace in the committed fixture bundles, a few
+# kilobytes of text that says it is not an event trace log (collectors/windows/tests/SyntheticBackend.ps1).
+!fixtures/collector-bundles/*/raw/wpr_trace/trace.etl
 *.pml
 *.PML
 *.dmp

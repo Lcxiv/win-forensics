@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WindowsPerformanceRecorder Version="1.0" Author="win-forensics" Comments="dpcisr-trace 1.0.0: kernel DPC and interrupt events with the image, process, thread, context switch and ready thread events needed to attribute them to a module and a CPU and to see what ran on that CPU. No stacks.">
+  <Profiles>
+    <SystemCollector Id="WfDpcIsrSystemCollector" Name="NT Kernel Logger">
+      <BufferSize Value="1024"/>
+      <Buffers Value="64"/>
+    </SystemCollector>
+    <SystemProvider Id="WfDpcIsrSystemProvider">
+      <Keywords>
+        <Keyword Value="Interrupt"/>
+        <Keyword Value="DPC"/>
+        <Keyword Value="Loader"/>
+        <Keyword Value="ProcessThread"/>
+        <Keyword Value="CSwitch"/>
+        <Keyword Value="ReadyThread"/>
+      </Keywords>
+    </SystemProvider>
+    <Profile Id="WfDpcIsrTrace.Verbose.File" Name="WfDpcIsrTrace" DetailLevel="Verbose" LoggingMode="File" Description="win-forensics dpcisr-trace: DPC, interrupt, image load, process, thread, context switch and ready thread events, per CPU, without stacks">
+      <Collectors>
+        <SystemCollectorId Value="WfDpcIsrSystemCollector">
+          <SystemProviderId Value="WfDpcIsrSystemProvider"/>
+        </SystemCollectorId>
+      </Collectors>
+    </Profile>
+    <Profile Id="WfDpcIsrTrace.Verbose.Memory" Name="WfDpcIsrTrace" DetailLevel="Verbose" LoggingMode="Memory" Description="win-forensics dpcisr-trace: DPC, interrupt, image load, process, thread, context switch and ready thread events, per CPU, without stacks">
+      <Collectors>
+        <SystemCollectorId Value="WfDpcIsrSystemCollector">
+          <SystemProviderId Value="WfDpcIsrSystemProvider"/>
+        </SystemCollectorId>
+      </Collectors>
+    </Profile>
+  </Profiles>
+</WindowsPerformanceRecorder>

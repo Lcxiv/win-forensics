@@ -1,0 +1,19 @@
+{
+  "tool": "C:\\Tools\\WindowsPerformanceToolkit\\xperf.exe",
+  "tool_source": "operator supplied (-XperfPath); xperf.exe is part of the Windows Performance Toolkit in the Windows ADK, not inbox on Windows, and runs only when its SHA-256 and version match a pinned build",
+  "pinned_builds": [
+    {
+      "version": "10.0.26100.1 (synthetic)",
+      "sha256": "7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b",
+      "source": "synthetic Windows Performance Toolkit build for the test suite"
+    }
+  ],
+  "arguments": [],
+  "trace": null,
+  "trace_events_lost": null,
+  "timeout_seconds": 240,
+  "max_artifact_bytes": 67108864,
+  "output_encoding": "utf-8",
+  "output_code_page": 65001,
+  "line_endings": "lf"
+}

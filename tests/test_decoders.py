@@ -28,6 +28,8 @@ def copy_raw(example_bundle, tmp_path, source):
 def dpcisr_out(example_bundle, tmp_path_factory):
     bundle = tmp_path_factory.mktemp("dpcisr")
     copy_raw(example_bundle, bundle, DPCISR_SOURCE)
+    # The manifest names the collector behind the report; the decoder records its status in the sidecar.
+    (bundle / "manifest.json").write_bytes((example_bundle / "manifest.json").read_bytes())
     result = decode_dpcisr.decode(bundle, DPCISR_SOURCE, decoded_at="2026-09-03T00:00:00Z")
     assert result["status"] == "observed", result
     return bundle
