@@ -190,7 +190,8 @@ Describe 'event query' {
         $selects[1].InnerText | Should -BeExactly "*[System[(EventID=1002) and TimeCreated[@SystemTime >= '2026-01-30T12:00:00.000Z' and @SystemTime <= '2026-03-01T12:00:00.000Z']]]"
         # The form the gaming PC rejected at the first read (README, verification item 23).
         $text | Should -Not -Match 'timediff'
-        # Quotes stay as written, as in Event Viewer's exported queries; only &, < and > are escaped.
+        # Quotes stay as written, as in the query text Get-WinEvent builds (GetEventCommand.cs
+        # in the PowerShell repository); only &, < and > are escaped.
         $text | Should -Not -Match '&apos;|&quot;'
         $text.Contains("Provider[@Name='Application Error']") | Should -BeTrue
         $text.Contains('&gt;=') | Should -BeTrue
