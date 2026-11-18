@@ -331,7 +331,7 @@
     "analyze_package": null,
     "evidence_schema": "1.0.0",
     "verdict_schema": "1.0.0",
-    "manifest_schema": "1.0.0"
+    "manifest_schema": "1.1.0"
   },
   "notes": [
     "Example verdict for a format fixture bundle: container integrity holds, evidentiary adequacy does not, no analyzer ran, so the outcome is no_verdict and no subsystem is cleared.",

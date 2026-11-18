@@ -1,17 +1,17 @@
 {
-  "manifest_version": "1.0.0",
+  "manifest_version": "1.1.0",
   "bundle_id": "20260301T120001Z_dpcisr_trace_ae3a76a9",
-  "created_utc": "2026-03-01T12:00:21.0000000Z",
+  "created_utc": "2026-03-01T12:00:19.0000000Z",
   "scenario": {
     "id": "dpcisr_trace",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "requested_duration_s": 10,
     "target_process": null,
     "marks": []
   },
   "capture": {
     "start_utc": "2026-03-01T12:00:01.0000000Z",
-    "stop_utc": "2026-03-01T12:00:21.0000000Z",
+    "stop_utc": "2026-03-01T12:00:19.0000000Z",
     "orchestrator": "wf-collector:dpcisr-trace",
     "orchestrator_version": "1.2.0",
     "elevated": true,
@@ -76,19 +76,24 @@
             "detail": "C:\\Windows\\System32\\wpr.exe"
           },
           {
+            "name": "tracerpt_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\tracerpt.exe"
+          },
+          {
             "name": "account_elevated",
             "ok": true,
-            "detail": "SYNTHETIC-PC\\wf-collector; kernel tracing needs an elevated account (see the collector header for the citation)"
+            "detail": "SYNTHETIC-PC\\wf-collector; starting a kernel trace session needs an elevated account (see the collector header for the citation)"
           },
           {
             "name": "no_recording_in_progress",
             "ok": true,
-            "detail": "wpr -status reports no recording"
+            "detail": "wpr -status (default instance) reads as idle: WPR is not recording"
           },
           {
-            "name": "profile_accepted",
+            "name": "profile_enumerated",
             "ok": true,
-            "detail": "wpr -profiles enumerated the profile file"
+            "detail": "wpr -profiles enumerated the profile file and exited 0"
           }
         ]
       },
@@ -98,14 +103,16 @@
         "<bundle>/raw/wpr_trace/dpcisr-trace.wprp!WfDpcIsrTrace.Verbose",
         "-filemode",
         "-recordtempto",
-        "<bundle>/raw/wpr_trace/temp"
+        "<bundle>/private/temp",
+        "-instancename",
+        "WfDpcIsrTrace-20260301T120002Z"
       ],
       "started_utc": "2026-03-01T12:00:02.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:17.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:15.0000000Z",
       "exit_code": 0,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "9a46ff4c93e19224130b0a427abe3686e4441009035677d3ffb47a86d6d59eef"
+        "value": "cbd25aeb8462ea2c4151c27c03e7d91a7585cf1cf5dbdcec8d8ecc6cdde7d535"
       },
       "filter_hash": null,
       "requested": {
@@ -115,10 +122,7 @@
         "keywords": [
           "Interrupt",
           "DPC",
-          "Loader",
-          "ProcessThread",
-          "CSwitch",
-          "ReadyThread"
+          "Loader"
         ],
         "stack_walk": [],
         "counters": [],
@@ -126,18 +130,27 @@
           "profile_name": "WfDpcIsrTrace",
           "profile_id": "WfDpcIsrTrace.Verbose.File",
           "logging_mode": "file",
+          "instance_name": "WfDpcIsrTrace-20260301T120002Z",
           "buffer_size_kb": 1024,
           "buffer_count": 64,
           "duration_seconds": 10,
           "max_trace_bytes": 2147483648,
           "events_lost_bound": 0,
-          "record_temp_to": "raw/wpr_trace/temp",
+          "buffers_lost_bound": 0,
+          "record_temp_to": "<bundle>/private/temp",
+          "trace_path": "<bundle>/private/trace.etl",
+          "trace_kept_in_bundle": false,
           "stop_arguments": [
             "-stop",
-            "<bundle>/raw/wpr_trace/trace.etl",
+            "<bundle>/private/trace.etl",
             "win-forensics dpcisr-trace 20260301T120002Z",
-            "-skipPdbGen"
-          ]
+            "-skipPdbGen",
+            "-instancename",
+            "WfDpcIsrTrace-20260301T120002Z"
+          ],
+          "tool_timeout_seconds": 120,
+          "short_timeout_seconds": 30,
+          "worst_case_seconds": 400
         }
       },
       "enabled": {
@@ -147,26 +160,34 @@
         "keywords": [
           "Interrupt",
           "DPC",
-          "Loader",
-          "ProcessThread",
-          "CSwitch",
-          "ReadyThread"
+          "Loader"
         ],
         "stack_walk": [],
         "counters": [],
         "options": {
-          "dropped_events": 0,
+          "instance_name": "WfDpcIsrTrace-20260301T120002Z",
+          "dropped_events_after_start": 0,
+          "events_lost_after_start": 0,
+          "buffers_lost_listed_after_start": false,
           "logging_mode": "File",
+          "final_events_lost": 0,
+          "final_buffers_lost": 0,
           "session_started_utc": "2026-03-01T12:00:04.0000000Z",
-          "session_stopped_utc": "2026-03-01T12:00:16.0000000Z",
+          "session_stop_issued_utc": "2026-03-01T12:00:14.0000000Z",
+          "recording_seconds": 10,
           "trace_bytes": 4096,
+          "trace_sha256": "d7726ba3832ddd6c5cc7ea0c52b3076b551fce5a84c0c6f1022f502c91ed4987",
+          "trace_kept_in_bundle": false,
           "temp_bytes_seen": 4096,
           "stopped_early_at_cap": false,
+          "session_state_after_stop": "idle",
+          "session_state_final": "idle",
           "session_confirmed_stopped": true
         },
-        "verified_by": "wpr -status profiles collectors -details, run before wpr -stop; its text is status.txt and the events lost it reports is events_lost"
+        "verified_by": "keywords and buffer size from \"wpr -status profiles collectors -details -instancename <name>\" right after the start (status.txt); final events lost and buffers lost from \"tracerpt <trace> -summary\" after the stop (tracerpt-summary.txt); the session end from \"wpr -status -instancename <name>\""
       },
       "events_lost": 0,
+      "buffers_lost": 0,
       "buffers": {
         "size_kb": 1024,
         "count": 64,
@@ -175,39 +196,39 @@
       "artifacts": [
         {
           "path": "raw/wpr_trace/dpcisr-trace.wprp",
-          "bytes": 1800,
-          "sha256": "9a46ff4c93e19224130b0a427abe3686e4441009035677d3ffb47a86d6d59eef",
+          "bytes": 1583,
+          "sha256": "cbd25aeb8462ea2c4151c27c03e7d91a7585cf1cf5dbdcec8d8ecc6cdde7d535",
           "role": "config"
         },
         {
           "path": "raw/wpr_trace/session.json",
-          "bytes": 3988,
-          "sha256": "6f95a0edd26f53bdcd609561861cdc0b7e39d5dc3927bba4e9e977094253ae5a",
+          "bytes": 5669,
+          "sha256": "e5fa50e528f585202cb156a060ab1573b0864eb1b6345de7add42f541a06621e",
           "role": "report"
         },
         {
           "path": "raw/wpr_trace/status.txt",
-          "bytes": 465,
-          "sha256": "f2cca62284f9e9f9ac21c239c89726ed7a350064c4570a4d5441785b158cb48f",
+          "bytes": 431,
+          "sha256": "dc9e3c211c9d787f150c7e5d9e70a8708926d8a4c0fdb82f409b74053e0f2aa9",
           "role": "report"
         },
         {
-          "path": "raw/wpr_trace/trace.etl",
-          "bytes": 4096,
-          "sha256": "d7726ba3832ddd6c5cc7ea0c52b3076b551fce5a84c0c6f1022f502c91ed4987",
+          "path": "raw/wpr_trace/tracerpt-summary.txt",
+          "bytes": 274,
+          "sha256": "2a29c133c40cf92e3fc1842e36a6154f4628d3f1fe2228cb5ae663a309a99234",
           "role": "primary"
         }
       ],
       "raw_time_range": {
         "start": "2026-03-01T12:00:04.0000000Z",
-        "end": "2026-03-01T12:00:16.0000000Z",
+        "end": "2026-03-01T12:00:14.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
-        "declared": "wpr starts the profile, records for the requested duration, reports zero events lost for every collector just before the stop, saves a non empty trace within the cap, and wpr -status confirms no recording remains",
+        "declared": "wpr starts the profile under the collector's own instance name, lists the kernel collector with the three requested keywords and a readable loss figure, records for the requested duration, saves a non empty trace within the cap, reads as idle after the stop, and tracerpt reports zero events lost and zero buffers lost for the saved trace",
         "met": true,
-        "detail": "events lost 0; trace 4096 bytes; session confirmed stopped True; stopped early at cap False"
+        "detail": "final events lost 0; final buffers lost 0; trace 4096 bytes; recording 10 s of 10 requested; session idle"
       },
       "target_process": null
     },
@@ -216,15 +237,15 @@
       "kind": "xperf",
       "required": false,
       "status": "not_collected",
-      "status_reason": "preflight failed, the source could not be opened: xperf.exe is not inbox on Windows and -XperfPath was not given; the trace is in the bundle and the report can be produced later on a machine with the Windows Performance Toolkit (collectors/windows/README.md)",
+      "status_reason": "preflight failed, the source could not be opened: xperf.exe is not inbox on Windows and -XperfPath was not given; the per CPU report can only be produced on this machine, because the trace never leaves it (collectors/windows/README.md)",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:00:19.0000000Z",
+        "at_utc": "2026-03-01T12:00:17.0000000Z",
         "checks": [
           {
             "name": "trace_present",
             "ok": true,
-            "detail": "raw/wpr_trace/trace.etl"
+            "detail": "<bundle>/private/trace.etl (on the machine only)"
           },
           {
             "name": "tool_named",
@@ -236,16 +257,16 @@
       "command": [
         "xperf.exe",
         "-i",
-        "<bundle>/raw/wpr_trace/trace.etl",
+        "<bundle>/private/trace.etl",
         "-a",
         "dpcisr"
       ],
-      "started_utc": "2026-03-01T12:00:18.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:20.0000000Z",
+      "started_utc": "2026-03-01T12:00:16.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:18.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "87c6e289d8d139e744a7a5742f7d2bc40ea4d927f28921254dbca8bd06910fe5"
+        "value": "469606bccc058939bba1ac1d45fd69a03f94cc7e45223802e6adb1b9ba9f1b85"
       },
       "filter_hash": null,
       "requested": {
@@ -255,7 +276,7 @@
         "counters": [],
         "options": {
           "tool": null,
-          "tool_source": "operator supplied (-XperfPath); xperf.exe is part of the Windows Performance Toolkit in the Windows ADK, not inbox on Windows, and runs only when its SHA-256 and version match a pinned build",
+          "tool_source": "operator supplied (-XperfPath); xperf.exe is part of the Windows Performance Toolkit in the Windows ADK, not inbox on Windows, and runs only when its SHA-256 and version match a pinned build, checked before and after the run",
           "pinned_builds": [
             {
               "version": "10.0.26100.1 (synthetic)",
@@ -265,17 +286,20 @@
           ],
           "arguments": [
             "-i",
-            "<bundle>/raw/wpr_trace/trace.etl",
+            "<bundle>/private/trace.etl",
             "-a",
             "dpcisr"
           ],
-          "trace": "raw/wpr_trace/trace.etl",
+          "trace": "<bundle>/private/trace.etl",
+          "trace_sha256": "d7726ba3832ddd6c5cc7ea0c52b3076b551fce5a84c0c6f1022f502c91ed4987",
           "trace_events_lost": 0,
-          "timeout_seconds": 240,
+          "trace_buffers_lost": 0,
+          "timeout_seconds": 120,
           "max_artifact_bytes": 67108864,
           "output_encoding": "utf-8",
           "output_code_page": 65001,
-          "line_endings": "lf"
+          "line_endings": "lf",
+          "protection": "hardware addresses (six hexadecimal pairs) become mac-<12 hex> pseudonyms before the report is written"
         }
       },
       "enabled": {
@@ -290,31 +314,35 @@
           "stdout_bytes": 0,
           "sections_found": [],
           "tool_sha256": null,
-          "tool_version": null
+          "tool_sha256_after_run": null,
+          "tool_version": null,
+          "trace_sha256": "d7726ba3832ddd6c5cc7ea0c52b3076b551fce5a84c0c6f1022f502c91ed4987",
+          "mac_addresses_replaced": 0
         },
-        "verified_by": "the tool file hash and version in result.json matched the pinned build before the run; the process exit code, timing and byte count are in result.json; the report is dpcisr.txt"
+        "verified_by": "the tool file hash and version in result.json matched the pinned build before the run and the hash again after it; the process exit code, timing and byte count are in result.json; the report is dpcisr.txt; the trace it describes is named by its SHA-256"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
           "path": "raw/dpcisr_report/command.json",
-          "bytes": 780,
-          "sha256": "87c6e289d8d139e744a7a5742f7d2bc40ea4d927f28921254dbca8bd06910fe5",
+          "bytes": 1046,
+          "sha256": "469606bccc058939bba1ac1d45fd69a03f94cc7e45223802e6adb1b9ba9f1b85",
           "role": "config"
         },
         {
           "path": "raw/dpcisr_report/result.json",
-          "bytes": 327,
-          "sha256": "abcca80d789bfccede32ef7b11013db8f3b75cef4fa8d4468ce46b2a3259ba74",
+          "bytes": 528,
+          "sha256": "6c795b54aa9630c87a0e94af5bd652ace6069e2a31eb2266511f768c0d9901cf",
           "role": "report"
         }
       ],
       "raw_time_range": null,
       "expectation": {
-        "declared": "a pinned xperf.exe exits 0 on \"xperf -i trace.etl -a dpcisr\" and prints the DPC Info and Interrupt Info sections, from a trace with zero events lost",
+        "declared": "a pinned xperf.exe, unchanged across the run, exits 0 on \"xperf -i trace.etl -a dpcisr\" and prints the DPC Info and Interrupt Info sections, from a trace with zero events lost and zero buffers lost",
         "met": false,
-        "detail": "exit code ; sections ; trace events lost 0"
+        "detail": "exit code ; sections ; trace events lost 0; trace buffers lost 0"
       },
       "target_process": null
     }
@@ -347,7 +375,7 @@
     },
     {
       "name": "collector:dpcisr-trace",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "path": "<install directory>\\dpcisr-trace.ps1",
       "sha256": null
     },
@@ -362,6 +390,12 @@
       "version": null,
       "path": "C:\\Windows\\System32\\wpr.exe",
       "sha256": null
+    },
+    {
+      "name": "tracerpt",
+      "version": null,
+      "path": "C:\\Windows\\System32\\tracerpt.exe",
+      "sha256": null
     }
   ],
   "symbols": {
@@ -371,7 +405,7 @@
   },
   "checksum_algorithm": "sha256",
   "notes": [
-    "Read only collector dpcisr-trace version 1.0.0: Where do DPC and interrupt time land, per CPU and per module, while the PC is in use, and what ran on those CPUs?",
+    "Read only collector dpcisr-trace version 1.1.0: Where do DPC and interrupt time land, per CPU and per module, while the PC is in use?",
     "Ran as SYNTHETIC-PC\\wf-collector; elevated: True; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine."

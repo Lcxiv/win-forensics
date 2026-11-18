@@ -1,41 +1,58 @@
 {
   "tool": "C:\\Windows\\System32\\wpr.exe",
+  "tracerpt": "C:\\Windows\\System32\\tracerpt.exe",
+  "instance_name": "WfDpcIsrTrace-20260301T120002Z",
   "profile_file": "raw/wpr_trace/dpcisr-trace.wprp",
   "profile_name": "WfDpcIsrTrace",
   "profile_id": "WfDpcIsrTrace.Verbose.File",
   "requested_keywords": [
     "Interrupt",
     "DPC",
-    "Loader",
-    "ProcessThread",
-    "CSwitch",
-    "ReadyThread"
+    "Loader"
   ],
   "buffer_size_kb": 1024,
   "buffer_count": 64,
   "logging_mode": "file",
   "duration_seconds": 10,
   "max_trace_bytes": 2147483648,
-  "tool_timeout_seconds": 240,
+  "tool_timeout_seconds": 120,
+  "short_timeout_seconds": 30,
+  "worst_case_seconds": 400,
   "events_lost_bound": 0,
+  "buffers_lost_bound": 0,
   "start_arguments": [
     "<bundle>/raw/wpr_trace/dpcisr-trace.wprp!WfDpcIsrTrace.Verbose",
     "-filemode",
     "-recordtempto",
-    "<bundle>/raw/wpr_trace/temp"
+    "<bundle>/private/temp"
   ],
   "stop_arguments": [
-    "<bundle>/raw/wpr_trace/trace.etl",
+    "<bundle>/private/trace.etl",
     "win-forensics dpcisr-trace 20260301T120002Z",
     "-skipPdbGen"
   ],
   "session_started_utc": null,
-  "session_stopped_utc": null,
+  "session_stop_issued_utc": null,
+  "recording_seconds": null,
   "stopped_early_at_cap": false,
   "temp_bytes_seen": 0,
   "trace_bytes": null,
-  "status": null,
-  "events_lost": null,
+  "trace_sha256": null,
+  "trace_kept_in_bundle": false,
+  "trace_removed_reason": "the kernel trace carries system configuration events with hardware and network addresses and never leaves the machine (collectors/windows/README.md, privacy)",
+  "status_after_start": null,
+  "settings_verified": null,
+  "final": {
+    "events_lost": null,
+    "buffers_lost": null,
+    "source": "tracerpt -summary of the saved trace",
+    "events_lost_lines": 0,
+    "buffers_lost_lines": 0,
+    "labelled_lines": 0,
+    "protection": null
+  },
+  "session_state_after_stop": null,
+  "session_state_final": null,
   "session_confirmed_stopped": null,
   "runs": []
 }

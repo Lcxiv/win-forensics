@@ -1,6 +1,6 @@
 WPR recording is in progress...
 
-Time since start        : 00:00:10
+Time since start        : 00:00:01
 
 Dropped event           : 0
 
@@ -17,7 +17,4 @@ System Keywords
 Interrupt
 DPC
 Loader
-ProcessThread
-CSwitch
-ReadyThread
 System Stacks

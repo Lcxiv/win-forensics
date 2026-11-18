@@ -63,7 +63,7 @@ def test_shipped_scripts_are_read_only(path):
     removals = [line.strip() for line in code.splitlines() if "Remove-Item" in line]
     own = ("-LiteralPath $evtxPath", "-LiteralPath $recordsPath", "-LiteralPath $eventsPath", "-LiteralPath $outputPath",
            "-LiteralPath $summaryPath", "-LiteralPath $devicesPath", "-LiteralPath $Path -Force",
-           "-LiteralPath $etlPath -Force", "-LiteralPath $reportPath -Force")
+           "-LiteralPath $reportPath -Force", "-LiteralPath $privateDir -Recurse -Force")
     assert all(any(marker in r for marker in own) for r in removals), removals
     # The only process runner is the helper's: wevtutil with the export verb, netsh (checked on what the
     # runs record, test_collector_bundles and the Pester suite), the inbox wpr and a pinned xperf (both
@@ -112,24 +112,31 @@ def test_dpcisr_trace_only_controls_its_own_session_and_runs_no_unpinned_tool():
     """The live capture collector: only wpr status, profiles, start, stop and cancel; xperf only after a pin check."""
     script = (COLLECTOR_DIR / "dpcisr-trace.ps1").read_text(encoding="ascii")
     code = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
-    verbs = set(re.findall(r"Invoke-DpcIsrWpr [^\n]*?-Verb '([a-z]+)'", code))
+    verbs = set(re.findall(r"Invoke-DpcIsrTool -Tool \$tool [^\n]*?-Verb '([a-z]+)'", code))
     assert verbs == {"status", "profiles", "start", "stop", "cancel"}, verbs
+    assert code.count("Invoke-DpcIsrTool -Tool $tracerpt") == 1 and "-Arguments @($etlPath, '-summary', $summaryPath, '-y')" in code
     # No boot trace, no autologger, no marker, no heap or snapshot configuration, no paging executive change.
     for forbidden in ("-boottrace", "-addboot", "-disablepagingexecutive", "-heaptracingconfig", "-snapshotconfig",
                       "-enableperiodicsnapshot", "-setprofint", "-marker", "Register-", "New-Service"):
         assert forbidden.lower() not in code.lower(), forbidden
-    # The one external tool runs through the pin check and the shared runner.
-    assert "Get-WfPinnedToolBuilds -Name 'xperf'" in code and "Get-WfExternalToolInfo -Path $xperfPath" in code
+    # The one external tool runs through the pin check and the shared runner, and is hashed again after the run.
+    assert "Get-WfPinnedToolBuilds -Name 'xperf'" in code and code.count("Get-WfExternalToolInfo -Path $xperfPath") == 2
     assert code.count("Invoke-WfProcess -FilePath $xperfPath") == 1
-    # The session is closed on every exit path: a finally block that cancels and confirms.
-    assert "finally {" in code and "-Verb 'cancel'" in code
-    # The profile asks for exactly the six documented keywords and no stacks.
-    assert "@('Interrupt', 'DPC', 'Loader', 'ProcessThread', 'CSwitch', 'ReadyThread')" in code
+    # The session is closed on every exit path: a finally block that cancels and confirms, scoped to the instance.
+    assert "finally {" in code and "-Verb 'cancel'" in code and "-Instance $instance" in code
+    # The profile asks for exactly the three documented keywords and no stacks, no process, thread or scheduling events.
+    assert "@('Interrupt', 'DPC', 'Loader')" in code
+    for keyword in ("ProcessThread", "CSwitch", "ReadyThread", "SampledProfile"):
+        assert f"'{keyword}'" not in code, keyword
     assert "<Stacks>" not in code and "<Stack " not in code
+    # The trace lives under the output directory's private folder and is removed by the definition's Cleanup.
+    assert "Get-DpcIsrPrivateDir" in code and "Cleanup                  = $removePrivate" in code
+    assert "'trace.etl' = 'primary'" not in code, "the trace is never an artifact of the bundle"
 
 
 def test_readme_documents_the_live_capture():
     readme = (COLLECTOR_DIR / "README.md").read_text(encoding="utf-8")
     for term in ("`dpcisr-trace`", "`wpr_trace`", "`dpcisr_report`", "-XperfPath", "Events Lost", "-recordtempto", "Easy Anti-Cheat",
-                 "Get-WfPinnedToolBuilds", "decode_tracestats.py", "ReadyThread", "CSwitch"):
+                 "Get-WfPinnedToolBuilds", "decode_tracestats.py", "-instancename", "tracerpt", "SystemConfig", "EVENT_TRACE_FLAG_NO_SYSCONFIG",
+                 "never leaves the machine", "buffers lost", "ProcessorID"):
         assert term in readme, term

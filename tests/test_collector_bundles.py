@@ -31,7 +31,9 @@ ALLOWED_NETSH = re.compile(r"^wlan show (interfaces|drivers|networks mode=bssid|
 # start the one session it owns, stop it, cancel it. No boot trace, no marker, no configuration change.
 ALLOWED_WPR_VERBS = {"-status", "-profiles", "-start", "-stop", "-cancel"}
 # The only xperf action: the DPC and ISR report of the trace in the bundle, with -tle only after a loss.
-ALLOWED_XPERF = re.compile(r"^-i <bundle>/raw/wpr_trace/trace\.etl -a dpcisr( -tle)?$")
+ALLOWED_XPERF = re.compile(r"^-i <bundle>/private/trace\.etl -a dpcisr( -tle)?$")
+# The only tracerpt action: the summary of the trace in the private folder, written into the bundle, never prompting.
+ALLOWED_TRACERPT = re.compile(r"^<bundle>/private/trace\.etl -summary <bundle>/raw/wpr_trace/tracerpt-summary\.txt -y$")
 # Collectors whose cases run elevated (the live capture needs it) and carry a QPC trace.
 LIVE_CAPTURE = {"dpcisr-trace"}
 
@@ -135,7 +137,8 @@ def test_manifest_identifies_the_collector(case):
     extra = [t for t in tool_names[len(base):]]
     assert tool_names[:len(base)] == base
     ran_xperf = any(c["id"] == "dpcisr_report" and c["status"] in OBSERVED + ("capture_failed",) and c["exit_code"] is not None for c in manifest["collectors"])
-    assert extra == ([] if name not in LIVE_CAPTURE else ["wpr"] + (["xperf"] if ran_xperf else [])), extra
+    ran_tracerpt = any(c["id"] == "wpr_trace" and c["enabled"]["options"] and c["enabled"]["options"].get("trace_sha256") for c in manifest["collectors"])
+    assert extra == ([] if name not in LIVE_CAPTURE else ["wpr"] + (["tracerpt"] if ran_tracerpt else []) + (["xperf"] if ran_xperf else [])), extra
     for tool in manifest["tools"]:
         if tool["name"] == "xperf":
             assert re.fullmatch(r"[0-9a-f]{64}", tool["sha256"]) and tool["version"], "the pinned tool is recorded with hash and version"
@@ -204,20 +207,30 @@ def test_status_and_evidence_stay_separate(case):
                 assert primary[0]["path"].endswith("/report-summary.json")
         elif collector["kind"] == "wpr":
             assert collector["command"][0].endswith("\\wpr.exe") and collector["command"][1] == "-start"
-            assert collector["command"][2:] == ["<bundle>/raw/wpr_trace/dpcisr-trace.wprp!WfDpcIsrTrace.Verbose", "-filemode", "-recordtempto", "<bundle>/raw/wpr_trace/temp"], "file mode, the profile and the recording inside the bundle, no absolute path recorded"
+            assert collector["command"][2:6] == ["<bundle>/raw/wpr_trace/dpcisr-trace.wprp!WfDpcIsrTrace.Verbose", "-filemode", "-recordtempto", "<bundle>/private/temp"], "file mode, the recording under the private folder, no absolute path recorded"
+            assert collector["command"][6] == "-instancename" and re.fullmatch(r"WfDpcIsrTrace-\d{8}T\d{6}Z", collector["command"][7]), "the session is scoped to the collector's own instance"
             session = json.loads((BUNDLES / case / "raw" / collector["id"] / "session.json").read_text(encoding="utf-8"))
-            verbs = ["-" + run["verb"] for run in session["runs"]]
+            wpr_runs = [run for run in session["runs"] if run["tool"] == "wpr.exe"]
+            verbs = ["-" + run["verb"] for run in wpr_runs]
             assert set(verbs) <= ALLOWED_WPR_VERBS, verbs
             assert verbs.count("-start") <= 1 and verbs.count("-stop") <= 1
             if "-start" in verbs:
                 assert verbs[-1] == "-status", "every started session ends with a status check that confirms the stop"
+                for run in wpr_runs[2:]:
+                    assert run["arguments"].endswith(f"-instancename {session['instance_name']}"), run
+            for run in session["runs"]:
+                if run["tool"] == "tracerpt.exe":
+                    assert ALLOWED_TRACERPT.fullmatch(run["arguments"]), run["arguments"]
             assert collector["buffers"] == {"size_kb": 1024, "count": 64, "mode": "file"}
-            assert collector["requested"]["keywords"] == ["Interrupt", "DPC", "Loader", "ProcessThread", "CSwitch", "ReadyThread"]
+            assert collector["requested"]["keywords"] == ["Interrupt", "DPC", "Loader"], "DPC and interrupt attribution only: no process, thread or scheduling events"
+            assert session["trace_kept_in_bundle"] is False and not any(a["path"].endswith(".etl") for a in collector["artifacts"]), "the kernel trace never leaves the machine"
             if collector["status"] in OBSERVED:
-                assert collector["events_lost"] == 0 and collector["enabled"]["keywords"] == collector["requested"]["keywords"]
+                assert collector["events_lost"] == 0 and collector["buffers_lost"] == 0
+                assert collector["enabled"]["keywords"] == collector["requested"]["keywords"]
                 assert collector["enabled"]["options"]["session_confirmed_stopped"] is True
-            if collector["status_reason"] and "events lost" in collector["status_reason"]:
-                assert collector["events_lost"] > 0 and primary[0]["path"].endswith("/trace.etl")
+                assert primary[0]["path"].endswith("/tracerpt-summary.txt")
+            if collector["status_reason"] and "lost" in collector["status_reason"] and "events" in collector["status_reason"]:
+                assert (collector["events_lost"] or 0) + (collector["buffers_lost"] or 0) > 0
         elif collector["kind"] == "xperf":
             if collector["preflight"]["ok"]:
                 assert collector["command"][0].endswith("\\xperf.exe")
@@ -259,9 +272,8 @@ def test_observed_zero_is_an_empty_export_inside_a_covered_range(case):
                 assert records == []
             if collector["status"] == "observed":
                 assert records
-        elif primary[0]["path"].endswith("/trace.etl"):
-            # The synthetic recorder's trace: bytes that say what they are not. Never a real capture.
-            assert primary[0]["bytes"] > 0 and text.startswith("synthetic trace, not an event trace log")
+        elif primary[0]["path"].endswith("/tracerpt-summary.txt"):
+            assert "Lost" in text, "the summary carries the final loss figures"
         elif primary[0]["path"].endswith("/dpcisr.txt"):
             assert "DPC Info" in text and "Interrupt Info" in text
         else:

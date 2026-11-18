@@ -208,8 +208,9 @@ function Get-WfSyntheticCases {
             Setup = { New-WfSyntheticTraceMachine -EventsLost 0 -Xperf 'absent' }
         })
 
-    # The recorder lost events (the number is the one Microsoft's tracelog
-    # example shows). The trace is kept but capture_failed, the report is
+    # The saved trace lost events (the number is the one Microsoft's tracelog
+    # example shows), which the final tracerpt summary shows and the live
+    # status did not: the trace source is capture_failed, the report is
     # produced with -tle and inherits the status, nothing is observed, exit 1.
     $cases.Add(@{
             Case = 'dpcisr-trace-events-lost'; Collector = 'dpcisr-trace'; ExitCode = 1; Arguments = @{ DurationSeconds = 10; XperfPath = 'C:\Tools\WindowsPerformanceToolkit\xperf.exe' }
@@ -233,8 +234,13 @@ function New-WfSyntheticTraceMachine {
     # or absent. Every value is invented.
     param([int]$EventsLost = 0, [string]$Xperf = 'pinned')
     $global:WfSynthetic.Elevated = $true
-    $global:WfSynthetic.Wpr.EventsLost = $EventsLost
-    $global:WfSynthetic.Wpr.DroppedEvents = $EventsLost
+    # The live status right after the start shows no loss; the loss, when the
+    # case has one, is in the saved trace's summary: the final figure is what
+    # decides, never the snapshot.
+    $global:WfSynthetic.Wpr.EventsLost = 0
+    $global:WfSynthetic.Wpr.DroppedEvents = 0
+    $global:WfSynthetic.Tracerpt.EventsLost = $EventsLost
+    $global:WfSynthetic.Tracerpt.BuffersLost = 0
     $path = 'C:\Tools\WindowsPerformanceToolkit\xperf.exe'
     $pinnedHash = '7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b'
     if ($Xperf -ne 'absent') {

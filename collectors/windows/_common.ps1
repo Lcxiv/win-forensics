@@ -39,7 +39,7 @@ if (Get-Command -Name 'Invoke-WfCollectorScript' -CommandType Function -ErrorAct
 # called from another script file would look a script variable up in that
 # file's scope and not find it.
 function Get-WfCollectorsVersion { return '1.2.0' }
-function Get-WfManifestVersion { return '1.0.0' }
+function Get-WfManifestVersion { return '1.1.0' }
 function Get-WfCollectorNamePattern { return '^[a-z][a-z0-9-]{1,40}$' }
 
 function Test-WfObservedStatus {
@@ -745,6 +745,7 @@ function New-WfCollectorEntry {
         requested      = [ordered]@{ providers = @(); keywords = @(); stack_walk = @(); counters = @(); options = [ordered]@{} }
         enabled        = [ordered]@{ providers = $null; keywords = $null; stack_walk = $null; counters = $null; options = $null; verified_by = $null }
         events_lost    = $null
+        buffers_lost   = $null
         buffers        = $null
         artifacts      = @()
         raw_time_range = $null
@@ -2196,6 +2197,14 @@ function Invoke-WfCollector {
     # pinned external tool, the inbox wpr.exe) for the manifest tools list.
     $context = @{ Salt = (New-WfPseudonymSalt); Ssids = (New-Object 'System.Collections.Generic.List[string]'); Tools = (New-Object 'System.Collections.Generic.List[object]') }
     $protects = $false
+    # A definition may name a Cleanup scriptblock that runs after the last
+    # source, and on the way out of a failure, before anything is listed or
+    # written: the live capture uses it to remove the kernel trace, which
+    # never leaves the machine (collectors/windows/README.md, privacy).
+    $cleanup = $Definition['Cleanup']
+    $State['Cleanup'] = $cleanup
+    $State['Log'] = $log
+    try {
     foreach ($source in $sources) {
         $type = [string]$source['Type']
         if ($type -eq 'eventlog') {
@@ -2234,6 +2243,12 @@ function Invoke-WfCollector {
             throw ('unknown source type: ' + $type)
         }
         $entries.Add($result['Entry'])
+    }
+    } finally {
+        if ($cleanup -is [scriptblock]) {
+            & $cleanup -BundleRoot $bundleRoot -Log $log
+            $State['CleanedUp'] = $true
+        }
     }
     $context['Ssids'].Clear()
     $stop = Get-WfUtcNow
@@ -2363,6 +2378,9 @@ function Invoke-WfCollectorScript {
         Write-WfStderrLine -Text $message
         $line = ConvertTo-WfSummaryLine -Collector $name -Status 'failed' -Bundle $OutputDirectory -Artifacts 0
         $exitCode = 1
+        if ($state.ContainsKey('BundleRoot') -and $state.ContainsKey('Cleanup') -and ($state['Cleanup'] -is [scriptblock]) -and -not $state.ContainsKey('CleanedUp')) {
+            try { & $state['Cleanup'] -BundleRoot $state['BundleRoot'] -Log $state['Log'] } catch { Write-WfStderrLine -Text ('the cleanup failed: ' + $_.Exception.Message) }
+        }
         if ($state.ContainsKey('BundleRoot') -and -not $state.ContainsKey('Written')) {
             try {
                 $logs = Join-WfBundlePath -BundleRoot $state['BundleRoot'] -RelativePath 'logs'
@@ -2802,8 +2820,8 @@ function Invoke-WfProcess {
     # it writes (wevtutil prints a line or two). The only executables started
     # through this are wevtutil (export verb), netsh (wlan show queries), the
     # inbox wpr.exe (status, profiles, start, stop and cancel of the one
-    # session dpcisr-trace owns) and a pinned xperf.exe (report actions on a
-    # trace file in the bundle).
+    # session dpcisr-trace owns), the inbox tracerpt.exe (the summary of that
+    # trace) and a pinned xperf.exe (the dpcisr report of that trace).
     param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null, [int64]$MaxBytes = 0)
     $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Oversized = $false; Error = $null; DurationMs = $null; StdOutBytes = [int64]0; StdErrBytes = [int64]0; Diagnostic = $null }
     if ($TimeoutSeconds -lt 1) {
@@ -3096,4 +3114,18 @@ function Start-WfSleep {
     # can advance its clock instead.
     param([int]$Seconds)
     if ($Seconds -gt 0) { Start-Sleep -Seconds $Seconds }
+}
+
+function Get-WfTracerptPath {
+    # tracerpt ships with Windows ("Tracerpt is included in Windows XP and
+    # later versions of Windows",
+    # https://learn.microsoft.com/windows-hardware/drivers/devtest/survey-of-software-tracing-tools).
+    return [System.IO.Path]::Combine([string]$env:SystemRoot, 'System32', 'tracerpt.exe')
+}
+
+function Get-WfMonotonicSeconds {
+    # Elapsed time that does not move with the system clock, for the bounds
+    # of a live capture (System.Diagnostics.Stopwatch.GetTimestamp, which reads
+    # the performance counter: https://learn.microsoft.com/dotnet/api/system.diagnostics.stopwatch.gettimestamp).
+    return ([double][System.Diagnostics.Stopwatch]::GetTimestamp() / [double][System.Diagnostics.Stopwatch]::Frequency)
 }

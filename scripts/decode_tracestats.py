@@ -1,27 +1,39 @@
 #!/usr/bin/env python3
 """Decode the trace session statistics of a kernel trace into the ``tracestats`` table.
 
-See docs/contracts/decoded-tables.md section 5.3. The first source of these
-statistics is the text the ``dpcisr-trace`` collector writes as
-``raw/<collector id>/status.txt``: the output of
-``wpr -status profiles collectors -details`` read just before the session was
-stopped, whose shape Microsoft documents on the WPR command line page
-(labelled lines ``Label : value``, one ``Collector Name`` block per collector
-with ``Buffer Size (KB)`` and ``Events Lost``, bare keyword lines under a
-``System Keywords`` header). One row per labelled line and one per bare list
-item, verbatim, with the normalized subset the contract names; the provenance
-``row_id_or_offset`` is ``line:<n>``.
+See docs/contracts/decoded-tables.md section 5.3. The sources are the two texts
+the ``dpcisr-trace`` collector writes for its ``wpr`` source:
 
-Without ``--source`` the decoder reads the manifest and takes the
-``status.txt`` report artifact of every collector of kind ``wpr`` that has
-one, whatever its status: a trace that lost events is exactly the one whose
-loss must be visible in a table. When no such artifact exists the decoder
-reports ``not_collected`` and writes nothing, because an absent input is never
-decoded into zero rows.
+* ``raw/<collector id>/status.txt``, the output of ``wpr -status profiles
+  collectors -details`` read right after the session started, whose shape
+  Microsoft documents on the WPR command line page (labelled lines
+  ``Label : value``, one ``Collector Name`` block per collector with ``Buffer
+  Size (KB)`` and ``Events Lost``, bare keyword lines under a ``System
+  Keywords`` header). Its loss figures are a live snapshot.
+* ``raw/<collector id>/tracerpt-summary.txt``, the summary ``tracerpt`` wrote
+  for the saved trace after the stop. Microsoft documents that the tool writes
+  a summary report and nothing about its text; the collector reads the
+  ``events lost`` and ``buffers lost`` figures by their label. These are the
+  final figures of the trace, the ones the manifest carries.
 
-The sidecar's checks compare the events lost the rows state with the
-``events_lost`` the manifest records for that collector; a mismatch is
-``decode_failed``.
+One row per labelled line (``Label : value`` or ``Label   value`` with two or
+more spaces) and one per bare list item, verbatim, with the normalized subset
+the contract names; ``value_number`` is set only when the whole value is a
+decimal integer, so ``1,234`` or ``n/a`` decodes to null, never to a number.
+The provenance ``row_id_or_offset`` is ``line:<n>``.
+
+Without ``--source`` the decoder reads the manifest and takes both artifacts of
+every collector of kind ``wpr`` that has them, whatever its status: a trace
+that lost events is exactly the one whose loss must be visible in a table.
+When no such artifact exists the decoder reports ``not_collected`` and writes
+nothing, because an absent input is never decoded into zero rows.
+
+The sidecar's checks require a single whole number for the final events lost
+and the final buffers lost (the summary rows) and compare both with the
+``events_lost`` and ``buffers_lost`` the manifest records for that collector;
+a missing figure, a figure that is not a number or a disagreement is
+``decode_failed``. The collector's measurement status is recorded as an
+informational check and never changed by the decoder.
 
 Usage::
 
@@ -42,24 +54,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import wf_schema  # noqa: E402
 
 DECODER = "decode_tracestats"
-DECODER_VERSION = "1.0.0"
+DECODER_VERSION = "1.1.0"
 TABLE = "tracestats"
-TOOL = {"name": "wpr -status profiles collectors -details", "version": None}
-RE_LABELLED = re.compile(r"^\s*([^:]+?)\s*:\s*(.*)$")
+TOOL = {"name": "wpr -status profiles collectors -details; tracerpt -summary", "version": None}
+RE_LABELLED = re.compile(r"^([A-Za-z][A-Za-z ()]*[A-Za-z)])\s*(?::\s*(.*)|\s{2,}(\S.*))$")
 RE_LIST_ITEM = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
-RE_INTEGER = re.compile(r"^\s*(\d+)")
+RE_INTEGER = re.compile(r"^\d+$")
+RE_EVENTS_LOST = re.compile(r"^(total\s+)?events?\s+lost$", re.I)
+RE_BUFFERS_LOST = re.compile(r"^(total\s+)?(log\s+)?buffers?\s+lost$", re.I)
 LIST_HEADERS = {"System Keywords", "System Stacks", "Providers", "CaptureState Providers on Save", "CaptureState Providers on Start"}
 BLOCK_HEADERS = ("Actively recording collectors", "Recording system activity")
-# Verbatim label -> normalized key. Only the keys the contract names; everything else stays null.
-NORMALIZED = {
-    "Events Lost": "events_lost",
-    "Dropped event": "events_lost",
-    "Dropped events": "events_lost",
-    "Buffer Size (KB)": "buffer_size_kb",
-    "Number of Buffers": "buffer_count",
-}
 NUMERIC = {"events_lost", "buffers_lost", "buffer_size_kb", "buffer_count", "perf_freq_hz", "cpu_count"}
 RECORDING_SECTION = "recording"
+SUMMARY_SECTION = "summary"
+STATUS_FILE = "status.txt"
+SUMMARY_FILE = "tracerpt-summary.txt"
 
 
 class DecodeError(Exception):
@@ -76,15 +85,17 @@ def load_manifest(bundle: Path) -> dict[str, Any]:
         raise DecodeError(f"manifest.json: {exc}") from exc
 
 
-def status_artifacts(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """``raw/<id>/status.txt`` report artifacts of the ``wpr`` collectors, keyed by path."""
-    out: dict[str, dict[str, Any]] = {}
+def statistics_artifacts(manifest: dict[str, Any]) -> dict[str, tuple[dict[str, Any], str]]:
+    """The status and summary artifacts of the ``wpr`` collectors, keyed by path, with their kind."""
+    out: dict[str, tuple[dict[str, Any], str]] = {}
     for collector in manifest["collectors"]:
         if collector["kind"] != "wpr":
             continue
         for artifact in collector["artifacts"]:
-            if artifact["role"] == "report" and artifact["path"] == f"raw/{collector['id']}/status.txt":
-                out[artifact["path"]] = collector
+            if artifact["path"] == f"raw/{collector['id']}/{STATUS_FILE}" and artifact["role"] == "report":
+                out[artifact["path"]] = (collector, "status")
+            elif artifact["path"] == f"raw/{collector['id']}/{SUMMARY_FILE}" and artifact["role"] == "primary":
+                out[artifact["path"]] = (collector, "summary")
     return out
 
 
@@ -99,20 +110,34 @@ def check_source_path(bundle: Path, source: str, allowed: dict[str, Any]) -> Non
     if root not in target.parents:
         raise DecodeError(f"{source}: resolves outside the bundle")
     if source not in allowed:
-        raise DecodeError(f"{source}: not listed in the manifest as the status.txt report of a wpr collector")
+        raise DecodeError(f"{source}: not listed in the manifest as the status report or the summary of a wpr collector")
     if not target.is_file():
         raise DecodeError(f"{source}: listed in the manifest but missing from the bundle")
 
 
 def parse_integer(text: str) -> int | None:
-    m = RE_INTEGER.match(text)
-    return int(m.group(1)) if m else None
+    """The whole value must be a decimal integer; anything else is null, never zero."""
+    text = text.strip()
+    return int(text) if RE_INTEGER.fullmatch(text) else None
 
 
-def parse_status(text: str, source: str, schema_version: str) -> list[dict[str, Any]]:
-    """Rows of one status text, in line order."""
+def normalize(label: str) -> str | None:
+    collapsed = re.sub(r"\s+", " ", label.strip())
+    if RE_EVENTS_LOST.fullmatch(collapsed) or collapsed in ("Dropped event", "Dropped events"):
+        return "events_lost"
+    if RE_BUFFERS_LOST.fullmatch(collapsed):
+        return "buffers_lost"
+    if collapsed == "Buffer Size (KB)":
+        return "buffer_size_kb"
+    if collapsed == "Number of Buffers":
+        return "buffer_count"
+    return None
+
+
+def parse_text(text: str, source: str, kind: str, schema_version: str) -> list[dict[str, Any]]:
+    """Rows of one text, in line order. ``kind`` is ``status`` or ``summary``."""
     rows: list[dict[str, Any]] = []
-    section = RECORDING_SECTION
+    section = SUMMARY_SECTION if kind == "summary" else RECORDING_SECTION
     list_header: str | None = None
 
     def provenance(line_no: int) -> dict[str, str]:
@@ -124,38 +149,44 @@ def parse_status(text: str, source: str, schema_version: str) -> list[dict[str, 
         stripped = line.strip()
         if not stripped:
             continue
-        m = RE_LABELLED.match(line)
-        if m and m.group(1).strip() and not re.fullmatch(r"\d{1,2}", m.group(1).strip()):
-            key, value = m.group(1).strip(), m.group(2).strip()
+        m = RE_LABELLED.match(stripped)
+        if m and not re.fullmatch(r"\d{1,2}", m.group(1).strip()):
+            key = m.group(1).strip()
+            value = (m.group(2) if m.group(2) is not None else m.group(3) or "").strip()
             list_header = None
-            if key == "Collector Name":
+            if kind == "status" and key == "Collector Name":
                 section = value or RECORDING_SECTION
-            normalized = NORMALIZED.get(key)
+            normalized = normalize(key)
             number = parse_integer(value) if normalized in NUMERIC else None
             rows.append({"section": section, "key": key, "value_text": value, "normalized_key": normalized,
                          "value_number": number, "provenance": provenance(line_no)})
             continue
-        if stripped in LIST_HEADERS:
+        if kind == "status" and stripped in LIST_HEADERS:
             list_header = stripped
             continue
-        if stripped.startswith(BLOCK_HEADERS):
+        if kind == "status" and stripped.startswith(BLOCK_HEADERS):
             list_header = None
             continue
-        if list_header is not None and RE_LIST_ITEM.fullmatch(stripped):
+        if kind == "status" and list_header is not None and RE_LIST_ITEM.fullmatch(stripped):
             rows.append({"section": section, "key": list_header, "value_text": stripped, "normalized_key": None,
                          "value_number": None, "provenance": provenance(line_no)})
     return rows
 
 
+def final_figure(rows: list[dict[str, Any]], normalized_key: str) -> int | None:
+    """The single final figure the summary rows state: null when absent, not a number, or disagreeing."""
+    values = [r["value_number"] for r in rows if r["section"] == SUMMARY_SECTION and r["normalized_key"] == normalized_key]
+    if not values or any(v is None for v in values) or len(set(values)) != 1:
+        return None
+    return values[0]
+
+
 def events_lost_of(rows: list[dict[str, Any]]) -> int | None:
-    """The loss the rows state: the sum of the collector rows when there are any, else the recording row."""
-    collector_rows = [r for r in rows if r["normalized_key"] == "events_lost" and r["section"] != RECORDING_SECTION]
-    if collector_rows:
-        return sum(int(r["value_number"] or 0) for r in collector_rows)
-    recording = [r for r in rows if r["normalized_key"] == "events_lost" and r["section"] == RECORDING_SECTION]
-    if recording and recording[0]["value_number"] is not None:
-        return int(recording[0]["value_number"])
-    return None
+    return final_figure(rows, "events_lost")
+
+
+def buffers_lost_of(rows: list[dict[str, Any]]) -> int | None:
+    return final_figure(rows, "buffers_lost")
 
 
 def decode(bundle: Path, sources: list[str] | None = None, decoded_at: str | None = None) -> dict[str, Any]:
@@ -164,11 +195,11 @@ def decode(bundle: Path, sources: list[str] | None = None, decoded_at: str | Non
     result: dict[str, Any] = {"status": "observed", "reason": None, "table": TABLE, "rows": 0, "sources": []}
     try:
         manifest = load_manifest(bundle)
-        allowed = status_artifacts(manifest)
+        allowed = statistics_artifacts(manifest)
         if sources is None:
             sources = sorted(allowed)
         if not sources:
-            result["status"], result["reason"] = "not_collected", "no wpr collector in the manifest has a status.txt report; nothing to decode"
+            result["status"], result["reason"] = "not_collected", "no wpr collector in the manifest has a status text or a tracerpt summary; nothing to decode"
             return result
         for source in sources:
             check_source_path(bundle, source, allowed)
@@ -179,22 +210,33 @@ def decode(bundle: Path, sources: list[str] | None = None, decoded_at: str | Non
     rows: list[dict[str, Any]] = []
     checks: list[dict[str, Any]] = []
     status, reason = "observed", None
+    by_collector: dict[str, dict[str, Any]] = {}
+    rows_by_collector: dict[str, list[dict[str, Any]]] = {}
     for source in sources:
-        collector = allowed[source]
+        collector, kind = allowed[source]
         try:
             text = (bundle / source).read_text(encoding="utf-8-sig")
         except (OSError, UnicodeDecodeError) as exc:
             status, reason = "decode_failed", f"{source}: {exc}"
             break
-        source_rows = parse_status(text, source, schema_version)
-        lost = events_lost_of(source_rows)
-        checks.append({"name": f"{collector['id']}_events_lost_row_present", "ok": lost is not None,
-                       "detail": None if lost is None else f"events lost {lost}"})
-        checks.append({"name": f"{collector['id']}_events_lost_matches_manifest", "ok": lost == collector["events_lost"],
-                       "detail": f"rows {lost}, manifest {collector['events_lost']}"})
-        checks.append({"name": f"{collector['id']}_collector_status", "ok": True,
-                       "detail": f"{collector['status']}" + (f": {collector['status_reason']}" if collector["status_reason"] else "")})
+        source_rows = parse_text(text, source, kind, schema_version)
         rows += source_rows
+        by_collector[collector["id"]] = collector
+        rows_by_collector.setdefault(collector["id"], []).extend(source_rows)
+    for collector_id, collector in by_collector.items():
+        crows = rows_by_collector[collector_id]
+        lost = events_lost_of(crows)
+        buffers = buffers_lost_of(crows)
+        checks.append({"name": f"{collector_id}_final_events_lost_present", "ok": lost is not None,
+                       "detail": None if lost is None else f"events lost {lost}"})
+        checks.append({"name": f"{collector_id}_final_buffers_lost_present", "ok": buffers is not None,
+                       "detail": None if buffers is None else f"buffers lost {buffers}"})
+        checks.append({"name": f"{collector_id}_events_lost_matches_manifest", "ok": lost is not None and lost == collector["events_lost"],
+                       "detail": f"rows {lost}, manifest {collector['events_lost']}"})
+        checks.append({"name": f"{collector_id}_buffers_lost_matches_manifest", "ok": buffers is not None and buffers == collector.get("buffers_lost"),
+                       "detail": f"rows {buffers}, manifest {collector.get('buffers_lost')}"})
+        checks.append({"name": f"{collector_id}_collector_status", "ok": True,
+                       "detail": collector["status"] + (f": {collector['status_reason']}" if collector["status_reason"] else "")})
     gating = [c for c in checks if not c["name"].endswith("_collector_status")]
     if status == "observed" and not all(c["ok"] for c in gating):
         status, reason = "decode_failed", "a decoder self check failed; see checks"
@@ -202,7 +244,7 @@ def decode(bundle: Path, sources: list[str] | None = None, decoded_at: str | Non
     if errors:
         status, reason, rows = "decode_failed", "; ".join(errors[:3]), []
     if status == "observed" and not rows:
-        status, reason = "decode_failed", "the status text held no labelled line"
+        status, reason = "decode_failed", "the texts held no labelled line"
 
     decoded_dir = bundle / "decoded"
     decoded_dir.mkdir(parents=True, exist_ok=True)
@@ -233,7 +275,7 @@ def decode(bundle: Path, sources: list[str] | None = None, decoded_at: str | Non
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--bundle", required=True, type=Path, help="bundle directory (contains manifest.json and raw/)")
-    ap.add_argument("--source", action="append", default=None, help="bundle relative path of a wpr status text; repeatable; default: every wpr collector's status.txt")
+    ap.add_argument("--source", action="append", default=None, help="bundle relative path of a wpr status text or tracerpt summary; repeatable; default: both of every wpr collector")
     ap.add_argument("--decoded-at", default=None, help="override decoded_at_utc (ISO 8601 Z) for reproducible fixtures")
     args = ap.parse_args(argv)
     result = decode(args.bundle, args.source, args.decoded_at)

@@ -1,8 +1,8 @@
 WPR recording is in progress...
 
-Time since start        : 00:00:10
+Time since start        : 00:00:01
 
-Dropped event           : 544
+Dropped event           : 0
 
 Logging mode            : File
 
@@ -12,12 +12,9 @@ Profile                 : WfDpcIsrTrace.Verbose.File
 Actively recording collectors:
 Collector Name          : NT Kernel Logger
 Buffer Size (KB)        : 1024
-Events Lost             : 544
+Events Lost             : 0
 System Keywords
 Interrupt
 DPC
 Loader
-ProcessThread
-CSwitch
-ReadyThread
 System Stacks

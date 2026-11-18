@@ -1509,48 +1509,81 @@ Describe 'dpcisr-trace against the synthetic backend' {
             param($Run, [string]$Id)
             return @($Run.Manifest.collectors | Where-Object { $_.id -eq $Id })[0]
         }
-        function Get-WprVerbs {
-            return @($global:WfSynthetic.Processes | Where-Object { $_.FilePath -like '*wpr.exe' } | ForEach-Object { ($_.Arguments -split ' ')[0] })
+        function Get-WprCalls {
+            # verb and instance of every wpr call, in order
+            return @($global:WfSynthetic.Processes | Where-Object { $_.FilePath -like '*wpr.exe' } | ForEach-Object {
+                    $tokens = Split-WfSyntheticArguments -Arguments $_.Arguments
+                    [pscustomobject]@{ Verb = $tokens[0]; Instance = (Get-WfSyntheticInstance -Tokens $tokens); Arguments = $_.Arguments }
+                })
         }
-        function Get-XperfRuns {
-            return @($global:WfSynthetic.Processes | Where-Object { $_.FilePath -like '*xperf.exe' })
+        function Get-WprVerbs { return @(Get-WprCalls | ForEach-Object { $_.Verb }) }
+        function Get-XperfRuns { return @($global:WfSynthetic.Processes | Where-Object { $_.FilePath -like '*xperf.exe' }) }
+        function Get-TracerptRuns { return @($global:WfSynthetic.Processes | Where-Object { $_.FilePath -like '*tracerpt.exe' }) }
+        function Assert-NoTraceLeft {
+            param([string]$Out)
+            Test-Path -LiteralPath (Join-Path $Out 'private') | Should -BeFalse -Because 'the kernel trace never leaves the machine'
+            @(Get-ChildItem -LiteralPath $Out -Recurse -File -Filter '*.etl').Count | Should -Be 0
+            @(Get-ChildItem -LiteralPath $Out -Directory | ForEach-Object { $_.Name } | Sort-Object) | Should -Be @('logs', 'raw')
+        }
+        function With-Arguments {
+            param([hashtable]$Base, [hashtable]$More)
+            $all = $Base.Clone()
+            foreach ($key in $More.Keys) { $all[$key] = $More[$key] }
+            return $all
         }
     }
 
-    It 'records a clean session as observed with the profile, the trace, the status text and the session record' {
+    It 'records a clean session as observed with the profile, the status text, the summary and the session record, and no trace' {
         $arguments = Start-TraceCase
         $out = Join-Path $TestDrive 'clean'
         $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out -Arguments $arguments
         $run.ExitCode | Should -Be 0
         ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'ok'
-        Get-WprVerbs | Should -Be @('-status', '-profiles', '-start', '-status', '-stop', '-status')
+        $calls = Get-WprCalls
+        @($calls | ForEach-Object { $_.Verb }) | Should -Be @('-status', '-profiles', '-start', '-status', '-stop', '-status')
+        $calls[0].Instance | Should -BeExactly '' -Because 'the preflight looks at the default instance'
+        $calls[1].Instance | Should -BeExactly ''
+        foreach ($call in $calls[2..5]) { $call.Instance | Should -Match '^WfDpcIsrTrace-[0-9]{8}T[0-9]{6}Z$' }
+        foreach ($call in $calls[2..5]) { $call.Arguments | Should -Match ' -instancename WfDpcIsrTrace-[0-9TZ]+$' -Because 'the instance name is the last parameter' }
+        @(Get-TracerptRuns).Count | Should -Be 1
+        @(Get-TracerptRuns)[0].Arguments | Should -Match '^<?.*private[/\\]trace\.etl -summary .*tracerpt-summary\.txt -y$'
+        Assert-NoTraceLeft -Out $out
         $trace = Get-TraceSource -Run $run -Id 'wpr_trace'
         $trace.status | Should -BeExactly 'observed'
         $trace.kind | Should -BeExactly 'wpr'
         $trace.events_lost | Should -Be 0
+        $trace.buffers_lost | Should -Be 0
         $trace.buffers.size_kb | Should -Be 1024
         $trace.buffers.count | Should -Be 64
         $trace.buffers.mode | Should -BeExactly 'file'
-        @($trace.enabled.keywords) | Should -Be @('Interrupt', 'DPC', 'Loader', 'ProcessThread', 'CSwitch', 'ReadyThread')
+        @($trace.enabled.keywords) | Should -Be @('Interrupt', 'DPC', 'Loader')
         @($trace.requested.keywords) | Should -Be @($trace.enabled.keywords)
         $trace.enabled.options.session_confirmed_stopped | Should -BeTrue
+        $trace.enabled.options.session_state_final | Should -BeExactly 'idle'
+        $trace.enabled.options.trace_kept_in_bundle | Should -BeFalse
+        $trace.enabled.options.trace_sha256 | Should -Match '^[0-9a-f]{64}$'
+        $trace.enabled.options.recording_seconds | Should -BeGreaterOrEqual 10
+        $trace.enabled.options.recording_seconds | Should -BeLessThan 13
         $trace.raw_time_range.domain | Should -BeExactly 'system_time'
-        @($trace.artifacts | ForEach-Object { $_.path }) | Should -Be @('raw/wpr_trace/dpcisr-trace.wprp', 'raw/wpr_trace/session.json', 'raw/wpr_trace/status.txt', 'raw/wpr_trace/trace.etl')
-        @($trace.artifacts | Where-Object { $_.role -eq 'primary' } | ForEach-Object { $_.path }) | Should -Be @('raw/wpr_trace/trace.etl')
+        @($trace.artifacts | ForEach-Object { $_.path }) | Should -Be @('raw/wpr_trace/dpcisr-trace.wprp', 'raw/wpr_trace/session.json', 'raw/wpr_trace/status.txt', 'raw/wpr_trace/tracerpt-summary.txt')
+        @($trace.artifacts | Where-Object { $_.role -eq 'primary' } | ForEach-Object { $_.path }) | Should -Be @('raw/wpr_trace/tracerpt-summary.txt')
         $wprp = Join-Path $out 'raw/wpr_trace/dpcisr-trace.wprp'
         $trace.config_hash.value | Should -BeExactly (Get-TestSha256 -Path $wprp)
         $xml = [xml](Get-Content -LiteralPath $wprp -Raw)
-        @($xml.WindowsPerformanceRecorder.Profiles.SystemProvider.Keywords.Keyword | ForEach-Object { $_.Value }) | Should -Be @('Interrupt', 'DPC', 'Loader', 'ProcessThread', 'CSwitch', 'ReadyThread')
+        @($xml.WindowsPerformanceRecorder.Profiles.SystemProvider.Keywords.Keyword | ForEach-Object { $_.Value }) | Should -Be @('Interrupt', 'DPC', 'Loader')
         $xml.WindowsPerformanceRecorder.Profiles.SystemCollector.Name | Should -BeExactly 'NT Kernel Logger'
         @($xml.WindowsPerformanceRecorder.Profiles.Profile | ForEach-Object { $_.LoggingMode }) | Should -Be @('File', 'Memory')
         $report = Get-TraceSource -Run $run -Id 'dpcisr_report'
         $report.status | Should -BeExactly 'observed'
         $report.kind | Should -BeExactly 'xperf'
-        @($report.command) | Should -Be @('C:\Tools\WindowsPerformanceToolkit\xperf.exe', '-i', '<bundle>/raw/wpr_trace/trace.etl', '-a', 'dpcisr')
-        @($trace.command) | Should -Be @('C:\Windows\System32\wpr.exe', '-start', '<bundle>/raw/wpr_trace/dpcisr-trace.wprp!WfDpcIsrTrace.Verbose', '-filemode', '-recordtempto', '<bundle>/raw/wpr_trace/temp')
+        @($report.command) | Should -Be @('C:\Tools\WindowsPerformanceToolkit\xperf.exe', '-i', '<bundle>/private/trace.etl', '-a', 'dpcisr')
+        $report.raw_time_range.start | Should -BeExactly $trace.raw_time_range.start -Because 'the report describes the trace, not the moment xperf ran'
+        $report.raw_time_range.end | Should -BeExactly $trace.raw_time_range.end
+        $report.enabled.options.trace_sha256 | Should -BeExactly $trace.enabled.options.trace_sha256
+        @($trace.command) | Should -Be @('C:\Windows\System32\wpr.exe', '-start', '<bundle>/raw/wpr_trace/dpcisr-trace.wprp!WfDpcIsrTrace.Verbose', '-filemode', '-recordtempto', '<bundle>/private/temp', '-instancename', $trace.enabled.options.instance_name)
         (Get-Content -LiteralPath (Join-Path $out 'raw/wpr_trace/session.json') -Raw) | Should -Not -Match ([regex]::Escape($out)) -Because 'the bundle records no absolute path of its own location'
         (Get-Content -LiteralPath (Join-Path $out 'manifest.json') -Raw) | Should -Not -Match ([regex]::Escape($out))
-        @($run.Manifest.tools | ForEach-Object { $_.name }) | Should -Be @('powershell', 'wevtutil', 'collector:dpcisr-trace', 'collector-helper:_common.ps1', 'wpr', 'xperf')
+        @($run.Manifest.tools | ForEach-Object { $_.name }) | Should -Be @('powershell', 'wevtutil', 'collector:dpcisr-trace', 'collector-helper:_common.ps1', 'wpr', 'tracerpt', 'xperf')
         @($run.Manifest.tools | Where-Object { $_.name -eq 'xperf' })[0].sha256 | Should -BeExactly '7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b'
         $run.Manifest.capture.elevated | Should -BeTrue
         $run.Manifest.calibration.status | Should -BeExactly 'not_collected'
@@ -1559,7 +1592,8 @@ Describe 'dpcisr-trace against the synthetic backend' {
 
     It 'runs nothing when the account is not elevated and says why' {
         $arguments = Start-TraceCase -Case 'dpcisr-trace-not-elevated'
-        $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'not-elevated') -Arguments $arguments
+        $out = Join-Path $TestDrive 'not-elevated'
+        $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out -Arguments $arguments
         $run.ExitCode | Should -Be 1
         $global:WfSynthetic.Processes.Count | Should -Be 0
         $trace = Get-TraceSource -Run $run -Id 'wpr_trace'
@@ -1568,19 +1602,33 @@ Describe 'dpcisr-trace against the synthetic backend' {
         $trace.preflight.ok | Should -BeFalse
         @($trace.artifacts | Where-Object { $_.role -eq 'primary' }).Count | Should -Be 0
         (Get-TraceSource -Run $run -Id 'dpcisr_report').status | Should -BeExactly 'not_collected'
+        Assert-NoTraceLeft -Out $out
     }
 
-    It 'never cancels a recording it did not start' {
+    It 'never cancels a recording it did not start, and treats an unreadable default status as not idle' {
         $arguments = Start-TraceCase
         $global:WfSynthetic.Wpr.State = 'recording'
         $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'busy') -Arguments $arguments
         $trace = Get-TraceSource -Run $run -Id 'wpr_trace'
         $trace.status | Should -BeExactly 'not_collected'
-        $trace.status_reason | Should -Match 'already in progress'
+        $trace.status_reason | Should -Match 'did not read as idle'
         Get-WprVerbs | Should -Be @('-status')
+
+        $arguments = Start-TraceCase
+        $global:WfSynthetic.Wpr.IdleText = "Der Rekorder zeichnet nicht auf`r`n"
+        $run2 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'busy-unknown') -Arguments $arguments
+        (Get-TraceSource -Run $run2 -Id 'wpr_trace').status | Should -BeExactly 'not_collected'
+        Get-WprVerbs | Should -Be @('-status')
+
+        $arguments = Start-TraceCase
+        $global:WfSynthetic.Wpr.StatusExitCode = 5
+        $global:WfSynthetic.Wpr.StatusStdErr = "Error: 0x80070005 Access is denied.`r`n"
+        $run3 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'busy-error') -Arguments $arguments
+        (Get-TraceSource -Run $run3 -Id 'wpr_trace').status | Should -BeExactly 'not_collected'
+        (Get-TraceSource -Run $run3 -Id 'wpr_trace').status_reason | Should -Match 'reads as unknown'
     }
 
-    It 'reports a missing wpr and a refused profile as not_collected' {
+    It 'reports a missing wpr, a missing tracerpt and a refused profile as not_collected' {
         $arguments = Start-TraceCase
         $global:WfSynthetic.Wpr.Present = $false
         $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'no-wpr') -Arguments $arguments
@@ -1590,15 +1638,22 @@ Describe 'dpcisr-trace against the synthetic backend' {
         $global:WfSynthetic.Processes.Count | Should -Be 0
 
         $arguments = Start-TraceCase
+        $global:WfSynthetic.Tracerpt.Present = $false
+        $run2 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'no-tracerpt') -Arguments $arguments
+        (Get-TraceSource -Run $run2 -Id 'wpr_trace').status | Should -BeExactly 'not_collected'
+        (Get-TraceSource -Run $run2 -Id 'wpr_trace').status_reason | Should -Match 'tracerpt.exe'
+        $global:WfSynthetic.Processes.Count | Should -Be 0 -Because 'without the final statistics reader no session is started'
+
+        $arguments = Start-TraceCase
         $global:WfSynthetic.Wpr.ProfilesExitCode = 2
-        $run2 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'bad-profile') -Arguments $arguments
-        $trace2 = Get-TraceSource -Run $run2 -Id 'wpr_trace'
-        $trace2.status | Should -BeExactly 'not_collected'
-        $trace2.status_reason | Should -Match 'did not accept the recording profile'
+        $run3 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'bad-profile') -Arguments $arguments
+        $trace3 = Get-TraceSource -Run $run3 -Id 'wpr_trace'
+        $trace3.status | Should -BeExactly 'not_collected'
+        $trace3.status_reason | Should -Match 'did not enumerate the recording profile'
         Get-WprVerbs | Should -Be @('-status', '-profiles')
     }
 
-    It 'reports a refused start as not_collected without a trace' {
+    It 'checks its own instance after a refused start and cancels what the start left behind' {
         $arguments = Start-TraceCase
         $global:WfSynthetic.Wpr.StartExitCode = 1
         $global:WfSynthetic.Wpr.StartStdErr = "synthetic wpr: access is denied`r`n"
@@ -1607,11 +1662,22 @@ Describe 'dpcisr-trace against the synthetic backend' {
         $trace = Get-TraceSource -Run $run -Id 'wpr_trace'
         $trace.status | Should -BeExactly 'not_collected'
         $trace.status_reason | Should -Match 'wpr -start was refused.*access is denied'
-        Test-Path -LiteralPath (Join-Path $out 'raw/wpr_trace/trace.etl') | Should -BeFalse
-        Get-WprVerbs | Should -Not -Contain '-stop'
+        Get-WprVerbs | Should -Be @('-status', '-profiles', '-start', '-status') -Because 'the instance is checked even after a refusal'
+        $trace.enabled.options.session_state_final | Should -BeExactly 'idle'
+        Assert-NoTraceLeft -Out $out
+
+        $arguments = Start-TraceCase
+        $global:WfSynthetic.Wpr.StartExitCode = 1
+        $global:WfSynthetic.Wpr.StartLeavesRunning = $true
+        $run2 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'start-left-running') -Arguments $arguments
+        Get-WprVerbs | Should -Be @('-status', '-profiles', '-start', '-status', '-cancel', '-status')
+        $calls = Get-WprCalls
+        $calls[4].Instance | Should -Match '^WfDpcIsrTrace-' -Because 'the cancel is scoped to the instance the collector started'
+        (Get-TraceSource -Run $run2 -Id 'wpr_trace').enabled.options.session_state_final | Should -BeExactly 'idle'
+        $global:WfSynthetic.Wpr.Instances.Values | Should -Not -Contain 'recording'
     }
 
-    It 'cancels the session and confirms when the stop fails or does not finish' {
+    It 'cancels its own session and confirms when the stop fails or does not finish' {
         $arguments = Start-TraceCase
         $global:WfSynthetic.Wpr.StopExitCode = 1
         $global:WfSynthetic.Wpr.StopStdErr = "synthetic wpr: the merge failed`r`n"
@@ -1621,107 +1687,205 @@ Describe 'dpcisr-trace against the synthetic backend' {
         $trace = Get-TraceSource -Run $run -Id 'wpr_trace'
         $trace.status | Should -BeExactly 'capture_failed'
         $trace.status_reason | Should -Match 'wpr -stop failed.*merge failed'
-        Get-WprVerbs | Should -Be @('-status', '-profiles', '-start', '-status', '-stop', '-cancel', '-status')
+        Get-WprVerbs | Should -Be @('-status', '-profiles', '-start', '-status', '-stop', '-status', '-cancel', '-status')
         $trace.enabled.options.session_confirmed_stopped | Should -BeTrue
-        Test-Path -LiteralPath (Join-Path $out 'raw/wpr_trace/trace.etl') | Should -BeFalse
+        $global:WfSynthetic.Wpr.Instances.Values | Should -Not -Contain 'recording'
+        @(Get-TracerptRuns).Count | Should -Be 0
         (Get-TraceSource -Run $run -Id 'dpcisr_report').status | Should -BeExactly 'not_collected'
         @(Get-XperfRuns).Count | Should -Be 0
+        Assert-NoTraceLeft -Out $out
 
         $arguments = Start-TraceCase
         $global:WfSynthetic.Wpr.StopStuck = $true
-        $run2 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'stop-stuck') -Arguments ($arguments + @{ TimeoutSeconds = 30 })
+        $run2 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'stop-stuck') -Arguments (With-Arguments $arguments @{ TimeoutSeconds = 30 })
         $trace2 = Get-TraceSource -Run $run2 -Id 'wpr_trace'
         $trace2.status | Should -BeExactly 'capture_failed'
         $trace2.status_reason | Should -Match 'did not finish within 30 seconds'
         Get-WprVerbs | Should -Contain '-cancel'
+        $global:WfSynthetic.Wpr.Instances.Values | Should -Not -Contain 'recording'
     }
 
-    It 'keeps the trace but reports an unconfirmed stop when wpr still shows a recording' {
+    It 'cancels a session that a successful stop left running, and reports it as unconfirmed only when the cancel fails too' {
         $arguments = Start-TraceCase
         $global:WfSynthetic.Wpr.StopLeavesRunning = $true
-        $out = Join-Path $TestDrive 'unconfirmed'
+        $out = Join-Path $TestDrive 'stop-leaves-running'
+        $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out -Arguments $arguments
+        $trace = Get-TraceSource -Run $run -Id 'wpr_trace'
+        Get-WprVerbs | Should -Be @('-status', '-profiles', '-start', '-status', '-stop', '-status', '-cancel', '-status')
+        $global:WfSynthetic.Wpr.Instances.Values | Should -Not -Contain 'recording' -Because 'the leftover session is cancelled, never left to the operator'
+        $trace.enabled.options.session_state_after_stop | Should -BeExactly 'active'
+        $trace.enabled.options.session_state_final | Should -BeExactly 'idle'
+        $trace.status | Should -BeExactly 'observed' -Because 'the stop saved the trace and the leftover was cleaned up and confirmed idle'
+        @($run.Manifest.notes | Where-Object { $_ -match 'wpr -cancel -instancename' }).Count | Should -Be 0
+
+        $arguments = Start-TraceCase
+        $global:WfSynthetic.Wpr.StopLeavesRunning = $true
+        $global:WfSynthetic.Wpr.CancelLeavesRunning = $true
+        $out2 = Join-Path $TestDrive 'unconfirmed'
+        $run2 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out2 -Arguments $arguments
+        $trace2 = Get-TraceSource -Run $run2 -Id 'wpr_trace'
+        $trace2.status | Should -BeExactly 'capture_failed'
+        $trace2.status_reason | Should -Match 'reads as active after the stop and the cancel'
+        $trace2.enabled.options.session_confirmed_stopped | Should -BeFalse
+        @($run2.Stderr | Where-Object { $_ -match 'wpr -cancel -instancename WfDpcIsrTrace-' }).Count | Should -BeGreaterThan 0
+        @(Get-TracerptRuns).Count | Should -Be 0 -Because 'an unconfirmed session has no final statistics worth reading'
+        Assert-NoTraceLeft -Out $out2
+    }
+
+    It 'never lets a failed status command confirm the stop' {
+        $arguments = Start-TraceCase
+        # The status right after the start is fine; the ones after the stop fail.
+        $global:WfSynthetic.Wpr.StopLeavesRunning = $true
+        $global:WfSynthetic.Wpr.StatusFailAfterCalls = 2
+        $out = Join-Path $TestDrive 'status-error'
         $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out -Arguments $arguments
         $trace = Get-TraceSource -Run $run -Id 'wpr_trace'
         $trace.status | Should -BeExactly 'capture_failed'
-        $trace.status_reason | Should -Match 'could not confirm'
+        $trace.enabled.options.session_state_final | Should -BeExactly 'unknown'
         $trace.enabled.options.session_confirmed_stopped | Should -BeFalse
-        Test-Path -LiteralPath (Join-Path $out 'raw/wpr_trace/trace.etl') | Should -BeTrue
-        @($run.Stderr | Where-Object { $_ -match 'wpr -cancel' }).Count | Should -BeGreaterThan 0
-        @($run.Manifest.notes | Where-Object { $_ -match 'could not confirm' }).Count | Should -Be 1
+        Get-WprVerbs | Should -Contain '-cancel'
     }
 
-    It 'keeps a lossy trace as capture_failed with the loss recorded, and the report inherits it' {
+    It 'bounds the recording by a monotonic clock whatever the status calls take' {
+        $arguments = Start-TraceCase
+        $global:WfSynthetic.Wpr.StatusDelaySeconds = 25
+        $out = Join-Path $TestDrive 'slow-status'
+        $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out -Arguments (With-Arguments $arguments @{ DurationSeconds = 40 })
+        $trace = Get-TraceSource -Run $run -Id 'wpr_trace'
+        $trace.status | Should -BeExactly 'observed'
+        # The status after the start takes 25 synthetic seconds and counts toward the recording; the loop then waits
+        # only the remainder, so the recording stays within the requested 40 seconds plus one poll.
+        $trace.enabled.options.recording_seconds | Should -BeGreaterOrEqual 40
+        $trace.enabled.options.recording_seconds | Should -BeLessThan 43
+        $session = Get-Content -LiteralPath (Join-Path $out 'raw/wpr_trace/session.json') -Raw | ConvertFrom-Json
+        $session.worst_case_seconds | Should -Be (40 + 2 * 120 + 5 * 30)
+    }
+
+    It 'keeps the final figures authoritative: a loss the summary shows fails the trace even when the live status showed none' {
         $arguments = Start-TraceCase -Case 'dpcisr-trace-events-lost'
         $out = Join-Path $TestDrive 'lossy'
         $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out -Arguments $arguments
         $run.ExitCode | Should -Be 1
         $trace = Get-TraceSource -Run $run -Id 'wpr_trace'
         $trace.status | Should -BeExactly 'capture_failed'
-        $trace.status_reason | Should -Match '544 events lost'
+        $trace.status_reason | Should -Match 'lost 544 events and 0 buffers'
         $trace.events_lost | Should -Be 544
+        $trace.buffers_lost | Should -Be 0
+        $trace.enabled.options.events_lost_after_start | Should -Be 0
         $trace.expectation.met | Should -BeFalse
-        Test-Path -LiteralPath (Join-Path $out 'raw/wpr_trace/trace.etl') | Should -BeTrue
-        (Get-Content -LiteralPath (Join-Path $out 'raw/wpr_trace/status.txt') -Raw) | Should -Match 'Events Lost\s+: 544'
+        (Get-Content -LiteralPath (Join-Path $out 'raw/wpr_trace/tracerpt-summary.txt') -Raw) | Should -Match 'Events\s+Lost\s+544'
         $report = Get-TraceSource -Run $run -Id 'dpcisr_report'
         $report.status | Should -BeExactly 'capture_failed'
-        $report.status_reason | Should -Match 'lost 544 events'
+        $report.status_reason | Should -Match 'with -tle'
         @($report.command)[-1] | Should -BeExactly '-tle'
-        @(Get-XperfRuns)[0].Arguments | Should -Match ' -a dpcisr -tle$'
         Test-Path -LiteralPath (Join-Path $out 'raw/dpcisr_report/dpcisr.txt') | Should -BeTrue
+        Assert-NoTraceLeft -Out $out
     }
 
-    It 'treats a status text without the loss labels as unknown loss, never observed' {
+    It 'fails the trace on lost buffers with zero events lost, and on any loss figure that is missing or not a number' {
+        $arguments = Start-TraceCase
+        $global:WfSynthetic.Tracerpt.BuffersLost = 3
+        $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'buffers-lost') -Arguments $arguments
+        $trace = Get-TraceSource -Run $run -Id 'wpr_trace'
+        $trace.status | Should -BeExactly 'capture_failed'
+        $trace.status_reason | Should -Match 'lost 0 events and 3 buffers'
+        $trace.buffers_lost | Should -Be 3
+
+        $arguments = Start-TraceCase
+        $global:WfSynthetic.Tracerpt.Labels = 'missing'
+        $run2 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'summary-no-labels') -Arguments $arguments
+        $trace2 = Get-TraceSource -Run $run2 -Id 'wpr_trace'
+        $trace2.status | Should -BeExactly 'capture_failed'
+        $trace2.status_reason | Should -Match 'no single whole number for events lost or buffers lost'
+        $trace2.events_lost | Should -BeNullOrEmpty
+        $trace2.buffers_lost | Should -BeNullOrEmpty
+
+        $arguments = Start-TraceCase
+        $global:WfSynthetic.Tracerpt.Labels = 'nonnumeric'
+        $run3 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'summary-nonnumeric') -Arguments $arguments
+        (Get-TraceSource -Run $run3 -Id 'wpr_trace').status_reason | Should -Match 'no single whole number for events lost'
+        (Get-TraceSource -Run $run3 -Id 'wpr_trace').events_lost | Should -BeNullOrEmpty
+
+        $arguments = Start-TraceCase
+        $global:WfSynthetic.Tracerpt.Labels = 'events-only'
+        $run4 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'summary-events-only') -Arguments $arguments
+        (Get-TraceSource -Run $run4 -Id 'wpr_trace').status_reason | Should -Match 'no single whole number for buffers lost'
+
+        $arguments = Start-TraceCase
+        $global:WfSynthetic.Tracerpt.ExitCode = 1
+        $run5 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'summary-fails') -Arguments $arguments
+        (Get-TraceSource -Run $run5 -Id 'wpr_trace').status_reason | Should -Match 'final loss statistics could not be read.*exited with code 1'
+        @((Get-TraceSource -Run $run5 -Id 'wpr_trace').artifacts | Where-Object { $_.role -eq 'primary' }).Count | Should -Be 0
+    }
+
+    It 'cancels a session whose live status cannot verify the settings: unreadable loss, missing keywords, no collector, lost buffers listed' {
+        $arguments = Start-TraceCase
+        $global:WfSynthetic.Wpr.EventsLostText = '1,234'
+        $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'early-nonnumeric') -Arguments $arguments
+        $trace = Get-TraceSource -Run $run -Id 'wpr_trace'
+        $trace.status | Should -BeExactly 'capture_failed'
+        $trace.status_reason | Should -Match 'cancelled without saving a trace because the kernel collector''s "Events Lost" figure is missing or not a number \("1,234"\)'
+        Get-WprVerbs | Should -Be @('-status', '-profiles', '-start', '-status', '-status', '-cancel', '-status')
+        Get-WprVerbs | Should -Not -Contain '-stop'
+        @(Get-TracerptRuns).Count | Should -Be 0
+
+        $arguments = Start-TraceCase
+        $global:WfSynthetic.Wpr.Keywords = @('Interrupt', 'DPC')
+        $run2 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'fewer-keywords') -Arguments $arguments
+        $trace2 = Get-TraceSource -Run $run2 -Id 'wpr_trace'
+        $trace2.status | Should -BeExactly 'capture_failed'
+        $trace2.status_reason | Should -Match 'requested settings were not enabled.*no Loader keyword'
+        @($trace2.enabled.keywords) | Should -Be @('Interrupt', 'DPC')
+
+        $arguments = Start-TraceCase
+        $global:WfSynthetic.Wpr.Keywords = @()
+        $run3 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'no-keywords') -Arguments $arguments
+        (Get-TraceSource -Run $run3 -Id 'wpr_trace').status | Should -BeExactly 'capture_failed'
+        (Get-TraceSource -Run $run3 -Id 'wpr_trace').status_reason | Should -Match 'lists no System Keywords'
+
+        $arguments = Start-TraceCase
+        $global:WfSynthetic.Wpr.CollectorName = $null
+        $run4 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'no-collector') -Arguments $arguments
+        (Get-TraceSource -Run $run4 -Id 'wpr_trace').status_reason | Should -Match 'lists 0 collector'
+
         $arguments = Start-TraceCase
         $global:WfSynthetic.Wpr.StatusLabels = 'missing'
-        $out = Join-Path $TestDrive 'no-labels'
-        $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out -Arguments $arguments
-        $trace = Get-TraceSource -Run $run -Id 'wpr_trace'
-        $trace.status | Should -BeExactly 'capture_failed'
-        $trace.status_reason | Should -Match 'events lost could not be read'
-        $trace.events_lost | Should -BeNullOrEmpty
-        Test-Path -LiteralPath (Join-Path $out 'raw/wpr_trace/trace.etl') | Should -BeTrue
-    }
+        $run5 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'early-no-labels') -Arguments $arguments
+        (Get-TraceSource -Run $run5 -Id 'wpr_trace').status_reason | Should -Match 'figure is missing or not a number \(no line\)'
 
-    It 'fails the trace when the status lists fewer keywords than requested' {
         $arguments = Start-TraceCase
-        $global:WfSynthetic.Wpr.Keywords = @('Interrupt', 'DPC', 'Loader')
-        $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'fewer-keywords') -Arguments $arguments
-        $trace = Get-TraceSource -Run $run -Id 'wpr_trace'
-        $trace.status | Should -BeExactly 'capture_failed'
-        $trace.status_reason | Should -Match 'requested settings were not enabled.*ProcessThread, CSwitch, ReadyThread'
-        @($trace.enabled.keywords) | Should -Be @('Interrupt', 'DPC', 'Loader')
+        $global:WfSynthetic.Wpr.BuffersLostLine = 'Buffers Lost            : 2'
+        $run6 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'early-buffers') -Arguments $arguments
+        (Get-TraceSource -Run $run6 -Id 'wpr_trace').status_reason | Should -Match 'lists lost buffers'
+        $global:WfSynthetic.Wpr.Instances.Values | Should -Not -Contain 'recording'
     }
 
-    It 'stops early at the cap and keeps the shorter trace, and removes a saved trace above the cap' {
+    It 'stops early at the cap and keeps the shorter window as capture_failed, and never reads a trace above the cap or an empty one' {
         $arguments = Start-TraceCase
         $global:WfSynthetic.Wpr.TempBytes = 16777217
         $out = Join-Path $TestDrive 'temp-cap'
-        $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out -Arguments ($arguments + @{ MaxTraceBytes = 16777216 })
+        $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out -Arguments (With-Arguments $arguments @{ MaxTraceBytes = 16777216 })
         $trace = Get-TraceSource -Run $run -Id 'wpr_trace'
         $trace.status | Should -BeExactly 'capture_failed'
         $trace.status_reason | Should -Match 'stopped early.*above the cap of 16777216'
         $trace.enabled.options.stopped_early_at_cap | Should -BeTrue
-        Test-Path -LiteralPath (Join-Path $out 'raw/wpr_trace/trace.etl') | Should -BeTrue
+        $trace.enabled.options.recording_seconds | Should -BeLessThan 10
         Get-WprVerbs | Should -Contain '-stop'
+        Assert-NoTraceLeft -Out $out
 
         $arguments = Start-TraceCase
         $global:WfSynthetic.Wpr.EtlBytes = 16777217
-        $out2 = Join-Path $TestDrive 'etl-cap'
-        $run2 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out2 -Arguments ($arguments + @{ MaxTraceBytes = 16777216 })
-        $trace2 = Get-TraceSource -Run $run2 -Id 'wpr_trace'
-        $trace2.status | Should -BeExactly 'capture_failed'
-        $trace2.status_reason | Should -Match 'above the cap of 16777216, and was not kept'
-        Test-Path -LiteralPath (Join-Path $out2 'raw/wpr_trace/trace.etl') | Should -BeFalse
+        $run2 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'etl-cap') -Arguments (With-Arguments $arguments @{ MaxTraceBytes = 16777216 })
+        (Get-TraceSource -Run $run2 -Id 'wpr_trace').status_reason | Should -Match 'above the cap of 16777216, and was not read'
+        @(Get-TracerptRuns).Count | Should -Be 0
 
         $arguments = Start-TraceCase
         $global:WfSynthetic.Wpr.EtlBytes = 0
-        $out3 = Join-Path $TestDrive 'etl-empty'
-        $run3 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out3 -Arguments $arguments
+        $run3 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'etl-empty') -Arguments $arguments
         (Get-TraceSource -Run $run3 -Id 'wpr_trace').status_reason | Should -Match 'missing or empty'
-        Test-Path -LiteralPath (Join-Path $out3 'raw/wpr_trace/trace.etl') | Should -BeFalse
     }
 
-    It 'refuses an xperf that is absent, not pinned by hash, or not pinned by version' {
+    It 'refuses an xperf that is absent, not pinned by hash, not pinned by version, or changed during the run' {
         $arguments = Start-TraceCase
         $global:WfSynthetic.Tools.Clear()
         $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'xperf-absent') -Arguments $arguments
@@ -1752,9 +1916,18 @@ Describe 'dpcisr-trace against the synthetic backend' {
         $report4.status | Should -BeExactly 'not_collected'
         $report4.status_reason | Should -Match 'no xperf build is pinned'
         ($run4.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'partial'
+
+        $arguments = Start-TraceCase
+        $global:WfSynthetic.Xperf['ChangeHashAfterRun'] = $true
+        $run5 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'xperf-changed') -Arguments $arguments
+        $report5 = Get-TraceSource -Run $run5 -Id 'dpcisr_report'
+        $report5.status | Should -BeExactly 'capture_failed'
+        $report5.status_reason | Should -Match 'changed during the run'
+        Test-Path -LiteralPath (Join-Path (Join-Path $TestDrive 'xperf-changed') 'raw/dpcisr_report/dpcisr.txt') | Should -BeFalse
+        @($run5.Manifest.tools | ForEach-Object { $_.name }) | Should -Not -Contain 'xperf'
     }
 
-    It 'reports a failing, hanging or empty xperf honestly and keeps no report' {
+    It 'reports a failing, hanging or empty xperf honestly, keeps no report, and downgrades the trace when xperf names a loss' {
         $arguments = Start-TraceCase
         $global:WfSynthetic.Xperf = @{ ExitCode = 1; StdOut = ''; StdErr = 'synthetic xperf: cannot open the trace'; Stuck = $false }
         $out = Join-Path $TestDrive 'xperf-fails'
@@ -1764,51 +1937,69 @@ Describe 'dpcisr-trace against the synthetic backend' {
         $report.status_reason | Should -Match 'exited with code 1: synthetic xperf: cannot open the trace'
         Test-Path -LiteralPath (Join-Path $out 'raw/dpcisr_report/dpcisr.txt') | Should -BeFalse
         ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'partial'
+        (Get-TraceSource -Run $run -Id 'wpr_trace').status | Should -BeExactly 'observed'
+
+        $arguments = Start-TraceCase
+        $global:WfSynthetic.Xperf = @{ ExitCode = 1; StdOut = ''; StdErr = 'synthetic xperf: the trace has lost events; use -tle to tolerate them'; Stuck = $false }
+        $run2 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'xperf-lost') -Arguments $arguments
+        (Get-TraceSource -Run $run2 -Id 'wpr_trace').status | Should -BeExactly 'capture_failed'
+        (Get-TraceSource -Run $run2 -Id 'wpr_trace').status_reason | Should -Match 'xperf refused the trace naming lost events'
+        ($run2.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'failed'
 
         $arguments = Start-TraceCase
         $global:WfSynthetic.Xperf = @{ ExitCode = 0; StdOut = ''; StdErr = ''; Stuck = $true }
-        $run2 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'xperf-stuck') -Arguments ($arguments + @{ TimeoutSeconds = 20 })
-        (Get-TraceSource -Run $run2 -Id 'dpcisr_report').status_reason | Should -Match 'did not finish within 20 seconds'
+        $run3 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'xperf-stuck') -Arguments (With-Arguments $arguments @{ TimeoutSeconds = 20 })
+        (Get-TraceSource -Run $run3 -Id 'dpcisr_report').status_reason | Should -Match 'did not finish within 20 seconds'
 
         $arguments = Start-TraceCase
         $global:WfSynthetic.Xperf = @{ ExitCode = 0; StdOut = "Some other report`r`n"; StdErr = ''; Stuck = $false }
-        $run3 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'xperf-other') -Arguments $arguments
-        (Get-TraceSource -Run $run3 -Id 'dpcisr_report').status_reason | Should -Match 'no DPC Info and Interrupt Info sections'
+        $run4 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'xperf-other') -Arguments $arguments
+        (Get-TraceSource -Run $run4 -Id 'dpcisr_report').status_reason | Should -Match 'no DPC Info and Interrupt Info sections'
     }
 
     It 'rejects a duration or a trace cap outside its range with a failed summary and no bundle' {
         $arguments = Start-TraceCase
         $out = Join-Path $TestDrive 'bad-duration'
-        $short = $arguments.Clone()
-        $short['DurationSeconds'] = 1
-        $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out -Arguments $short
+        $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out -Arguments (With-Arguments $arguments @{ DurationSeconds = 1 })
         $run.ExitCode | Should -Be 1
         ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'failed'
         Test-Path -LiteralPath $out | Should -BeFalse
-        $run2 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'bad-cap') -Arguments ($arguments + @{ MaxTraceBytes = 1024 })
+        $run2 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'bad-cap') -Arguments (With-Arguments $arguments @{ MaxTraceBytes = 1024 })
         $run2.ExitCode | Should -Be 1
         $global:WfSynthetic.Processes.Count | Should -Be 0
     }
 
-    It 'records the parsed status in the session record next to the verbatim text' {
+    It 'records the parsed status, the final figures and every tool call in the session record, and pseudonymises hardware addresses in the texts that leave' {
         $arguments = Start-TraceCase
+        $global:WfSynthetic.Wpr.BuffersLostLine = $null
+        $global:WfSynthetic.Xperf.StdOut = $global:WfSynthetic.Xperf.StdOut + "Adapter 02:aa:bb:cc:dd:01 noted`r`n"
         $out = Join-Path $TestDrive 'session-record'
         $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out -Arguments $arguments
         $run.ExitCode | Should -Be 0
         $session = Get-Content -LiteralPath (Join-Path $out 'raw/wpr_trace/session.json') -Raw | ConvertFrom-Json
-        $session.status.recording | Should -BeTrue
-        $session.status.dropped_events | Should -Be 0
-        $session.status.logging_mode | Should -BeExactly 'File'
-        @($session.status.collectors).Count | Should -Be 1
-        $session.status.collectors[0].name | Should -BeExactly 'NT Kernel Logger'
-        $session.status.collectors[0].buffer_size_kb | Should -Be 1024
-        $session.status.collectors[0].events_lost | Should -Be 0
-        @($session.status.collectors[0].keywords) | Should -Be @('Interrupt', 'DPC', 'Loader', 'ProcessThread', 'CSwitch', 'ReadyThread')
-        $session.events_lost | Should -Be 0
+        $session.instance_name | Should -Match '^WfDpcIsrTrace-'
+        $session.status_after_start.dropped_events | Should -Be 0
+        $session.status_after_start.logging_mode | Should -BeExactly 'File'
+        @($session.status_after_start.collectors).Count | Should -Be 1
+        $session.status_after_start.collectors[0].name | Should -BeExactly 'NT Kernel Logger'
+        $session.status_after_start.collectors[0].buffer_size_kb | Should -Be 1024
+        $session.status_after_start.collectors[0].events_lost | Should -Be 0
+        @($session.status_after_start.collectors[0].keywords) | Should -Be @('Interrupt', 'DPC', 'Loader')
+        $session.settings_verified | Should -BeTrue
+        $session.final.events_lost | Should -Be 0
+        $session.final.buffers_lost | Should -Be 0
+        $session.final.events_lost_lines | Should -Be 1
+        $session.trace_kept_in_bundle | Should -BeFalse
+        $session.trace_sha256 | Should -Match '^[0-9a-f]{64}$'
         $session.session_confirmed_stopped | Should -BeTrue
-        @($session.runs | ForEach-Object { $_.verb }) | Should -Be @('status', 'profiles', 'start', 'status', 'stop', 'status')
-        $session.runs[2].arguments | Should -BeExactly '-start <bundle>/raw/wpr_trace/dpcisr-trace.wprp!WfDpcIsrTrace.Verbose -filemode -recordtempto <bundle>/raw/wpr_trace/temp'
-        $session.runs[4].arguments | Should -Match '^-stop <bundle>/raw/wpr_trace/trace\.etl "win-forensics dpcisr-trace [0-9TZ]+" -skipPdbGen$'
+        @($session.runs | ForEach-Object { $_.tool + ' ' + $_.verb }) | Should -Be @('wpr.exe status', 'wpr.exe profiles', 'wpr.exe start', 'wpr.exe status', 'wpr.exe stop', 'wpr.exe status', 'tracerpt.exe ')
+        $session.runs[2].arguments | Should -BeExactly ('-start <bundle>/raw/wpr_trace/dpcisr-trace.wprp!WfDpcIsrTrace.Verbose -filemode -recordtempto <bundle>/private/temp -instancename ' + $session.instance_name)
+        $session.runs[4].arguments | Should -Match ('^-stop <bundle>/private/trace\.etl "win-forensics dpcisr-trace [0-9TZ]+" -skipPdbGen -instancename ' + $session.instance_name + '$')
+        $session.runs[6].arguments | Should -BeExactly '<bundle>/private/trace.etl -summary <bundle>/raw/wpr_trace/tracerpt-summary.txt -y'
         (Get-Content -LiteralPath (Join-Path $out 'raw/wpr_trace/status.txt') -Raw) | Should -Match 'WPR recording is in progress'
+        $reportText = Get-Content -LiteralPath (Join-Path $out 'raw/dpcisr_report/dpcisr.txt') -Raw
+        $reportText | Should -Not -Match '02:aa:bb:cc:dd:01'
+        $reportText | Should -Match 'mac-[0-9a-f]{12}'
+        (Get-TraceSource -Run $run -Id 'dpcisr_report').enabled.options.mac_addresses_replaced | Should -Be 1
     }
 }

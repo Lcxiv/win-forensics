@@ -1,5 +1,5 @@
 {
-  "manifest_version": "1.0.0",
+  "manifest_version": "1.1.0",
   "bundle_id": "20260301T120001Z_rf_survey_ae3a76a9",
   "created_utc": "2026-03-01T12:01:27.0000000Z",
   "scenario": {
@@ -192,6 +192,7 @@
         "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -322,6 +323,7 @@
         "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -421,6 +423,7 @@
         "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -526,6 +529,7 @@
         "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -631,6 +635,7 @@
         "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -737,6 +742,7 @@
         "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -833,6 +839,7 @@
         "verified_by": "the source size, time and hash are in the summary artifact; the text itself is not in the bundle"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -945,6 +952,7 @@
         "verified_by": "EventLogReader accepted the query in query.xml; the oldest retained record and the provider list are in channel_state.json"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -1063,6 +1071,7 @@
         "verified_by": "the enumeration completed without error; the device counts are in result.json"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -1176,6 +1185,7 @@
         "verified_by": "the enumeration completed without error; the device counts are in result.json"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
