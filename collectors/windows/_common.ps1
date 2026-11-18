@@ -323,26 +323,72 @@ function Add-WfRow {
     return $true
 }
 
+function ConvertTo-WfMillisecondFloor {
+    # The same instant cut to whole milliseconds. The query literal carries
+    # three fractional digits, so the window end is cut once, here, before it
+    # is written anywhere, and the manifest and the query name the same instant.
+    param([datetime]$Value)
+    $utc = $Value.ToUniversalTime()
+    return $utc.AddTicks(-1 * ($utc.Ticks % 10000))
+}
+
+function ConvertTo-WfXPathDateTime {
+    # The xs:dateTime literal the event query compares TimeCreated/@SystemTime
+    # with: UTC, three fractional digits, a Z suffix. Event Viewer's custom
+    # range filter and Get-WinEvent's StartTime and EndTime keys write this
+    # shape; the PC session read records with it on 2026-11-18 (README,
+    # verification item 23). Seven digits are not used because nothing has
+    # shown the query engine accepts them.
+    param([datetime]$Value)
+    return $Value.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ', [System.Globalization.CultureInfo]::InvariantCulture)
+}
+
+function ConvertTo-WfXmlText {
+    # Element content: the three characters XML 1.0 requires escaped in text
+    # (https://www.w3.org/TR/xml/#syntax), quotes left alone.
+    param([string]$Text)
+    return $Text.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;')
+}
+
 function Build-WfEventQueryXml {
     # A structured XML query with one Select per predicate. Each predicate is
     # the inside of a System[...] test. The time bound is a fixed interval
-    # ending at -EndUtc: timediff(@SystemTime, <FILETIME literal>) is the
-    # documented form with a literal second argument, positive when the
-    # literal is the later time, so 0 <= timediff <= window selects exactly
-    # [end - window, end] and a record raised after the query started cannot
-    # join the result:
-    # https://learn.microsoft.com/en-us/windows/win32/wes/consuming-events
+    # [end - window, end], both ends inclusive, written as two comparisons of
+    # TimeCreated/@SystemTime with xs:dateTime literals:
+    #   TimeCreated[@SystemTime >= '<start>' and @SystemTime <= '<end>']
+    # @SystemTime is declared xs:dateTime in the event schema
+    # (https://learn.microsoft.com/en-us/windows/win32/wes/eventschema-timecreated-systempropertiestype-element)
+    # and =, <=, >= are in the XPath subset the event log accepts
+    # (https://learn.microsoft.com/en-us/windows/win32/wes/consuming-events).
+    # The upper bound matters: the same page says a result set also receives
+    # matching events raised while it is enumerated.
+    # The documented alternative, timediff(@SystemTime, <FILETIME number>), is
+    # not used: on the gaming PC (Windows 11 build 26100, Windows PowerShell
+    # 5.1) EventLogQuery accepted it and the first ReadEvent threw
+    # EventLogInvalidDataException, "The data is invalid", on every channel,
+    # while this form read the same records (README, verification item 23).
+    # The one argument form, timediff(@SystemTime) <= <ms>, works there too but
+    # its window ends at evaluation time, not at a fixed instant.
+    # -EndUtc must already be cut to the millisecond (ConvertTo-WfMillisecondFloor),
+    # so that the literal and the recorded window agree exactly.
+    # The Select text escapes only the characters XML requires in element
+    # content (&, <, >), so the quotes around literals stay as written, the
+    # shape Event Viewer's own exported queries have; what the engine makes of
+    # a quote written as &apos; is not documented and is not relied on.
     # The same text is given to EventLogQuery and, as a file, to
     # wevtutil epl /sq:true, so both exports come from one query.
     param([string]$Channel, [string[]]$Predicates, [datetime]$EndUtc, [int64]$WindowMilliseconds)
     $channelText = [System.Security.SecurityElement]::Escape($Channel)
-    $endFileTime = $EndUtc.ToUniversalTime().ToFileTimeUtc()
+    $endUtc = $EndUtc.ToUniversalTime()
+    if (($endUtc.Ticks % 10000) -ne 0) { throw 'Build-WfEventQueryXml: the window end must be cut to the millisecond' }
+    $startText = ConvertTo-WfXPathDateTime -Value ($endUtc.AddMilliseconds(-1 * [double]$WindowMilliseconds))
+    $endText = ConvertTo-WfXPathDateTime -Value $endUtc
     $lines = New-Object 'System.Collections.Generic.List[string]'
     $lines.Add('<QueryList>')
     $lines.Add(('  <Query Id="0" Path="{0}">' -f $channelText))
     foreach ($predicate in $Predicates) {
-        $xpath = '*[System[{0} and TimeCreated[timediff(@SystemTime, {1}) >= 0 and timediff(@SystemTime, {1}) <= {2}]]]' -f $predicate, $endFileTime, $WindowMilliseconds
-        $lines.Add(('    <Select Path="{0}">{1}</Select>' -f $channelText, [System.Security.SecurityElement]::Escape($xpath)))
+        $xpath = "*[System[{0} and TimeCreated[@SystemTime >= '{1}' and @SystemTime <= '{2}']]]" -f $predicate, $startText, $endText
+        $lines.Add(('    <Select Path="{0}">{1}</Select>' -f $channelText, (ConvertTo-WfXmlText -Text $xpath)))
     }
     $lines.Add('  </Query>')
     $lines.Add('</QueryList>')
@@ -820,8 +866,9 @@ function Invoke-WfEventSource {
     try {
         $null = New-Item -ItemType Directory -Force -Path $dir
         $windowMs = [int64]$WindowDays * 86400000
-        # The interval is fixed here, immediately before the query is built.
-        $windowEnd = Get-WfUtcNow
+        # The interval is fixed here, immediately before the query is built,
+        # at the precision of the query literal (whole milliseconds).
+        $windowEnd = ConvertTo-WfMillisecondFloor -Value (Get-WfUtcNow)
         $windowStart = $windowEnd.AddMilliseconds(-1 * [double]$windowMs)
         $queryXml = Build-WfEventQueryXml -Channel $channel -Predicates (Get-WfList -Value $Source['Predicates']) -EndUtc $windowEnd -WindowMilliseconds $windowMs
         $queryPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/query.xml')

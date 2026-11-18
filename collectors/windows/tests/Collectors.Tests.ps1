@@ -186,10 +186,24 @@ Describe 'event query' {
         $selects = @($xml.QueryList.Query.Select)
         $selects.Count | Should -Be 2
         $selects[0].Path | Should -BeExactly 'Application'
-        $fileTime = $end.ToFileTimeUtc()
-        $fileTime | Should -Be ($end - [datetime]::new(1601, 1, 1, 0, 0, 0, [System.DateTimeKind]::Utc)).Ticks
-        $selects[0].InnerText | Should -BeExactly "*[System[Provider[@Name='Application Error'] and (EventID=1000) and TimeCreated[timediff(@SystemTime, $fileTime) >= 0 and timediff(@SystemTime, $fileTime) <= 2592000000]]]"
-        $selects[1].InnerText | Should -BeExactly "*[System[(EventID=1002) and TimeCreated[timediff(@SystemTime, $fileTime) >= 0 and timediff(@SystemTime, $fileTime) <= 2592000000]]]"
+        $selects[0].InnerText | Should -BeExactly "*[System[Provider[@Name='Application Error'] and (EventID=1000) and TimeCreated[@SystemTime >= '2026-01-30T12:00:00.000Z' and @SystemTime <= '2026-03-01T12:00:00.000Z']]]"
+        $selects[1].InnerText | Should -BeExactly "*[System[(EventID=1002) and TimeCreated[@SystemTime >= '2026-01-30T12:00:00.000Z' and @SystemTime <= '2026-03-01T12:00:00.000Z']]]"
+        # The form the gaming PC rejected at the first read (README, verification item 23).
+        $text | Should -Not -Match 'timediff'
+        # Quotes stay as written, as in Event Viewer's exported queries; only &, < and > are escaped.
+        $text | Should -Not -Match '&apos;|&quot;'
+        $text.Contains("Provider[@Name='Application Error']") | Should -BeTrue
+        $text.Contains('&gt;=') | Should -BeTrue
+    }
+
+    It 'writes the time literal with three fractional digits and refuses an end that is not on a millisecond' {
+        $end = [datetime]::new(2026, 3, 1, 12, 0, 0, [System.DateTimeKind]::Utc).AddTicks(1230000)
+        ConvertTo-WfXPathDateTime -Value $end | Should -BeExactly '2026-03-01T12:00:00.123Z'
+        ConvertTo-WfMillisecondFloor -Value $end.AddTicks(9999) | Should -Be $end
+        (ConvertTo-WfMillisecondFloor -Value $end.AddTicks(9999)).Kind | Should -Be ([System.DateTimeKind]::Utc)
+        { Build-WfEventQueryXml -Channel 'System' -Predicates @('(EventID=41)') -EndUtc $end.AddTicks(1) -WindowMilliseconds 1000 } | Should -Throw '*cut to the millisecond*'
+        $text = Build-WfEventQueryXml -Channel 'System' -Predicates @('(EventID=41)') -EndUtc $end -WindowMilliseconds 1500
+        ([xml]$text).QueryList.Query.Select.InnerText | Should -BeExactly "*[System[(EventID=41) and TimeCreated[@SystemTime >= '2026-03-01T11:59:58.623Z' and @SystemTime <= '2026-03-01T12:00:00.123Z']]]"
     }
 
     It 'writes CIM DATETIME text in UTC for the WQL filter' {
@@ -279,6 +293,97 @@ Describe 'measurement status of one source' {
         Test-WfKeepPartialExport -Status 'capture_failed' -Truncated $false -RecordCount 5 | Should -BeFalse
         Test-WfKeepPartialExport -Status 'not_collected' -Truncated $false -RecordCount 0 | Should -BeFalse
         Test-WfKeepPartialExport -Status 'observed_zero' -Truncated $false -RecordCount 0 | Should -BeTrue
+    }
+}
+
+Describe 'the event query time bound on the gaming PC' {
+    # On 2026-11-18 every event log source failed at its first ReadEvent on the
+    # gaming PC with "The data is invalid"; the PC session isolated the cause
+    # to timediff(@SystemTime, <FILETIME number>) in the query. The synthetic
+    # reader models that behaviour, so these tests fail if the builder writes
+    # that form again (collectors/windows/README.md, verification item 23).
+    BeforeAll {
+        function New-NumericTimediffQuery {
+            # Build-WfEventQueryXml as it was before the fix.
+            param([datetime]$EndUtc, [int64]$WindowMilliseconds = 2592000000)
+            $fileTime = $EndUtc.ToUniversalTime().ToFileTimeUtc()
+            $xpath = '*[System[(EventID=41) and TimeCreated[timediff(@SystemTime, {0}) >= 0 and timediff(@SystemTime, {0}) <= {1}]]]' -f $fileTime, $WindowMilliseconds
+            return ('<QueryList>' + "`n" + '  <Query Id="0" Path="System">' + "`n" + '    <Select Path="System">' + [System.Security.SecurityElement]::Escape($xpath) + '</Select>' + "`n" + '  </Query>' + "`n" + '</QueryList>' + "`n")
+        }
+    }
+
+    It 'opens the numeric timediff form and fails at the first pull, as the PC did' {
+        Reset-WfSynthetic
+        $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90
+        Add-WfSyntheticQuery -Match 'EventID=41' -Events @((New-WfSyntheticEvent -RecordId 5 -Provider 'Microsoft-Windows-Kernel-Power' -EventId 41 -Level 1 -DaysAgo 3))
+        $old = New-NumericTimediffQuery -EndUtc $global:WfSynthetic.Now
+        Test-WfSyntheticNumericTimediff -QueryXml $old | Should -BeTrue
+        $reader = Open-WfEventReader -Channel 'System' -QueryXml $old -Reverse $true
+        $reader['Ok'] | Should -BeTrue
+        { & $reader['ReadNext'] ([timespan]::FromSeconds(10)) } | Should -Throw '*The data is invalid*'
+        $accumulator = New-WfRowAccumulator -MaxRows 10 -MaxBytes 1048576
+        $read = Read-WfEventRecords -Channel 'System' -QueryXml $old -DeadlineUtc $global:WfSynthetic.Now.AddSeconds(60) -Accumulator $accumulator
+        $read['Ok'] | Should -BeFalse
+        $read['Stage'] | Should -BeExactly 'read'
+        $read['ErrorKind'] | Should -BeExactly 'other'
+        $read['Count'] | Should -Be 0
+        $status = Resolve-WfSourceStatus -ReadErrorKind $read['ErrorKind'] -ReadErrorMessage $read['ErrorMessage'] -WindowStartUtc $global:WfSynthetic.Now.AddDays(-30)
+        $status['Status'] | Should -BeExactly 'capture_failed'
+        $status['Reason'] | Should -BeLike 'the read started and then failed: *The data is invalid*'
+    }
+
+    It 'reads the same records with the @SystemTime comparison the builder writes now' {
+        Reset-WfSynthetic
+        $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90
+        Add-WfSyntheticQuery -Match 'EventID=41' -Events @((New-WfSyntheticEvent -RecordId 5 -Provider 'Microsoft-Windows-Kernel-Power' -EventId 41 -Level 1 -DaysAgo 3))
+        $end = ConvertTo-WfMillisecondFloor -Value $global:WfSynthetic.Now
+        $fixed = Build-WfEventQueryXml -Channel 'System' -Predicates @('(EventID=41)') -EndUtc $end -WindowMilliseconds 2592000000
+        Test-WfSyntheticNumericTimediff -QueryXml $fixed | Should -BeFalse
+        $accumulator = New-WfRowAccumulator -MaxRows 10 -MaxBytes 1048576
+        $read = Read-WfEventRecords -Channel 'System' -QueryXml $fixed -DeadlineUtc $global:WfSynthetic.Now.AddSeconds(60) -Accumulator $accumulator
+        $read['Ok'] | Should -BeTrue
+        $read['Count'] | Should -Be 1
+        $accumulator.Rows[0]['record_id'] | Should -Be 5
+    }
+
+    It 'applies the inclusive bound the query names, so a record outside the window is not read' {
+        Reset-WfSynthetic
+        $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90
+        $end = ConvertTo-WfMillisecondFloor -Value $global:WfSynthetic.Now
+        Add-WfSyntheticQuery -Match 'EventID=41' -Events @(
+            (New-WfSyntheticEvent -RecordId 1 -Provider 'Microsoft-Windows-Kernel-Power' -EventId 41 -Level 1 -DaysAgo 45),
+            (New-WfSyntheticEvent -RecordId 2 -Provider 'Microsoft-Windows-Kernel-Power' -EventId 41 -Level 1 -DaysAgo 30),
+            (New-WfSyntheticEvent -RecordId 3 -Provider 'Microsoft-Windows-Kernel-Power' -EventId 41 -Level 1 -DaysAgo 3),
+            (New-WfSyntheticEvent -RecordId 4 -Provider 'Microsoft-Windows-Kernel-Power' -EventId 41 -Level 1 -DaysAgo 0)
+        )
+        $fixed = Build-WfEventQueryXml -Channel 'System' -Predicates @('(EventID=41)') -EndUtc $end -WindowMilliseconds 2592000000
+        $bound = Get-WfSyntheticQueryBound -QueryXml $fixed
+        $bound['End'] | Should -Be $end
+        $bound['Start'] | Should -Be $end.AddDays(-30)
+        $accumulator = New-WfRowAccumulator -MaxRows 10 -MaxBytes 1048576
+        $read = Read-WfEventRecords -Channel 'System' -QueryXml $fixed -DeadlineUtc $global:WfSynthetic.Now.AddSeconds(60) -Accumulator $accumulator
+        $read['Ok'] | Should -BeTrue
+        @($accumulator.Rows | ForEach-Object { $_['record_id'] }) | Should -Be @(4, 3, 2)
+    }
+
+    It 'lets every event log collector read its channel end to end with the fixed form' {
+        foreach ($name in @('bugcheck-history', 'whea-errors-quiet', 'application-errors', 'tdr-events-partial')) {
+            Reset-WfSynthetic
+            $case = @(Get-WfSyntheticCases | Where-Object { $_['Case'] -eq $name })[0]
+            & $case['Setup']
+            $run = Invoke-TestCollector -Collector $case['Collector'] -OutputDirectory (Join-Path $TestDrive ('fixed-form-' + $name)) -Arguments $case['Arguments']
+            $run.ExitCode | Should -Be $case['ExitCode']
+            foreach ($source in @($run.Manifest.collectors)) {
+                [string]$source.status_reason | Should -Not -Match 'The data is invalid'
+                $source.preflight.ok | Should -BeTrue
+                $source.enabled.options.query_accepted | Should -BeTrue
+            }
+            foreach ($query in @(Get-ChildItem -Path (Join-Path $TestDrive ('fixed-form-' + $name)) -Recurse -Filter 'query.xml')) {
+                $text = [System.IO.File]::ReadAllText($query.FullName)
+                $text | Should -Not -Match 'timediff'
+                $text | Should -Match "@SystemTime &gt;= '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z' and @SystemTime &lt;= '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z'"
+            }
+        }
     }
 }
 
@@ -698,7 +803,7 @@ Describe 'collectors, end to end against the synthetic backend' {
     It 'reports Display records as observed when they exist' {
         Reset-WfSynthetic
         $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90
-        Add-WfSyntheticQuery -Match "Provider[@Name=&apos;Display&apos;]" -Events @(
+        Add-WfSyntheticQuery -Match "Provider[@Name='Display']" -Events @(
             (New-WfSyntheticEvent -RecordId 900 -Provider 'Display' -EventId 4101 -Level 3 -LevelDisplay 'Warning' -DaysAgo 2 -Properties @('exampledrv') -Message 'Display driver exampledrv stopped responding and has successfully recovered.')
         )
         $run = Invoke-TestCollector -Collector 'tdr-events' -OutputDirectory (Join-Path $TestDrive 'tdr-seen')
@@ -887,8 +992,10 @@ Describe 'collectors, end to end against the synthetic backend' {
         Get-TestUtcText -Value $source.raw_time_range.end | Should -BeExactly $endText
         Get-TestUtcText -Value $source.raw_time_range.start | Should -BeExactly $startText
         $query = [System.IO.File]::ReadAllText((Join-Path $out 'raw/system_whea_events/query.xml'))
-        $query | Should -Match ('timediff\(@SystemTime, ' + (ConvertFrom-WfUtcString -Text $endText).ToFileTimeUtc() + '\) &gt;= 0')
-        $query | Should -Not -Match 'timediff\(@SystemTime\)'
+        $query.Contains("TimeCreated[@SystemTime &gt;= '" + (ConvertTo-WfXPathDateTime -Value (ConvertFrom-WfUtcString -Text $startText)) + "' and @SystemTime &lt;= '" + (ConvertTo-WfXPathDateTime -Value (ConvertFrom-WfUtcString -Text $endText)) + "']") | Should -BeTrue
+        $query | Should -Not -Match 'timediff'
+        # The recorded window end is on a whole millisecond, so the literal names the same instant.
+        (ConvertFrom-WfUtcString -Text $endText).Ticks % 10000 | Should -Be 0
     }
 
     It 'never writes events.json larger than the cap and records the exact size' {
