@@ -1,0 +1,21 @@
+{
+  "duration_seconds": 20,
+  "interval_seconds": 5,
+  "expected_pairs": 5,
+  "interval_slots": 3,
+  "timeout_seconds": 80,
+  "max_artifact_bytes": 67108864,
+  "qpc_frequency_hz": 10000000,
+  "qpc_high_resolution": true,
+  "counter_api": "System.Diagnostics.Stopwatch.GetTimestamp (QueryPerformanceCounter); frequency from Stopwatch.Frequency (QueryPerformanceFrequency); https://learn.microsoft.com/windows/win32/sysinfo/acquiring-high-resolution-time-stamps",
+  "system_time_api": "System.DateTime.UtcNow.ToFileTimeUtc (GetSystemTimeAsFileTime; resolution is the system timer increment, 0.5 to 15 ms per https://learn.microsoft.com/dotnet/api/system.datetime.utcnow); GetSystemTimePreciseAsFileTime is not reachable from Windows PowerShell 5.1 without compiling code",
+  "time_adjustment_api": "GetSystemTimeAdjustment is not called (same reason); time_adjustment is null in the manifest",
+  "pair_order": [
+    "qpc_before",
+    "filetime_utc_100ns",
+    "qpc_after"
+  ],
+  "samples_file": "samples.jsonl, one JSON object per pair, in the order taken; a decoder cites line:<n>",
+  "system_time_increment": "measured before the start pair and after the stop pair: the smallest positive step of the clock seen while reading it in a loop, with a budget of 100 ms of the counter per measurement",
+  "method": "one thread reads Stopwatch.GetTimestamp (QueryPerformanceCounter), [DateTime]::UtcNow.ToFileTimeUtc() (GetSystemTimeAsFileTime, resolution the system timer increment, measured at run time and recorded in session.json), Stopwatch.GetTimestamp, at the session start, every 5 s strictly inside the session, and at the stop; the frequency is Stopwatch.Frequency (QueryPerformanceFrequency). GetSystemTimePreciseAsFileTime and GetSystemTimeAdjustment are not called: neither is reachable from Windows PowerShell 5.1 without compiling code, so time_adjustment is null. See docs/clock-calibration.md."
+}

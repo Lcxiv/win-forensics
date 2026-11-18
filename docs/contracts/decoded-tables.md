@@ -1,6 +1,6 @@
 # Decoded tables contract
 
-Status: phase 0a, version 1.2.0 (1.1.0 plus the first fixtured source of the `tracestats` table in section 5.3 and the manifest check of the `dpcisr` decoder in section 5.1; 1.1.0 was 1.0.0 plus the five `rf-survey` tables in sections 5.12 to 5.16; `netsh_fields` and `pnp_device` are at schema version 1.1.0 after the saved profile mapping and the Bluetooth peer node rename). Companion contracts: [timestamps.md](timestamps.md), [measurement-status.md](measurement-status.md), [bundle.md](bundle.md). Schemas live under `schemas/decoded/`.
+Status: phase 0a, version 1.2.0 (1.1.0 plus the first fixtured source of the `tracestats` table in section 5.3 and the manifest check of the `dpcisr` decoder in section 5.1; 1.1.0 was 1.0.0 plus the five `rf-survey` tables in sections 5.12 to 5.16; `netsh_fields` and `pnp_device` are at schema version 1.1.0 after the saved profile mapping and the Bluetooth peer node rename; this version also adds the three `clock-calibration` tables in sections 5.17 to 5.19). Companion contracts: [timestamps.md](timestamps.md), [measurement-status.md](measurement-status.md), [bundle.md](bundle.md). Schemas live under `schemas/decoded/`.
 
 ## 1. What a decoded table is
 
@@ -215,6 +215,24 @@ Required: `name`, `interface_description`, `interface_index`, `interface_guid`, 
 One row per `MSFT_NetRoute` instance from the `default_routes` source (the `0.0.0.0/0` and `::/0` routes). Decoder: `scripts/decode_rf_survey.py`. The interface behind the default route with the lowest metric, across both address families, is the one that carries the machine's traffic; the analyzer lists IPv4 first on an equal metric and reports when the families use different interfaces.
 
 Required: `destination_prefix`, `next_hop`, `interface_index`, `interface_alias`, `route_metric`, `protocol`, `protocol_text`, `address_family`, `address_family_text` (`IPv4`, `IPv6`, or null), `store`, `provenance` (`index:<n>`).
+
+### 5.17 `clock_pairs`
+
+One row per calibration pair from `raw/clock_calibration/samples.jsonl`, the primary artifact of the `clock-calibration` collector (which also lists the same pairs in the manifest's `calibration.pairs`; the decoder refuses a bundle in which the two disagree). Decoder: `scripts/decode_clock.py`. The three readings are verbatim; the derived columns are the pair's counter midpoint and its half width from [timestamps.md](timestamps.md) section 3, `ceil((qpc_after - qpc_before) / 2 + 1 tick)` in 100 ns units. Time domain: `system_time` for the native range (the pairs live in both domains by construction).
+
+Required: `seq`, `phase` (`start`, `interval`, `stop`), `qpc_before`, `qpc_after`, `filetime_utc_100ns`, `filetime_utc` (ISO 8601 UTC, seven fractional digits), `qpc_mid`, `bracket_ticks`, `half_width_100ns`, `system_time_increment_100ns` (the system clock's measured increment the collector recorded, or null), `provenance` (`line:<n>`).
+
+### 5.18 `clock_segments`
+
+One row per pair of consecutive calibration pairs: the piecewise affine model of [timestamps.md](timestamps.md) section 4.3 for `system_time` sources, as the Mac fits it. Decoder: `scripts/decode_clock.py`. `rate_ticks_per_100ns` is the counter span over the file time span and `rate` the same in master 100 ns per source 100 ns; `anchor_filetime_100ns` and `anchor_master_100ns` give the exact anchor form of the model and `offset_100ns` the contract's rounded offset. `error_bound_100ns` is the calibration's own bound for the segment: the larger half width of its two pairs, plus the system clock's increment (measured by the collector, or the documented coarse timer period 156250 when not measured), plus the largest interior residual (zero between consecutive pairs); a `system_time` source adds its own resolution to get `e_S`. A segment whose `rate_deviation_ppm` exceeds 1000 is a `clock_step` and its bound is its whole span. `quantisation_limit_ppm` says how much of that deviation the increment alone can explain over the segment. The master epoch is the first pair's counter value (`epoch_source = first_calibration_pair`) unless the decoder was given the trace header's. The decoder never writes a master time for any other source; `decode_clock.py`'s `ClockModel` computes those on demand for the correlator.
+
+Required: `segment`, `seq_from`, `seq_to`, `phase_from`, `phase_to`, `qpc_from`, `qpc_to`, `filetime_from_100ns`, `filetime_to_100ns`, `span_100ns`, `qpc_span_ticks`, `qpc_frequency_hz`, `epoch_qpc`, `epoch_source`, `rate_ticks_per_100ns`, `nominal_rate_ticks_per_100ns`, `rate_deviation_ppm`, `quantisation_limit_ppm` (number or null), `clock_step`, `anchor_filetime_100ns`, `anchor_master_100ns`, `rate`, `offset_100ns`, `half_width_max_100ns`, `system_time_increment_100ns`, `residual_max_100ns`, `error_bound_100ns`, `provenance` (`line:<a>-<b>`, the two pairs' lines).
+
+### 5.19 `operator_marks`
+
+One row per mark from `raw/operator_marks/marks.jsonl`: what the person at the PC typed, with the counter bracket the mark command took in its own process. Decoder: `scripts/decode_clock.py`. A mark is in the `etw_qpc` domain and needs no calibration to be placed next to kernel events; its instrument uncertainty is its half width, and the person's reaction time is not measured. Time domain: `etw_qpc`.
+
+Required: `mark_index`, `label`, `qpc_before`, `qpc_after`, `filetime_utc_100ns`, `at_utc`, `qpc_mid`, `bracket_ticks`, `half_width_100ns`, `process_id`, `provenance` (`line:<n>`).
 
 ## 6. Sidecar metadata
 

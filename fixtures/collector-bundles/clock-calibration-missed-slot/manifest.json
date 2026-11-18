@@ -1,0 +1,359 @@
+{
+  "manifest_version": "1.1.0",
+  "bundle_id": "20260301T120001Z_clock_calibration_ae3a76a9",
+  "created_utc": "2026-03-01T12:00:09.0000000Z",
+  "scenario": {
+    "id": "clock_calibration",
+    "version": "1.0.0",
+    "requested_duration_s": 30,
+    "target_process": null,
+    "marks": []
+  },
+  "capture": {
+    "start_utc": "2026-03-01T12:00:01.0000000Z",
+    "stop_utc": "2026-03-01T12:00:09.0000000Z",
+    "orchestrator": "wf-collector:clock-calibration",
+    "orchestrator_version": "1.2.0",
+    "elevated": false,
+    "incomplete": false
+  },
+  "machine": {
+    "machine_id": "ae3a76a9f32fa71b72616118339e376c",
+    "hostname": "SYNTHETIC-PC",
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26100",
+      "build": 26100,
+      "ubr": 1,
+      "display_version": "24H2",
+      "architecture": "64-bit",
+      "edition": "Professional"
+    },
+    "cpu": {
+      "name": "Synthetic CPU",
+      "logical_processors": 16,
+      "qpc_frequency_hz": 10000000
+    },
+    "memory_bytes": 34359738368,
+    "gpus": [
+      {
+        "name": "Synthetic Display Adapter",
+        "driver_version": "1.2.3.4",
+        "driver_date": "2026-01-15T00:00:00.0000000Z",
+        "device_id": "PCI\\VEN_FFFF&DEV_0001"
+      }
+    ],
+    "bios": {
+      "vendor": "Synthetic Firmware",
+      "version": "S1.00",
+      "release_date": "2025-11-01T00:00:00.0000000Z"
+    },
+    "board": {
+      "manufacturer": "Synthetic Boards",
+      "product": "SB-1"
+    },
+    "drivers": [],
+    "time_zone": {
+      "name": "UTC",
+      "utc_offset_minutes": 0,
+      "dst_active": false
+    }
+  },
+  "collectors": [
+    {
+      "id": "clock_calibration",
+      "kind": "clock",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:05.0000000Z",
+        "checks": [
+          {
+            "name": "qpc_high_resolution",
+            "ok": true,
+            "detail": "Stopwatch.IsHighResolution: True"
+          },
+          {
+            "name": "qpc_frequency",
+            "ok": true,
+            "detail": "Stopwatch.Frequency: 10000000 Hz"
+          },
+          {
+            "name": "system_time_increment_measured",
+            "ok": true,
+            "detail": "4 changes in 6251 reads; smallest step 156250 x 100 ns"
+          }
+        ]
+      },
+      "command": [
+        "Stopwatch.GetTimestamp",
+        "DateTime.UtcNow.ToFileTimeUtc",
+        "Stopwatch.GetTimestamp"
+      ],
+      "started_utc": "2026-03-01T12:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:07.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "606e9a3feab4c41f34b2658956a146876949432d2602c48445f18ddb3a84b7c8"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "duration_seconds": 30,
+          "interval_seconds": 5,
+          "expected_pairs": 7,
+          "timeout_seconds": 90,
+          "max_artifact_bytes": 67108864
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "pairs_taken": 6,
+          "missing_pairs": 1,
+          "qpc_frequency_hz": 10000000,
+          "qpc_high_resolution": true,
+          "session_start_qpc": 27345679526434,
+          "session_stop_qpc": 27345979527734,
+          "system_time_increment_100ns_start": 156250,
+          "system_time_increment_100ns_stop": 156250,
+          "time_adjustment": "not read: GetSystemTimeAdjustment is not reachable from Windows PowerShell 5.1 without compiling code"
+        },
+        "verified_by": "the pairs themselves in samples.jsonl (one line per pair, in the order taken); result.json carries the missed slots and the measured system time increments"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/clock_calibration/result.json",
+          "bytes": 898,
+          "sha256": "dd1ea90ed59f27a4bbeb86e5fae4ffc3d622d138231f9cde39f642decd4cd27c",
+          "role": "report"
+        },
+        {
+          "path": "raw/clock_calibration/samples.jsonl",
+          "bytes": 1240,
+          "sha256": "3d19a8e1e1cc15cb26b44ea72711bb286daa2de48ddbf952cf809630ec9391f2",
+          "role": "primary"
+        },
+        {
+          "path": "raw/clock_calibration/session.json",
+          "bytes": 1906,
+          "sha256": "606e9a3feab4c41f34b2658956a146876949432d2602c48445f18ddb3a84b7c8",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:00.0625000Z",
+        "end": "2026-03-01T12:00:30.0625000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "a start pair and a stop pair read through the high resolution performance counter, with one pair every 5 s strictly inside the 30 s session (5 slots, 7 pairs in all) taken or counted in missing_pairs; the scenario's tolerance for missing pairs is the validator's check, not this collector's",
+        "met": true,
+        "detail": "6 pairs taken, 1 slots missed; Stopwatch.IsHighResolution True"
+      },
+      "target_process": null
+    },
+    {
+      "id": "operator_marks",
+      "kind": "other",
+      "required": false,
+      "status": "observed_zero",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:04.0000000Z",
+        "checks": [
+          {
+            "name": "live_marks_file_created",
+            "ok": true,
+            "detail": "raw/operator_marks/marks.open.jsonl"
+          }
+        ]
+      },
+      "command": [
+        "clock-calibration.ps1",
+        "-OutputDirectory",
+        "<session directory>",
+        "-Mark",
+        "<label>"
+      ],
+      "started_utc": "2026-03-01T12:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:08.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "3a7205d8156dab9a5c05bf9f1a2cc7ab2f59a479ce31f24e87782652d853ad06"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "live_file": "marks.open.jsonl",
+          "final_file": "marks.jsonl",
+          "label_max_length": 80,
+          "max_artifact_bytes": 67108864
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "marks": 0,
+          "malformed_lines": 0,
+          "closed": true
+        },
+        "verified_by": "the marks file itself; every line is checked against the exact shape the mark command writes"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/operator_marks/instructions.json",
+          "bytes": 797,
+          "sha256": "3a7205d8156dab9a5c05bf9f1a2cc7ab2f59a479ce31f24e87782652d853ad06",
+          "role": "config"
+        },
+        {
+          "path": "raw/operator_marks/marks.jsonl",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "role": "primary"
+        },
+        {
+          "path": "raw/operator_marks/result.json",
+          "bytes": 232,
+          "sha256": "bf7d4aa831c90ea179f0407bcb5c70340cb5cda9c92f8017db75aff67c108392",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:00.0625000Z",
+        "end": "2026-03-01T12:00:30.0625000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the live marks file exists from the start pair to the stop pair, is closed right after it, and every line in it is a mark written by this script; zero marks is a legitimate observation",
+        "met": true,
+        "detail": "0 marks, 0 malformed lines, closed: True"
+      },
+      "target_process": null
+    }
+  ],
+  "calibration": {
+    "status": "observed",
+    "method": "one thread reads Stopwatch.GetTimestamp (QueryPerformanceCounter), [DateTime]::UtcNow.ToFileTimeUtc() (GetSystemTimeAsFileTime, resolution the system timer increment, measured at run time and recorded in session.json), Stopwatch.GetTimestamp, at the session start, every 5 s strictly inside the session, and at the stop; the frequency is Stopwatch.Frequency (QueryPerformanceFrequency). GetSystemTimePreciseAsFileTime and GetSystemTimeAdjustment are not called: neither is reachable from Windows PowerShell 5.1 without compiling code, so time_adjustment is null. See docs/clock-calibration.md.",
+    "qpc_frequency_hz": 10000000,
+    "expected_pairs": 7,
+    "pairs": [
+      {
+        "seq": 0,
+        "phase": "start",
+        "qpc_before": 27345679526384,
+        "qpc_after": 27345679526484,
+        "filetime_utc_100ns": 134168400000625000
+      },
+      {
+        "seq": 1,
+        "phase": "interval",
+        "qpc_before": 27345729526634,
+        "qpc_after": 27345729526734,
+        "filetime_utc_100ns": 134168400050625000
+      },
+      {
+        "seq": 3,
+        "phase": "interval",
+        "qpc_before": 27345839526934,
+        "qpc_after": 27345839527034,
+        "filetime_utc_100ns": 134168400160625000
+      },
+      {
+        "seq": 4,
+        "phase": "interval",
+        "qpc_before": 27345879527184,
+        "qpc_after": 27345879527284,
+        "filetime_utc_100ns": 134168400200625000
+      },
+      {
+        "seq": 5,
+        "phase": "interval",
+        "qpc_before": 27345929527434,
+        "qpc_after": 27345929527534,
+        "filetime_utc_100ns": 134168400250625000
+      },
+      {
+        "seq": 6,
+        "phase": "stop",
+        "qpc_before": 27345979527684,
+        "qpc_after": 27345979527784,
+        "filetime_utc_100ns": 134168400300625000
+      }
+    ],
+    "missing_pairs": 1,
+    "time_adjustment": {
+      "start": null,
+      "stop": null
+    },
+    "boot_time_utc": "2026-02-27T12:00:00.0000000Z"
+  },
+  "tools": [
+    {
+      "name": "powershell",
+      "version": "5.1.26100.1",
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "sha256": null
+    },
+    {
+      "name": "wevtutil",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wevtutil.exe",
+      "sha256": null
+    },
+    {
+      "name": "collector:clock-calibration",
+      "version": "1.0.0",
+      "path": "<install directory>\\clock-calibration.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector-helper:_common.ps1",
+      "version": "1.2.0",
+      "path": "<install directory>\\_common.ps1",
+      "sha256": null
+    }
+  ],
+  "symbols": {
+    "symbol_path": null,
+    "cache_path": null,
+    "dbghelp_version": null
+  },
+  "checksum_algorithm": "sha256",
+  "notes": [
+    "Read only collector clock-calibration version 1.0.0: How does the system clock relate to the performance counter during this session, and when did the person at the PC feel something?",
+    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
+    "source clock_calibration: interval slot 2 (seq 2) was missed: the counter was already 60000400 ticks past it",
+    "source clock_calibration: 1 of 7 expected pairs are missing (interval slots the session reached more than one interval late); the calibration is usable over longer segments, see docs/contracts/timestamps.md section 4.5"
+  ]
+}

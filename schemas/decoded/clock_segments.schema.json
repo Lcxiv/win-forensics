@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/clock_segments.schema.json",
+  "title": "clock_segments: the piecewise affine model between consecutive calibration pairs",
+  "description": "One row per pair of consecutive calibration pairs, fitted the way docs/contracts/timestamps.md section 4.3 describes for system_time sources: rate from the two pairs, the error bound from their half widths plus the system clock's increment, and the clock step flag when the rate is more than 1000 ppm off nominal. The bound here is the calibration's own; a source adds its own resolution. See docs/contracts/decoded-tables.md section 5.18.",
+  "x-schema-version": "1.0.0",
+  "x-decoded-table": "clock_segments",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "segment",
+    "seq_from",
+    "seq_to",
+    "phase_from",
+    "phase_to",
+    "qpc_from",
+    "qpc_to",
+    "filetime_from_100ns",
+    "filetime_to_100ns",
+    "span_100ns",
+    "qpc_span_ticks",
+    "qpc_frequency_hz",
+    "epoch_qpc",
+    "epoch_source",
+    "rate_ticks_per_100ns",
+    "nominal_rate_ticks_per_100ns",
+    "rate_deviation_ppm",
+    "quantisation_limit_ppm",
+    "clock_step",
+    "anchor_filetime_100ns",
+    "anchor_master_100ns",
+    "rate",
+    "offset_100ns",
+    "half_width_max_100ns",
+    "system_time_increment_100ns",
+    "residual_max_100ns",
+    "error_bound_100ns",
+    "provenance"
+  ],
+  "properties": {
+    "segment": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "seq_from": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "seq_to": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "phase_from": {
+      "type": "string",
+      "enum": [
+        "start",
+        "interval",
+        "stop"
+      ]
+    },
+    "phase_to": {
+      "type": "string",
+      "enum": [
+        "start",
+        "interval",
+        "stop"
+      ]
+    },
+    "qpc_from": {
+      "type": "integer",
+      "description": "qpc_mid of the earlier pair."
+    },
+    "qpc_to": {
+      "type": "integer",
+      "description": "qpc_mid of the later pair."
+    },
+    "filetime_from_100ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "filetime_to_100ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "span_100ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "filetime_to_100ns - filetime_from_100ns, the segment's length on the system clock."
+    },
+    "qpc_span_ticks": {
+      "type": "integer",
+      "description": "qpc_to - qpc_from."
+    },
+    "qpc_frequency_hz": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "epoch_qpc": {
+      "type": "integer",
+      "description": "The master epoch: the counter value master time counts from (timestamps.md section 4.1)."
+    },
+    "epoch_source": {
+      "type": "string",
+      "enum": [
+        "first_calibration_pair",
+        "etl_header"
+      ]
+    },
+    "rate_ticks_per_100ns": {
+      "type": "number",
+      "description": "qpc_span_ticks / span_100ns, the contract's rate_S for a system_time source over this segment."
+    },
+    "nominal_rate_ticks_per_100ns": {
+      "type": "number",
+      "description": "qpc_frequency_hz / 10^7."
+    },
+    "rate_deviation_ppm": {
+      "type": "number",
+      "description": "|rate / nominal - 1| in parts per million."
+    },
+    "quantisation_limit_ppm": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "2 * system_time_increment_100ns / span_100ns in parts per million: the deviation the system clock's own increment can produce on its own over this segment. When it is above 1000 the clock step rule cannot tell a step from quantisation; null when the increment was not measured."
+    },
+    "clock_step": {
+      "type": "boolean",
+      "description": "True when rate_deviation_ppm exceeds 1000; the bound is then the whole span (timestamps.md section 4.3)."
+    },
+    "anchor_filetime_100ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Equal to filetime_from_100ns: the source time the model is anchored at."
+    },
+    "anchor_master_100ns": {
+      "type": "integer",
+      "description": "Master time of the anchor: (qpc_from - epoch_qpc) * 10^7 / qpc_frequency_hz, remainder discarded."
+    },
+    "rate": {
+      "type": "number",
+      "description": "Master 100 ns units per source 100 ns unit: rate_ticks_per_100ns / nominal_rate_ticks_per_100ns. t_master = anchor_master_100ns + rate * (t_S - anchor_filetime_100ns)."
+    },
+    "offset_100ns": {
+      "type": "integer",
+      "description": "The contract's offset_S for t_master = offset_S + rate * t_S, rounded to an integer; the anchor form above is exact."
+    },
+    "half_width_max_100ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The larger of the two pairs' half widths."
+    },
+    "system_time_increment_100ns": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The increment added to the bound: the collector's measurement, or 156250 (15.625 ms, the coarse Windows timer) when it was not measured."
+    },
+    "residual_max_100ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Largest residual of an interior pair against the segment's line; zero for a segment between consecutive pairs, which has none."
+    },
+    "error_bound_100ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "half_width_max_100ns + system_time_increment_100ns + residual_max_100ns, or span_100ns when clock_step is true. A source adds its own resolution to get e_S."
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "decoded_table": {
+              "const": "clock_segments"
+            },
+            "schema_version": {
+              "const": "1.0.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

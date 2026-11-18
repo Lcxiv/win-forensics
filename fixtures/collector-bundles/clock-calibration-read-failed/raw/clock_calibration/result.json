@@ -1,0 +1,23 @@
+{
+  "started_utc": "2026-03-01T12:00:02.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:06.0000000Z",
+  "status": "capture_failed",
+  "pairs_taken": 0,
+  "expected_pairs": 5,
+  "missed_slots": [],
+  "session_start_qpc": 27345678941434,
+  "session_stop_qpc": null,
+  "qpc_frequency_hz": 10000000,
+  "qpc_high_resolution": true,
+  "system_time_increment_start": {
+    "increment_100ns": 10000,
+    "largest_step_100ns": 10000,
+    "changes_seen": 4,
+    "reads": 401,
+    "budget_milliseconds": 100,
+    "measured": true
+  },
+  "system_time_increment_stop": null,
+  "samples_bytes": 823,
+  "failure": "the session failed: synthetic backend: the performance counter read failed"
+}

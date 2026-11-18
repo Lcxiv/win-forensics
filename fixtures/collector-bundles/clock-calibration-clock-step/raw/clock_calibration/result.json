@@ -1,0 +1,30 @@
+{
+  "started_utc": "2026-03-01T12:00:02.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:06.0000000Z",
+  "status": "observed",
+  "pairs_taken": 7,
+  "expected_pairs": 7,
+  "missed_slots": [],
+  "session_start_qpc": 27345678941434,
+  "session_stop_qpc": 27345978942934,
+  "qpc_frequency_hz": 10000000,
+  "qpc_high_resolution": true,
+  "system_time_increment_start": {
+    "increment_100ns": 10000,
+    "largest_step_100ns": 10000,
+    "changes_seen": 4,
+    "reads": 401,
+    "budget_milliseconds": 100,
+    "measured": true
+  },
+  "system_time_increment_stop": {
+    "increment_100ns": 10000,
+    "largest_step_100ns": 10000,
+    "changes_seen": 4,
+    "reads": 383,
+    "budget_milliseconds": 100,
+    "measured": true
+  },
+  "samples_bytes": 1442,
+  "failure": null
+}

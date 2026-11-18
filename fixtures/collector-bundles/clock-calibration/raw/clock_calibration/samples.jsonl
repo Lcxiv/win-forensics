@@ -1,0 +1,13 @@
+{"seq":0,"phase":"start","qpc_before":27345678941384,"qpc_after":27345678941484,"filetime_utc_100ns":134168400000040000,"at_utc":"2026-03-01T12:00:00.0040000Z","slot_qpc":27345678941434,"late_ticks":0}
+{"seq":1,"phase":"interval","qpc_before":27345728941634,"qpc_after":27345728941734,"filetime_utc_100ns":134168400050040000,"at_utc":"2026-03-01T12:00:05.0040000Z","slot_qpc":27345728941434,"late_ticks":200}
+{"seq":2,"phase":"interval","qpc_before":27345778941884,"qpc_after":27345778941984,"filetime_utc_100ns":134168400100040000,"at_utc":"2026-03-01T12:00:10.0040000Z","slot_qpc":27345778941434,"late_ticks":450}
+{"seq":3,"phase":"interval","qpc_before":27345828942134,"qpc_after":27345828942234,"filetime_utc_100ns":134168400150040000,"at_utc":"2026-03-01T12:00:15.0040000Z","slot_qpc":27345828941434,"late_ticks":700}
+{"seq":4,"phase":"interval","qpc_before":27345878942384,"qpc_after":27345878942484,"filetime_utc_100ns":134168400200050000,"at_utc":"2026-03-01T12:00:20.0050000Z","slot_qpc":27345878941434,"late_ticks":950}
+{"seq":5,"phase":"interval","qpc_before":27345928942634,"qpc_after":27345928942734,"filetime_utc_100ns":134168400250050000,"at_utc":"2026-03-01T12:00:25.0050000Z","slot_qpc":27345928941434,"late_ticks":1200}
+{"seq":6,"phase":"interval","qpc_before":27345978942884,"qpc_after":27345978942984,"filetime_utc_100ns":134168400300050000,"at_utc":"2026-03-01T12:00:30.0050000Z","slot_qpc":27345978941434,"late_ticks":1450}
+{"seq":7,"phase":"interval","qpc_before":27346028943134,"qpc_after":27346028943234,"filetime_utc_100ns":134168400350050000,"at_utc":"2026-03-01T12:00:35.0050000Z","slot_qpc":27346028941434,"late_ticks":1700}
+{"seq":8,"phase":"interval","qpc_before":27346078943384,"qpc_after":27346078943484,"filetime_utc_100ns":134168400400060000,"at_utc":"2026-03-01T12:00:40.0060000Z","slot_qpc":27346078941434,"late_ticks":1950}
+{"seq":9,"phase":"interval","qpc_before":27346128943634,"qpc_after":27346128943734,"filetime_utc_100ns":134168400450060000,"at_utc":"2026-03-01T12:00:45.0060000Z","slot_qpc":27346128941434,"late_ticks":2200}
+{"seq":10,"phase":"interval","qpc_before":27346178943884,"qpc_after":27346178943984,"filetime_utc_100ns":134168400500060000,"at_utc":"2026-03-01T12:00:50.0060000Z","slot_qpc":27346178941434,"late_ticks":2450}
+{"seq":11,"phase":"interval","qpc_before":27346228944134,"qpc_after":27346228944234,"filetime_utc_100ns":134168400550070000,"at_utc":"2026-03-01T12:00:55.0070000Z","slot_qpc":27346228941434,"late_ticks":2700}
+{"seq":12,"phase":"stop","qpc_before":27346278944384,"qpc_after":27346278944484,"filetime_utc_100ns":134168400600070000,"at_utc":"2026-03-01T12:01:00.0070000Z","slot_qpc":27346278941434,"late_ticks":2950}
