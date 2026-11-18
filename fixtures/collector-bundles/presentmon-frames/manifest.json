@@ -109,7 +109,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "b353f43537adb94bc70cadb74c3148f1f89e919884d39c8a5f4817c9c89ed00b"
+        "value": "d678db536f72bb0454df52acbcb7a575f491ff60390821af40f6526d8c2aff5b"
       },
       "filter_hash": {
         "algorithm": "sha256",
@@ -366,7 +366,7 @@
             "decode": 240,
             "cancel": 60
           },
-          "helper_deadline_seconds": 750,
+          "helper_deadline_seconds": 840,
           "process_names": [],
           "max_artifact_bytes": 67108864,
           "console_cap_bytes": 1048576,
@@ -505,7 +505,7 @@
         {
           "path": "raw/presentmon_frames/command.json",
           "bytes": 9745,
-          "sha256": "b353f43537adb94bc70cadb74c3148f1f89e919884d39c8a5f4817c9c89ed00b",
+          "sha256": "d678db536f72bb0454df52acbcb7a575f491ff60390821af40f6526d8c2aff5b",
           "role": "config"
         },
         {

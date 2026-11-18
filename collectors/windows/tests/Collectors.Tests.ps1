@@ -1763,6 +1763,23 @@ Describe 'presentmon-frames against the synthetic backend' {
         (Get-PmSource -Run $run3).status | Should -BeExactly 'not_collected'
         (Get-PmSource -Run $run3).status_reason | Should -Match 'timed out True'
         (Get-PmStarted)[-1] | Should -Match $script:PmWprCancel -Because 'a start that did not complete may have left a recording of our instance'
+
+        # The same start had already opened its session file under wpr-temp: it does not stay in the bundle.
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ StartStuck = $true }
+        $out4 = Join-Path $TestDrive 'pm-start-stuck-session-file'
+        $global:PmSessionDir = Join-Path $out4 'raw/presentmon_frames/wpr-temp'
+        $start = @($global:WfSynthetic.Programs | Where-Object { $_['Match'] -eq '-start' })[0]
+        $start['OnCall'] = {
+            $null = New-Item -ItemType Directory -Path $global:PmSessionDir -Force
+            [System.IO.File]::WriteAllBytes((Join-Path $global:PmSessionDir 'session.etl'), [byte[]](1..16))
+        }
+        $run4 = Invoke-PmCollector -OutputDirectory $out4
+        $source4 = Get-PmSource -Run $run4
+        $source4.status | Should -BeExactly 'not_collected'
+        Test-Path -LiteralPath $global:PmSessionDir | Should -BeFalse -Because 'the session file never leaves the PC'
+        @($source4.artifacts | ForEach-Object { $_.role }) | Should -Not -Contain 'other'
+        @($source4.artifacts | Where-Object { $_.path -match 'wpr-temp' }).Count | Should -Be 0
     }
 
     It 'is capture_failed on any loss from any source, never reads the recording, and keeps nothing' {
@@ -1835,6 +1852,34 @@ Describe 'presentmon-frames against the synthetic backend' {
         (Get-PmSource -Run $run3).status_reason | Should -Match 'exited 0 but the instance could not be confirmed idle'
         (Get-PmStarted)[-1] | Should -Match $script:PmWprCancel
         @((Get-PmStarted) | Where-Object { $_ -match '^PresentMon' }).Count | Should -Be 0
+    }
+
+    It 'still writes the manifest and both notes when the session it could not stop keeps its file from being deleted' {
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ StopStuck = $true; CancelStuck = $true; AfterInProgress = $true }
+        $out = Join-Path $TestDrive 'pm-temp-held'
+        $global:PmSessionDir = Join-Path $out 'raw/presentmon_frames/wpr-temp'
+        # The synthetic start opens a session file in a folder nothing can be removed from, as a live session holds its file.
+        $start = @($global:WfSynthetic.Programs | Where-Object { $_['Match'] -eq '-start' })[0]
+        $start['OnCall'] = {
+            $null = New-Item -ItemType Directory -Path $global:PmSessionDir -Force
+            [System.IO.File]::WriteAllBytes((Join-Path $global:PmSessionDir 'session.etl'), [byte[]](1..16))
+            & chmod 555 $global:PmSessionDir
+        }
+        try {
+            $run = Invoke-PmCollector -OutputDirectory $out
+        } finally {
+            if (Test-Path -LiteralPath $global:PmSessionDir) { & chmod 755 $global:PmSessionDir }
+        }
+        $run.ExitCode | Should -Be 1
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match '^wpr -stop did not complete'
+        $source.status_reason | Should -Match 'the recording may still be active'
+        $source.status_reason | Should -Match 'recorded data could not be deleted from the bundle'
+        @($run.Manifest.notes | Where-Object { $_ -match 'run "wpr -cancel -instancename wf-presentmon-frames" as an administrator' }).Count | Should -Be 1
+        @($run.Manifest.notes | Where-Object { $_ -match 'recorded data could not be deleted and is still in the bundle.*wpr-temp' }).Count | Should -Be 1
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/result.json') | Should -BeTrue
     }
 
     It 'fails when the recording was not in progress at the end, closed before the stop, or merged above the cap' {
@@ -2028,6 +2073,9 @@ Describe 'presentmon-frames against the synthetic backend' {
         $source.status_reason | Should -Match '--qpc_time was requested but the CSV header has no CPUStartQPC column'
         $source.enabled.options.qpc_time_column | Should -BeFalse
         Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/frames.csv') | Should -BeFalse -Because 'a failed source leaves no primary'
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/presentmon_frames/result.json') -Raw | ConvertFrom-Json
+        $result.csv.present | Should -BeFalse -Because 'result.json describes the bundle as it was left'
+        $source.enabled.options.csv_present | Should -BeFalse
 
         Start-PmCase
         Reset-PmPrograms -Decode @{ CsvText = ('time,value' + "`r`n" + '1,2' + "`r`n") }

@@ -578,6 +578,22 @@ function New-WfWprStatusFacts {
     return [ordered]@{ in_progress = $false; events_lost = $null; dropped_events = $null; collectors_events_lost = $null; collectors = @(); providers = @() }
 }
 
+function Remove-WfPresentMonRecordingData {
+    # Deletes the wpr temp folder and the recording, the two places that can
+    # hold recorded events. Returns one line per path that could not be
+    # deleted (a session that is still live holds its file open) and never
+    # throws, so the manifest and its note are still written.
+    param([string]$wprTempPath = '', [string]$etlPath = '')
+    $failures = New-Object 'System.Collections.Generic.List[string]'
+    if ($wprTempPath -and (Test-Path -LiteralPath $wprTempPath)) {
+        try { Remove-Item -LiteralPath $wprTempPath -Recurse -Force } catch { $failures.Add($wprTempPath + ' (' + $_.Exception.Message + ')') }
+    }
+    if ($etlPath -and (Test-Path -LiteralPath $etlPath)) {
+        try { Remove-Item -LiteralPath $etlPath -Force } catch { $failures.Add($etlPath + ' (' + $_.Exception.Message + ')') }
+    }
+    return @($failures.ToArray())
+}
+
 function Invoke-WfPresentMonFramesSource {
     # The custom source the definition below names. Verifies the pinned binary
     # and the controller, records the providers with wpr for the window under
@@ -873,7 +889,9 @@ function Invoke-WfPresentMonFramesSource {
                     $null = $console.Append((Get-WfRunText -Label ('wpr ' + $cancelText) -Run $cancelRun))
                     if (Test-WfRunCompleted -Run $cancelRun) { $ownsRecording = $false }
                 }
-                if (Test-Path -LiteralPath $wprTempPath) { Remove-Item -LiteralPath $wprTempPath -Recurse -Force }
+                foreach ($failure in @(Remove-WfPresentMonRecordingData -wprTempPath $wprTempPath)) {
+                    $Log.Add('source ' + $id + ': the wpr temp folder could not be deleted after the stop and is tried again at the end: ' + $failure)
+                }
 
                 if (-not $stopConfirmed) {
                     $readErrorKind = 'other'
@@ -1002,7 +1020,17 @@ function Invoke-WfPresentMonFramesSource {
             }
         }
         # The recording never leaves the PC (see command.json recording_deleted_because).
-        if (Test-Path -LiteralPath $etlPath) { Remove-Item -LiteralPath $etlPath -Force }
+        $undeleted = @(Remove-WfPresentMonRecordingData -wprTempPath $wprTempPath -etlPath $etlPath)
+        if ($undeleted.Count -gt 0) {
+            $message = 'source ' + $id + ': recorded data could not be deleted and is still in the bundle, which must not leave the PC until it is deleted by hand: ' + ($undeleted -join '; ')
+            $Notes.Add($message); $Log.Add($message)
+            if ($readErrorKind) {
+                $readErrorMessage += '; recorded data could not be deleted from the bundle (see the manifest notes)'
+            } else {
+                $readErrorKind = 'other'
+                $readErrorMessage = 'recorded data could not be deleted from the bundle (see the manifest notes), so nothing is claimed from this run'
+            }
+        }
         $stopped = Get-WfUtcNow
         if ($ownsRecording) {
             $message = 'source ' + $id + ': could not confirm that the WPR recording of instance ' + $instance + ' stopped (the status after the stop did not show it idle and the cancel did not complete); run "wpr -cancel -instancename ' + $instance + '" as an administrator to be sure'
@@ -1035,6 +1063,25 @@ function Invoke-WfPresentMonFramesSource {
             presentmon               = $outputFacts
         }
         Write-WfJsonFile -Path (Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/recording.json')) -Object $recording
+        if ($readErrorKind -eq 'preflight') {
+            # Nothing was recorded (docs/contracts/measurement-status.md: not started is not_collected).
+            $entry.status = 'not_collected'
+            $entry.status_reason = 'preflight failed: ' + $readErrorMessage
+            $met = $false
+        } elseif ($readErrorKind -eq 'access_denied') {
+            $entry.status = 'not_collected'
+            $entry.status_reason = 'preflight failed, the recording could not be started: ' + $readErrorMessage
+            $met = $false
+        } elseif ($readErrorKind) {
+            $entry.status = 'capture_failed'
+            $entry.status_reason = $readErrorMessage
+            $met = $false
+        } else {
+            $entry.status = 'observed'
+            $entry.status_reason = $null
+            $met = $true
+        }
+        Remove-WfPrimaryUnlessKept -Path $outputPath -Status $entry.status -Truncated $false -RecordCount $frames -Log $Log -SourceId $id
         $report = [ordered]@{
             binary      = [ordered]@{
                 path            = $exe
@@ -1075,26 +1122,6 @@ function Invoke-WfPresentMonFramesSource {
             account     = $config.account
         }
         Write-WfJsonFile -Path (Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/result.json')) -Object $report
-
-        if ($readErrorKind -eq 'preflight') {
-            # Nothing was recorded (docs/contracts/measurement-status.md: not started is not_collected).
-            $entry.status = 'not_collected'
-            $entry.status_reason = 'preflight failed: ' + $readErrorMessage
-            $met = $false
-        } elseif ($readErrorKind -eq 'access_denied') {
-            $entry.status = 'not_collected'
-            $entry.status_reason = 'preflight failed, the recording could not be started: ' + $readErrorMessage
-            $met = $false
-        } elseif ($readErrorKind) {
-            $entry.status = 'capture_failed'
-            $entry.status_reason = $readErrorMessage
-            $met = $false
-        } else {
-            $entry.status = 'observed'
-            $entry.status_reason = $null
-            $met = $true
-        }
-        Remove-WfPrimaryUnlessKept -Path $outputPath -Status $entry.status -Truncated $false -RecordCount $frames -Log $Log -SourceId $id
         if (Test-WfObservedStatus -Status $entry.status) {
             # The range the source claims contains the recording: from before
             # the start was issued to after the stop returned.
@@ -1159,8 +1186,12 @@ function Invoke-WfPresentMonFramesSource {
                 $entry.status_reason += '; the recording may still be active (see the manifest notes)'
             }
         }
-        if (Test-Path -LiteralPath $wprTempPath) { Remove-Item -LiteralPath $wprTempPath -Recurse -Force }
-        if (Test-Path -LiteralPath $etlPath) { Remove-Item -LiteralPath $etlPath -Force }
+        $undeleted = @(Remove-WfPresentMonRecordingData -wprTempPath $wprTempPath -etlPath $etlPath)
+        if ($undeleted.Count -gt 0) {
+            $message = 'source ' + $id + ': recorded data could not be deleted and is still in the bundle, which must not leave the PC until it is deleted by hand: ' + ($undeleted -join '; ')
+            $Notes.Add($message); $Log.Add($message)
+            $entry.status_reason += '; recorded data could not be deleted from the bundle (see the manifest notes)'
+        }
         if (Test-Path -LiteralPath $outputPath) { Remove-Item -LiteralPath $outputPath -Force }
     }
     $entry.stopped_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
@@ -1211,7 +1242,8 @@ $definition = @{
 
 # The helper's per source deadline covers every phase: the probe, a leftover
 # cancel and a second probe, the start, the window, the status at the end,
-# the stop and merge, the status after it, the offline read, and a cancel.
-$timeout = 3 * (Get-WfPresentMonStatusDeadline) + 2 * (Get-WfPresentMonCancelDeadline) + (Get-WfPresentMonStartDeadline) + $DurationSeconds + (Get-WfPresentMonStopDeadline) + (Get-WfPresentMonDecodeDeadline)
+# the stop and merge, the status after it, a cancel, the offline read, and
+# the cancel after a failure: four status runs and three cancels.
+$timeout = 4 * (Get-WfPresentMonStatusDeadline) + 3 * (Get-WfPresentMonCancelDeadline) + (Get-WfPresentMonStartDeadline) + $DurationSeconds + (Get-WfPresentMonStopDeadline) + (Get-WfPresentMonDecodeDeadline)
 $exitCode = @(Invoke-WfCollectorScript -Definition $definition -OutputDirectory $OutputDirectory -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $timeout -CollectorPath $PSCommandPath)[-1]
 exit $exitCode

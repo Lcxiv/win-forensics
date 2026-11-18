@@ -224,7 +224,7 @@
     "decode": 240,
     "cancel": 60
   },
-  "helper_deadline_seconds": 720,
+  "helper_deadline_seconds": 810,
   "process_names": [],
   "max_artifact_bytes": 67108864,
   "console_cap_bytes": 1048576,
