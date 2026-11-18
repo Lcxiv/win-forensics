@@ -12,7 +12,7 @@ COLLECTOR_NAME = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 HELPER = "_common.ps1"
 SHIPPED = sorted(COLLECTOR_DIR.glob("*.ps1"))
 COLLECTORS = [p for p in SHIPPED if p.name != HELPER]
-EXPECTED_COLLECTORS = ["application-errors", "bugcheck-history", "driver-inventory", "reliability-records", "rf-survey", "tdr-events", "whea-errors"]
+EXPECTED_COLLECTORS = ["application-errors", "bugcheck-history", "config-snapshot", "driver-inventory", "reliability-records", "rf-survey", "tdr-events", "whea-errors"]
 
 # Commands that change the machine, reach the network, prompt, handle credentials, or run text
 # as code. A read only collector has no use for any of them.
@@ -58,14 +58,14 @@ def test_shipped_scripts_are_read_only(path):
         assert token.lower() not in code.lower(), f"{path.name} uses {token.strip()}"
     # The only deletions are of the collector's own exports inside the output directory: a failed or
     # over-cap .evtx, and a primary export that must not be left behind ($Path is the primary passed to
-    # Remove-WfPrimaryUnlessKept; the others are the primaries of the event, WMI, netsh, file and device
-    # sources).
+    # Remove-WfPrimaryUnlessKept; the others are the primaries of the event, WMI, netsh, file, device,
+    # registry and directory sources).
     removals = [line.strip() for line in code.splitlines() if "Remove-Item" in line]
     own = ("-LiteralPath $evtxPath", "-LiteralPath $recordsPath", "-LiteralPath $eventsPath", "-LiteralPath $outputPath",
-           "-LiteralPath $summaryPath", "-LiteralPath $devicesPath", "-LiteralPath $Path -Force")
+           "-LiteralPath $primaryPath", "-LiteralPath $devicesPath", "-LiteralPath $keysPath", "-LiteralPath $listingPath", "-LiteralPath $Path -Force")
     assert all(any(marker in r for marker in own) for r in removals), removals
-    # The only process started is wevtutil, with the export verb and nothing else; the netsh queries
-    # rf-survey runs are checked on what the runs record (test_collector_bundles and the Pester suite).
+    # The only process started is wevtutil, with the export verb and nothing else; the netsh and powercfg
+    # listings the collectors run are checked on what the runs record (test_collector_bundles and the Pester suite).
     if path.name == HELPER:
         assert code.count("System.Diagnostics.ProcessStartInfo") == 1
         assert "'epl \"{0}\" \"{1}\" /sq:true /ow:true'" in code
@@ -103,4 +103,23 @@ def test_rf_survey_sources_are_documented_with_their_privacy_rule():
     for source_id in ids:
         assert f"`{source_id}`" in readme, source_id
     for term in ("ssid-", "mac-", "docs/rf-survey.md", "location", "Get-PnpDeviceProperty", "MSFT_NetAdapter"):
+        assert term in readme, term
+
+
+def test_config_snapshot_sources_are_documented_and_read_only():
+    """Every config-snapshot source id appears in the README; the registry is only ever opened for reading and the powercfg verbs are listings."""
+    readme = (COLLECTOR_DIR / "README.md").read_text(encoding="utf-8")
+    script = (COLLECTOR_DIR / "config-snapshot.ps1").read_text(encoding="ascii")
+    ids = re.findall(r"Id\s*=\s*'([a-z_]+)'", script)
+    assert len(ids) == 19 and len(set(ids)) == 19
+    for source_id in ids:
+        assert f"`{source_id}`" in readme, source_id
+    for verb in re.findall(r"Arguments\s*=\s*'(/[a-z]+)'", script):
+        assert verb in ("/list", "/getactivescheme", "/aliases", "/query", "/qh"), verb
+    helper = (COLLECTOR_DIR / HELPER).read_text(encoding="ascii")
+    code = "\n".join(line for line in helper.splitlines() if not line.lstrip().startswith("#"))
+    for token in ("SetValue(", "CreateSubKey", "DeleteSubKey", "DeleteValue", "New-Item -Path HK", "New-Item -LiteralPath HK", "Registry::"):
+        assert token not in code, token
+    for term in ("Interrupt Management", "MessageSignaledInterruptProperties", "GraphicsDrivers", "Win32_Processor", "Win32_CacheMemory",
+                 "Win32_Process", "SetupDiOpenDevRegKey", "GetLogicalProcessorInformationEx", "powercfg /energy", "user-", "mail-"):
         assert term in readme, term

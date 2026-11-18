@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/process_inventory.schema.json",
   "title": "process_inventory row",
-  "description": "One row per process per snapshot (start and stop) from the process inventory collector.",
-  "x-schema-version": "1.0.0",
+  "description": "One row per process per snapshot (start and stop) from the process inventory collector. 1.1.0 adds the base priority number Win32_Process reports and the page fault count.",
+  "x-schema-version": "1.1.0",
   "x-decoded-table": "process_inventory",
   "type": "object",
   "additionalProperties": false,
@@ -119,10 +119,29 @@
               "const": "process_inventory"
             },
             "schema_version": {
-              "const": "1.0.0"
+              "const": "1.1.0"
             }
           }
         }
+      ]
+    },
+    "base_priority": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "description": "Win32_Process.Priority: the scheduling priority of the process, 0 to 31."
+    },
+    "page_faults": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "source_id": {
+      "type": [
+        "string",
+        "null"
       ]
     }
   }

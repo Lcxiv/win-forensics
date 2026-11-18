@@ -30,6 +30,10 @@
 #   Files      full path -> @{ Text = <string> } or @{ ErrorKind; ErrorMessage }
 #   Pnp        @{ Devices = <list of device maps, each may carry Properties = @{ DEVPKEY -> value } > }
 #              or @{ ErrorKind; ErrorMessage }
+#   PowercfgPresent  $false makes the powercfg preflight fail
+#   Registry   key path (case insensitive) -> @{ Values = <list of @{ Name; Kind; Data }>; SubKeys = <names> }
+#              or @{ ErrorKind; ErrorMessage }; a missing path does not exist
+#   Directories  folder path -> @{ Files = <list of file maps> } or @{ ErrorKind; ErrorMessage }; a missing path does not exist
 #   Salt       the pseudonym salt (fixed, so fixtures are reproducible)
 #   Stdout     list that receives what a collector prints on stdout
 #   Stderr     list that receives what a collector prints on stderr
@@ -46,6 +50,9 @@ function Reset-WfSynthetic {
         Evtx         = 'unavailable'
         Commands     = @{}
         NetshPresent = $true
+        PowercfgPresent = $true
+        Registry     = @{}
+        Directories  = @{}
         Files        = @{}
         Pnp          = @{ Devices = @() }
         Processes    = New-Object 'System.Collections.Generic.List[object]'
@@ -333,13 +340,19 @@ function New-WfPseudonymSalt {
     return [string]$global:WfSynthetic.Salt
 }
 
+function Get-WfToolPath {
+    param([string]$Name)
+    return ('C:\Windows\System32\' + $Name + '.exe')
+}
+
 function Get-WfNetshPath {
-    return 'C:\Windows\System32\netsh.exe'
+    return (Get-WfToolPath -Name 'netsh')
 }
 
 function Test-WfToolPresent {
     param([string]$Path)
     if ($Path -like '*netsh.exe') { return [bool]$global:WfSynthetic.NetshPresent }
+    if ($Path -like '*powercfg.exe') { return [bool]$global:WfSynthetic.PowercfgPresent }
     return $true
 }
 
@@ -350,12 +363,14 @@ function Get-WfConsoleOutputEncoding {
 function Get-WfKnownFolderPath {
     param([string]$Name)
     if ($Name -eq 'ProgramData') { return 'C:\ProgramData' }
+    if ($Name -eq 'ProgramFiles') { return 'C:\Program Files' }
     throw ('synthetic backend: unknown folder name ' + $Name)
 }
 
 function Invoke-WfProcess {
-    # netsh only: the collector never starts anything else through this seam
-    # in the test suite (the evtx export has its own replacement above).
+    # netsh and powercfg only: the collectors never start anything else
+    # through this seam in the test suite (the evtx export has its own
+    # replacement above).
     param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null, [int64]$MaxBytes = 0)
     $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Oversized = $false; Error = $null; DurationMs = $null; StdOutBytes = [int64]0; StdErrBytes = [int64]0; Diagnostic = $null }
     $global:WfSynthetic.Processes.Add(@{ FilePath = $FilePath; Arguments = $Arguments })
@@ -463,5 +478,60 @@ function Get-WfPnpDeviceProperties {
         return $result
     }
     $result.ErrorMessage = 'synthetic backend: no device named ' + $InstanceId
+    return $result
+}
+
+# --- adapters for the registry and directory sources -------------------------
+
+function Get-WfRegistryKey {
+    param([string]$Path)
+    $result = [ordered]@{ Exists = $false; ErrorKind = $null; ErrorMessage = $null; SubKeyNames = @(); Values = @() }
+    $entry = $null
+    foreach ($key in $global:WfSynthetic.Registry.Keys) {
+        if ([string]$key -eq $Path -or ([string]$key).Equals($Path, [System.StringComparison]::OrdinalIgnoreCase)) { $entry = $global:WfSynthetic.Registry[$key]; break }
+    }
+    if ($null -eq $entry) {
+        $result.ErrorKind = 'not_found'
+        $result.ErrorMessage = 'the key does not exist'
+        return $result
+    }
+    if ($entry['ErrorKind']) {
+        $result.Exists = ($entry['ErrorKind'] -ne 'not_found')
+        $result.ErrorKind = [string]$entry['ErrorKind']
+        $result.ErrorMessage = [string]$entry['ErrorMessage']
+        return $result
+    }
+    $result.Exists = $true
+    $result.SubKeyNames = Get-WfList -Value $entry['SubKeys']
+    $result.Values = Get-WfList -Value $entry['Values']
+    return $result
+}
+
+function Get-WfDirectoryListing {
+    param([string]$Path, [string]$Parent, [int]$MaxFiles, [datetime]$DeadlineUtc)
+    # The synthetic machine always has the known folder itself (Program Files).
+    $result = [ordered]@{ Exists = $false; Parent = $Parent; ParentExists = $true; ErrorKind = $null; ErrorMessage = $null; Files = @(); Truncated = $false }
+    $entry = $null
+    foreach ($key in $global:WfSynthetic.Directories.Keys) {
+        if (([string]$key).Equals($Path, [System.StringComparison]::OrdinalIgnoreCase)) { $entry = $global:WfSynthetic.Directories[$key]; break }
+    }
+    if ($null -eq $entry) { return $result }
+    $result.Exists = $true
+    if ($entry['ErrorKind']) {
+        $result.ErrorKind = [string]$entry['ErrorKind']
+        $result.ErrorMessage = [string]$entry['ErrorMessage']
+        return $result
+    }
+    $files = New-Object 'System.Collections.Generic.List[object]'
+    $listed = Get-WfList -Value $entry['Files']
+    foreach ($file in $listed) {
+        if ($files.Count -ge $MaxFiles) { $result.Truncated = $true; break }
+        $record = [ordered]@{}
+        foreach ($name in @('name', 'bytes', 'last_write_time_utc', 'sha256', 'file_version', 'product_version', 'product_name', 'company_name', 'original_filename', 'error')) {
+            if ($file.Contains($name)) { $record[$name] = $file[$name] } else { $record[$name] = $null }
+        }
+        $files.Add($record)
+    }
+    $result.Files = $files.ToArray()
     return $result
 }

@@ -1,0 +1,25 @@
+{
+  "mode": "devices",
+  "classes": [
+    "Display",
+    "Net",
+    "USB",
+    "MEDIA"
+  ],
+  "hardware_key_root": "HKLM:\\SYSTEM\\CurrentControlSet\\Enum\\<instance id>\\Device Parameters",
+  "subkeys": [
+    "Interrupt Management\\Affinity Policy",
+    "Interrupt Management\\MessageSignaledInterruptProperties"
+  ],
+  "key_list": [],
+  "citations": [
+    "https://learn.microsoft.com/windows-hardware/drivers/kernel/interrupt-affinity-and-priority",
+    "https://learn.microsoft.com/windows-hardware/drivers/kernel/enabling-message-signaled-interrupts-in-the-registry",
+    "https://learn.microsoft.com/windows-hardware/drivers/ddi/wdm/ne-wdm-_irq_device_policy",
+    "https://learn.microsoft.com/windows-hardware/drivers/install/hklm-system-currentcontrolset-enum-registry-tree"
+  ],
+  "max_records": 5000,
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 50,
+  "read_only": "keys are opened for reading; a missing key is recorded as absent and never created"
+}

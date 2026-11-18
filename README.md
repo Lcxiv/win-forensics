@@ -20,6 +20,8 @@ One set of collectors exists ahead of that order, because the captain's plan for
 
 The same directory holds `rf-survey`, a read only survey of the 2.4 GHz band around the desk for a PC that is on Ethernet but drives a wireless mouse and headset: which adapter carries the traffic, which networks are on the air on which channels, where the receivers sit on the USB tree, and which radios are on. Network names and hardware addresses are pseudonymised before anything is written. `scripts/decode_rf_survey.py` decodes it into five typed tables and `scripts/analyze_rf_survey.py` writes evidence rows and a plain language report with a cited recommendation for the router channel, the receiver ports and the unused radios. The method, its limits (a packet capture cannot see RF noise), and the before and after test the owner runs are in [docs/rf-survey.md](docs/rf-survey.md).
 
+It also holds `config-snapshot`, the first piece of the live latency capture: the machine configuration that confounds every run, read before and after a capture (`-Snapshot start`, `-Snapshot stop`). It records each display, network, USB and audio device's interrupt affinity policy and MSI mode as the registry holds them (type and bytes, decoded alongside, never reconciled with the routing a trace shows), the GPU timeout detection values, the CPU counts and caches, the active power scheme with the AC and DC processor and idle settings, and the state of two third party tuning tools (installed files with versions and hashes, running components by process name, protected copies of their configuration, log and journal). Three questions it cannot answer with a documented read only path (which logical processors are SMT siblings, which power mode overlay is active, the current timer resolution) are recorded `not_collected` with their reasons rather than guessed. `scripts/decode_config_snapshot.py` decodes a bundle into `config_snapshot`, `powercfg` and `process_inventory`.
+
 ## The four contracts
 
 | Contract | Document | Schemas |
@@ -42,6 +44,7 @@ collectors/windows/      read only PowerShell collectors for the PC, their share
                          tests/ holds the Pester suite, the synthetic backend, and the fixture generator
 scripts/                 wf_schema.py (schema registry and validation), decode_dpcisr.py, decode_pdh.py, decode_eventlog.py,
                          decode_rf_survey.py and analyze_rf_survey.py (the RF survey tables, evidence rows and report),
+                         decode_config_snapshot.py (config_snapshot, powercfg and process_inventory from a config-snapshot bundle),
                          verify_bundle.py (manifest, checksums, no unlisted raw file), fetch_pwsh.sh (PowerShell 7 into tools/),
                          make_procmon_pmc.py, procmon_facts.ps1 and procmon_facts_summarize.py (runner harness)
 fixtures/example-bundle/ one bundle laid out to the contract from two win-opt format fixtures
@@ -88,6 +91,12 @@ python scripts/analyze_rf_survey.py --bundle <bundle directory> [--own-network <
 ```
 
 The result is `reports/rf-survey.md` inside the bundle, with its evidence rows in `evidence.jsonl`. Without `--own-network` the report describes the airspace and recommends nothing about the router, because the analysis never guesses which network is yours; with it, every access point of that network is aggregated and a channel is recommended.
+
+A `config-snapshot` bundle is decoded with:
+
+```
+python scripts/decode_config_snapshot.py --bundle <bundle directory>
+```
 
 The collector checks that need PowerShell (PSScriptAnalyzer with the Windows PowerShell 5.1 compatibility rules, the Pester suite, fixture freshness) run from `tests/test_collectors_pwsh.py` and skip when no `pwsh` is found. `scripts/fetch_pwsh.sh` fetches a pinned PowerShell 7 and the two modules into `tools/`, which git ignores.
 

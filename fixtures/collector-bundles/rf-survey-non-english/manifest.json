@@ -13,7 +13,7 @@
     "start_utc": "2026-03-01T12:00:01.0000000Z",
     "stop_utc": "2026-03-01T12:01:36.0000000Z",
     "orchestrator": "wf-collector:rf-survey",
-    "orchestrator_version": "1.1.0",
+    "orchestrator_version": "1.2.0",
     "elevated": false,
     "incomplete": true
   },
@@ -802,7 +802,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "532e25a15517349423864451a282b39c72f24199a39bfd5e6adfb0b8f3311318"
+        "value": "1b4701a5143225687d7417f3d0c2b4d0447e070b9f7e13e942a66568878792f9"
       },
       "filter_hash": null,
       "requested": {
@@ -812,10 +812,14 @@
         "counters": [],
         "options": {
           "path": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html",
+          "path_candidates": [
+            "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html"
+          ],
           "path_documented": false,
           "max_artifact_bytes": 67108864,
           "mode": "summary",
-          "why_no_copy": "the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded"
+          "why": "the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded",
+          "protection": null
         }
       },
       "enabled": {
@@ -824,11 +828,15 @@
         "stack_walk": [],
         "counters": [],
         "options": {
+          "path": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html",
           "exists": false,
           "readable": false,
           "source_bytes": null,
+          "source_sha256": null,
           "last_write_time_utc": null,
-          "content_kept": false
+          "mode": "summary",
+          "content_kept": false,
+          "copy_is_verbatim": null
         },
         "verified_by": "the source size, time and hash are in the summary artifact; the text itself is not in the bundle"
       },
@@ -837,14 +845,14 @@
       "artifacts": [
         {
           "path": "raw/wlan_report/result.json",
-          "bytes": 214,
-          "sha256": "95683e8603e188acae30319cd04a558b924b834ef0359cee45930d90ff568a13",
+          "bytes": 528,
+          "sha256": "1653b57225e44b7f446f79bef99adf65d198c312cfc9d0eb970358fb93028af4",
           "role": "report"
         },
         {
           "path": "raw/wlan_report/source.json",
-          "bytes": 323,
-          "sha256": "532e25a15517349423864451a282b39c72f24199a39bfd5e6adfb0b8f3311318",
+          "bytes": 444,
+          "sha256": "1b4701a5143225687d7417f3d0c2b4d0447e070b9f7e13e942a66568878792f9",
           "role": "config"
         }
       ],
@@ -1234,7 +1242,7 @@
     },
     {
       "name": "collector-helper:_common.ps1",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "path": "<install directory>\\_common.ps1",
       "sha256": null
     }

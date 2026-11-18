@@ -13,7 +13,7 @@
     "start_utc": "2026-03-01T12:00:01.0000000Z",
     "stop_utc": "2026-03-01T12:01:27.0000000Z",
     "orchestrator": "wf-collector:rf-survey",
-    "orchestrator_version": "1.1.0",
+    "orchestrator_version": "1.2.0",
     "elevated": false,
     "incomplete": false
   },
@@ -802,7 +802,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "532e25a15517349423864451a282b39c72f24199a39bfd5e6adfb0b8f3311318"
+        "value": "1b4701a5143225687d7417f3d0c2b4d0447e070b9f7e13e942a66568878792f9"
       },
       "filter_hash": null,
       "requested": {
@@ -812,10 +812,14 @@
         "counters": [],
         "options": {
           "path": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html",
+          "path_candidates": [
+            "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html"
+          ],
           "path_documented": false,
           "max_artifact_bytes": 67108864,
           "mode": "summary",
-          "why_no_copy": "the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded"
+          "why": "the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded",
+          "protection": null
         }
       },
       "enabled": {
@@ -824,11 +828,15 @@
         "stack_walk": [],
         "counters": [],
         "options": {
+          "path": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html",
           "exists": true,
           "readable": true,
           "source_bytes": 854,
+          "source_sha256": "992b5acee5ef2843ac8ec39cec5e43408825b769c61a8045521c1e0a74bced42",
           "last_write_time_utc": "2026-02-28T12:00:00.0000000Z",
-          "content_kept": false
+          "mode": "summary",
+          "content_kept": false,
+          "copy_is_verbatim": null
         },
         "verified_by": "the source size, time and hash are in the summary artifact; the text itself is not in the bundle"
       },
@@ -843,14 +851,14 @@
         },
         {
           "path": "raw/wlan_report/result.json",
-          "bytes": 189,
-          "sha256": "e2e570ca0d71de479263bcc9a72bb8eff419bfd3e96d4bfa0c5c76f7dc6b4c2a",
+          "bytes": 591,
+          "sha256": "8728ff25832d3cf5e50c3704ffe408e779faefa56ee4e3c74436959be59852b4",
           "role": "report"
         },
         {
           "path": "raw/wlan_report/source.json",
-          "bytes": 323,
-          "sha256": "532e25a15517349423864451a282b39c72f24199a39bfd5e6adfb0b8f3311318",
+          "bytes": 444,
+          "sha256": "1b4701a5143225687d7417f3d0c2b4d0447e070b9f7e13e942a66568878792f9",
           "role": "config"
         }
       ],
@@ -1245,7 +1253,7 @@
     },
     {
       "name": "collector-helper:_common.ps1",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "path": "<install directory>\\_common.ps1",
       "sha256": null
     }

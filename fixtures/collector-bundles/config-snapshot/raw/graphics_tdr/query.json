@@ -1,0 +1,27 @@
+{
+  "mode": "keys",
+  "classes": [],
+  "hardware_key_root": null,
+  "subkeys": [],
+  "key_list": [
+    {
+      "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+      "value_names": [
+        "TdrLevel",
+        "TdrDelay",
+        "TdrDdiDelay",
+        "TdrDebugMode",
+        "TdrLimitTime",
+        "TdrLimitCount",
+        "TdrTestMode"
+      ]
+    }
+  ],
+  "citations": [
+    "https://learn.microsoft.com/windows-hardware/drivers/display/tdr-registry-keys"
+  ],
+  "max_records": 5000,
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 50,
+  "read_only": "keys are opened for reading; a missing key is recorded as absent and never created"
+}

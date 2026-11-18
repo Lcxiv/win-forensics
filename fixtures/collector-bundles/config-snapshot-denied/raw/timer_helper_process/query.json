@@ -1,0 +1,26 @@
+{
+  "class": "Win32_Process",
+  "namespace": "root/cimv2",
+  "properties": [
+    "Name",
+    "ProcessId",
+    "ParentProcessId",
+    "SessionId",
+    "CreationDate",
+    "Priority",
+    "CommandLine",
+    "ExecutablePath"
+  ],
+  "filter": "Name = 'DpcTimerRes.exe'",
+  "time_property": null,
+  "window_days": null,
+  "window_start_utc": null,
+  "window_end_utc": null,
+  "coverage_probe_filter": null,
+  "max_records": 5000,
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 50,
+  "snapshot": "start",
+  "command_line_requested": true,
+  "image_path_requested": true
+}

@@ -1,0 +1,19 @@
+{
+  "path": "C:\\ProgramData\\Stutter Guard\\journal.json",
+  "path_candidates": [
+    "C:\\ProgramData\\Stutter Guard\\journal.json"
+  ],
+  "exists": false,
+  "readable": false,
+  "error": "the file does not exist",
+  "source_bytes": null,
+  "source_sha256": null,
+  "last_write_time_utc": null,
+  "mode": "copy",
+  "summarised": false,
+  "copied": false,
+  "source_encoding": null,
+  "source_byte_order_mark": null,
+  "copy_is_verbatim": null,
+  "protection": null
+}

@@ -27,6 +27,11 @@ OBSERVED = ("observed", "observed_zero")
 # writes a file outside the bundle and "connect", "disconnect", "refresh" and "reportissues" act on
 # the machine, so an allowlist, not a denylist, decides.
 ALLOWED_NETSH = re.compile(r"^wlan show (interfaces|drivers|networks mode=bssid|profiles)$")
+# The only powercfg verbs a collector may run: the five listings. Everything else on the powercfg
+# page changes a setting, a scheme, or writes a report file outside the bundle.
+ALLOWED_POWERCFG = re.compile(r"^/(list|getactivescheme|aliases|query|qh)$")
+# The configuration snapshot's three questions without a documented read only path.
+UNAVAILABLE = {"logical_processor_map", "power_mode", "timer_resolution"}
 
 # What each committed case is there to show: summary status and the status of every source.
 EXPECTED = {
@@ -53,6 +58,24 @@ EXPECTED = {
                                           "wlan_autoconfig_events": "observed_zero", "usb_device_tree": "observed", "bluetooth_devices": "observed"}),
     "tdr-events-partial": ("partial", {"system_display_events": "capture_failed", "system_bugcheck_events": "observed_zero"}),
     "whea-errors-quiet": ("ok", {"system_whea_events": "observed_zero"}),
+    "config-snapshot": ("partial", {"interrupt_policy": "observed", "graphics_tdr": "observed", "processors": "observed", "cpu_caches": "observed",
+                                    "logical_processor_map": "not_collected", "power_active_scheme": "observed", "power_schemes": "observed",
+                                    "power_aliases": "observed", "power_settings": "observed", "power_settings_hidden": "observed",
+                                    "power_mode": "not_collected", "timer_resolution": "not_collected", "processes": "observed",
+                                    "timer_helper_process": "observed", "process_lasso_install": "observed", "process_lasso_config": "observed",
+                                    "process_lasso_log": "observed", "stutter_guard_install": "observed", "stutter_guard_journal": "observed"}),
+    "config-snapshot-clean": ("partial", {"interrupt_policy": "observed", "graphics_tdr": "observed", "processors": "observed", "cpu_caches": "observed",
+                                          "logical_processor_map": "not_collected", "power_active_scheme": "observed", "power_schemes": "observed",
+                                          "power_aliases": "observed", "power_settings": "observed", "power_settings_hidden": "capture_failed",
+                                          "power_mode": "not_collected", "timer_resolution": "not_collected", "processes": "observed",
+                                          "timer_helper_process": "observed_zero", "process_lasso_install": "observed_zero", "process_lasso_config": "not_collected",
+                                          "process_lasso_log": "not_collected", "stutter_guard_install": "observed_zero", "stutter_guard_journal": "not_collected"}),
+    "config-snapshot-denied": ("failed", {"interrupt_policy": "not_collected", "graphics_tdr": "not_collected", "processors": "not_collected", "cpu_caches": "not_collected",
+                                          "logical_processor_map": "not_collected", "power_active_scheme": "not_collected", "power_schemes": "not_collected",
+                                          "power_aliases": "not_collected", "power_settings": "not_collected", "power_settings_hidden": "not_collected",
+                                          "power_mode": "not_collected", "timer_resolution": "not_collected", "processes": "not_collected",
+                                          "timer_helper_process": "not_collected", "process_lasso_install": "not_collected", "process_lasso_config": "not_collected",
+                                          "process_lasso_log": "not_collected", "stutter_guard_install": "not_collected", "stutter_guard_journal": "not_collected"}),
 }
 
 
@@ -166,11 +189,35 @@ def test_status_and_evidence_stay_separate(case):
             assert options["protection"]["mac_pseudonym"].startswith("mac-") and options["protection"]["ssid_pseudonym"].startswith("ssid-")
             if collector["status"] in OBSERVED:
                 assert collector["enabled"]["options"]["exit_code"] == 0
+        elif collector["command"][0].endswith("powercfg.exe"):
+            assert ALLOWED_POWERCFG.fullmatch(" ".join(collector["command"][1:])), collector["command"]
+            assert collector["kind"] == "powercfg"
+            if collector["status"] in OBSERVED:
+                assert collector["enabled"]["options"]["exit_code"] == 0 and collector["enabled"]["options"]["records"] > 0
         elif collector["command"][0] == "System.IO.File.ReadAllBytes":
             assert collector["requested"]["options"]["path_documented"] is False
-            assert collector["requested"]["options"]["mode"] == "summary", "the report's text never leaves the machine"
+            mode = collector["requested"]["options"]["mode"]
+            if mode == "summary":
+                # The WLAN report's text never leaves the machine.
+                if collector["status"] in OBSERVED:
+                    assert primary[0]["path"].endswith("/report-summary.json")
+            else:
+                assert mode == "copy" and collector["requested"]["options"]["protection"]["user_pseudonym"].startswith("user-")
+                if collector["status"] in OBSERVED:
+                    assert collector["enabled"]["options"]["source_sha256"] and collector["enabled"]["options"]["content_kept"] is True
+        elif collector["command"][0] == "System.IO.Directory.GetFiles":
+            assert collector["requested"]["options"]["mode"] == "listing" and collector["requested"]["options"]["recursive"] is False
             if collector["status"] in OBSERVED:
-                assert primary[0]["path"].endswith("/report-summary.json")
+                assert primary[0]["path"].endswith("/listing.json") and collector["enabled"]["options"]["content_kept"] is False
+        elif "Microsoft.Win32.RegistryKey.GetValue" in collector["command"]:
+            assert collector["requested"]["options"]["read_only"].startswith("keys are opened for reading")
+            assert collector["requested"]["options"]["mode"] in ("devices", "keys")
+            if collector["status"] in OBSERVED:
+                assert primary[0]["path"].endswith("/keys.json")
+        elif collector["command"] == ["none"]:
+            assert collector["id"] in UNAVAILABLE and collector["status"] == "not_collected"
+            assert collector["preflight"]["ok"] is False and collector["requested"]["options"]["documented_paths"]
+            assert primary == [] and collector["expectation"]["met"] is False
         else:
             assert "Win32_PnPEntity" in collector["command"] and "Get-PnpDeviceProperty" in collector["command"]
         config = [a for a in collector["artifacts"] if a["role"] == "config"]
@@ -182,6 +229,14 @@ def test_the_netsh_allowlist_rejects_both_report_spellings_and_every_action():
         assert not ALLOWED_NETSH.fullmatch(forbidden), forbidden
     for allowed in ("wlan show interfaces", "wlan show drivers", "wlan show networks mode=bssid", "wlan show profiles"):
         assert ALLOWED_NETSH.fullmatch(allowed), allowed
+
+
+def test_the_powercfg_allowlist_rejects_every_verb_that_writes_or_reports():
+    for forbidden in ("/setactive x", "/setacvalueindex a b c 1", "/change monitor-timeout-ac 5", "/energy", "/requests", "/import x", "/export x y",
+                      "/hibernate off", "/delete x", "/overlaysetactive x", "/query x", "/q", "/l", "/L"):
+        assert not ALLOWED_POWERCFG.fullmatch(forbidden), forbidden
+    for allowed in ("/list", "/getactivescheme", "/aliases", "/query", "/qh"):
+        assert ALLOWED_POWERCFG.fullmatch(allowed), allowed
 
 
 @pytest.mark.parametrize("case", CASES)
@@ -197,6 +252,19 @@ def test_observed_zero_is_an_empty_export_inside_a_covered_range(case):
             summary = json.loads(text)
             assert summary["content_kept"] is False and summary["bytes"] > 0 and len(summary["sha256"]) == 64
             assert collector["status"] == "observed"
+        elif primary[0]["path"].endswith("/listing.json"):
+            # The directory source: an object about the folder; a folder that does not exist is a zero with exists false.
+            listing = json.loads(text)
+            assert isinstance(listing["files"], list) and listing["exists"] in (True, False)
+            if collector["status"] == "observed_zero":
+                assert listing["files"] == []
+            if collector["status"] == "observed":
+                assert listing["files"] and listing["exists"] is True
+        elif collector["requested"]["options"].get("mode") == "copy":
+            # A copied text file: never empty, and the hash of the original is next to it.
+            assert text.strip() and collector["status"] == "observed"
+            report = json.loads((bundle / "raw" / collector["id"] / "result.json").read_text(encoding="utf-8"))
+            assert len(report["source_sha256"]) == 64 and report["copied"] is True
         elif primary[0]["path"].endswith(".json"):
             records = json.loads(text)
             assert isinstance(records, list)

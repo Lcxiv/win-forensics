@@ -1,0 +1,3 @@
+[
+{"DeviceID":"CPU0","Name":"Synthetic CPU 6-Core Processor","Manufacturer":"SyntheticSilicon","Description":"Synthetic Family 1 Model 2 Stepping 3","SocketDesignation":"AM0","NumberOfCores":6,"NumberOfEnabledCore":6,"NumberOfLogicalProcessors":12,"ThreadCount":12,"L2CacheSize":6144,"L3CacheSize":32768,"MaxClockSpeed":4700,"CurrentClockSpeed":4700,"Architecture":9,"Family":107,"Level":25,"Revision":8448,"Stepping":"2","ProcessorId":"0000000000000000","VirtualizationFirmwareEnabled":true,"SecondLevelAddressTranslationExtensions":true,"Status":"OK","CpuStatus":1,"Availability":3}
+]

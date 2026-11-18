@@ -1,0 +1,11 @@
+{
+  "path": "C:\\Program Files\\Stutter Guard",
+  "parent": "C:\\Program Files",
+  "path_documented": false,
+  "recursive": false,
+  "max_files": 5000,
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 50,
+  "mode": "listing",
+  "why_no_copy": "the question is whether the program is installed here and in which build; each file is named, sized, hashed and versioned, and none is copied"
+}

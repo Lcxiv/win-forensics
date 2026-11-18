@@ -1,0 +1,19 @@
+{
+  "path": "C:\\ProgramData\\ProcessLasso\\config\\prolasso.ini",
+  "path_candidates": [
+    "C:\\ProgramData\\ProcessLasso\\config\\prolasso.ini"
+  ],
+  "exists": true,
+  "readable": false,
+  "error": "Access to the path is denied.",
+  "source_bytes": null,
+  "source_sha256": null,
+  "last_write_time_utc": null,
+  "mode": "copy",
+  "summarised": false,
+  "copied": false,
+  "source_encoding": null,
+  "source_byte_order_mark": null,
+  "copy_is_verbatim": null,
+  "protection": null
+}

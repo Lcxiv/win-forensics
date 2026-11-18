@@ -1,0 +1,2213 @@
+{
+  "manifest_version": "1.0.0",
+  "bundle_id": "20260301T120001Z_config_snapshot_ae3a76a9",
+  "created_utc": "2026-03-01T12:01:44.0000000Z",
+  "scenario": {
+    "id": "config_snapshot",
+    "version": "1.0.0",
+    "requested_duration_s": 0,
+    "target_process": null,
+    "marks": []
+  },
+  "capture": {
+    "start_utc": "2026-03-01T12:00:01.0000000Z",
+    "stop_utc": "2026-03-01T12:01:44.0000000Z",
+    "orchestrator": "wf-collector:config-snapshot",
+    "orchestrator_version": "1.2.0",
+    "elevated": false,
+    "incomplete": true
+  },
+  "machine": {
+    "machine_id": "ae3a76a9f32fa71b72616118339e376c",
+    "hostname": "SYNTHETIC-PC",
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26100",
+      "build": 26100,
+      "ubr": 1,
+      "display_version": "24H2",
+      "architecture": "64-bit",
+      "edition": "Professional"
+    },
+    "cpu": {
+      "name": "Synthetic CPU",
+      "logical_processors": 16,
+      "qpc_frequency_hz": 10000000
+    },
+    "memory_bytes": 34359738368,
+    "gpus": [
+      {
+        "name": "Synthetic Display Adapter",
+        "driver_version": "1.2.3.4",
+        "driver_date": "2026-01-15T00:00:00.0000000Z",
+        "device_id": "PCI\\VEN_FFFF&DEV_0001"
+      }
+    ],
+    "bios": {
+      "vendor": "Synthetic Firmware",
+      "version": "S1.00",
+      "release_date": "2025-11-01T00:00:00.0000000Z"
+    },
+    "board": {
+      "manufacturer": "Synthetic Boards",
+      "product": "SB-1"
+    },
+    "drivers": [],
+    "time_zone": {
+      "name": "UTC",
+      "utc_offset_minutes": 0,
+      "dst_active": false
+    }
+  },
+  "collectors": [
+    {
+      "id": "interrupt_policy",
+      "kind": "config_snapshot",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:09.0000000Z",
+        "checks": [
+          {
+            "name": "keys_readable",
+            "ok": true,
+            "detail": "Win32_PnPEntity"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-ClassName",
+        "Win32_PnPEntity",
+        "-Filter",
+        "Present = TRUE",
+        "Microsoft.Win32.RegistryKey.GetValue",
+        "HKLM:\\SYSTEM\\CurrentControlSet\\Enum\\<instance id>\\Device Parameters\\Interrupt Management\\Affinity Policy;Interrupt Management\\MessageSignaledInterruptProperties"
+      ],
+      "started_utc": "2026-03-01T12:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:11.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "e149a6cb5244a5744f38fba499ccac5f159cd75a623539a0a4ce9a0758c8175f"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "mode": "devices",
+          "classes": [
+            "Display",
+            "Net",
+            "USB",
+            "MEDIA"
+          ],
+          "hardware_key_root": "HKLM:\\SYSTEM\\CurrentControlSet\\Enum\\<instance id>\\Device Parameters",
+          "subkeys": [
+            "Interrupt Management\\Affinity Policy",
+            "Interrupt Management\\MessageSignaledInterruptProperties"
+          ],
+          "key_list": [],
+          "citations": [
+            "https://learn.microsoft.com/windows-hardware/drivers/kernel/interrupt-affinity-and-priority",
+            "https://learn.microsoft.com/windows-hardware/drivers/kernel/enabling-message-signaled-interrupts-in-the-registry",
+            "https://learn.microsoft.com/windows-hardware/drivers/ddi/wdm/ne-wdm-_irq_device_policy",
+            "https://learn.microsoft.com/windows-hardware/drivers/install/hklm-system-currentcontrolset-enum-registry-tree"
+          ],
+          "max_records": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 50,
+          "read_only": "keys are opened for reading; a missing key is recorded as absent and never created"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "mode": "devices",
+          "devices_present": 7,
+          "elements": 5,
+          "keys_read": 6,
+          "keys_absent": 4,
+          "key_errors": 0,
+          "truncated": false
+        },
+        "verified_by": "every element records whether its key exists, the error if it could not be opened, and each value with its registry type and bytes; the counts are in result.json"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/interrupt_policy/keys.json",
+          "bytes": 7139,
+          "sha256": "da338988674d3b6b66c974c83a9fc2ef453ad449aa0b794ef40c76bd8c0d1f1e",
+          "role": "primary"
+        },
+        {
+          "path": "raw/interrupt_policy/query.json",
+          "bytes": 972,
+          "sha256": "e149a6cb5244a5744f38fba499ccac5f159cd75a623539a0a4ce9a0758c8175f",
+          "role": "config"
+        },
+        {
+          "path": "raw/interrupt_policy/result.json",
+          "bytes": 238,
+          "sha256": "8dd9bb8335bc0fbfe8a9e183d7f934e4c9cccd644d4af8b5e2d48ad0e18a252c",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:02.0000000Z",
+        "end": "2026-03-01T12:00:10.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "at least one present Display, Net, USB or MEDIA device exists; for each, the two Interrupt Management subkeys are read or recorded absent. Registry intention is not effective routing: which processor actually services an interrupt is not readable here and comes from a trace",
+        "met": true,
+        "detail": "5 elements; 6 keys read, 4 absent, 0 could not be opened"
+      },
+      "target_process": null
+    },
+    {
+      "id": "graphics_tdr",
+      "kind": "config_snapshot",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:13.0000000Z",
+        "checks": [
+          {
+            "name": "keys_readable",
+            "ok": true,
+            "detail": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers"
+          }
+        ]
+      },
+      "command": [
+        "Microsoft.Win32.RegistryKey.GetValue",
+        "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers"
+      ],
+      "started_utc": "2026-03-01T12:00:12.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:15.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "fd4336c5e6e0894c0f5e454b4f7adc59c25a900ee5c9a21f3c5e397cad5db75d"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "mode": "keys",
+          "classes": [],
+          "hardware_key_root": null,
+          "subkeys": [],
+          "key_list": [
+            {
+              "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+              "value_names": [
+                "TdrLevel",
+                "TdrDelay",
+                "TdrDdiDelay",
+                "TdrDebugMode",
+                "TdrLimitTime",
+                "TdrLimitCount",
+                "TdrTestMode"
+              ]
+            }
+          ],
+          "citations": [
+            "https://learn.microsoft.com/windows-hardware/drivers/display/tdr-registry-keys"
+          ],
+          "max_records": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 50,
+          "read_only": "keys are opened for reading; a missing key is recorded as absent and never created"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "mode": "keys",
+          "devices_present": null,
+          "elements": 1,
+          "keys_read": 1,
+          "keys_absent": 0,
+          "key_errors": 0,
+          "truncated": false
+        },
+        "verified_by": "every element records whether its key exists, the error if it could not be opened, and each value with its registry type and bytes; the counts are in result.json"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/graphics_tdr/keys.json",
+          "bytes": 954,
+          "sha256": "4f8e5186cc8c891f169c147142c12b526463d18bb8db14ef0722c997f2fd124f",
+          "role": "primary"
+        },
+        {
+          "path": "raw/graphics_tdr/query.json",
+          "bytes": 672,
+          "sha256": "fd4336c5e6e0894c0f5e454b4f7adc59c25a900ee5c9a21f3c5e397cad5db75d",
+          "role": "config"
+        },
+        {
+          "path": "raw/graphics_tdr/result.json",
+          "bytes": 241,
+          "sha256": "80463c13528f77b967ac95a55411eb86756b70aac31c8814621c5ad98f8649d8",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:12.0000000Z",
+        "end": "2026-03-01T12:00:14.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the GraphicsDrivers key is opened and each documented TDR value is recorded as present (with type and bytes) or absent",
+        "met": true,
+        "detail": "1 elements; 1 keys read, 0 absent, 0 could not be opened"
+      },
+      "target_process": null
+    },
+    {
+      "id": "processors",
+      "kind": "config_snapshot",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:20.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_Processor"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/cimv2",
+        "-ClassName",
+        "Win32_Processor",
+        "-Property",
+        "DeviceID,Name,Manufacturer,Description,SocketDesignation,NumberOfCores,NumberOfEnabledCore,NumberOfLogicalProcessors,ThreadCount,L2CacheSize,L3CacheSize,MaxClockSpeed,CurrentClockSpeed,Architecture,Family,Level,Revision,Stepping,ProcessorId,VirtualizationFirmwareEnabled,SecondLevelAddressTranslationExtensions,Status,CpuStatus,Availability",
+        "-OperationTimeoutSec",
+        "50"
+      ],
+      "started_utc": "2026-03-01T12:00:16.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:21.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "b67fecf607525a0022768a4b927de85eacb1b0b232f6d0b6653ab14a3747d869"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_Processor",
+          "namespace": "root/cimv2",
+          "properties": [
+            "DeviceID",
+            "Name",
+            "Manufacturer",
+            "Description",
+            "SocketDesignation",
+            "NumberOfCores",
+            "NumberOfEnabledCore",
+            "NumberOfLogicalProcessors",
+            "ThreadCount",
+            "L2CacheSize",
+            "L3CacheSize",
+            "MaxClockSpeed",
+            "CurrentClockSpeed",
+            "Architecture",
+            "Family",
+            "Level",
+            "Revision",
+            "Stepping",
+            "ProcessorId",
+            "VirtualizationFirmwareEnabled",
+            "SecondLevelAddressTranslationExtensions",
+            "Status",
+            "CpuStatus",
+            "Availability"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "coverage_probe_filter": null,
+          "max_records": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 50
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_Processor",
+          "namespace": "root/cimv2",
+          "properties": [
+            "DeviceID",
+            "Name",
+            "Manufacturer",
+            "Description",
+            "SocketDesignation",
+            "NumberOfCores",
+            "NumberOfEnabledCore",
+            "NumberOfLogicalProcessors",
+            "ThreadCount",
+            "L2CacheSize",
+            "L3CacheSize",
+            "MaxClockSpeed",
+            "CurrentClockSpeed",
+            "Architecture",
+            "Family",
+            "Level",
+            "Revision",
+            "Stepping",
+            "ProcessorId",
+            "VirtualizationFirmwareEnabled",
+            "SecondLevelAddressTranslationExtensions",
+            "Status",
+            "CpuStatus",
+            "Availability"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "records_read": 1,
+          "records_exported": 1,
+          "truncated": false,
+          "coverage_probe": null
+        },
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/processors/query.json",
+          "bytes": 828,
+          "sha256": "b67fecf607525a0022768a4b927de85eacb1b0b232f6d0b6653ab14a3747d869",
+          "role": "config"
+        },
+        {
+          "path": "raw/processors/records.json",
+          "bytes": 587,
+          "sha256": "aba81912a30624d7161f8d0fedbb3c31332286448a2e1516fd9a134cbfbafc94",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:20.0000000Z",
+        "end": "2026-03-01T12:00:20.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": true,
+        "detail": "1 instances"
+      },
+      "target_process": null
+    },
+    {
+      "id": "cpu_caches",
+      "kind": "config_snapshot",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:28.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_CacheMemory"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/cimv2",
+        "-ClassName",
+        "Win32_CacheMemory",
+        "-Property",
+        "DeviceID,Purpose,Level,CacheType,Associativity,InstalledSize,MaxCacheSize,BlockSize,NumberOfBlocks,LineSize,CacheSpeed,Location,Status,ErrorCorrectType,WritePolicy",
+        "-OperationTimeoutSec",
+        "50"
+      ],
+      "started_utc": "2026-03-01T12:00:22.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:29.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "479a90e79f5fffcb9f804183c00582784cc41bbdd203e7226d710809af3acfba"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_CacheMemory",
+          "namespace": "root/cimv2",
+          "properties": [
+            "DeviceID",
+            "Purpose",
+            "Level",
+            "CacheType",
+            "Associativity",
+            "InstalledSize",
+            "MaxCacheSize",
+            "BlockSize",
+            "NumberOfBlocks",
+            "LineSize",
+            "CacheSpeed",
+            "Location",
+            "Status",
+            "ErrorCorrectType",
+            "WritePolicy"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "coverage_probe_filter": null,
+          "max_records": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 50
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_CacheMemory",
+          "namespace": "root/cimv2",
+          "properties": [
+            "DeviceID",
+            "Purpose",
+            "Level",
+            "CacheType",
+            "Associativity",
+            "InstalledSize",
+            "MaxCacheSize",
+            "BlockSize",
+            "NumberOfBlocks",
+            "LineSize",
+            "CacheSpeed",
+            "Location",
+            "Status",
+            "ErrorCorrectType",
+            "WritePolicy"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "records_read": 3,
+          "records_exported": 3,
+          "truncated": false,
+          "coverage_probe": null
+        },
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/cpu_caches/query.json",
+          "bytes": 590,
+          "sha256": "479a90e79f5fffcb9f804183c00582784cc41bbdd203e7226d710809af3acfba",
+          "role": "config"
+        },
+        {
+          "path": "raw/cpu_caches/records.json",
+          "bytes": 810,
+          "sha256": "089b5d9fc0512a7178d3a2d6c5951004a1d71ef69341e49ad80948bec5e0a01a",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:28.0000000Z",
+        "end": "2026-03-01T12:00:28.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": true,
+        "detail": "3 instances"
+      },
+      "target_process": null
+    },
+    {
+      "id": "logical_processor_map",
+      "kind": "config_snapshot",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "preflight failed, no documented read only path reachable from this collector: the logical processor to core map (which logical processors are SMT siblings, which share a cache, which group each belongs to) is exposed by GetLogicalProcessorInformationEx (https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex), a native call this Windows PowerShell 5.1 script cannot make without compiling code at run time, which the read only posture excludes; no CIM class documents the per logical processor mapping. Win32_Processor gives the core and logical processor counts (processors source), and Microsoft documents that a system with fewer than 64 logical processors has the single group 0 (https://learn.microsoft.com/windows/win32/procthread/processor-groups)",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:31.0000000Z",
+        "checks": [
+          {
+            "name": "read_path_available",
+            "ok": false,
+            "detail": "the logical processor to core map (which logical processors are SMT siblings, which share a cache, which group each belongs to) is exposed by GetLogicalProcessorInformationEx (https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex), a native call this Windows PowerShell 5.1 script cannot make without compiling code at run time, which the read only posture excludes; no CIM class documents the per logical processor mapping. Win32_Processor gives the core and logical processor counts (processors source), and Microsoft documents that a system with fewer than 64 logical processors has the single group 0 (https://learn.microsoft.com/windows/win32/procthread/processor-groups)"
+          }
+        ]
+      },
+      "command": [
+        "none"
+      ],
+      "started_utc": "2026-03-01T12:00:30.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:32.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "3805e63c06e15bede34a0babc2b4d9e7ca350f6346bab2e92f6e7529c38540d8"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "question": "Which logical processors are SMT siblings of each other, which share a cache, and in which processor group is each?",
+          "reason": "the logical processor to core map (which logical processors are SMT siblings, which share a cache, which group each belongs to) is exposed by GetLogicalProcessorInformationEx (https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex), a native call this Windows PowerShell 5.1 script cannot make without compiling code at run time, which the read only posture excludes; no CIM class documents the per logical processor mapping. Win32_Processor gives the core and logical processor counts (processors source), and Microsoft documents that a system with fewer than 64 logical processors has the single group 0 (https://learn.microsoft.com/windows/win32/procthread/processor-groups)",
+          "documented_paths": [
+            {
+              "path": "GetLogicalProcessorInformationEx(RelationProcessorCore, RelationCache, RelationGroup)",
+              "citation": "https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex",
+              "why_not_used": "native call; needs code compiled at run time, which writes to the temp folder, both excluded by the read only posture"
+            },
+            {
+              "path": "Win32_Processor NumberOfCores and NumberOfLogicalProcessors",
+              "citation": "https://learn.microsoft.com/windows/win32/cimwin32prov/win32-processor",
+              "why_not_used": "read by the processors source; it tells whether SMT is enabled (NumberOfCores less than NumberOfLogicalProcessors), not which logical processor pairs with which"
+            }
+          ],
+          "follow_up": "a later collector with a documented native read, or the trace itself, must establish the sibling map; until then \"CPU 6 and its sibling\" is not evidence"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/logical_processor_map/reason.json",
+          "bytes": 1829,
+          "sha256": "3805e63c06e15bede34a0babc2b4d9e7ca350f6346bab2e92f6e7529c38540d8",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "the logical processor to core map is recorded with its group and cache sharing",
+        "met": false,
+        "detail": "not attempted"
+      },
+      "target_process": null
+    },
+    {
+      "id": "power_active_scheme",
+      "kind": "powercfg",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:35.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\powercfg.exe"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\powercfg.exe",
+        "/getactivescheme"
+      ],
+      "started_utc": "2026-03-01T12:00:33.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:37.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "5052e33962219b8e09d285f3126dc581dcd515d4cfb52850376fe990a71e0ee2"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\Windows\\System32\\powercfg.exe",
+          "arguments": "/getactivescheme",
+          "timeout_seconds": 50,
+          "max_artifact_bytes": 67108864,
+          "output_encoding": "utf-8",
+          "output_code_page": 65001,
+          "line_endings": "lf",
+          "protection": {
+            "mode": "generic",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
+          },
+          "zero_records_rule": "capture_failed"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 7,
+          "stdout_bytes": 82,
+          "records": 1,
+          "mac_addresses_replaced": 0,
+          "network_names_replaced": 0,
+          "output_encoding": "utf-8"
+        },
+        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/power_active_scheme/command.json",
+          "bytes": 677,
+          "sha256": "5052e33962219b8e09d285f3126dc581dcd515d4cfb52850376fe990a71e0ee2",
+          "role": "config"
+        },
+        {
+          "path": "raw/power_active_scheme/output.txt",
+          "bytes": 82,
+          "sha256": "5836b1717f1d6f1013587da647e3e6a50ab231a86ec64a89c036d1162ab035af",
+          "role": "primary"
+        },
+        {
+          "path": "raw/power_active_scheme/result.json",
+          "bytes": 638,
+          "sha256": "0e81df1ba61e01cc26f1fc33ee604a6eaf6a4cb08bd660e5a2a0b63c0078561f",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:33.0000000Z",
+        "end": "2026-03-01T12:00:36.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "powercfg exits with code 0 and prints at least one line with a GUID",
+        "met": true,
+        "detail": "exit code 0; 1 records (lines carrying a GUID (the active scheme))"
+      },
+      "target_process": null
+    },
+    {
+      "id": "power_schemes",
+      "kind": "powercfg",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:40.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\powercfg.exe"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\powercfg.exe",
+        "/list"
+      ],
+      "started_utc": "2026-03-01T12:00:38.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:42.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "85f16cd46e6ff26dde6341b95b8dff6c0f00eef38ae8e6e4ddbaac1f530d4187"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\Windows\\System32\\powercfg.exe",
+          "arguments": "/list",
+          "timeout_seconds": 50,
+          "max_artifact_bytes": 67108864,
+          "output_encoding": "utf-8",
+          "output_code_page": 65001,
+          "line_endings": "lf",
+          "protection": {
+            "mode": "generic",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
+          },
+          "zero_records_rule": "capture_failed"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 7,
+          "stdout_bytes": 370,
+          "records": 4,
+          "mac_addresses_replaced": 0,
+          "network_names_replaced": 0,
+          "output_encoding": "utf-8"
+        },
+        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/power_schemes/command.json",
+          "bytes": 666,
+          "sha256": "85f16cd46e6ff26dde6341b95b8dff6c0f00eef38ae8e6e4ddbaac1f530d4187",
+          "role": "config"
+        },
+        {
+          "path": "raw/power_schemes/output.txt",
+          "bytes": 370,
+          "sha256": "1ad1b81d3515db89b76ea94bea8306a84883d521a46c1d1677506567372656db",
+          "role": "primary"
+        },
+        {
+          "path": "raw/power_schemes/result.json",
+          "bytes": 1157,
+          "sha256": "8acdb009a0f9c3d1a144a4ffdaecdaff01067ec07542de9943b5170787b29071",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:38.0000000Z",
+        "end": "2026-03-01T12:00:41.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "powercfg exits with code 0 and prints at least one line with a GUID",
+        "met": true,
+        "detail": "exit code 0; 4 records (lines carrying a GUID (one per scheme))"
+      },
+      "target_process": null
+    },
+    {
+      "id": "power_aliases",
+      "kind": "powercfg",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:45.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\powercfg.exe"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\powercfg.exe",
+        "/aliases"
+      ],
+      "started_utc": "2026-03-01T12:00:43.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:47.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "1f57ac57e3fda3a0fe0ad1cea4609222e5bfc0b17c11638801c3c33a5979731e"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\Windows\\System32\\powercfg.exe",
+          "arguments": "/aliases",
+          "timeout_seconds": 50,
+          "max_artifact_bytes": 67108864,
+          "output_encoding": "utf-8",
+          "output_code_page": 65001,
+          "line_endings": "lf",
+          "protection": {
+            "mode": "generic",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
+          },
+          "zero_records_rule": "capture_failed"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 7,
+          "stdout_bytes": 724,
+          "records": 14,
+          "mac_addresses_replaced": 0,
+          "network_names_replaced": 0,
+          "output_encoding": "utf-8"
+        },
+        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/power_aliases/command.json",
+          "bytes": 669,
+          "sha256": "1f57ac57e3fda3a0fe0ad1cea4609222e5bfc0b17c11638801c3c33a5979731e",
+          "role": "config"
+        },
+        {
+          "path": "raw/power_aliases/output.txt",
+          "bytes": 724,
+          "sha256": "5af902e643e7d572932296842d7f12bc09d54e53aa6f4571a0df07f915dbe583",
+          "role": "primary"
+        },
+        {
+          "path": "raw/power_aliases/result.json",
+          "bytes": 453,
+          "sha256": "d3f1fea37d0a6db572df81302d28113d3bd22e8b248b06e6d3a10370dd2ce369",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:43.0000000Z",
+        "end": "2026-03-01T12:00:46.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "powercfg exits with code 0 and prints at least one line with a GUID",
+        "met": true,
+        "detail": "exit code 0; 14 records (lines carrying a GUID (one per alias))"
+      },
+      "target_process": null
+    },
+    {
+      "id": "power_settings",
+      "kind": "powercfg",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:50.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\powercfg.exe"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\powercfg.exe",
+        "/query"
+      ],
+      "started_utc": "2026-03-01T12:00:48.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:52.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "47e1915c3348d384075c091a9d1bfe6747a82c72fa2eb00fc99bb1a1e749374a"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\Windows\\System32\\powercfg.exe",
+          "arguments": "/query",
+          "timeout_seconds": 50,
+          "max_artifact_bytes": 67108864,
+          "output_encoding": "utf-8",
+          "output_code_page": 65001,
+          "line_endings": "lf",
+          "protection": {
+            "mode": "generic",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
+          },
+          "zero_records_rule": "capture_failed"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 7,
+          "stdout_bytes": 1899,
+          "records": 7,
+          "mac_addresses_replaced": 0,
+          "network_names_replaced": 0,
+          "output_encoding": "utf-8"
+        },
+        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/power_settings/command.json",
+          "bytes": 667,
+          "sha256": "47e1915c3348d384075c091a9d1bfe6747a82c72fa2eb00fc99bb1a1e749374a",
+          "role": "config"
+        },
+        {
+          "path": "raw/power_settings/output.txt",
+          "bytes": 1899,
+          "sha256": "c1505c6b0ce3c6255837bd5cbf079cb6d811bfe239e9c8b145b3151946f4788e",
+          "role": "primary"
+        },
+        {
+          "path": "raw/power_settings/result.json",
+          "bytes": 6154,
+          "sha256": "c900575c2b0f8660cce9486cd06e5d3f2186748093c81e19569896608812b377",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:48.0000000Z",
+        "end": "2026-03-01T12:00:51.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "powercfg exits with code 0 and prints at least one line with a GUID",
+        "met": true,
+        "detail": "exit code 0; 7 records (lines carrying a GUID (the scheme, each subgroup, each setting))"
+      },
+      "target_process": null
+    },
+    {
+      "id": "power_settings_hidden",
+      "kind": "powercfg",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:55.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\powercfg.exe"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\powercfg.exe",
+        "/qh"
+      ],
+      "started_utc": "2026-03-01T12:00:53.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:57.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "83ae0f0fedd052e0b9475a7d573f9bd95c4ee527026fa6596cd40b8b13e3d2ac"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\Windows\\System32\\powercfg.exe",
+          "arguments": "/qh",
+          "timeout_seconds": 50,
+          "max_artifact_bytes": 67108864,
+          "output_encoding": "utf-8",
+          "output_code_page": 65001,
+          "line_endings": "lf",
+          "protection": {
+            "mode": "generic",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
+          },
+          "zero_records_rule": "capture_failed"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 7,
+          "stdout_bytes": 2151,
+          "records": 7,
+          "mac_addresses_replaced": 0,
+          "network_names_replaced": 0,
+          "output_encoding": "utf-8"
+        },
+        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/power_settings_hidden/command.json",
+          "bytes": 664,
+          "sha256": "83ae0f0fedd052e0b9475a7d573f9bd95c4ee527026fa6596cd40b8b13e3d2ac",
+          "role": "config"
+        },
+        {
+          "path": "raw/power_settings_hidden/output.txt",
+          "bytes": 2151,
+          "sha256": "586848184f56f7f8d72b5ad6ac4013862633b33c4db5444f2c0a003f0fba21c6",
+          "role": "primary"
+        },
+        {
+          "path": "raw/power_settings_hidden/result.json",
+          "bytes": 6815,
+          "sha256": "5bffaa4f59f07436b8d85e267975a48f84f7852c0a4ca2a39c455086f4ee939c",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:53.0000000Z",
+        "end": "2026-03-01T12:00:56.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "powercfg exits with code 0 and prints at least one line with a GUID",
+        "met": true,
+        "detail": "exit code 0; 7 records (lines carrying a GUID (the scheme, each subgroup, each setting including the hidden ones))"
+      },
+      "target_process": null
+    },
+    {
+      "id": "power_mode",
+      "kind": "powercfg",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "preflight failed, no documented read only path reachable from this collector: Microsoft documents the power mode (performance power slider) overlays and their GUIDs (https://learn.microsoft.com/windows-hardware/customize/desktop/customize-power-slider) and that \"powercfg /q\" without arguments enumerates the active overlay scheme when one is active (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options), but no command that prints the active overlay by itself; the decoder compares the scheme GUID printed by /query (power_settings) with /getactivescheme (power_active_scheme) and names a documented overlay GUID when they differ, which is an interpretation of that sentence, not a direct read",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:59.0000000Z",
+        "checks": [
+          {
+            "name": "read_path_available",
+            "ok": false,
+            "detail": "Microsoft documents the power mode (performance power slider) overlays and their GUIDs (https://learn.microsoft.com/windows-hardware/customize/desktop/customize-power-slider) and that \"powercfg /q\" without arguments enumerates the active overlay scheme when one is active (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options), but no command that prints the active overlay by itself; the decoder compares the scheme GUID printed by /query (power_settings) with /getactivescheme (power_active_scheme) and names a documented overlay GUID when they differ, which is an interpretation of that sentence, not a direct read"
+          }
+        ]
+      },
+      "command": [
+        "none"
+      ],
+      "started_utc": "2026-03-01T12:00:58.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:00.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "ad95411d772f505520482de6f911ac23475f2734cc77583ef5372672fedef76d"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "question": "Which Windows power mode (performance power slider overlay) is active?",
+          "reason": "Microsoft documents the power mode (performance power slider) overlays and their GUIDs (https://learn.microsoft.com/windows-hardware/customize/desktop/customize-power-slider) and that \"powercfg /q\" without arguments enumerates the active overlay scheme when one is active (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options), but no command that prints the active overlay by itself; the decoder compares the scheme GUID printed by /query (power_settings) with /getactivescheme (power_active_scheme) and names a documented overlay GUID when they differ, which is an interpretation of that sentence, not a direct read",
+          "documented_paths": [
+            {
+              "path": "powercfg /q (no arguments)",
+              "citation": "https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options",
+              "why_not_used": "read by the power_settings source; Microsoft says it enumerates the active overlay when one is active, so the decoder derives the overlay from the GUID it prints, which is marked as derived"
+            },
+            {
+              "path": "overlay GUIDs",
+              "citation": "https://learn.microsoft.com/windows-hardware/customize/desktop/customize-power-slider",
+              "why_not_used": "documents the overlay GUIDs, not a command that prints the active one"
+            }
+          ],
+          "follow_up": "a documented direct read of the active overlay, if Microsoft publishes one"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/power_mode/reason.json",
+          "bytes": 1533,
+          "sha256": "ad95411d772f505520482de6f911ac23475f2734cc77583ef5372672fedef76d",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "the active power mode overlay is read directly",
+        "met": false,
+        "detail": "not attempted"
+      },
+      "target_process": null
+    },
+    {
+      "id": "timer_resolution",
+      "kind": "other",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "preflight failed, no documented read only path reachable from this collector: the current timer resolution has no documented read a 5.1 script can make: timeGetDevCaps (https://learn.microsoft.com/windows/win32/api/timeapi/nf-timeapi-timegetdevcaps) returns the minimum and maximum period only and is a native call; the inbox report that lists the platform timer resolution and the outstanding requests is \"powercfg /energy\", which observes the system for 60 seconds and writes a report file, and Microsoft documents it for an idle system (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options); it is left to the elevated task (collectors/windows/README.md, Needs elevation). \"powercfg /requests\" lists power requests, not timer requests, and is not timer evidence. Nothing here requests a timer period",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:01:02.0000000Z",
+        "checks": [
+          {
+            "name": "read_path_available",
+            "ok": false,
+            "detail": "the current timer resolution has no documented read a 5.1 script can make: timeGetDevCaps (https://learn.microsoft.com/windows/win32/api/timeapi/nf-timeapi-timegetdevcaps) returns the minimum and maximum period only and is a native call; the inbox report that lists the platform timer resolution and the outstanding requests is \"powercfg /energy\", which observes the system for 60 seconds and writes a report file, and Microsoft documents it for an idle system (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options); it is left to the elevated task (collectors/windows/README.md, Needs elevation). \"powercfg /requests\" lists power requests, not timer requests, and is not timer evidence. Nothing here requests a timer period"
+          }
+        ]
+      },
+      "command": [
+        "none"
+      ],
+      "started_utc": "2026-03-01T12:01:01.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:03.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "01e8b92bf0415915991ab468f9a905d6ce39032ac6681280cb5e2452bc5244f7"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "question": "What are the current, minimum and maximum timer resolutions, and which processes hold a request?",
+          "reason": "the current timer resolution has no documented read a 5.1 script can make: timeGetDevCaps (https://learn.microsoft.com/windows/win32/api/timeapi/nf-timeapi-timegetdevcaps) returns the minimum and maximum period only and is a native call; the inbox report that lists the platform timer resolution and the outstanding requests is \"powercfg /energy\", which observes the system for 60 seconds and writes a report file, and Microsoft documents it for an idle system (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options); it is left to the elevated task (collectors/windows/README.md, Needs elevation). \"powercfg /requests\" lists power requests, not timer requests, and is not timer evidence. Nothing here requests a timer period",
+          "documented_paths": [
+            {
+              "path": "timeGetDevCaps (TIMECAPS wPeriodMin, wPeriodMax)",
+              "citation": "https://learn.microsoft.com/windows/win32/api/timeapi/nf-timeapi-timegetdevcaps",
+              "why_not_used": "native call; minimum and maximum only"
+            },
+            {
+              "path": "powercfg /energy /output <file> /duration <s>",
+              "citation": "https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options",
+              "why_not_used": "observes the system for 60 seconds and writes a report; Microsoft documents it for an idle system; left to the elevated task"
+            },
+            {
+              "path": "powercfg /requests",
+              "citation": "https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options",
+              "why_not_used": "lists power requests (display, system, away mode), which are not timer resolution requests"
+            }
+          ],
+          "follow_up": "the elevated task runs powercfg /energy into the bundle, or a later collector gets a documented native read; the timer helper process and its command line are recorded by timer_helper_process meanwhile"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/timer_resolution/reason.json",
+          "bytes": 2032,
+          "sha256": "01e8b92bf0415915991ab468f9a905d6ce39032ac6681280cb5e2452bc5244f7",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "the current, minimum and maximum timer resolutions are read without requesting a period",
+        "met": false,
+        "detail": "not attempted"
+      },
+      "target_process": null
+    },
+    {
+      "id": "processes",
+      "kind": "process_inventory",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:01:14.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_Process"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/cimv2",
+        "-ClassName",
+        "Win32_Process",
+        "-Property",
+        "Name,ProcessId,ParentProcessId,SessionId,CreationDate,Priority,ThreadCount,HandleCount,WorkingSetSize,PageFaults,KernelModeTime,UserModeTime",
+        "-OperationTimeoutSec",
+        "50"
+      ],
+      "started_utc": "2026-03-01T12:01:04.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:15.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "f5926ac536eeeb1a5a38f5cf8b1ba6992a7e62a678cb406fd36956916b7cf6ef"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_Process",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Name",
+            "ProcessId",
+            "ParentProcessId",
+            "SessionId",
+            "CreationDate",
+            "Priority",
+            "ThreadCount",
+            "HandleCount",
+            "WorkingSetSize",
+            "PageFaults",
+            "KernelModeTime",
+            "UserModeTime"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "coverage_probe_filter": null,
+          "max_records": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 50,
+          "snapshot": "start",
+          "command_line_requested": false,
+          "image_path_requested": false
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_Process",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Name",
+            "ProcessId",
+            "ParentProcessId",
+            "SessionId",
+            "CreationDate",
+            "Priority",
+            "ThreadCount",
+            "HandleCount",
+            "WorkingSetSize",
+            "PageFaults",
+            "KernelModeTime",
+            "UserModeTime"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "records_read": 7,
+          "records_exported": 7,
+          "truncated": false,
+          "coverage_probe": null,
+          "snapshot": "start",
+          "command_line_requested": false,
+          "image_path_requested": false
+        },
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/processes/query.json",
+          "bytes": 633,
+          "sha256": "f5926ac536eeeb1a5a38f5cf8b1ba6992a7e62a678cb406fd36956916b7cf6ef",
+          "role": "config"
+        },
+        {
+          "path": "raw/processes/records.json",
+          "bytes": 1874,
+          "sha256": "da5070e721e940a3fca0e307c95bb185092a2471b49048635216cc2514282fd8",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:01:14.0000000Z",
+        "end": "2026-03-01T12:01:14.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": true,
+        "detail": "7 instances"
+      },
+      "target_process": null
+    },
+    {
+      "id": "timer_helper_process",
+      "kind": "process_inventory",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:01:20.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_Process"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/cimv2",
+        "-ClassName",
+        "Win32_Process",
+        "-Property",
+        "Name,ProcessId,ParentProcessId,SessionId,CreationDate,Priority,CommandLine,ExecutablePath",
+        "-OperationTimeoutSec",
+        "50",
+        "-Filter",
+        "Name = 'DpcTimerRes.exe'"
+      ],
+      "started_utc": "2026-03-01T12:01:16.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:21.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "5c9c2a041f8a57e9b853574f23f99080e21ce9b0e73f7541ab2f6ec4deb4f6be"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_Process",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Name",
+            "ProcessId",
+            "ParentProcessId",
+            "SessionId",
+            "CreationDate",
+            "Priority",
+            "CommandLine",
+            "ExecutablePath"
+          ],
+          "filter": "Name = 'DpcTimerRes.exe'",
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "coverage_probe_filter": null,
+          "max_records": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 50,
+          "snapshot": "start",
+          "command_line_requested": true,
+          "image_path_requested": true
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_Process",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Name",
+            "ProcessId",
+            "ParentProcessId",
+            "SessionId",
+            "CreationDate",
+            "Priority",
+            "CommandLine",
+            "ExecutablePath"
+          ],
+          "filter": "Name = 'DpcTimerRes.exe'",
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "records_read": 1,
+          "records_exported": 1,
+          "truncated": false,
+          "coverage_probe": null,
+          "snapshot": "start",
+          "command_line_requested": true,
+          "image_path_requested": true
+        },
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/timer_helper_process/query.json",
+          "bytes": 574,
+          "sha256": "5c9c2a041f8a57e9b853574f23f99080e21ce9b0e73f7541ab2f6ec4deb4f6be",
+          "role": "config"
+        },
+        {
+          "path": "raw/timer_helper_process/records.json",
+          "bytes": 289,
+          "sha256": "9ae7e3a6be3dce5f5d532edd6669447e1650a09463627587d9a9355dffba6e99",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:01:20.0000000Z",
+        "end": "2026-03-01T12:01:20.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the enumeration completes; zero instances is an observation for this class (the filter can legitimately match nothing)",
+        "met": true,
+        "detail": "1 instances"
+      },
+      "target_process": null
+    },
+    {
+      "id": "process_lasso_install",
+      "kind": "config_snapshot",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:01:23.0000000Z",
+        "checks": [
+          {
+            "name": "parent_folder_exists",
+            "ok": true,
+            "detail": "C:\\Program Files"
+          },
+          {
+            "name": "folder_exists",
+            "ok": true,
+            "detail": "C:\\Program Files\\Process Lasso"
+          },
+          {
+            "name": "folder_listed",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.IO.Directory.GetFiles",
+        "C:\\Program Files\\Process Lasso",
+        "System.Diagnostics.FileVersionInfo.GetVersionInfo"
+      ],
+      "started_utc": "2026-03-01T12:01:22.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:26.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "89b718ba693f05d104d49c77273a67903a24e413479c0fa6532fa0cc3503bbe1"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path": "C:\\Program Files\\Process Lasso",
+          "parent": "C:\\Program Files",
+          "path_documented": false,
+          "recursive": false,
+          "max_files": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 50,
+          "mode": "listing",
+          "why_no_copy": "the question is whether the program is installed here and in which build; each file is named, sized, hashed and versioned, and none is copied"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path": "C:\\Program Files\\Process Lasso",
+          "exists": true,
+          "file_count": 6,
+          "truncated": false,
+          "content_kept": false
+        },
+        "verified_by": "the listing completed without error; every file carries its size, time, SHA-256 and version resource"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/process_lasso_install/listing.json",
+          "bytes": 2712,
+          "sha256": "44e4e6af8d9fac142912d38b5e1851920a20715cc80067dc79d76f7a60d1c1ec",
+          "role": "primary"
+        },
+        {
+          "path": "raw/process_lasso_install/result.json",
+          "bytes": 168,
+          "sha256": "06a9fac7412a16138885e4b020ecfff15a5cf64ef16e5613033e574400494bdb",
+          "role": "report"
+        },
+        {
+          "path": "raw/process_lasso_install/source.json",
+          "bytes": 395,
+          "sha256": "89b718ba693f05d104d49c77273a67903a24e413479c0fa6532fa0cc3503bbe1",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:01:22.0000000Z",
+        "end": "2026-03-01T12:01:25.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the folder is listed when it exists; a missing folder is an observation (not installed at the conventional path)",
+        "met": true,
+        "detail": "folder exists: True; 6 files listed"
+      },
+      "target_process": null
+    },
+    {
+      "id": "process_lasso_config",
+      "kind": "config_snapshot",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:01:28.0000000Z",
+        "checks": [
+          {
+            "name": "file_exists",
+            "ok": true,
+            "detail": "C:\\ProgramData\\ProcessLasso\\config\\prolasso.ini"
+          },
+          {
+            "name": "file_readable",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.IO.File.ReadAllBytes",
+        "C:\\ProgramData\\ProcessLasso\\config\\prolasso.ini"
+      ],
+      "started_utc": "2026-03-01T12:01:27.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:30.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "17aaae8b26ca307e33c3f1368ba6ad662bc2223c58aaed6903540c679a44114f"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path": "C:\\ProgramData\\ProcessLasso\\config\\prolasso.ini",
+          "path_candidates": [
+            "C:\\ProgramData\\ProcessLasso\\config\\prolasso.ini"
+          ],
+          "path_documented": false,
+          "max_artifact_bytes": 67108864,
+          "mode": "copy",
+          "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens and hardware addresses replaced by pseudonyms (see protection)",
+          "protection": {
+            "mode": "copy",
+            "user_pseudonym": "user-<first 12 hex of SHA-256(salt, name)>, every folder name after \\Users\\ in a path, except the standard folders Public, Default, Default User and All Users",
+            "mail_pseudonym": "mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
+            "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json"
+          }
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path": "C:\\ProgramData\\ProcessLasso\\config\\prolasso.ini",
+          "exists": true,
+          "readable": true,
+          "source_bytes": 445,
+          "source_sha256": "2f8a67321dbc86b1dd70003169597f40216689fdb2e8252b999c87675ade163d",
+          "last_write_time_utc": "2026-02-28T12:00:00.0000000Z",
+          "mode": "copy",
+          "content_kept": true,
+          "copy_is_verbatim": false
+        },
+        "verified_by": "the source size, time and hash are in result.json next to the replacement counts; the primary is the protected copy"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/process_lasso_config/prolasso.ini",
+          "bytes": 448,
+          "sha256": "71596b53cd4199ec918f41705d1b7c825a28ed68995c2a29dc1d49483ec9841d",
+          "role": "primary"
+        },
+        {
+          "path": "raw/process_lasso_config/result.json",
+          "bytes": 657,
+          "sha256": "b81b0788d3b96798d16bcec512620abc97fea78548fc77c3b6fe83083e9f5414",
+          "role": "report"
+        },
+        {
+          "path": "raw/process_lasso_config/source.json",
+          "bytes": 1065,
+          "sha256": "17aaae8b26ca307e33c3f1368ba6ad662bc2223c58aaed6903540c679a44114f",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:01:27.0000000Z",
+        "end": "2026-03-01T12:01:29.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the configuration file exists at the global ProgramData path and is readable; its protected text and the hash of the original are recorded",
+        "met": true,
+        "detail": "445 bytes copied"
+      },
+      "target_process": null
+    },
+    {
+      "id": "process_lasso_log",
+      "kind": "config_snapshot",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:01:32.0000000Z",
+        "checks": [
+          {
+            "name": "file_exists",
+            "ok": true,
+            "detail": "C:\\ProgramData\\ProcessLasso\\logs\\processlasso.log"
+          },
+          {
+            "name": "file_readable",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.IO.File.ReadAllBytes",
+        "C:\\ProgramData\\ProcessLasso\\logs\\processlasso.log",
+        "C:\\ProgramData\\ProcessLasso\\logs\\prolasso.log",
+        "C:\\ProgramData\\ProcessLasso\\prolasso.log"
+      ],
+      "started_utc": "2026-03-01T12:01:31.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:34.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "783c8810b50921eb1466efdbdd1f2fc9d68c0502c872ce9a93c5fa806432d7d5"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path": "C:\\ProgramData\\ProcessLasso\\logs\\processlasso.log",
+          "path_candidates": [
+            "C:\\ProgramData\\ProcessLasso\\logs\\processlasso.log",
+            "C:\\ProgramData\\ProcessLasso\\logs\\prolasso.log",
+            "C:\\ProgramData\\ProcessLasso\\prolasso.log"
+          ],
+          "path_documented": false,
+          "max_artifact_bytes": 67108864,
+          "mode": "copy",
+          "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens and hardware addresses replaced by pseudonyms (see protection)",
+          "protection": {
+            "mode": "copy",
+            "user_pseudonym": "user-<first 12 hex of SHA-256(salt, name)>, every folder name after \\Users\\ in a path, except the standard folders Public, Default, Default User and All Users",
+            "mail_pseudonym": "mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
+            "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json"
+          }
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path": "C:\\ProgramData\\ProcessLasso\\logs\\processlasso.log",
+          "exists": true,
+          "readable": true,
+          "source_bytes": 343,
+          "source_sha256": "0be296947e60c204f3ebc4bbf4a2261ff32da208e2227087de4251d7454d0c42",
+          "last_write_time_utc": "2026-02-28T12:00:00.0000000Z",
+          "mode": "copy",
+          "content_kept": true,
+          "copy_is_verbatim": false
+        },
+        "verified_by": "the source size, time and hash are in result.json next to the replacement counts; the primary is the protected copy"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/process_lasso_log/processlasso.log",
+          "bytes": 345,
+          "sha256": "088fac7a0c911f9f537393ec3d65f9a9ad257a03fc828e5b9428504b59ff6592",
+          "role": "primary"
+        },
+        {
+          "path": "raw/process_lasso_log/result.json",
+          "bytes": 769,
+          "sha256": "7bfebbd2aaae82fa7768ccfe36b62564753a1748357aed47c991d6358d03b452",
+          "role": "report"
+        },
+        {
+          "path": "raw/process_lasso_log/source.json",
+          "bytes": 1177,
+          "sha256": "783c8810b50921eb1466efdbdd1f2fc9d68c0502c872ce9a93c5fa806432d7d5",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:01:31.0000000Z",
+        "end": "2026-03-01T12:01:33.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the action log exists at one of the candidate paths and is readable; its protected text and the hash of the original are recorded",
+        "met": true,
+        "detail": "343 bytes copied"
+      },
+      "target_process": null
+    },
+    {
+      "id": "stutter_guard_install",
+      "kind": "config_snapshot",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:01:36.0000000Z",
+        "checks": [
+          {
+            "name": "parent_folder_exists",
+            "ok": true,
+            "detail": "C:\\Program Files"
+          },
+          {
+            "name": "folder_exists",
+            "ok": true,
+            "detail": "C:\\Program Files\\Stutter Guard"
+          },
+          {
+            "name": "folder_listed",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.IO.Directory.GetFiles",
+        "C:\\Program Files\\Stutter Guard",
+        "System.Diagnostics.FileVersionInfo.GetVersionInfo"
+      ],
+      "started_utc": "2026-03-01T12:01:35.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:39.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "2e04a4cbb8f3f471ef193e5c41d7ae241074df5ef71fa9f9b5668b29eef33bea"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path": "C:\\Program Files\\Stutter Guard",
+          "parent": "C:\\Program Files",
+          "path_documented": false,
+          "recursive": false,
+          "max_files": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 50,
+          "mode": "listing",
+          "why_no_copy": "the question is whether the program is installed here and in which build; each file is named, sized, hashed and versioned, and none is copied"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path": "C:\\Program Files\\Stutter Guard",
+          "exists": true,
+          "file_count": 2,
+          "truncated": false,
+          "content_kept": false
+        },
+        "verified_by": "the listing completed without error; every file carries its size, time, SHA-256 and version resource"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/stutter_guard_install/listing.json",
+          "bytes": 1008,
+          "sha256": "8613f146b15f1af4e091263baad553cc613be653f77b42a72cdfe6a6f3f179ed",
+          "role": "primary"
+        },
+        {
+          "path": "raw/stutter_guard_install/result.json",
+          "bytes": 168,
+          "sha256": "40b42330e512ba7ed7c9b305c7bf5862b22a13340649011051a78a6fc5450445",
+          "role": "report"
+        },
+        {
+          "path": "raw/stutter_guard_install/source.json",
+          "bytes": 395,
+          "sha256": "2e04a4cbb8f3f471ef193e5c41d7ae241074df5ef71fa9f9b5668b29eef33bea",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:01:35.0000000Z",
+        "end": "2026-03-01T12:01:38.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the folder is listed when it exists (StutterGuard.exe and DpcTimerRes.exe are hashed and versioned); a missing folder is an observation (not installed at the conventional path)",
+        "met": true,
+        "detail": "folder exists: True; 2 files listed"
+      },
+      "target_process": null
+    },
+    {
+      "id": "stutter_guard_journal",
+      "kind": "config_snapshot",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:01:41.0000000Z",
+        "checks": [
+          {
+            "name": "file_exists",
+            "ok": true,
+            "detail": "C:\\ProgramData\\Stutter Guard\\journal.json"
+          },
+          {
+            "name": "file_readable",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.IO.File.ReadAllBytes",
+        "C:\\ProgramData\\Stutter Guard\\journal.json"
+      ],
+      "started_utc": "2026-03-01T12:01:40.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:43.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "6a7111e7dc3ba090b72725dbd2be005225b821ce55e343e14a582df2303ac391"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path": "C:\\ProgramData\\Stutter Guard\\journal.json",
+          "path_candidates": [
+            "C:\\ProgramData\\Stutter Guard\\journal.json"
+          ],
+          "path_documented": false,
+          "max_artifact_bytes": 67108864,
+          "mode": "copy",
+          "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens and hardware addresses replaced by pseudonyms (see protection)",
+          "protection": {
+            "mode": "copy",
+            "user_pseudonym": "user-<first 12 hex of SHA-256(salt, name)>, every folder name after \\Users\\ in a path, except the standard folders Public, Default, Default User and All Users",
+            "mail_pseudonym": "mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
+            "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json"
+          }
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path": "C:\\ProgramData\\Stutter Guard\\journal.json",
+          "exists": true,
+          "readable": true,
+          "source_bytes": 560,
+          "source_sha256": "0ba93cb109ea4eec1adf4f60cb995ee4782e30f84016f4e2562aab3addf1ded3",
+          "last_write_time_utc": "2026-02-28T12:00:00.0000000Z",
+          "mode": "copy",
+          "content_kept": true,
+          "copy_is_verbatim": false
+        },
+        "verified_by": "the source size, time and hash are in result.json next to the replacement counts; the primary is the protected copy"
+      },
+      "events_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/stutter_guard_journal/journal.json",
+          "bytes": 562,
+          "sha256": "25b454896981689d6aa0ab325b09de5941f8985dbb87fd5b7b537de32da8c11f",
+          "role": "primary"
+        },
+        {
+          "path": "raw/stutter_guard_journal/result.json",
+          "bytes": 643,
+          "sha256": "a9754d33ab8db2b9e0a7a5b5c515550342166499090a2fa104c7b5b6a31de985",
+          "role": "report"
+        },
+        {
+          "path": "raw/stutter_guard_journal/source.json",
+          "bytes": 1051,
+          "sha256": "6a7111e7dc3ba090b72725dbd2be005225b821ce55e343e14a582df2303ac391",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:01:40.0000000Z",
+        "end": "2026-03-01T12:01:42.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the journal exists and is readable; its protected text and the hash of the original are recorded",
+        "met": true,
+        "detail": "560 bytes copied"
+      },
+      "target_process": null
+    }
+  ],
+  "calibration": {
+    "status": "not_applicable",
+    "method": "none: this collector reads historical records that carry their own UTC system time, so there is no QPC session to calibrate",
+    "qpc_frequency_hz": 10000000,
+    "expected_pairs": 0,
+    "pairs": [],
+    "missing_pairs": 0,
+    "time_adjustment": {
+      "start": null,
+      "stop": null
+    },
+    "boot_time_utc": "2026-02-27T12:00:00.0000000Z"
+  },
+  "tools": [
+    {
+      "name": "powershell",
+      "version": "5.1.26100.1",
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "sha256": null
+    },
+    {
+      "name": "wevtutil",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wevtutil.exe",
+      "sha256": null
+    },
+    {
+      "name": "collector:config-snapshot",
+      "version": "1.0.0",
+      "path": "<install directory>\\config-snapshot.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector-helper:_common.ps1",
+      "version": "1.2.0",
+      "path": "<install directory>\\_common.ps1",
+      "sha256": null
+    }
+  ],
+  "symbols": {
+    "symbol_path": null,
+    "cache_path": null,
+    "dbghelp_version": null
+  },
+  "checksum_algorithm": "sha256",
+  "notes": [
+    "Read only collector config-snapshot version 1.0.0: What machine configuration confounds a latency run right now: device interrupt policy and MSI mode, CPU topology, power scheme and settings, timer state, and the state of Process Lasso and Stutter Guard?",
+    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
+    "Copied text files are the owner's own configuration and logs and stay readable, except that every Windows user profile folder name, every e-mail shaped token and every hardware address in them is a pseudonym (user-<12 hex>, mail-<12 hex>, mac-<12 hex>) keyed with a random salt that was not stored; result.json of each copy records the SHA-256 of the original bytes and the replacement counts, so a copy with zero replacements and the same hash is verbatim.",
+    "Network names, hardware addresses and Bluetooth peer names are pseudonyms (ssid-<12 hex>, mac-<12 hex>, name-<12 hex>) keyed with a random salt that was not stored: the same value maps to the same pseudonym inside this bundle and to nothing outside it. The saved Wi-Fi profiles of this PC are the exception: they are the owner's own networks and stay readable, each with its pseudonym, so an explicit owner selection can be matched at analysis time.",
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
+    "source process_lasso_config: the file was copied with 2 user profile folder names, 1 e-mail shaped tokens and 0 hardware addresses replaced by pseudonyms; result.json holds the SHA-256 of the original bytes",
+    "source process_lasso_log: the file was copied with 1 user profile folder names, 0 e-mail shaped tokens and 0 hardware addresses replaced by pseudonyms; result.json holds the SHA-256 of the original bytes",
+    "source stutter_guard_journal: the file was copied with 1 user profile folder names, 0 e-mail shaped tokens and 0 hardware addresses replaced by pseudonyms; result.json holds the SHA-256 of the original bytes"
+  ]
+}

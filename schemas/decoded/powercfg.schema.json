@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/powercfg.schema.json",
   "title": "powercfg row",
-  "description": "One row per power setting, request, or report reference from powercfg output.",
-  "x-schema-version": "1.0.0",
+  "description": "One row per power scheme, alias, setting, request, or report reference from powercfg output. 1.1.0 adds the scheme and alias kinds, whether a scheme is the active one, whether a setting came from the hidden listing, how the AC and DC lines were classified, the minimum and maximum possible values, and the overlay the scheme GUID matches.",
+  "x-schema-version": "1.1.0",
   "x-decoded-table": "powercfg",
   "type": "object",
   "additionalProperties": false,
@@ -17,6 +17,8 @@
     "kind": {
       "type": "string",
       "enum": [
+        "scheme",
+        "alias",
         "setting",
         "request",
         "report"
@@ -143,10 +145,68 @@
               "const": "powercfg"
             },
             "schema_version": {
-              "const": "1.0.0"
+              "const": "1.1.0"
             }
           }
         }
+      ]
+    },
+    "is_active": {
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "description": "scheme rows: true when the listing marks the scheme active or the row comes from /getactivescheme; null when the listing does not say."
+    },
+    "alias": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The powercfg alias of the scheme, subgroup or setting (SUB_PROCESSOR, PROCTHROTTLEMIN, ...), from the GUID Alias line or the /aliases listing."
+    },
+    "hidden": {
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "description": "setting rows: true when the setting appears in the /qh listing and not in the /query listing; false when it appears in /query; null when /qh was not read."
+    },
+    "classified_by": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "label",
+        "value",
+        null
+      ],
+      "description": "How the AC and DC index lines were told apart: by their English label, or by the shape and order of the two hex lines (AC first, DC second, as powercfg prints them) when the labels are in another language."
+    },
+    "min_value_hex": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "max_value_hex": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "overlay": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "scheme rows: the documented power mode overlay the GUID matches (better_battery, better_performance, best_performance), else null."
+    },
+    "source_id": {
+      "type": [
+        "string",
+        "null"
       ]
     }
   }

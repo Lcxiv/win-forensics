@@ -1,0 +1,11 @@
+{
+  "started_utc": "2026-03-01T12:00:12.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:14.0000000Z",
+  "devices_present": null,
+  "elements": 1,
+  "keys_read": 0,
+  "keys_absent": 0,
+  "key_errors": 1,
+  "truncated": false,
+  "error": "none of the 1 registry keys could be opened; the first error was: Requested registry access is not allowed."
+}

@@ -1,0 +1,23 @@
+{
+  "path": "C:\\ProgramData\\ProcessLasso\\config\\prolasso.ini",
+  "path_candidates": [
+    "C:\\ProgramData\\ProcessLasso\\config\\prolasso.ini"
+  ],
+  "exists": true,
+  "readable": true,
+  "error": null,
+  "source_bytes": 445,
+  "source_sha256": "2f8a67321dbc86b1dd70003169597f40216689fdb2e8252b999c87675ade163d",
+  "last_write_time_utc": "2026-02-28T12:00:00.0000000Z",
+  "mode": "copy",
+  "summarised": false,
+  "copied": true,
+  "source_encoding": "utf-8",
+  "source_byte_order_mark": false,
+  "copy_is_verbatim": false,
+  "protection": {
+    "user_profile_names_replaced": 2,
+    "email_addresses_replaced": 1,
+    "mac_addresses_replaced": 0
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "path": "C:\\ProgramData\\Stutter Guard\\journal.json",
+  "path_candidates": [
+    "C:\\ProgramData\\Stutter Guard\\journal.json"
+  ],
+  "path_documented": false,
+  "max_artifact_bytes": 67108864,
+  "mode": "copy",
+  "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens and hardware addresses replaced by pseudonyms (see protection)",
+  "protection": {
+    "mode": "copy",
+    "user_pseudonym": "user-<first 12 hex of SHA-256(salt, name)>, every folder name after \\Users\\ in a path, except the standard folders Public, Default, Default User and All Users",
+    "mail_pseudonym": "mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token",
+    "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+    "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
+    "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json"
+  }
+}

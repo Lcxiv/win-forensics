@@ -1,0 +1,21 @@
+{
+  "path": "C:\\ProgramData\\ProcessLasso\\logs\\processlasso.log",
+  "path_candidates": [
+    "C:\\ProgramData\\ProcessLasso\\logs\\processlasso.log",
+    "C:\\ProgramData\\ProcessLasso\\logs\\prolasso.log",
+    "C:\\ProgramData\\ProcessLasso\\prolasso.log"
+  ],
+  "exists": true,
+  "readable": false,
+  "error": "Access to the path is denied.",
+  "source_bytes": null,
+  "source_sha256": null,
+  "last_write_time_utc": null,
+  "mode": "copy",
+  "summarised": false,
+  "copied": false,
+  "source_encoding": null,
+  "source_byte_order_mark": null,
+  "copy_is_verbatim": null,
+  "protection": null
+}

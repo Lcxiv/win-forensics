@@ -191,6 +191,43 @@ function Get-WfSyntheticCases {
             }
         })
 
+
+    # The configuration snapshot of an invented gaming PC whose owner pinned
+    # the display adapter's interrupts to one logical processor and runs
+    # Process Lasso and Stutter Guard: every documented key present, both
+    # programs installed with their files, the timer helper running. Status
+    # partial by design: three questions have no documented read only path
+    # and are recorded not_collected with their reasons.
+    $cases.Add(@{
+            Case = 'config-snapshot'; Collector = 'config-snapshot'; ExitCode = 0; Arguments = @{}
+            Setup = {
+                New-WfSyntheticConfigMachine -Variant 'full'
+            }
+        })
+
+    # The same machine without any tuning: no Interrupt Management keys under
+    # any device (absent, not missing), no TDR value set, neither program
+    # installed, no timer helper, a German display language for powercfg and
+    # a /qh that fails. Status partial.
+    $cases.Add(@{
+            Case = 'config-snapshot-clean'; Collector = 'config-snapshot'; ExitCode = 0; Arguments = @{ Snapshot = 'stop' }
+            Setup = {
+                New-WfSyntheticConfigMachine -Variant 'clean'
+            }
+        })
+
+    # An account that may read nothing: every hardware key and the
+    # GraphicsDrivers key refuse, WMI refuses the processor and process
+    # classes, powercfg is not where Windows keeps it, the folders and files
+    # refuse. Every source is a status with a reason and no export; the
+    # collector exits 1.
+    $cases.Add(@{
+            Case = 'config-snapshot-denied'; Collector = 'config-snapshot'; ExitCode = 1; Arguments = @{}
+            Setup = {
+                New-WfSyntheticConfigMachine -Variant 'denied'
+            }
+        })
+
     return $cases.ToArray()
 }
 
@@ -728,4 +765,384 @@ function Get-WfSyntheticNetshText {
         }
     }
     throw ('no synthetic netsh text named ' + $Name)
+}
+
+function New-WfSyntheticConfigMachine {
+    # The invented machine behind the config-snapshot cases. Every value is
+    # made up: device names, masks, versions, file text. Variants:
+    #   full    every key present, both programs installed, helper running
+    #   clean   no tuning keys, nothing installed, German powercfg output
+    #   denied  every read refused
+    param([string]$Variant)
+    $enum = 'HKLM:\SYSTEM\CurrentControlSet\Enum\'
+    $denied = @{ ErrorKind = 'access_denied'; ErrorMessage = 'Requested registry access is not allowed.' }
+    $gpu = 'PCI\VEN_FFFF&DEV_0001\4&1a2b3c4d&0&0008'
+    $nic = 'PCI\VEN_FFF0&DEV_8125\4&3a2b1c0d&0&00E0'
+    $xhci = 'PCI\VEN_FFF0&DEV_A36D\3&11583659&0&A0'
+    $audio = 'HDAUDIO\FUNC_01&VEN_FFFF&DEV_0002&SUBSYS_00000001\5&2f3e4d5c&0&0001'
+    $mouse = 'USB\VID_FFF1&PID_C539\6&1234abcd&0&3'
+    $devices = New-Object 'System.Collections.Generic.List[object]'
+    $devices.Add(@{ instance_id = 'ROOT\ACPI_HAL\0000'; class = 'Computer'; name = 'ACPI x64-based PC'; description = 'ACPI x64-based PC'; manufacturer = '(Standard computers)'; service = $null; status = 'OK'; problem_code = 0; present = $true; hardware_ids = @('acpiapic'); compatible_ids = @() })
+    $devices.Add(@{ instance_id = $gpu; class = 'Display'; name = 'Synthetic Display Adapter'; description = 'Synthetic Display Adapter'; manufacturer = 'Synthetic Graphics'; service = 'syngfx'; status = 'OK'; problem_code = 0; present = $true; hardware_ids = @('PCI\VEN_FFFF&DEV_0001&SUBSYS_0001FFFF&REV_A1'); compatible_ids = @('PCI\CC_030000') })
+    $devices.Add(@{ instance_id = $nic; class = 'Net'; name = 'Synthetic 2.5GbE Controller'; description = 'Synthetic 2.5GbE Controller'; manufacturer = 'Synthetic Networks'; service = 'syneth'; status = 'OK'; problem_code = 0; present = $true; hardware_ids = @('PCI\VEN_FFF0&DEV_8125&SUBSYS_0001FFF0&REV_05'); compatible_ids = @('PCI\CC_020000') })
+    $devices.Add(@{ instance_id = $xhci; class = 'USB'; name = 'Synthetic USB 3.1 eXtensible Host Controller'; description = 'Synthetic USB 3.1 eXtensible Host Controller'; manufacturer = 'Synthetic Chipsets'; service = 'USBXHCI'; status = 'OK'; problem_code = 0; present = $true; hardware_ids = @('PCI\VEN_FFF0&DEV_A36D&SUBSYS_0001FFF0&REV_10'); compatible_ids = @('PCI\CC_0C0330') })
+    $devices.Add(@{ instance_id = $audio; class = 'MEDIA'; name = 'Synthetic High Definition Audio Device'; description = 'Synthetic High Definition Audio Device'; manufacturer = 'Synthetic Audio'; service = 'synaud'; status = $(if ($Variant -eq 'full') { 'Error' } else { 'OK' }); problem_code = $(if ($Variant -eq 'full') { 22 } else { 0 }); present = $true; hardware_ids = @('HDAUDIO\FUNC_01&VEN_FFFF&DEV_0002'); compatible_ids = @() })
+    $devices.Add(@{ instance_id = $mouse; class = 'USB'; name = 'Synthetic Wireless Receiver'; description = 'USB Composite Device'; manufacturer = '(Standard USB Host Controller)'; service = 'usbccgp'; status = 'OK'; problem_code = 0; present = $true; hardware_ids = @('USB\VID_FFF1&PID_C539&REV_0401'); compatible_ids = @('USB\COMPOSITE') })
+    $devices.Add(@{ instance_id = 'SWD\PRINTENUM\{a1b2c3d4-0000-4000-8000-000000000011}'; class = 'PrintQueue'; name = 'Synthetic PDF Printer'; description = 'Synthetic PDF Printer'; manufacturer = 'Synthetic'; service = $null; status = 'OK'; problem_code = 0; present = $true; hardware_ids = @(); compatible_ids = @() })
+    $global:WfSynthetic.Pnp = @{ Devices = $devices.ToArray() }
+
+    $registry = @{}
+    $graphics = 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers'
+    if ($Variant -eq 'denied') {
+        foreach ($instance in @($gpu, $nic, $xhci, $audio, $mouse)) { $registry[$enum + $instance + '\Device Parameters'] = $denied }
+        $registry[$graphics] = $denied
+    } else {
+        # Device Parameters exists for every device; what sits under it depends on the variant.
+        foreach ($instance in @($gpu, $nic, $xhci, $audio, $mouse)) { $registry[$enum + $instance + '\Device Parameters'] = @{ Values = @(); SubKeys = @() } }
+        $registry[$graphics] = @{ Values = @(@{ Name = 'HwSchMode'; Kind = 'DWord'; Data = 2 }); SubKeys = @('Configuration', 'Connectivity') }
+        if ($Variant -eq 'full') {
+            $registry[$enum + $gpu + '\Device Parameters'] = @{ Values = @(); SubKeys = @('Interrupt Management') }
+            $registry[$enum + $gpu + '\Device Parameters\Interrupt Management'] = @{ Values = @(); SubKeys = @('Affinity Policy', 'MessageSignaledInterruptProperties') }
+            # The display adapter pinned to one logical processor (bit 5 of group 0), the mask as REG_BINARY, little endian; a priority
+            # value whose registry name Microsoft does not document is present and recorded as it is.
+            $registry[$enum + $gpu + '\Device Parameters\Interrupt Management\Affinity Policy'] = @{ Values = @(
+                    @{ Name = 'DevicePolicy'; Kind = 'DWord'; Data = 4 },
+                    @{ Name = 'AssignmentSetOverride'; Kind = 'Binary'; Data = [byte[]](0x20, 0, 0, 0, 0, 0, 0, 0) },
+                    @{ Name = 'DevicePriority'; Kind = 'DWord'; Data = 3 }
+                ); SubKeys = @() }
+            $registry[$enum + $gpu + '\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties'] = @{ Values = @(
+                    @{ Name = 'MSISupported'; Kind = 'DWord'; Data = 1 },
+                    @{ Name = 'MessageNumberLimit'; Kind = 'DWord'; Data = 16 }
+                ); SubKeys = @() }
+            # The network adapter spread over four logical processors, the mask as REG_DWORD.
+            $registry[$enum + $nic + '\Device Parameters'] = @{ Values = @(); SubKeys = @('Interrupt Management') }
+            $registry[$enum + $nic + '\Device Parameters\Interrupt Management'] = @{ Values = @(); SubKeys = @('Affinity Policy', 'MessageSignaledInterruptProperties') }
+            $registry[$enum + $nic + '\Device Parameters\Interrupt Management\Affinity Policy'] = @{ Values = @(
+                    @{ Name = 'DevicePolicy'; Kind = 'DWord'; Data = 4 },
+                    @{ Name = 'AssignmentSetOverride'; Kind = 'DWord'; Data = 0x0F00 }
+                ); SubKeys = @() }
+            $registry[$enum + $nic + '\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties'] = @{ Values = @(
+                    @{ Name = 'MSISupported'; Kind = 'DWord'; Data = 1 },
+                    @{ Name = 'MessageNumberLimit'; Kind = 'DWord'; Data = 32 }
+                ); SubKeys = @() }
+            # The USB host controller on one processor, the mask as REG_QWORD, and no MSI key.
+            $registry[$enum + $xhci + '\Device Parameters'] = @{ Values = @(); SubKeys = @('Interrupt Management') }
+            $registry[$enum + $xhci + '\Device Parameters\Interrupt Management'] = @{ Values = @(); SubKeys = @('Affinity Policy') }
+            $registry[$enum + $xhci + '\Device Parameters\Interrupt Management\Affinity Policy'] = @{ Values = @(
+                    @{ Name = 'DevicePolicy'; Kind = 'DWord'; Data = 4 },
+                    @{ Name = 'AssignmentSetOverride'; Kind = 'QWord'; Data = [int64]4 }
+                ); SubKeys = @() }
+            # The audio device, disabled in Device Manager, with MSI switched off and no affinity policy.
+            $registry[$enum + $audio + '\Device Parameters'] = @{ Values = @(); SubKeys = @('Interrupt Management') }
+            $registry[$enum + $audio + '\Device Parameters\Interrupt Management'] = @{ Values = @(); SubKeys = @('MessageSignaledInterruptProperties') }
+            $registry[$enum + $audio + '\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties'] = @{ Values = @(
+                    @{ Name = 'MSISupported'; Kind = 'DWord'; Data = 0 }
+                ); SubKeys = @() }
+            $registry[$graphics] = @{ Values = @(
+                    @{ Name = 'HwSchMode'; Kind = 'DWord'; Data = 2 },
+                    @{ Name = 'TdrLevel'; Kind = 'DWord'; Data = 3 },
+                    @{ Name = 'TdrDelay'; Kind = 'DWord'; Data = 10 }
+                ); SubKeys = @('Configuration', 'Connectivity') }
+        }
+    }
+    $global:WfSynthetic.Registry = $registry
+
+    # CPU topology as Win32_Processor and Win32_CacheMemory report it: one
+    # socket, six cores, twelve logical processors, three cache levels.
+    if ($Variant -eq 'denied') {
+        $global:WfSynthetic.Cim['Win32_Processor'] = @{ ErrorKind = 'access_denied'; ErrorMessage = 'Access denied' }
+        $global:WfSynthetic.Cim['Win32_CacheMemory'] = @{ ErrorKind = 'access_denied'; ErrorMessage = 'Access denied' }
+        $global:WfSynthetic.Cim['Win32_Process'] = @{ ErrorKind = 'access_denied'; ErrorMessage = 'Access denied' }
+    } else {
+        $global:WfSynthetic.Cim['Win32_Processor'] = @{ Rows = @(
+                [ordered]@{ DeviceID = 'CPU0'; Name = 'Synthetic CPU 6-Core Processor'; Manufacturer = 'SyntheticSilicon'; Description = 'Synthetic Family 1 Model 2 Stepping 3'; SocketDesignation = 'AM0'; NumberOfCores = 6; NumberOfEnabledCore = 6; NumberOfLogicalProcessors = 12; ThreadCount = 12; L2CacheSize = 6144; L3CacheSize = 32768; MaxClockSpeed = 4700; CurrentClockSpeed = 4700; Architecture = 9; Family = 107; Level = 25; Revision = 8448; Stepping = '2'; ProcessorId = '0000000000000000'; VirtualizationFirmwareEnabled = $true; SecondLevelAddressTranslationExtensions = $true; Status = 'OK'; CpuStatus = 1; Availability = 3 }
+            )
+        }
+        $global:WfSynthetic.Cim['Win32_CacheMemory'] = @{ Rows = @(
+                [ordered]@{ DeviceID = 'Cache Memory 0'; Purpose = 'L1 Cache'; Level = 3; CacheType = 5; Associativity = 7; InstalledSize = 384; MaxCacheSize = 384; BlockSize = 64; NumberOfBlocks = 6144; LineSize = 64; CacheSpeed = $null; Location = 0; Status = 'OK'; ErrorCorrectType = 5; WritePolicy = 3 },
+                [ordered]@{ DeviceID = 'Cache Memory 1'; Purpose = 'L2 Cache'; Level = 4; CacheType = 5; Associativity = 7; InstalledSize = 6144; MaxCacheSize = 6144; BlockSize = 64; NumberOfBlocks = 98304; LineSize = 64; CacheSpeed = $null; Location = 0; Status = 'OK'; ErrorCorrectType = 5; WritePolicy = 3 },
+                [ordered]@{ DeviceID = 'Cache Memory 2'; Purpose = 'L3 Cache'; Level = 5; CacheType = 5; Associativity = 8; InstalledSize = 32768; MaxCacheSize = 32768; BlockSize = 64; NumberOfBlocks = 524288; LineSize = 64; CacheSpeed = $null; Location = 0; Status = 'OK'; ErrorCorrectType = 5; WritePolicy = 3 }
+            )
+        }
+        $created = ConvertTo-WfUtcString -Value $global:WfSynthetic.Now.AddHours(-3)
+        $processes = New-Object 'System.Collections.Generic.List[object]'
+        $processes.Add([ordered]@{ Name = 'System'; ProcessId = 4; ParentProcessId = 0; SessionId = 0; CreationDate = $created; Priority = 8; ThreadCount = 240; HandleCount = 4100; WorkingSetSize = 122880; PageFaults = 1200; KernelModeTime = 912500000; UserModeTime = 0; CommandLine = $null; ExecutablePath = $null })
+        $processes.Add([ordered]@{ Name = 'explorer.exe'; ProcessId = 4120; ParentProcessId = 4000; SessionId = 1; CreationDate = $created; Priority = 8; ThreadCount = 70; HandleCount = 2900; WorkingSetSize = 180355072; PageFaults = 540000; KernelModeTime = 150000000; UserModeTime = 310000000; CommandLine = 'C:\Windows\Explorer.EXE'; ExecutablePath = 'C:\Windows\Explorer.EXE' })
+        $processes.Add([ordered]@{ Name = 'dwm.exe'; ProcessId = 1500; ParentProcessId = 1420; SessionId = 1; CreationDate = $created; Priority = 13; ThreadCount = 20; HandleCount = 1200; WorkingSetSize = 90112000; PageFaults = 220000; KernelModeTime = 400000000; UserModeTime = 900000000; CommandLine = $null; ExecutablePath = $null })
+        if ($Variant -eq 'full') {
+            $processes.Add([ordered]@{ Name = 'ProcessLasso.exe'; ProcessId = 6100; ParentProcessId = 4120; SessionId = 1; CreationDate = $created; Priority = 8; ThreadCount = 14; HandleCount = 600; WorkingSetSize = 40960000; PageFaults = 30000; KernelModeTime = 12000000; UserModeTime = 48000000; CommandLine = '"C:\Program Files\Process Lasso\ProcessLasso.exe" /tray'; ExecutablePath = 'C:\Program Files\Process Lasso\ProcessLasso.exe' })
+            $processes.Add([ordered]@{ Name = 'ProcessGovernor.exe'; ProcessId = 6140; ParentProcessId = 6100; SessionId = 1; CreationDate = $created; Priority = 13; ThreadCount = 9; HandleCount = 450; WorkingSetSize = 20480000; PageFaults = 12000; KernelModeTime = 30000000; UserModeTime = 25000000; CommandLine = '"C:\Program Files\Process Lasso\ProcessGovernor.exe"'; ExecutablePath = 'C:\Program Files\Process Lasso\ProcessGovernor.exe' })
+            $processes.Add([ordered]@{ Name = 'bitsumsessionagent.exe'; ProcessId = 6180; ParentProcessId = 1100; SessionId = 1; CreationDate = $created; Priority = 8; ThreadCount = 3; HandleCount = 120; WorkingSetSize = 8192000; PageFaults = 3000; KernelModeTime = 1000000; UserModeTime = 500000; CommandLine = $null; ExecutablePath = $null })
+            $processes.Add([ordered]@{ Name = 'DpcTimerRes.exe'; ProcessId = 7000; ParentProcessId = 1100; SessionId = 0; CreationDate = $created; Priority = 8; ThreadCount = 2; HandleCount = 60; WorkingSetSize = 4096000; PageFaults = 900; KernelModeTime = 500000; UserModeTime = 200000; CommandLine = '"C:\Program Files\Stutter Guard\DpcTimerRes.exe" 10000'; ExecutablePath = 'C:\Program Files\Stutter Guard\DpcTimerRes.exe' })
+        }
+        $global:WfSynthetic.Cim['Win32_Process'] = @{ Rows = $processes.ToArray() }
+    }
+
+    # powercfg listings, English in the full variant and an invented German
+    # translation in the clean one; /qh fails there, as a tool that refuses
+    # the hidden listing would.
+    if ($Variant -eq 'denied') {
+        $global:WfSynthetic.PowercfgPresent = $false
+    } else {
+        $language = $(if ($Variant -eq 'full') { 'en' } else { 'de' })
+        $global:WfSynthetic.Commands['/getactivescheme'] = @{ ExitCode = 0; StdOut = (Get-WfSyntheticPowercfgText -Name ('getactivescheme-' + $language)); StdErr = '' }
+        $global:WfSynthetic.Commands['/list'] = @{ ExitCode = 0; StdOut = (Get-WfSyntheticPowercfgText -Name ('list-' + $language)); StdErr = '' }
+        $global:WfSynthetic.Commands['/aliases'] = @{ ExitCode = 0; StdOut = (Get-WfSyntheticPowercfgText -Name 'aliases'); StdErr = '' }
+        $global:WfSynthetic.Commands['/query'] = @{ ExitCode = 0; StdOut = (Get-WfSyntheticPowercfgText -Name ('query-' + $language)); StdErr = '' }
+        if ($Variant -eq 'full') {
+            $global:WfSynthetic.Commands['/qh'] = @{ ExitCode = 0; StdOut = (Get-WfSyntheticPowercfgText -Name 'qh-en'); StdErr = '' }
+        } else {
+            $global:WfSynthetic.Commands['/qh'] = @{ ExitCode = 1; StdOut = ''; StdErr = "Invalid Parameters -- try `"/?`" for help`r`n" }
+        }
+    }
+
+    # The install folders and the owner's files. The INI and the log carry a
+    # user profile path and an e-mail shaped token on purpose, so the tests
+    # can show that neither reaches the bundle in clear.
+    $global:WfSynthetic.Directories = @{}
+    $global:WfSynthetic.Files = @{}
+    if ($Variant -eq 'full') {
+        $written = ConvertTo-WfUtcString -Value $global:WfSynthetic.Now.AddDays(-20)
+        $global:WfSynthetic.Directories['C:\Program Files\Process Lasso'] = @{ Files = @(
+                @{ name = 'bitsumsessionagent.exe'; bytes = 210944; last_write_time_utc = $written; sha256 = ('a1' * 32); file_version = '19.0.0.94'; product_version = '19.0.0.94'; product_name = 'Process Lasso'; company_name = 'Bitsum LLC'; original_filename = 'bitsumsessionagent.exe' },
+                @{ name = 'IRQControl.exe'; bytes = 1048576; last_write_time_utc = $written; sha256 = ('a2' * 32); file_version = '1.0.0.26'; product_version = '1.0.0.26'; product_name = 'IRQControl'; company_name = 'Bitsum LLC'; original_filename = 'IRQControl.exe' },
+                @{ name = 'LatencyTest.exe'; bytes = 1572864; last_write_time_utc = $written; sha256 = ('a3' * 32); file_version = '1.0.0.26'; product_version = '1.0.0.26'; product_name = 'LatencyTest'; company_name = 'Bitsum LLC'; original_filename = 'LatencyTest.exe' },
+                @{ name = 'ProcessGovernor.exe'; bytes = 3145728; last_write_time_utc = $written; sha256 = ('a4' * 32); file_version = '19.0.0.94'; product_version = '19.0.0.94'; product_name = 'Process Lasso'; company_name = 'Bitsum LLC'; original_filename = 'ProcessGovernor.exe' },
+                @{ name = 'ProcessLasso.exe'; bytes = 7340032; last_write_time_utc = $written; sha256 = ('a5' * 32); file_version = '19.0.0.94'; product_version = '19.0.0.94'; product_name = 'Process Lasso'; company_name = 'Bitsum LLC'; original_filename = 'ProcessLasso.exe' },
+                @{ name = 'prolasso.chm'; bytes = 524288; last_write_time_utc = $written; sha256 = ('a6' * 32) }
+            )
+        }
+        $global:WfSynthetic.Directories['C:\Program Files\Stutter Guard'] = @{ Files = @(
+                @{ name = 'DpcTimerRes.exe'; bytes = 143360; last_write_time_utc = $written; sha256 = ('b1' * 32); file_version = '1.3.0.0'; product_version = '1.3.0'; product_name = 'Stutter Guard'; company_name = $null; original_filename = 'DpcTimerRes.exe' },
+                @{ name = 'StutterGuard.exe'; bytes = 70254592; last_write_time_utc = $written; sha256 = ('b2' * 32); file_version = '1.3.0.0'; product_version = '1.3.0'; product_name = 'Stutter Guard'; company_name = $null; original_filename = 'StutterGuard.exe' }
+            )
+        }
+        $nl = "`r`n"
+        $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\config\prolasso.ini'] = @{ Text = (@(
+                    '[Administration]',
+                    'LogPath=C:\ProgramData\ProcessLasso\logs',
+                    'ConfigPath=C:\ProgramData\ProcessLasso\config',
+                    '[OutOfControlProcessRestraint]',
+                    'Enabled=true',
+                    'RestraintPriority=belownormal',
+                    'ExcludedProcesses=C:\Users\Synthetic Owner\Games\launcher.exe',
+                    '[GUI]',
+                    'ShowGraphLicenseName=false',
+                    'SupportContact=owner@example.test',
+                    '[GPUAdapters]',
+                    'Preferences=C:\Users\Synthetic Owner\Games\game.exe,1',
+                    '[PowerManagement]',
+                    'TargetPowerPlan=Synthetic Low Latency',
+                    ''
+                ) -join $nl)
+        }
+        $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\logs\processlasso.log'] = @{ Text = (@(
+                    '"Date","Time","Action","Process","PID","Details"',
+                    '"2026-02-09","19:02:11","ProBalance","example.exe","8120","Priority lowered to Below Normal"',
+                    '"2026-02-09","19:02:41","ProBalance","example.exe","8120","Priority restored to Normal"',
+                    '"2026-02-10","08:14:02","Rule","C:\Users\Synthetic Owner\Games\game.exe","9344","GPU adapter preference set"',
+                    ''
+                ) -join $nl)
+        }
+        $global:WfSynthetic.Files['C:\ProgramData\Stutter Guard\journal.json'] = @{ Text = (@(
+                    '{',
+                    '  "version": 3,',
+                    '  "records": [',
+                    ('    { "tweak": "interrupts", "kind": "registry", "target": "HKLM\\SYSTEM\\CurrentControlSet\\Enum\\' + $gpu.Replace('\', '\\') + '\\Device Parameters\\Interrupt Management\\Affinity Policy\\DevicePolicy", "old": null, "new": 4, "at": "2026-02-01T10:00:00Z" },'),
+                    '    { "tweak": "boot-tasks", "kind": "task", "target": "Timer resolution", "old": null, "new": "enabled", "at": "2026-02-01T10:00:05Z" }',
+                    '  ],',
+                    '  "options": { "profile": "Full", "applyOnBattery": false, "exportedBy": "C:\\Users\\Synthetic Owner\\Desktop" }',
+                    '}',
+                    ''
+                ) -join "`n")
+        }
+    } elseif ($Variant -eq 'denied') {
+        $global:WfSynthetic.Directories['C:\Program Files\Process Lasso'] = @{ ErrorKind = 'access_denied'; ErrorMessage = 'Access to the path is denied.' }
+        $global:WfSynthetic.Directories['C:\Program Files\Stutter Guard'] = @{ ErrorKind = 'access_denied'; ErrorMessage = 'Access to the path is denied.' }
+        foreach ($path in @('C:\ProgramData\ProcessLasso\config\prolasso.ini', 'C:\ProgramData\ProcessLasso\logs\processlasso.log', 'C:\ProgramData\Stutter Guard\journal.json')) {
+            $global:WfSynthetic.Files[$path] = @{ ErrorKind = 'access_denied'; ErrorMessage = 'Access to the path is denied.' }
+        }
+    }
+}
+
+function Get-WfSyntheticPowercfgText {
+    # Invented powercfg listings. The English layout follows what the tool
+    # prints (a GUID per scheme, subgroup, setting and alias line, the
+    # possible settings and the current AC and DC indices as hex); the German
+    # one is an invented translation with the same GUIDs and hex values, so a
+    # decoder that relies on structure reads the same numbers from both.
+    param([string]$Name)
+    $nl = "`r`n"
+    $scheme = '11111111-2222-4333-8444-555555555555'
+    switch ($Name) {
+        'getactivescheme-en' { return ('Power Scheme GUID: ' + $scheme + '  (Synthetic Low Latency)' + $nl) }
+        'getactivescheme-de' { return ('GUID des Energieschemas: 381b4222-f694-41f0-9685-ff5bb260df2e  (Ausbalanciert)' + $nl) }
+        'list-en' {
+            return (@(
+                    '',
+                    'Existing Power Schemes (* Active)',
+                    '-----------------------------------',
+                    'Power Scheme GUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (Balanced)',
+                    'Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (High performance)',
+                    'Power Scheme GUID: a1841308-3541-4fab-bc81-f71556f20b4a  (Power saver)',
+                    ('Power Scheme GUID: ' + $scheme + '  (Synthetic Low Latency) *'),
+                    ''
+                ) -join $nl)
+        }
+        'list-de' {
+            return (@(
+                    '',
+                    'Vorhandene Energieschemas (* Aktiv)',
+                    '-----------------------------------',
+                    'GUID des Energieschemas: 381b4222-f694-41f0-9685-ff5bb260df2e  (Ausbalanciert) *',
+                    'GUID des Energieschemas: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (Hoechstleistung)',
+                    'GUID des Energieschemas: a1841308-3541-4fab-bc81-f71556f20b4a  (Energiesparmodus)',
+                    ''
+                ) -join $nl)
+        }
+        'aliases' {
+            return (@(
+                    'a1841308-3541-4fab-bc81-f71556f20b4a  SCHEME_MAX',
+                    '8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  SCHEME_MIN',
+                    '381b4222-f694-41f0-9685-ff5bb260df2e  SCHEME_BALANCED',
+                    '54533251-82be-4824-96c1-47b60b740d00  SUB_PROCESSOR',
+                    '  893dee8e-2bef-41e0-89c6-b55d0929964c  PROCTHROTTLEMIN',
+                    '  bc5038f7-23e0-4960-96da-33abaf5935ec  PROCTHROTTLEMAX',
+                    '  0cc5b647-c1df-4637-891a-dec35c318583  CPMINCORES',
+                    '  ea062031-0e34-4ff1-9b6d-eb1059334028  CPMAXCORES',
+                    '  5d76a2ca-e8c0-402f-a133-2158492d58ad  IDLEDISABLE',
+                    '  be337238-0d82-4146-a960-4f3749d470c7  PERFBOOSTMODE',
+                    '  45bcc044-d885-43e2-8605-ee0ec6e96b59  PERFBOOSTPOL',
+                    '  36687f9e-e3a5-4dbf-b1dc-15eb381c6863  PERFEPP',
+                    '7516b95f-f776-4464-8c53-06167f40cc99  SUB_VIDEO',
+                    '  3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e  VIDEOIDLE',
+                    ''
+                ) -join $nl)
+        }
+        'query-en' {
+            return (@(
+                    ('Power Scheme GUID: ' + $scheme + '  (Synthetic Low Latency)'),
+                    '  Subgroup GUID: 54533251-82be-4824-96c1-47b60b740d00  (Processor power management)',
+                    '    GUID Alias: SUB_PROCESSOR',
+                    '    Power Setting GUID: 893dee8e-2bef-41e0-89c6-b55d0929964c  (Minimum processor state)',
+                    '      GUID Alias: PROCTHROTTLEMIN',
+                    '      Minimum Possible Setting: 0x00000000',
+                    '      Maximum Possible Setting: 0x00000064',
+                    '      Possible Settings increment: 0x00000001',
+                    '      Possible Settings units: %',
+                    '    Current AC Power Setting Index: 0x00000064',
+                    '    Current DC Power Setting Index: 0x00000005',
+                    '',
+                    '    Power Setting GUID: bc5038f7-23e0-4960-96da-33abaf5935ec  (Maximum processor state)',
+                    '      GUID Alias: PROCTHROTTLEMAX',
+                    '      Minimum Possible Setting: 0x00000000',
+                    '      Maximum Possible Setting: 0x00000064',
+                    '      Possible Settings increment: 0x00000001',
+                    '      Possible Settings units: %',
+                    '    Current AC Power Setting Index: 0x00000064',
+                    '    Current DC Power Setting Index: 0x00000064',
+                    '',
+                    '    Power Setting GUID: be337238-0d82-4146-a960-4f3749d470c7  (Processor performance boost mode)',
+                    '      GUID Alias: PERFBOOSTMODE',
+                    '      Possible Setting Index: 000',
+                    '      Possible Setting Friendly Name: Disabled',
+                    '      Possible Setting Index: 001',
+                    '      Possible Setting Friendly Name: Enabled',
+                    '      Possible Setting Index: 002',
+                    '      Possible Setting Friendly Name: Aggressive',
+                    '    Current AC Power Setting Index: 0x00000002',
+                    '    Current DC Power Setting Index: 0x00000001',
+                    '',
+                    '  Subgroup GUID: 7516b95f-f776-4464-8c53-06167f40cc99  (Display)',
+                    '    GUID Alias: SUB_VIDEO',
+                    '    Power Setting GUID: 3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e  (Turn off display after)',
+                    '      GUID Alias: VIDEOIDLE',
+                    '      Minimum Possible Setting: 0x00000000',
+                    '      Maximum Possible Setting: 0xffffffff',
+                    '      Possible Settings increment: 0x00000001',
+                    '      Possible Settings units: Seconds',
+                    '    Current AC Power Setting Index: 0x00000000',
+                    '    Current DC Power Setting Index: 0x0000012c',
+                    ''
+                ) -join $nl)
+        }
+        'qh-en' {
+            return (@(
+                    ('Power Scheme GUID: ' + $scheme + '  (Synthetic Low Latency)'),
+                    '  Subgroup GUID: 54533251-82be-4824-96c1-47b60b740d00  (Processor power management)',
+                    '    GUID Alias: SUB_PROCESSOR',
+                    '    Power Setting GUID: 0cc5b647-c1df-4637-891a-dec35c318583  (Processor performance core parking min cores)',
+                    '      GUID Alias: CPMINCORES',
+                    '      Minimum Possible Setting: 0x00000000',
+                    '      Maximum Possible Setting: 0x00000064',
+                    '      Possible Settings increment: 0x00000001',
+                    '      Possible Settings units: %',
+                    '    Current AC Power Setting Index: 0x00000064',
+                    '    Current DC Power Setting Index: 0x00000064',
+                    '',
+                    '    Power Setting GUID: ea062031-0e34-4ff1-9b6d-eb1059334028  (Processor performance core parking max cores)',
+                    '      GUID Alias: CPMAXCORES',
+                    '      Minimum Possible Setting: 0x00000000',
+                    '      Maximum Possible Setting: 0x00000064',
+                    '      Possible Settings increment: 0x00000001',
+                    '      Possible Settings units: %',
+                    '    Current AC Power Setting Index: 0x00000064',
+                    '    Current DC Power Setting Index: 0x00000064',
+                    '',
+                    '    Power Setting GUID: 5d76a2ca-e8c0-402f-a133-2158492d58ad  (Processor idle disable)',
+                    '      GUID Alias: IDLEDISABLE',
+                    '      Possible Setting Index: 000',
+                    '      Possible Setting Friendly Name: Enable idle',
+                    '      Possible Setting Index: 001',
+                    '      Possible Setting Friendly Name: Disable idle',
+                    '    Current AC Power Setting Index: 0x00000001',
+                    '    Current DC Power Setting Index: 0x00000000',
+                    '',
+                    '    Power Setting GUID: 893dee8e-2bef-41e0-89c6-b55d0929964c  (Minimum processor state)',
+                    '      GUID Alias: PROCTHROTTLEMIN',
+                    '      Minimum Possible Setting: 0x00000000',
+                    '      Maximum Possible Setting: 0x00000064',
+                    '      Possible Settings increment: 0x00000001',
+                    '      Possible Settings units: %',
+                    '    Current AC Power Setting Index: 0x00000064',
+                    '    Current DC Power Setting Index: 0x00000005',
+                    '',
+                    '    Power Setting GUID: 36687f9e-e3a5-4dbf-b1dc-15eb381c6863  (Processor energy performance preference policy)',
+                    '      GUID Alias: PERFEPP',
+                    '      Minimum Possible Setting: 0x00000000',
+                    '      Maximum Possible Setting: 0x00000064',
+                    '      Possible Settings increment: 0x00000001',
+                    '      Possible Settings units: %',
+                    '    Current AC Power Setting Index: 0x00000000',
+                    '    Current DC Power Setting Index: 0x00000032',
+                    ''
+                ) -join $nl)
+        }
+        'query-de' {
+            return (@(
+                    'GUID des Energieschemas: 381b4222-f694-41f0-9685-ff5bb260df2e  (Ausbalanciert)',
+                    '  GUID der Untergruppe: 54533251-82be-4824-96c1-47b60b740d00  (Prozessorenergieverwaltung)',
+                    '    GUID-Alias: SUB_PROCESSOR',
+                    '    GUID der Energieeinstellung: 893dee8e-2bef-41e0-89c6-b55d0929964c  (Minimaler Leistungszustand des Prozessors)',
+                    '      GUID-Alias: PROCTHROTTLEMIN',
+                    '      Minimale moegliche Einstellung: 0x00000000',
+                    '      Maximale moegliche Einstellung: 0x00000064',
+                    '      Schrittweite der moeglichen Einstellungen: 0x00000001',
+                    '      Einheiten der moeglichen Einstellungen: %',
+                    '    Aktueller Index der Netzbetriebseinstellung: 0x00000005',
+                    '    Aktueller Index der Akkubetriebseinstellung: 0x00000005',
+                    '',
+                    '    GUID der Energieeinstellung: be337238-0d82-4146-a960-4f3749d470c7  (Modus zur Leistungssteigerung des Prozessors)',
+                    '      GUID-Alias: PERFBOOSTMODE',
+                    '      Index der moeglichen Einstellung: 000',
+                    '      Anzeigename der moeglichen Einstellung: Deaktiviert',
+                    '      Index der moeglichen Einstellung: 001',
+                    '      Anzeigename der moeglichen Einstellung: Aktiviert',
+                    '    Aktueller Index der Netzbetriebseinstellung: 0x00000001',
+                    '    Aktueller Index der Akkubetriebseinstellung: 0x00000001',
+                    ''
+                ) -join $nl)
+        }
+    }
+    throw ('no synthetic powercfg text named ' + $Name)
 }

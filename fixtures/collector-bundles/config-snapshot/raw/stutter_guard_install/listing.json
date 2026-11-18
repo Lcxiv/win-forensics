@@ -1,0 +1,33 @@
+{
+  "path": "C:\\Program Files\\Stutter Guard",
+  "exists": true,
+  "listed_at_utc": "2026-03-01T12:01:37.0000000Z",
+  "file_count": 2,
+  "truncated": false,
+  "files": [
+    {
+      "name": "DpcTimerRes.exe",
+      "bytes": 143360,
+      "last_write_time_utc": "2026-02-09T12:00:00.0000000Z",
+      "sha256": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+      "file_version": "1.3.0.0",
+      "product_version": "1.3.0",
+      "product_name": "Stutter Guard",
+      "company_name": null,
+      "original_filename": "DpcTimerRes.exe",
+      "error": null
+    },
+    {
+      "name": "StutterGuard.exe",
+      "bytes": 70254592,
+      "last_write_time_utc": "2026-02-09T12:00:00.0000000Z",
+      "sha256": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+      "file_version": "1.3.0.0",
+      "product_version": "1.3.0",
+      "product_name": "Stutter Guard",
+      "company_name": null,
+      "original_filename": "StutterGuard.exe",
+      "error": null
+    }
+  ]
+}

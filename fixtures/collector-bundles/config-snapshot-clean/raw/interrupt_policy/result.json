@@ -1,0 +1,11 @@
+{
+  "started_utc": "2026-03-01T12:00:02.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:10.0000000Z",
+  "devices_present": 7,
+  "elements": 5,
+  "keys_read": 0,
+  "keys_absent": 10,
+  "key_errors": 0,
+  "truncated": false,
+  "error": null
+}

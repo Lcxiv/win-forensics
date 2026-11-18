@@ -1,0 +1,4 @@
+"Date","Time","Action","Process","PID","Details"
+"2026-02-09","19:02:11","ProBalance","example.exe","8120","Priority lowered to Below Normal"
+"2026-02-09","19:02:41","ProBalance","example.exe","8120","Priority restored to Normal"
+"2026-02-10","08:14:02","Rule","C:\Users\user-ad8e0223c1a7\Games\game.exe","9344","GPU adapter preference set"
