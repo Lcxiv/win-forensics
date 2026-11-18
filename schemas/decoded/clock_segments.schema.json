@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/clock_segments.schema.json",
   "title": "clock_segments: the piecewise affine model between consecutive calibration pairs",
-  "description": "One row per pair of consecutive calibration pairs, fitted the way docs/contracts/timestamps.md section 4.3 describes for system_time sources: rate from the two pairs, the error bound from their half widths plus the system clock's increment, and the clock step flag when the rate is more than 1000 ppm off nominal. The bound here is the calibration's own; a source adds its own resolution. See docs/contracts/decoded-tables.md section 5.18.",
+  "description": "One row per pair of consecutive calibration pairs, fitted the way docs/contracts/timestamps.md section 4.3 describes for system_time sources: rate from the two pairs, the error bound from their half widths plus the system clock's increment term for pairs not taken at a clock edge, and the clock step flag when the rate is more than 1000 ppm off nominal, with the bound then the larger of the file time span and the elapsed counter span. The bound here is the calibration's own; a source adds its own resolution. See docs/contracts/decoded-tables.md section 5.18.",
   "x-schema-version": "1.0.0",
   "x-decoded-table": "clock_segments",
   "type": "object",
@@ -19,6 +19,7 @@
     "filetime_to_100ns",
     "span_100ns",
     "qpc_span_ticks",
+    "qpc_span_100ns",
     "qpc_frequency_hz",
     "epoch_qpc",
     "epoch_source",
@@ -27,6 +28,9 @@
     "rate_deviation_ppm",
     "quantisation_limit_ppm",
     "clock_step",
+    "step_kind",
+    "ambiguous_from_100ns",
+    "ambiguous_to_100ns",
     "anchor_filetime_100ns",
     "anchor_master_100ns",
     "rate",
@@ -91,13 +95,18 @@
       "type": "integer",
       "description": "qpc_to - qpc_from."
     },
+    "qpc_span_100ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "qpc_span_ticks * 10^7 / qpc_frequency_hz, rounded up: the segment's length on the master clock."
+    },
     "qpc_frequency_hz": {
       "type": "integer",
       "minimum": 1
     },
     "epoch_qpc": {
       "type": "integer",
-      "description": "The master epoch: the counter value master time counts from (timestamps.md section 4.1)."
+      "description": "The master epoch: the counter value master time counts from (timestamps.md section 4.1, the first pair's qpc_before when no trace header gives one)."
     },
     "epoch_source": {
       "type": "string",
@@ -119,15 +128,35 @@
       "description": "|rate / nominal - 1| in parts per million."
     },
     "quantisation_limit_ppm": {
-      "type": [
-        "number",
-        "null"
-      ],
-      "description": "2 * system_time_increment_100ns / span_100ns in parts per million: the deviation the system clock's own increment can produce on its own over this segment. When it is above 1000 the clock step rule cannot tell a step from quantisation; null when the increment was not measured."
+      "type": "number",
+      "description": "2 * system_time_increment_100ns / span_100ns in parts per million: the deviation the increment term alone can produce over this segment (zero when both pairs were taken at a clock edge). Above 1000 the clock step rule cannot tell a step from quantisation."
     },
     "clock_step": {
       "type": "boolean",
-      "description": "True when rate_deviation_ppm exceeds 1000; the bound is then the whole span (timestamps.md section 4.3)."
+      "description": "True when rate_deviation_ppm exceeds 1000; the bound is then the larger of span_100ns and qpc_span_100ns plus the ordinary terms (timestamps.md section 4.3)."
+    },
+    "step_kind": {
+      "type": "string",
+      "enum": [
+        "none",
+        "forward",
+        "backward"
+      ],
+      "description": "For a clock step: forward when the system clock gained time against the counter (span_100ns > qpc_span_100ns), backward when it lost time (the clock went back or stood still), none otherwise."
+    },
+    "ambiguous_from_100ns": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "description": "For a backward step: the first file time the system clock may have shown twice, filetime_from_100ns - (qpc_span_100ns - span_100ns). A stamp in [ambiguous_from_100ns, ambiguous_to_100ns] that falls into another segment is unaligned; inside this segment it carries this segment's wide bound. Null otherwise."
+    },
+    "ambiguous_to_100ns": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "description": "For a backward step: filetime_from_100ns + qpc_span_100ns, the last file time the clock may have shown twice. Null otherwise."
     },
     "anchor_filetime_100ns": {
       "type": "integer",
@@ -153,8 +182,8 @@
     },
     "system_time_increment_100ns": {
       "type": "integer",
-      "minimum": 1,
-      "description": "The increment added to the bound: the collector's measurement, or 156250 (15.625 ms, the coarse Windows timer) when it was not measured."
+      "minimum": 0,
+      "description": "The increment term added to the bound: zero when both pairs were taken at a clock edge; otherwise the largest clock step the collector observed in the session, or 156250 (the 15.625 ms period of the 64 Hz PC real time clock in Microsoft's clock table) when it observed none."
     },
     "residual_max_100ns": {
       "type": "integer",
@@ -164,7 +193,7 @@
     "error_bound_100ns": {
       "type": "integer",
       "minimum": 0,
-      "description": "half_width_max_100ns + system_time_increment_100ns + residual_max_100ns, or span_100ns when clock_step is true. A source adds its own resolution to get e_S."
+      "description": "half_width_max_100ns + system_time_increment_100ns + residual_max_100ns, plus max(span_100ns, qpc_span_100ns) when clock_step is true. A source adds its own resolution to get e_S."
     },
     "provenance": {
       "allOf": [

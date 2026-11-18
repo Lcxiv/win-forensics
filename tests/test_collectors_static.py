@@ -67,7 +67,7 @@ def test_shipped_scripts_are_read_only(path):
            "-LiteralPath $samplesPath", "-LiteralPath $finalPath", "-LiteralPath $livePath")
     # The only rename is the clock collector closing its live marks file inside raw/operator_marks.
     moves = [line.strip() for line in code.splitlines() if "::Move(" in line]
-    assert all("$livePath, $finalPath" in m for m in moves), moves
+    assert all("$LivePath, $FinalPath" in m for m in moves), moves
     assert all(any(marker in r for marker in own) for r in removals), removals
     # The only process runner is the helper's: wevtutil with the export verb, netsh (checked on what the
     # runs record, test_collector_bundles and the Pester suite), the inbox wpr and a pinned xperf (both
@@ -119,13 +119,18 @@ def test_clock_calibration_is_documented_and_touches_no_process():
     script = (COLLECTOR_DIR / "clock-calibration.ps1").read_text(encoding="ascii")
     for source_id in ("clock_calibration", "operator_marks"):
         assert f"`{source_id}`" in readme, source_id
-    for term in ("-Mark", "marks.open.jsonl", "marks.jsonl", "samples.jsonl", "GetSystemTimePreciseAsFileTime", "Stopwatch", "docs/clock-calibration.md"):
+    for term in ("-Mark", "marks.open.jsonl", "marks.jsonl", "samples.jsonl", "GetSystemTimePreciseAsFileTime", "Stopwatch", "docs/clock-calibration.md",
+                 "-ExecutionPolicy Bypass"):
         assert term in readme, term
-    for term in ("GetSystemTimePreciseAsFileTime", "0.5 and 15 milliseconds", "Stopwatch]::GetTimestamp", "-Mark", "Easy Anti-Cheat", "decode_clock.py"):
+    for term in ("GetSystemTimePreciseAsFileTime", "0.5 and 15 milliseconds", "Stopwatch]::GetTimestamp", "-Mark", "Easy Anti-Cheat", "decode_clock.py",
+                 "-ExecutionPolicy Bypass", "15.625", "timeBeginPeriod"):
         assert term in doc, term
+    # The documented mark command carries the execution policy for its one process, inside the collector too.
+    assert "-ExecutionPolicy Bypass -File" in script
     code = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
     # Nothing in the collector names, opens or enumerates another process: no process API at all.
     for token in ("Get-Process", "System.Diagnostics.Process", "OpenProcess", "Get-CimInstance Win32_Process", "SetPriorityClass", "ProcessorAffinity"):
         assert token not in code, token
-    # Marks are read through the exact shape the mark command writes.
+    # Marks are read through the exact shape the mark command writes, appended by one writer at a time.
     assert "Get-WfClockMarkPattern" in code and "FileMode]::Open" in code and "FileMode]::Create" not in code
+    assert "[System.IO.FileShare]::None)" in code and "FileShare]::ReadWrite" not in code

@@ -1,1 +1,1 @@
-{"collector":"clock-calibration","status":"partial","bundle":"fixtures/collector-bundles/clock-calibration-read-failed","artifacts":5}
+{"collector":"clock-calibration","status":"ok","bundle":"fixtures/collector-bundles/clock-calibration-read-failed","artifacts":6}

@@ -68,7 +68,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:05.0000000Z",
+        "at_utc": "2026-03-01T12:00:04.0000000Z",
         "checks": [
           {
             "name": "qpc_high_resolution",
@@ -79,11 +79,6 @@
             "name": "qpc_frequency",
             "ok": true,
             "detail": "Stopwatch.Frequency: 10000000 Hz"
-          },
-          {
-            "name": "system_time_increment_measured",
-            "ok": true,
-            "detail": "4 changes in 6251 reads; smallest step 156250 x 100 ns"
           }
         ]
       },
@@ -97,7 +92,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "606e9a3feab4c41f34b2658956a146876949432d2602c48445f18ddb3a84b7c8"
+        "value": "4916614ced832b668a7b6ae7351e4c2825efc9f416a0941b32b6ee4b462ddcce"
       },
       "filter_hash": null,
       "requested": {
@@ -110,7 +105,8 @@
           "interval_seconds": 5,
           "expected_pairs": 7,
           "timeout_seconds": 90,
-          "max_artifact_bytes": 67108864
+          "max_artifact_bytes": 67108864,
+          "edge_budget_milliseconds": 100
         }
       },
       "enabled": {
@@ -121,15 +117,17 @@
         "options": {
           "pairs_taken": 6,
           "missing_pairs": 1,
+          "stop_pair_taken": true,
+          "edge_pairs": 6,
+          "largest_step_100ns": 156250,
           "qpc_frequency_hz": 10000000,
           "qpc_high_resolution": true,
-          "session_start_qpc": 27345679526434,
-          "session_stop_qpc": 27345979527734,
-          "system_time_increment_100ns_start": 156250,
-          "system_time_increment_100ns_stop": 156250,
-          "time_adjustment": "not read: GetSystemTimeAdjustment is not reachable from Windows PowerShell 5.1 without compiling code"
+          "session_start_qpc": 27345679057509,
+          "session_stop_qpc": 27345979213659,
+          "failure": null,
+          "time_adjustment": "not read: GetSystemTimeAdjustment is not reachable from Windows PowerShell 5.1 without compiling code; both members are null"
         },
-        "verified_by": "the pairs themselves in samples.jsonl (one line per pair, in the order taken); result.json carries the missed slots and the measured system time increments"
+        "verified_by": "the pairs themselves in samples.jsonl (one line per pair, in the order taken, each saying whether it was taken at a change of the system clock); result.json carries the missed slots, the largest clock step seen and any failure"
       },
       "events_lost": null,
       "buffers_lost": null,
@@ -137,33 +135,33 @@
       "artifacts": [
         {
           "path": "raw/clock_calibration/result.json",
-          "bytes": 898,
-          "sha256": "dd1ea90ed59f27a4bbeb86e5fae4ffc3d622d138231f9cde39f642decd4cd27c",
+          "bytes": 599,
+          "sha256": "6cb9f67ddd37caf31a87a58ba1b0d50f66935c243726f2dcf3f87bceafec39f0",
           "role": "report"
         },
         {
           "path": "raw/clock_calibration/samples.jsonl",
-          "bytes": 1240,
-          "sha256": "3d19a8e1e1cc15cb26b44ea72711bb286daa2de48ddbf952cf809630ec9391f2",
+          "bytes": 1593,
+          "sha256": "a15608be3f19cd834a6e81eaead1e43fe2dff07f11ee0eb7348d141c62d24c71",
           "role": "primary"
         },
         {
           "path": "raw/clock_calibration/session.json",
-          "bytes": 1906,
-          "sha256": "606e9a3feab4c41f34b2658956a146876949432d2602c48445f18ddb3a84b7c8",
+          "bytes": 2263,
+          "sha256": "4916614ced832b668a7b6ae7351e4c2825efc9f416a0941b32b6ee4b462ddcce",
           "role": "config"
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:00:00.0625000Z",
-        "end": "2026-03-01T12:00:30.0625000Z",
+        "start": "2026-03-01T12:00:00.0156250Z",
+        "end": "2026-03-01T12:00:30.0312500Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
-        "declared": "a start pair and a stop pair read through the high resolution performance counter, with one pair every 5 s strictly inside the 30 s session (5 slots, 7 pairs in all) taken or counted in missing_pairs; the scenario's tolerance for missing pairs is the validator's check, not this collector's",
-        "met": true,
-        "detail": "6 pairs taken, 1 slots missed; Stopwatch.IsHighResolution True"
+        "declared": "7 pairs: a start pair, one every 5 s strictly inside the 30 s session (5 slots) and a stop pair, all read through the high resolution performance counter (timestamps.md section 3, clock calibration exception)",
+        "met": false,
+        "detail": "6 of 7 pairs taken, 1 missing, stop pair taken: True, 6 at a clock edge; Stopwatch.IsHighResolution True"
       },
       "target_process": null
     },
@@ -175,12 +173,12 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:04.0000000Z",
+        "at_utc": "2026-03-01T12:00:05.0000000Z",
         "checks": [
           {
             "name": "live_marks_file_created",
             "ok": true,
-            "detail": "raw/operator_marks/marks.open.jsonl"
+            "detail": "raw/operator_marks/marks.open.jsonl, opened right after the start pair"
           }
         ]
       },
@@ -196,7 +194,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "3a7205d8156dab9a5c05bf9f1a2cc7ab2f59a479ce31f24e87782652d853ad06"
+        "value": "40e3ca054d28534a3389fae437998ef91aafd5c02eeb5bd1e602b72572e0c468"
       },
       "filter_hash": null,
       "requested": {
@@ -229,8 +227,8 @@
       "artifacts": [
         {
           "path": "raw/operator_marks/instructions.json",
-          "bytes": 797,
-          "sha256": "3a7205d8156dab9a5c05bf9f1a2cc7ab2f59a479ce31f24e87782652d853ad06",
+          "bytes": 1365,
+          "sha256": "40e3ca054d28534a3389fae437998ef91aafd5c02eeb5bd1e602b72572e0c468",
           "role": "config"
         },
         {
@@ -247,8 +245,8 @@
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:00:00.0625000Z",
-        "end": "2026-03-01T12:00:30.0625000Z",
+        "start": "2026-03-01T12:00:00.0156250Z",
+        "end": "2026-03-01T12:00:30.0312500Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -262,51 +260,51 @@
   ],
   "calibration": {
     "status": "observed",
-    "method": "one thread reads Stopwatch.GetTimestamp (QueryPerformanceCounter), [DateTime]::UtcNow.ToFileTimeUtc() (GetSystemTimeAsFileTime, resolution the system timer increment, measured at run time and recorded in session.json), Stopwatch.GetTimestamp, at the session start, every 5 s strictly inside the session, and at the stop; the frequency is Stopwatch.Frequency (QueryPerformanceFrequency). GetSystemTimePreciseAsFileTime and GetSystemTimeAdjustment are not called: neither is reachable from Windows PowerShell 5.1 without compiling code, so time_adjustment is null. See docs/clock-calibration.md.",
+    "method": "one thread reads Stopwatch.GetTimestamp (QueryPerformanceCounter), [DateTime]::UtcNow.ToFileTimeUtc() (the system time at the resolution of the system timer), Stopwatch.GetTimestamp, at the session start, every 5 s strictly inside the session, and at the stop. Each pair is taken at the instant the system clock changes value: the clock is read in a loop until it changes, and the counter read before the last unchanged reading and the one after the changed reading bracket the moment the clock took its new value; the size of that change (the clock increment) is recorded with the pair. The frequency is Stopwatch.Frequency (QueryPerformanceFrequency). GetSystemTimePreciseAsFileTime and GetSystemTimeAdjustment are not called: neither is reachable from Windows PowerShell 5.1 without compiling code, so both members of time_adjustment are null. See docs/clock-calibration.md.",
     "qpc_frequency_hz": 10000000,
     "expected_pairs": 7,
     "pairs": [
       {
         "seq": 0,
         "phase": "start",
-        "qpc_before": 27345679526384,
-        "qpc_after": 27345679526484,
-        "filetime_utc_100ns": 134168400000625000
+        "qpc_before": 27345679057384,
+        "qpc_after": 27345679057634,
+        "filetime_utc_100ns": 134168400000156250
       },
       {
         "seq": 1,
         "phase": "interval",
-        "qpc_before": 27345729526634,
-        "qpc_after": 27345729526734,
-        "filetime_utc_100ns": 134168400050625000
+        "qpc_before": 27345729213584,
+        "qpc_after": 27345729213834,
+        "filetime_utc_100ns": 134168400050312500
       },
       {
         "seq": 3,
         "phase": "interval",
-        "qpc_before": 27345839526934,
-        "qpc_after": 27345839527034,
-        "filetime_utc_100ns": 134168400160625000
+        "qpc_before": 27345839213534,
+        "qpc_after": 27345839213784,
+        "filetime_utc_100ns": 134168400160312500
       },
       {
         "seq": 4,
         "phase": "interval",
-        "qpc_before": 27345879527184,
-        "qpc_after": 27345879527284,
-        "filetime_utc_100ns": 134168400200625000
+        "qpc_before": 27345879213584,
+        "qpc_after": 27345879213834,
+        "filetime_utc_100ns": 134168400200312500
       },
       {
         "seq": 5,
         "phase": "interval",
-        "qpc_before": 27345929527434,
-        "qpc_after": 27345929527534,
-        "filetime_utc_100ns": 134168400250625000
+        "qpc_before": 27345929213634,
+        "qpc_after": 27345929213884,
+        "filetime_utc_100ns": 134168400250312500
       },
       {
         "seq": 6,
         "phase": "stop",
-        "qpc_before": 27345979527684,
-        "qpc_after": 27345979527784,
-        "filetime_utc_100ns": 134168400300625000
+        "qpc_before": 27345979213534,
+        "qpc_after": 27345979213784,
+        "filetime_utc_100ns": 134168400300312500
       }
     ],
     "missing_pairs": 1,
@@ -353,7 +351,7 @@
     "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
-    "source clock_calibration: interval slot 2 (seq 2) was missed: the counter was already 60000400 ticks past it",
+    "source clock_calibration: interval slot 2 (seq 2) was missed: the counter was already 60006425 ticks past it",
     "source clock_calibration: 1 of 7 expected pairs are missing (interval slots the session reached more than one interval late); the calibration is usable over longer segments, see docs/contracts/timestamps.md section 4.5"
   ]
 }

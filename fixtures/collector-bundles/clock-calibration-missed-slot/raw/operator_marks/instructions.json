@@ -1,7 +1,9 @@
 {
-  "how_to_mark": "While this session runs, in a second console on the PC: powershell.exe -NoProfile -NonInteractive -File <install directory>\\clock-calibration.ps1 -OutputDirectory <this session directory> -Mark <label>",
-  "live_file": "raw/operator_marks/marks.open.jsonl while the session runs; renamed to marks.jsonl right after the stop pair, after which a mark is refused",
+  "how_to_mark": "While this session runs, in a second console on the PC: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File <install directory>\\clock-calibration.ps1 -OutputDirectory <this session directory> -Mark <label>",
+  "execution_policy": "-ExecutionPolicy Bypass sets the policy for that one process only (about_PowerShell_exe); without it a Windows client, whose default policy is Restricted, refuses to run the script (about_Execution_Policies)",
+  "live_file": "raw/operator_marks/marks.open.jsonl from the start pair to the stop pair; renamed to marks.jsonl right after the stop pair or the session failure, after which a mark is refused; a mark is also refused once the session deadline (accepts_marks_until_utc in session.json) has passed",
   "record": "one JSON object per line: label, qpc_before, filetime_utc_100ns, qpc_after (read in that order in the mark process), at_utc, process_id; the mark sits on the master clock at (qpc_before + qpc_after) / 2 with half the bracket plus one tick of uncertainty",
+  "writer": "one handle at a time (the file is opened with FileShare None), so two marks typed at once cannot overwrite each other; the second waits up to half a second",
   "label_max_length": 80,
   "max_file_bytes": 67108864,
   "touches": "only the marks file; no other process is opened, inspected or signalled"

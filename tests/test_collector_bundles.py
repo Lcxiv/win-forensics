@@ -45,7 +45,7 @@ EXPECTED = {
     "clock-calibration": ("ok", {"clock_calibration": "observed", "operator_marks": "observed"}),
     "clock-calibration-clock-step": ("ok", {"clock_calibration": "observed", "operator_marks": "observed"}),
     "clock-calibration-missed-slot": ("ok", {"clock_calibration": "observed", "operator_marks": "observed_zero"}),
-    "clock-calibration-read-failed": ("partial", {"clock_calibration": "capture_failed", "operator_marks": "observed_zero"}),
+    "clock-calibration-read-failed": ("ok", {"clock_calibration": "observed", "operator_marks": "observed_zero"}),
     "driver-inventory": ("ok", {"pnp_signed_drivers": "observed", "system_drivers": "observed"}),
     "reliability-records": ("ok", {"reliability_records": "observed", "reliability_stability_metrics": "observed"}),
     "rf-survey": ("ok", {"net_adapters": "observed", "default_routes": "observed", "wlan_interfaces": "observed", "wlan_drivers": "observed",
@@ -182,7 +182,12 @@ def test_status_and_evidence_stay_separate(case):
         if collector["status"] in OBSERVED:
             assert collector["status_reason"] is None and len(primary) == 1
             assert collector["preflight"]["ok"] is True
-            assert collector["expectation"]["met"] is True
+            if collector["kind"] == "clock":
+                # The clock calibration exception (timestamps.md section 3, measurement-status.md section 2): two or more
+                # pairs are observed even when pairs are missing; the expectation is the full count and says so.
+                assert collector["expectation"]["met"] is (manifest["calibration"]["missing_pairs"] == 0)
+            else:
+                assert collector["expectation"]["met"] is True
             assert collector["raw_time_range"] is not None, "an observation states the range it covers"
         else:
             assert collector["status_reason"]
@@ -264,8 +269,10 @@ def test_status_and_evidence_stay_separate(case):
             if collector["status"] in OBSERVED:
                 assert primary[0]["path"].endswith("/samples.jsonl")
                 assert collector["enabled"]["options"]["qpc_high_resolution"] is True
+                assert collector["enabled"]["options"]["pairs_taken"] >= 2
+                assert collector["enabled"]["options"]["stop_pair_taken"] is (manifest["calibration"]["missing_pairs"] == 0 or case == "clock-calibration-missed-slot")
             else:
-                assert "unfinished session is not a calibration" in collector["status_reason"]
+                assert "fewer than two" in collector["status_reason"] or "not kept" in collector["status_reason"]
         elif collector["id"] == "operator_marks":
             assert collector["command"][0] == "clock-calibration.ps1" and "-Mark" in collector["command"]
             if collector["status"] in OBSERVED:

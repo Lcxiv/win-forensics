@@ -15,15 +15,19 @@ Table               Source                                  Provenance
 ``operator_marks``  operator_marks (marks.jsonl)            ``line:<n>``
 ==================  ======================================  ================
 
-The fit is the contract's piecewise linear model over consecutive pairs:
-for each segment the rate is the counter span over the file time span, the
-bound is the larger half width of the two pairs plus the system clock's
-measured increment (the collector reads the system time with the resolution
-of the system timer, see the collector and docs/clock-calibration.md), and a
+The fit is the contract's piecewise linear model over consecutive pairs.
+For each segment the rate is the counter span over the file time span and
+the bound is the larger half width of the two pairs plus an increment term:
+zero when both pairs were taken at a change of the system clock (the
+collector's edge reading, see docs/clock-calibration.md), else the largest
+clock step the collector observed or, when it observed none, the 15.625 ms
+period of the 64 Hz PC real time clock from Microsoft's clock table. A
 segment whose rate is more than 1000 parts per million off the nominal
-``qpc_frequency_hz / 10^7`` is a ``clock_step`` whose bound is its whole
-span. The master epoch is the first pair's counter value unless a caller
-supplies the trace header's.
+``qpc_frequency_hz / 10^7`` is a ``clock_step``: its bound also carries the
+larger of its file time span and its elapsed counter span, and when the
+system clock lost time (a backward step) the file times it may have shown
+twice are refused in every other segment. The master epoch is the first
+pair's ``qpc_before`` unless a caller supplies the trace header's.
 
 The same module is the library a correlator uses: ``load_model`` returns a
 ``ClockModel`` (or an ``Unalignable`` with the reason), ``ClockModel.align``
@@ -34,10 +38,11 @@ contract: a join is refused when either side is unaligned or the summed
 bounds exceed the playbook's tolerance, and the tolerance is never widened.
 
 A calibration whose collector is not ``observed`` (fewer than two pairs, a
-failed read) is never fitted: the tables are ``not_collected`` and every
-alignment through it is refused. A samples file that disagrees with the
-manifest's own pairs list is ``decode_failed`` and nothing is written for
-the clock tables.
+managed timer that is not the high resolution counter) is never fitted: the
+clock tables are ``not_collected`` and every alignment through it is
+refused. A samples file that disagrees with the manifest's own pairs list
+is ``decode_failed``. Whatever the outcome, a run replaces this decoder's
+earlier outputs: a table that is not written on this run is removed.
 
 Usage::
 
@@ -66,13 +71,15 @@ OBSERVED = ("observed", "observed_zero")
 TOOL = {"name": "collectors/windows clock-calibration (Stopwatch.GetTimestamp, DateTime.UtcNow)", "version": None}
 CLOCK_SOURCE = "clock_calibration"
 MARKS_SOURCE = "operator_marks"
+TABLES = ("clock_pairs", "clock_segments", "operator_marks")
 PHASES = ("start", "interval", "stop")
 HUNDRED_NS_PER_SECOND = 10_000_000
 # docs/contracts/timestamps.md section 4.3: more than 1000 ppm off nominal is a clock step.
 CLOCK_STEP_PPM = 1000.0
-# When the collector could not measure the system clock's increment, the bound uses the coarse
-# Windows timer period Microsoft documents for DateTime.UtcNow ("between 0.5 and 15 milliseconds",
-# https://learn.microsoft.com/dotnet/api/system.datetime.utcnow): 15.625 ms.
+# The increment term for a pair the collector could not take at a clock edge, when it observed no
+# clock step in the session either: the 15.625 ms period of the 64 Hz PC real time clock in the
+# clock table of https://learn.microsoft.com/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
+# ("PC RTC | 64 Hz | 15.625 milliseconds"), the conventional default system timer period.
 FALLBACK_INCREMENT_100NS = 156_250
 FILETIME_EPOCH = datetime(1601, 1, 1, tzinfo=timezone.utc)
 RE_ISO = re.compile(r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,7}))?Z$")
@@ -127,6 +134,8 @@ class Pair:
     qpc_after: int
     filetime_utc_100ns: int
     line: int  # 1-based line in samples.jsonl
+    edge: bool = False
+    step_100ns: int | None = None
 
     @property
     def qpc_mid(self) -> int:
@@ -140,7 +149,7 @@ class Segment:
     b: Pair
     frequency_hz: int
     epoch_qpc: int
-    increment_100ns: int
+    increment_100ns: int  # the term added for this segment: 0 when both pairs are edge pairs
 
     @property
     def span_100ns(self) -> int:
@@ -149,6 +158,10 @@ class Segment:
     @property
     def qpc_span_ticks(self) -> int:
         return self.b.qpc_mid - self.a.qpc_mid
+
+    @property
+    def qpc_span_100ns(self) -> int:
+        return ticks_to_100ns_ceil(self.qpc_span_ticks, self.frequency_hz)
 
     @property
     def rate_ticks_per_100ns(self) -> Fraction:
@@ -176,6 +189,26 @@ class Segment:
         return self.deviation_ppm > CLOCK_STEP_PPM
 
     @property
+    def step_kind(self) -> str:
+        if not self.clock_step:
+            return "none"
+        # The counter is the master clock: more counter time than file time means the system clock lost time.
+        return "backward" if self.qpc_span_100ns > self.span_100ns else "forward"
+
+    @property
+    def ambiguous_range(self) -> tuple[int, int] | None:
+        """For a backward step: the file times the system clock may have shown twice.
+
+        The step of size delta = qpc span - file time span happened at an unknown moment inside the
+        segment; wherever it happened, the clock re-showed the delta of file time before it, so the union
+        over every possible moment runs from ft_a - delta to ft_a + qpc span.
+        """
+        if self.step_kind != "backward":
+            return None
+        delta = self.qpc_span_100ns - self.span_100ns
+        return (self.a.filetime_utc_100ns - delta, self.a.filetime_utc_100ns + self.qpc_span_100ns)
+
+    @property
     def half_width_max_100ns(self) -> int:
         return max(half_width_100ns(self.a.qpc_before, self.a.qpc_after, self.frequency_hz),
                    half_width_100ns(self.b.qpc_before, self.b.qpc_after, self.frequency_hz))
@@ -187,9 +220,12 @@ class Segment:
 
     @property
     def error_bound_100ns(self) -> int:
+        bound = self.half_width_max_100ns + self.increment_100ns + self.residual_max_100ns
         if self.clock_step:
-            return self.span_100ns
-        return self.half_width_max_100ns + self.increment_100ns + self.residual_max_100ns
+            # Widened to the full span between the pairs, on whichever clock elapsed more; the
+            # ordinary terms stay, so a step never shrinks a bound.
+            bound += max(self.span_100ns, self.qpc_span_100ns)
+        return bound
 
     def master_of_qpc(self, qpc: Fraction | int) -> int:
         return math.floor(Fraction(qpc - self.epoch_qpc) * HUNDRED_NS_PER_SECOND / self.frequency_hz)
@@ -248,8 +284,7 @@ class ClockModel:
     frequency_hz: int
     epoch_qpc: int
     epoch_source: str
-    increment_100ns: int
-    increment_measured: bool
+    largest_step_100ns: int | None  # the largest clock increment the collector saw at an edge pair
     pairs: list[Pair]
     segments: list[Segment] = field(default_factory=list)
 
@@ -269,24 +304,49 @@ class ClockModel:
     def clock_step_segments(self) -> int:
         return sum(1 for s in self.segments if s.clock_step)
 
+    @property
+    def fallback_increment_100ns(self) -> int:
+        """The term for a pair not taken at a clock edge: the largest step seen, or the documented default period."""
+        return max(self.largest_step_100ns or 0, FALLBACK_INCREMENT_100NS)
+
     def segment_for(self, filetime_100ns: int) -> Segment | None:
         for segment in self.segments:
             if segment.contains(filetime_100ns):
                 return segment
         return None
 
+    def ambiguity_for(self, filetime_100ns: int, segment: Segment) -> Segment | None:
+        """The backward step segment, other than the one given, whose re-shown file times include this one."""
+        for other in self.segments:
+            if other is segment:
+                continue
+            span = other.ambiguous_range
+            if span is not None and span[0] <= filetime_100ns <= span[1]:
+                return other
+        return None
+
     def align(self, filetime_100ns: int, source_resolution_100ns: int = 0) -> Alignment | Unaligned:
         """Master time of a system_time stamp with the bound e_S = segment bound + the source's own resolution.
 
-        A stamp outside every pair is unaligned, never extrapolated (timestamps.md section 4.3).
+        A stamp outside every pair is unaligned, never extrapolated (timestamps.md section 4.3). A stamp
+        the system clock may have shown twice because of a backward step in another segment is unaligned,
+        because the segment it falls in would place it with a bound that does not cover the step.
         """
         if source_resolution_100ns < 0:
             raise ValueError("a resolution cannot be negative")
-        segment = self.segment_for(int(filetime_100ns))
+        filetime_100ns = int(filetime_100ns)
+        segment = self.segment_for(filetime_100ns)
         if segment is None:
-            return Unaligned(f"{filetime_to_iso(int(filetime_100ns))} is outside every calibration pair "
+            return Unaligned(f"{filetime_to_iso(filetime_100ns)} is outside every calibration pair "
                              f"({filetime_to_iso(self.first_filetime)} to {filetime_to_iso(self.last_filetime)}); not extrapolated")
-        return Alignment(segment.master_of_filetime(int(filetime_100ns)), segment.error_bound_100ns + int(source_resolution_100ns),
+        other = self.ambiguity_for(filetime_100ns, segment)
+        if other is not None:
+            span = other.ambiguous_range
+            return Unaligned(f"{filetime_to_iso(filetime_100ns)} is a file time the system clock may have shown twice: "
+                             f"segment {other.index} (pairs {other.a.seq} to {other.b.seq}) holds a backward clock step of "
+                             f"{other.qpc_span_100ns - other.span_100ns} x 100 ns, so every file time from {filetime_to_iso(span[0])} "
+                             f"to {filetime_to_iso(span[1])} is ambiguous")
+        return Alignment(segment.master_of_filetime(filetime_100ns), segment.error_bound_100ns + int(source_resolution_100ns),
                          segment.index, segment.clock_step)
 
     def align_qpc(self, qpc: int, extra_100ns: int = 0) -> Alignment:
@@ -299,13 +359,14 @@ class ClockModel:
                               - ticks_to_100ns_ceil(1, self.frequency_hz))
 
 
-def fit_pairs(pairs: list[dict[str, Any]], frequency_hz: int | None, increment_100ns: int | None = None,
-              epoch_qpc: int | None = None, epoch_source: str | None = None) -> ClockModel | Unalignable:
-    """Fit the contract's model to calibration pairs (manifest shape: seq, phase, qpc_before, qpc_after, filetime_utc_100ns).
+def fit_pairs(pairs: list[dict[str, Any]], frequency_hz: int | None, epoch_qpc: int | None = None,
+              epoch_source: str | None = None) -> ClockModel | Unalignable:
+    """Fit the contract's model to calibration pairs.
 
-    ``increment_100ns`` is the system clock's measured increment; None falls back to the coarse Windows
-    timer period and the model says so. ``epoch_qpc`` overrides the first pair's counter value when the
-    bundle holds a kernel trace whose header gives the session start.
+    Each pair has the manifest shape (seq, phase, qpc_before, qpc_after, filetime_utc_100ns) and may carry
+    the samples file's ``edge`` and ``step_100ns``; a pair without ``edge`` is taken as a plain reading and
+    gets the increment term. ``epoch_qpc`` overrides the first pair's ``qpc_before`` when the bundle holds a
+    kernel trace whose header gives the session start.
     """
     if frequency_hz is None or int(frequency_hz) < 1:
         return Unalignable("qpc_frequency_hz is unknown")
@@ -313,14 +374,18 @@ def fit_pairs(pairs: list[dict[str, Any]], frequency_hz: int | None, increment_1
     typed: list[Pair] = []
     for index, raw in enumerate(pairs):
         try:
+            step = raw.get("step_100ns")
             pair = Pair(int(raw["seq"]), str(raw["phase"]), int(raw["qpc_before"]), int(raw["qpc_after"]),
-                        int(raw["filetime_utc_100ns"]), int(raw.get("line", index + 1)))
+                        int(raw["filetime_utc_100ns"]), int(raw.get("line", index + 1)), bool(raw.get("edge", False)),
+                        int(step) if isinstance(step, int) and not isinstance(step, bool) and step > 0 else None)
         except (KeyError, TypeError, ValueError) as exc:
             return Unalignable(f"pair {index} is malformed: {exc}")
         if pair.phase not in PHASES:
             return Unalignable(f"pair {index} has phase {pair.phase!r}")
         if pair.qpc_after < pair.qpc_before:
             return Unalignable(f"pair {index}: qpc_after is before qpc_before")
+        if pair.edge and pair.step_100ns is None:
+            return Unalignable(f"pair {index}: an edge pair without the clock step it saw")
         typed.append(pair)
     if len(typed) < 2:
         return Unalignable(f"{len(typed)} calibration pair(s); at least two are needed for a segment (timestamps.md section 4.5)")
@@ -328,19 +393,20 @@ def fit_pairs(pairs: list[dict[str, Any]], frequency_hz: int | None, increment_1
         if later.qpc_mid <= earlier.qpc_mid:
             return Unalignable(f"pairs {earlier.seq} and {later.seq}: the performance counter did not advance between them")
         if later.filetime_utc_100ns <= earlier.filetime_utc_100ns:
-            # The system clock went backwards or stood still across an interval: a step the fit must not divide by.
+            # The system clock went backwards across a whole interval: a segment with no positive span cannot be fitted.
             return Unalignable(f"pairs {earlier.seq} and {later.seq}: the system time did not advance between them "
                                f"({filetime_to_iso(earlier.filetime_utc_100ns)} then {filetime_to_iso(later.filetime_utc_100ns)}); "
-                               f"a backward step cannot be fitted")
-    measured = increment_100ns is not None and int(increment_100ns) > 0
-    increment = int(increment_100ns) if measured else FALLBACK_INCREMENT_100NS
-    epoch = int(epoch_qpc) if epoch_qpc is not None else typed[0].qpc_mid
+                               f"a backward step larger than the interval cannot be fitted")
+    largest = max((p.step_100ns for p in typed if p.edge and p.step_100ns), default=None)
+    epoch = int(epoch_qpc) if epoch_qpc is not None else typed[0].qpc_before
     if epoch_qpc is None:
         epoch_source = "first_calibration_pair"
     elif epoch_source is None:
         epoch_source = "etl_header"
-    model = ClockModel(frequency_hz, epoch, epoch_source, increment, measured, typed)
-    model.segments = [Segment(i, a, b, frequency_hz, epoch, increment) for i, (a, b) in enumerate(zip(typed, typed[1:]))]
+    model = ClockModel(frequency_hz, epoch, epoch_source, largest, typed)
+    for i, (a, b) in enumerate(zip(typed, typed[1:])):
+        increment = 0 if (a.edge and b.edge) else model.fallback_increment_100ns
+        model.segments.append(Segment(i, a, b, frequency_hz, epoch, increment))
     return model
 
 
@@ -425,13 +491,6 @@ def read_json_lines(path: Path, source: str) -> list[dict[str, Any]]:
     return rows
 
 
-def manifest_increment(entry: dict[str, Any]) -> int | None:
-    options = (entry.get("enabled") or {}).get("options") or {}
-    values = [options.get("system_time_increment_100ns_start"), options.get("system_time_increment_100ns_stop")]
-    values = [int(v) for v in values if isinstance(v, int) and not isinstance(v, bool) and v > 0]
-    return max(values) if values else None
-
-
 def load_model(bundle: Path, epoch_qpc: int | None = None) -> ClockModel | Unalignable:
     """The clock model of a bundle, from its manifest calibration section and the collector's samples file."""
     try:
@@ -439,21 +498,18 @@ def load_model(bundle: Path, epoch_qpc: int | None = None) -> ClockModel | Unali
     except DecodeError as exc:
         return Unalignable(str(exc))
     calibration = manifest.get("calibration") or {}
-    if calibration.get("status") not in ("observed",):
+    if calibration.get("status") != "observed":
         return Unalignable(f"calibration status is {calibration.get('status')!r}: {manifest_calibration_reason(manifest)}")
     entry = source_entry(manifest, CLOCK_SOURCE)
-    increment = manifest_increment(entry) if entry else None
-    pairs = calibration.get("pairs") or []
-    if entry is not None and entry["status"] in OBSERVED:
-        try:
-            source, target = read_primary(bundle, entry)
-            samples = read_json_lines(target, source)
-            check_samples_match(samples, pairs, source)
-            pairs = samples
-        except DecodeError as exc:
-            return Unalignable(str(exc))
-    return fit_pairs(pairs, calibration.get("qpc_frequency_hz"), increment, epoch_qpc,
-                     "etl_header" if epoch_qpc is not None else "first_calibration_pair")
+    if entry is None or entry["status"] != "observed":
+        return Unalignable(f"clock_calibration is {entry['status'] if entry else 'absent'}: {manifest_calibration_reason(manifest)}")
+    try:
+        source, target = read_primary(bundle, entry)
+        samples = read_json_lines(target, source)
+        check_samples_match(samples, calibration.get("pairs") or [], source)
+    except DecodeError as exc:
+        return Unalignable(str(exc))
+    return fit_pairs(samples, calibration.get("qpc_frequency_hz"), epoch_qpc)
 
 
 def manifest_calibration_reason(manifest: dict[str, Any]) -> str:
@@ -474,6 +530,8 @@ def check_samples_match(samples: list[dict[str, Any]], pairs: list[dict[str, Any
                 raise DecodeError(f"{source}: line {number} lacks {key}")
             if sample[key] != pair.get(key):
                 raise DecodeError(f"{source}: line {number} {key} {sample[key]!r} differs from the manifest pair {pair.get(key)!r}")
+        if "edge" not in sample:
+            raise DecodeError(f"{source}: line {number} lacks edge")
 
 
 # ---------------------------------------------------------------- tables
@@ -486,7 +544,7 @@ def pair_rows(model: ClockModel, source: str, schema_version: str) -> list[dict[
             "filetime_utc_100ns": pair.filetime_utc_100ns, "filetime_utc": filetime_to_iso(pair.filetime_utc_100ns),
             "qpc_mid": pair.qpc_mid, "bracket_ticks": pair.qpc_after - pair.qpc_before,
             "half_width_100ns": half_width_100ns(pair.qpc_before, pair.qpc_after, model.frequency_hz),
-            "system_time_increment_100ns": model.increment_100ns if model.increment_measured else None,
+            "edge": pair.edge, "system_time_step_100ns": pair.step_100ns if pair.edge else None,
             "provenance": {"source_file": source, "row_id_or_offset": f"line:{pair.line}", "decoded_table": "clock_pairs",
                            "decoder_version": DECODER_VERSION, "schema_version": schema_version},
         })
@@ -499,20 +557,21 @@ def segment_rows(model: ClockModel, source: str, schema_version: str) -> list[di
         rate = float(segment.rate)
         anchor_master = segment.anchor_master_100ns
         offset = anchor_master - segment.rate * segment.a.filetime_utc_100ns
+        ambiguous = segment.ambiguous_range
         rows.append({
             "segment": segment.index, "seq_from": segment.a.seq, "seq_to": segment.b.seq,
             "phase_from": segment.a.phase, "phase_to": segment.b.phase,
             "qpc_from": segment.a.qpc_mid, "qpc_to": segment.b.qpc_mid,
             "filetime_from_100ns": segment.a.filetime_utc_100ns, "filetime_to_100ns": segment.b.filetime_utc_100ns,
-            "span_100ns": segment.span_100ns, "qpc_span_ticks": segment.qpc_span_ticks,
+            "span_100ns": segment.span_100ns, "qpc_span_ticks": segment.qpc_span_ticks, "qpc_span_100ns": segment.qpc_span_100ns,
             "qpc_frequency_hz": model.frequency_hz, "epoch_qpc": model.epoch_qpc, "epoch_source": model.epoch_source,
             "rate_ticks_per_100ns": float(segment.rate_ticks_per_100ns), "nominal_rate_ticks_per_100ns": float(segment.nominal_rate),
-            "rate_deviation_ppm": segment.deviation_ppm,
-            "quantisation_limit_ppm": segment.quantisation_limit_ppm if model.increment_measured else None,
-            "clock_step": segment.clock_step,
+            "rate_deviation_ppm": segment.deviation_ppm, "quantisation_limit_ppm": segment.quantisation_limit_ppm,
+            "clock_step": segment.clock_step, "step_kind": segment.step_kind,
+            "ambiguous_from_100ns": ambiguous[0] if ambiguous else None, "ambiguous_to_100ns": ambiguous[1] if ambiguous else None,
             "anchor_filetime_100ns": segment.a.filetime_utc_100ns, "anchor_master_100ns": anchor_master,
             "rate": rate, "offset_100ns": int(round(offset)),
-            "half_width_max_100ns": segment.half_width_max_100ns, "system_time_increment_100ns": model.increment_100ns,
+            "half_width_max_100ns": segment.half_width_max_100ns, "system_time_increment_100ns": segment.increment_100ns,
             "residual_max_100ns": segment.residual_max_100ns, "error_bound_100ns": segment.error_bound_100ns,
             "provenance": {"source_file": source, "row_id_or_offset": f"line:{segment.a.line}-{segment.b.line}", "decoded_table": "clock_segments",
                            "decoder_version": DECODER_VERSION, "schema_version": schema_version},
@@ -538,6 +597,14 @@ def mark_rows(marks: list[dict[str, Any]], frequency_hz: int, source: str, schem
     return rows
 
 
+def remove_table(bundle: Path, table: str) -> None:
+    """This decoder's earlier outputs for a table it does not write on this run (bundle.md section 1: a rerun replaces its own outputs)."""
+    for suffix in (".jsonl", ".meta.json"):
+        path = bundle / "decoded" / f"{table}{suffix}"
+        if path.is_file():
+            path.unlink()
+
+
 def write_table(bundle: Path, table: str, rows: list[dict[str, Any]], sources: list[str], time_domain: str,
                 native_range: dict[str, Any] | None, checks: list[dict[str, Any]], status: str, reason: str | None, decoded_at: str) -> None:
     decoded_dir = bundle / "decoded"
@@ -559,32 +626,38 @@ def validated(rows: list[dict[str, Any]], table: str) -> list[str]:
     return wf_schema.validate_rows(rows, f"decoded/{table}.schema.json")
 
 
+def not_written(bundle: Path, tables: tuple[str, ...], status: str, reason: str) -> dict[str, dict[str, Any]]:
+    for table in tables:
+        remove_table(bundle, table)
+    return {table: {"status": status, "reason": reason, "rows": 0, "sources": 0} for table in tables}
+
+
 def decode_clock_tables(bundle: Path, manifest: dict[str, Any], decoded_at: str, epoch_qpc: int | None) -> dict[str, dict[str, Any]]:
+    clock_tables = ("clock_pairs", "clock_segments")
     entry = source_entry(manifest, CLOCK_SOURCE)
-    results = {}
     if entry is None or entry["status"] != "observed":
         reason = "no clock_calibration source in the manifest" if entry is None else f"clock_calibration is {entry['status']}: {entry.get('status_reason')}"
-        for table in ("clock_pairs", "clock_segments"):
-            results[table] = {"status": "not_collected", "reason": reason, "rows": 0, "sources": 0}
-        return results
+        return not_written(bundle, clock_tables, "not_collected", reason)
     model = load_model(bundle, epoch_qpc)
     if not model.aligned:
-        for table in ("clock_pairs", "clock_segments"):
-            results[table] = {"status": "decode_failed", "reason": model.reason, "rows": 0, "sources": 0}
-        return results
+        return not_written(bundle, clock_tables, "decode_failed", model.reason)
     source = primary_of(entry)
     calibration = manifest["calibration"]
     native_range = {"start": filetime_to_iso(model.first_filetime), "end": filetime_to_iso(model.last_filetime), "domain": "system_time", "unit": "iso_utc"}
+    edge_pairs = sum(1 for p in model.pairs if p.edge)
     checks = [
         {"name": "samples_match_manifest", "ok": True, "detail": f"{len(model.pairs)} pairs, identical in samples.jsonl and manifest.calibration.pairs"},
         {"name": "expected_pairs", "ok": calibration.get("missing_pairs", 0) == 0,
          "detail": f"{len(model.pairs)} of {calibration.get('expected_pairs')} expected pairs; {calibration.get('missing_pairs')} missing"},
         {"name": "phases", "ok": model.pairs[0].phase == "start" and model.pairs[-1].phase == "stop",
-         "detail": f"first {model.pairs[0].phase}, last {model.pairs[-1].phase}"},
-        {"name": "system_time_increment", "ok": model.increment_measured,
-         "detail": (f"{model.increment_100ns} x 100 ns measured by the collector" if model.increment_measured
-                    else f"not measured; the fit uses the documented coarse timer period {FALLBACK_INCREMENT_100NS} x 100 ns")},
+         "detail": f"first {model.pairs[0].phase}, last {model.pairs[-1].phase}"
+                   + ("" if model.pairs[-1].phase == "stop" else "; the stop pair is missing, so file times after the last pair are unaligned")},
+        {"name": "edge_pairs", "ok": edge_pairs == len(model.pairs),
+         "detail": f"{edge_pairs} of {len(model.pairs)} pairs taken at a change of the system clock"
+                   + (f"; largest clock step seen {model.largest_step_100ns} x 100 ns" if model.largest_step_100ns else "; no clock step seen")
+                   + ("" if edge_pairs == len(model.pairs) else f"; the other pairs carry an increment term of {model.fallback_increment_100ns} x 100 ns")},
     ]
+    results = {}
     rows = pair_rows(model, source, wf_schema.table_schema_version("clock_pairs"))
     errors = validated(rows, "clock_pairs")
     status, reason = ("observed", None) if not errors else ("decode_failed", "; ".join(errors[:3]))
@@ -595,14 +668,15 @@ def decode_clock_tables(bundle: Path, manifest: dict[str, Any], decoded_at: str,
     seg_rows = segment_rows(model, source, wf_schema.table_schema_version("clock_segments"))
     errors = validated(seg_rows, "clock_segments")
     steps = [s for s in model.segments if s.clock_step]
-    quantised = [s for s in model.segments if model.increment_measured and s.quantisation_limit_ppm > CLOCK_STEP_PPM]
+    quantised = [s for s in model.segments if s.quantisation_limit_ppm > CLOCK_STEP_PPM]
     seg_checks = checks + [
         {"name": "clock_steps", "ok": not steps,
-         "detail": (f"{len(steps)} segment(s) more than {CLOCK_STEP_PPM:.0f} ppm off nominal: " + ", ".join(f"segment {s.index} ({s.deviation_ppm:.0f} ppm)" for s in steps)
+         "detail": (f"{len(steps)} segment(s) more than {CLOCK_STEP_PPM:.0f} ppm off nominal: "
+                    + ", ".join(f"segment {s.index} ({s.deviation_ppm:.0f} ppm, {s.step_kind})" for s in steps)
                     if steps else f"no segment more than {CLOCK_STEP_PPM:.0f} ppm off nominal; largest deviation {max(s.deviation_ppm for s in model.segments):.1f} ppm")},
         {"name": "quantisation_below_step_rule", "ok": not quantised,
-         "detail": (f"{len(quantised)} segment(s) where the system clock's increment alone can exceed {CLOCK_STEP_PPM:.0f} ppm, so a flagged step there may be quantisation"
-                    if quantised else "the system clock's increment explains less than the step threshold on every segment")},
+         "detail": (f"{len(quantised)} segment(s) where the increment term alone can exceed {CLOCK_STEP_PPM:.0f} ppm, so a flagged step there may be quantisation"
+                    if quantised else "the increment term explains less than the step threshold on every segment")},
         {"name": "master_epoch", "ok": True, "detail": f"epoch_qpc {model.epoch_qpc} from {model.epoch_source}"},
         {"name": "rows_validate", "ok": not errors, "detail": "; ".join(errors[:3]) or None},
     ]
@@ -616,7 +690,7 @@ def decode_marks_table(bundle: Path, manifest: dict[str, Any], decoded_at: str) 
     entry = source_entry(manifest, MARKS_SOURCE)
     if entry is None or entry["status"] not in OBSERVED:
         reason = "no operator_marks source in the manifest" if entry is None else f"operator_marks is {entry['status']}: {entry.get('status_reason')}"
-        return {"status": "not_collected", "reason": reason, "rows": 0, "sources": 0}
+        return not_written(bundle, ("operator_marks",), "not_collected", reason)["operator_marks"]
     frequency = (manifest.get("calibration") or {}).get("qpc_frequency_hz") or (manifest.get("machine") or {}).get("cpu", {}).get("qpc_frequency_hz")
     try:
         if not frequency:
@@ -624,7 +698,7 @@ def decode_marks_table(bundle: Path, manifest: dict[str, Any], decoded_at: str) 
         source, target = read_primary(bundle, entry)
         rows = mark_rows(read_json_lines(target, source), int(frequency), source, wf_schema.table_schema_version("operator_marks"))
     except DecodeError as exc:
-        return {"status": "decode_failed", "reason": str(exc), "rows": 0, "sources": 0}
+        return not_written(bundle, ("operator_marks",), "decode_failed", str(exc))["operator_marks"]
     errors = validated(rows, "operator_marks")
     if errors:
         status, reason, rows = "decode_failed", "; ".join(errors[:3]), []
@@ -636,9 +710,10 @@ def decode_marks_table(bundle: Path, manifest: dict[str, Any], decoded_at: str) 
     if rows:
         stamps = sorted(r["at_utc"] for r in rows)
         native_range = {"start": stamps[0], "end": stamps[-1], "domain": "etw_qpc", "unit": "iso_utc_of_the_mark_process"}
+    closed = bool(((entry.get("enabled") or {}).get("options") or {}).get("closed"))
     checks = [{"name": "rows_validate", "ok": not errors, "detail": "; ".join(errors[:3]) or None},
-              {"name": "marks_closed", "ok": bool(((entry.get("enabled") or {}).get("options") or {}).get("closed")),
-               "detail": "the collector renamed the live file after the stop pair" if ((entry.get("enabled") or {}).get("options") or {}).get("closed") else "the live file was not closed"}]
+              {"name": "marks_closed", "ok": closed,
+               "detail": "the collector renamed the live file when the session ended" if closed else "the live file was not closed"}]
     write_table(bundle, "operator_marks", rows, [source], "etw_qpc", native_range, checks, status, reason, decoded_at)
     return {"status": status, "reason": reason, "rows": len(rows), "sources": 1}
 
@@ -648,8 +723,10 @@ def decode(bundle: Path, decoded_at: str | None = None, epoch_qpc: int | None = 
     try:
         manifest = load_manifest(bundle)
     except DecodeError as exc:
+        if bundle.is_dir():
+            return not_written(bundle, TABLES, "decode_failed", str(exc))
         failed = {"status": "decode_failed", "reason": str(exc), "rows": 0, "sources": 0}
-        return {"clock_pairs": failed, "clock_segments": failed, "operator_marks": failed}
+        return {table: dict(failed) for table in TABLES}
     results = decode_clock_tables(bundle, manifest, decoded_at, epoch_qpc)
     results["operator_marks"] = decode_marks_table(bundle, manifest, decoded_at)
     return results
@@ -670,7 +747,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     results = decode(args.bundle, args.decoded_at, args.epoch_qpc)
     worst = 0
-    for table in ("clock_pairs", "clock_segments", "operator_marks"):
+    for table in TABLES:
         result = results[table]
         print(f"{table}: {result['rows']} rows from {result['sources']} sources, status {result['status']}")
         if result["status"] not in OBSERVED:
@@ -679,9 +756,11 @@ def main(argv: list[str] | None = None) -> int:
                 worst = max(worst, 2)
     model = load_model(args.bundle, args.epoch_qpc)
     if model.aligned:
+        edge_pairs = sum(1 for p in model.pairs if p.edge)
         print(f"master clock: epoch_qpc {model.epoch_qpc} ({model.epoch_source}), {model.frequency_hz} Hz, "
               f"{len(model.segments)} segments, {model.clock_step_segments} clock step segment(s), "
-              f"system time increment {model.increment_100ns} x 100 ns{'' if model.increment_measured else ' (documented fallback, not measured)'}")
+              f"{edge_pairs} of {len(model.pairs)} pairs at a clock edge, largest clock step seen "
+              f"{model.largest_step_100ns if model.largest_step_100ns else 'none'}")
     else:
         print(f"master clock: unalignable: {model.reason}")
     for text in args.align:

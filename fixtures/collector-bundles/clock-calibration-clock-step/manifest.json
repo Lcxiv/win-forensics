@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.1.0",
   "bundle_id": "20260301T120001Z_clock_calibration_ae3a76a9",
-  "created_utc": "2026-03-01T12:00:09.0000000Z",
+  "created_utc": "2026-03-01T12:00:10.0000000Z",
   "scenario": {
     "id": "clock_calibration",
     "version": "1.0.0",
@@ -17,7 +17,7 @@
   },
   "capture": {
     "start_utc": "2026-03-01T12:00:01.0000000Z",
-    "stop_utc": "2026-03-01T12:00:09.0000000Z",
+    "stop_utc": "2026-03-01T12:00:10.0000000Z",
     "orchestrator": "wf-collector:clock-calibration",
     "orchestrator_version": "1.2.0",
     "elevated": false,
@@ -74,7 +74,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:05.0000000Z",
+        "at_utc": "2026-03-01T12:00:04.0000000Z",
         "checks": [
           {
             "name": "qpc_high_resolution",
@@ -85,11 +85,6 @@
             "name": "qpc_frequency",
             "ok": true,
             "detail": "Stopwatch.Frequency: 10000000 Hz"
-          },
-          {
-            "name": "system_time_increment_measured",
-            "ok": true,
-            "detail": "4 changes in 401 reads; smallest step 10000 x 100 ns"
           }
         ]
       },
@@ -99,11 +94,11 @@
         "Stopwatch.GetTimestamp"
       ],
       "started_utc": "2026-03-01T12:00:02.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:07.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:08.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "606e9a3feab4c41f34b2658956a146876949432d2602c48445f18ddb3a84b7c8"
+        "value": "4916614ced832b668a7b6ae7351e4c2825efc9f416a0941b32b6ee4b462ddcce"
       },
       "filter_hash": null,
       "requested": {
@@ -116,7 +111,8 @@
           "interval_seconds": 5,
           "expected_pairs": 7,
           "timeout_seconds": 90,
-          "max_artifact_bytes": 67108864
+          "max_artifact_bytes": 67108864,
+          "edge_budget_milliseconds": 100
         }
       },
       "enabled": {
@@ -127,15 +123,17 @@
         "options": {
           "pairs_taken": 7,
           "missing_pairs": 0,
+          "stop_pair_taken": true,
+          "edge_pairs": 7,
+          "largest_step_100ns": 10000,
           "qpc_frequency_hz": 10000000,
           "qpc_high_resolution": true,
-          "session_start_qpc": 27345678941434,
-          "session_stop_qpc": 27345978942934,
-          "system_time_increment_100ns_start": 10000,
-          "system_time_increment_100ns_stop": 10000,
-          "time_adjustment": "not read: GetSystemTimeAdjustment is not reachable from Windows PowerShell 5.1 without compiling code"
+          "session_start_qpc": 27345678911259,
+          "session_stop_qpc": 27345978921259,
+          "failure": null,
+          "time_adjustment": "not read: GetSystemTimeAdjustment is not reachable from Windows PowerShell 5.1 without compiling code; both members are null"
         },
-        "verified_by": "the pairs themselves in samples.jsonl (one line per pair, in the order taken); result.json carries the missed slots and the measured system time increments"
+        "verified_by": "the pairs themselves in samples.jsonl (one line per pair, in the order taken, each saying whether it was taken at a change of the system clock); result.json carries the missed slots, the largest clock step seen and any failure"
       },
       "events_lost": null,
       "buffers_lost": null,
@@ -143,33 +141,33 @@
       "artifacts": [
         {
           "path": "raw/clock_calibration/result.json",
-          "bytes": 767,
-          "sha256": "48fb888bfb5661408c6d150dc893e931f8fb356fa8aed7eb87ef98d246582228",
+          "bytes": 473,
+          "sha256": "2e29177e4e293be5e91a0eafd06d51ab6b68b6e6fe6eb8eb1292672c0528cb9d",
           "role": "report"
         },
         {
           "path": "raw/clock_calibration/samples.jsonl",
-          "bytes": 1442,
-          "sha256": "3425700deaefdd4f22d9312497304fe751c342080b20a93c463f314a611783eb",
+          "bytes": 1827,
+          "sha256": "98166fd2b05660993c29f65820eac6e75dcfb1e2b416fc61779d569c7d02f73c",
           "role": "primary"
         },
         {
           "path": "raw/clock_calibration/session.json",
-          "bytes": 1906,
-          "sha256": "606e9a3feab4c41f34b2658956a146876949432d2602c48445f18ddb3a84b7c8",
+          "bytes": 2263,
+          "sha256": "4916614ced832b668a7b6ae7351e4c2825efc9f416a0941b32b6ee4b462ddcce",
           "role": "config"
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:00:00.0040000Z",
-        "end": "2026-03-01T12:00:30.2540000Z",
+        "start": "2026-03-01T12:00:00.0010000Z",
+        "end": "2026-03-01T12:00:30.2520000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
-        "declared": "a start pair and a stop pair read through the high resolution performance counter, with one pair every 5 s strictly inside the 30 s session (5 slots, 7 pairs in all) taken or counted in missing_pairs; the scenario's tolerance for missing pairs is the validator's check, not this collector's",
+        "declared": "7 pairs: a start pair, one every 5 s strictly inside the 30 s session (5 slots) and a stop pair, all read through the high resolution performance counter (timestamps.md section 3, clock calibration exception)",
         "met": true,
-        "detail": "7 pairs taken, 0 slots missed; Stopwatch.IsHighResolution True"
+        "detail": "7 of 7 pairs taken, 0 missing, stop pair taken: True, 7 at a clock edge; Stopwatch.IsHighResolution True"
       },
       "target_process": null
     },
@@ -181,12 +179,12 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:04.0000000Z",
+        "at_utc": "2026-03-01T12:00:05.0000000Z",
         "checks": [
           {
             "name": "live_marks_file_created",
             "ok": true,
-            "detail": "raw/operator_marks/marks.open.jsonl"
+            "detail": "raw/operator_marks/marks.open.jsonl, opened right after the start pair"
           }
         ]
       },
@@ -198,11 +196,11 @@
         "<label>"
       ],
       "started_utc": "2026-03-01T12:00:02.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:08.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:09.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "3a7205d8156dab9a5c05bf9f1a2cc7ab2f59a479ce31f24e87782652d853ad06"
+        "value": "40e3ca054d28534a3389fae437998ef91aafd5c02eeb5bd1e602b72572e0c468"
       },
       "filter_hash": null,
       "requested": {
@@ -235,8 +233,8 @@
       "artifacts": [
         {
           "path": "raw/operator_marks/instructions.json",
-          "bytes": 797,
-          "sha256": "3a7205d8156dab9a5c05bf9f1a2cc7ab2f59a479ce31f24e87782652d853ad06",
+          "bytes": 1365,
+          "sha256": "40e3ca054d28534a3389fae437998ef91aafd5c02eeb5bd1e602b72572e0c468",
           "role": "config"
         },
         {
@@ -248,13 +246,13 @@
         {
           "path": "raw/operator_marks/result.json",
           "bytes": 227,
-          "sha256": "48b0abb4d0ed7e2957fe324c094e73dbfaf6e7ed910b8cbc6058e0e1c0d3e4aa",
+          "sha256": "1df7b53795ab71261a9f0e3ea6450dc5a1961a1480a12e523a29a97c2ba376f9",
           "role": "report"
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:00:00.0040000Z",
-        "end": "2026-03-01T12:00:30.2540000Z",
+        "start": "2026-03-01T12:00:00.0010000Z",
+        "end": "2026-03-01T12:00:30.2520000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -268,58 +266,58 @@
   ],
   "calibration": {
     "status": "observed",
-    "method": "one thread reads Stopwatch.GetTimestamp (QueryPerformanceCounter), [DateTime]::UtcNow.ToFileTimeUtc() (GetSystemTimeAsFileTime, resolution the system timer increment, measured at run time and recorded in session.json), Stopwatch.GetTimestamp, at the session start, every 5 s strictly inside the session, and at the stop; the frequency is Stopwatch.Frequency (QueryPerformanceFrequency). GetSystemTimePreciseAsFileTime and GetSystemTimeAdjustment are not called: neither is reachable from Windows PowerShell 5.1 without compiling code, so time_adjustment is null. See docs/clock-calibration.md.",
+    "method": "one thread reads Stopwatch.GetTimestamp (QueryPerformanceCounter), [DateTime]::UtcNow.ToFileTimeUtc() (the system time at the resolution of the system timer), Stopwatch.GetTimestamp, at the session start, every 5 s strictly inside the session, and at the stop. Each pair is taken at the instant the system clock changes value: the clock is read in a loop until it changes, and the counter read before the last unchanged reading and the one after the changed reading bracket the moment the clock took its new value; the size of that change (the clock increment) is recorded with the pair. The frequency is Stopwatch.Frequency (QueryPerformanceFrequency). GetSystemTimePreciseAsFileTime and GetSystemTimeAdjustment are not called: neither is reachable from Windows PowerShell 5.1 without compiling code, so both members of time_adjustment are null. See docs/clock-calibration.md.",
     "qpc_frequency_hz": 10000000,
     "expected_pairs": 7,
     "pairs": [
       {
         "seq": 0,
         "phase": "start",
-        "qpc_before": 27345678941384,
-        "qpc_after": 27345678941484,
-        "filetime_utc_100ns": 134168400000040000
+        "qpc_before": 27345678911134,
+        "qpc_after": 27345678911384,
+        "filetime_utc_100ns": 134168400000010000
       },
       {
         "seq": 1,
         "phase": "interval",
-        "qpc_before": 27345728941634,
-        "qpc_after": 27345728941734,
-        "filetime_utc_100ns": 134168400050040000
+        "qpc_before": 27345728921084,
+        "qpc_after": 27345728921334,
+        "filetime_utc_100ns": 134168400050020000
       },
       {
         "seq": 2,
         "phase": "interval",
-        "qpc_before": 27345778941884,
-        "qpc_after": 27345778941984,
-        "filetime_utc_100ns": 134168400100040000
+        "qpc_before": 27345778921034,
+        "qpc_after": 27345778921284,
+        "filetime_utc_100ns": 134168400100020000
       },
       {
         "seq": 3,
         "phase": "interval",
-        "qpc_before": 27345828942134,
-        "qpc_after": 27345828942234,
-        "filetime_utc_100ns": 134168400152540000
+        "qpc_before": 27345828921134,
+        "qpc_after": 27345828921384,
+        "filetime_utc_100ns": 134168400152520000
       },
       {
         "seq": 4,
         "phase": "interval",
-        "qpc_before": 27345878942384,
-        "qpc_after": 27345878942484,
-        "filetime_utc_100ns": 134168400202540000
+        "qpc_before": 27345878921084,
+        "qpc_after": 27345878921334,
+        "filetime_utc_100ns": 134168400202520000
       },
       {
         "seq": 5,
         "phase": "interval",
-        "qpc_before": 27345928942634,
-        "qpc_after": 27345928942734,
-        "filetime_utc_100ns": 134168400252540000
+        "qpc_before": 27345928921034,
+        "qpc_after": 27345928921284,
+        "filetime_utc_100ns": 134168400252520000
       },
       {
         "seq": 6,
         "phase": "stop",
-        "qpc_before": 27345978942884,
-        "qpc_after": 27345978942984,
-        "filetime_utc_100ns": 134168400302540000
+        "qpc_before": 27345978921134,
+        "qpc_after": 27345978921384,
+        "filetime_utc_100ns": 134168400302520000
       }
     ],
     "missing_pairs": 0,

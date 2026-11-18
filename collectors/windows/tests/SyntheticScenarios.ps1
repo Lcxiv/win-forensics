@@ -232,8 +232,9 @@ function Get-WfSyntheticCases {
 
     # A 60 s session at the contract's 5 s cadence: start, eleven interval
     # pairs strictly inside, stop (13 pairs). The system clock runs 50 ppm
-    # fast against the counter and steps once per millisecond; two marks are
-    # dropped from the second console. Status ok.
+    # fast against the counter and steps once per millisecond; every pair is
+    # taken at one of those steps; two marks are dropped from the second
+    # console. Status ok.
     $cases.Add(@{
             Case = 'clock-calibration'; Collector = 'clock-calibration'; ExitCode = 0; Arguments = @{ DurationSeconds = 60 }
             Setup = {
@@ -265,7 +266,8 @@ function Get-WfSyntheticCases {
     # was starved), so the slot at 10 s is reached more than an interval
     # late and is recorded as missing rather than taken late. The system
     # timer runs at the coarse 15.625 ms increment. Observed with
-    # missing_pairs 1 and expectation not met; status ok; no marks.
+    # missing_pairs 1 and expectation not met (timestamps.md section 3, the
+    # clock calibration exception); status ok; no marks.
     $cases.Add(@{
             Case = 'clock-calibration-missed-slot'; Collector = 'clock-calibration'; ExitCode = 0; Arguments = @{ DurationSeconds = 30 }
             Setup = {
@@ -275,10 +277,11 @@ function Get-WfSyntheticCases {
             }
         })
 
-    # The counter read fails at the stop pair: the session is not a
-    # calibration, the pairs taken are not kept, the marks file was open the
-    # whole time and holds no mark. clock_calibration capture_failed,
-    # operator_marks observed_zero, status partial, exit 0.
+    # The counter read fails at the stop pair: the four pairs taken are kept
+    # (two or more pairs are a calibration), the stop pair is counted as
+    # missing so file times after the last pair are unaligned, and the marks
+    # file, open the whole time, holds no mark. clock_calibration observed
+    # with expectation not met, operator_marks observed_zero, status ok.
     $cases.Add(@{
             Case = 'clock-calibration-read-failed'; Collector = 'clock-calibration'; ExitCode = 0; Arguments = @{ DurationSeconds = 20 }
             Setup = {

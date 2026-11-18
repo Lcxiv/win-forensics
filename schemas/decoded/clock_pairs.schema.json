@@ -17,7 +17,8 @@
     "qpc_mid",
     "bracket_ticks",
     "half_width_100ns",
-    "system_time_increment_100ns",
+    "edge",
+    "system_time_step_100ns",
     "provenance"
   ],
   "properties": {
@@ -36,11 +37,11 @@
     },
     "qpc_before": {
       "type": "integer",
-      "description": "Verbatim: the performance counter read before the system time."
+      "description": "Verbatim: the performance counter read before the system time (for an edge pair, before the last reading that still showed the old value)."
     },
     "qpc_after": {
       "type": "integer",
-      "description": "Verbatim: the performance counter read after the system time."
+      "description": "Verbatim: the performance counter read after the system time reading that showed the new value."
     },
     "filetime_utc_100ns": {
       "type": "integer",
@@ -66,13 +67,17 @@
       "minimum": 0,
       "description": "Derived: ceil((bracket_ticks / 2 + 1 tick) * 10^7 / qpc_frequency_hz), the pair's uncertainty from the counter bracket alone (timestamps.md section 3)."
     },
-    "system_time_increment_100ns": {
+    "edge": {
+      "type": "boolean",
+      "description": "Verbatim: true when the collector took the pair at the instant the system clock changed value, so the bracket holds that instant and the clock's increment does not enter the bound; false for a plain reading, to which the fit adds the increment term."
+    },
+    "system_time_step_100ns": {
       "type": [
         "integer",
         "null"
       ],
       "minimum": 1,
-      "description": "The system clock's measured increment the collector recorded for the session (the larger of its start and stop measurements), which the fit adds to every bound; null when the collector could not measure it."
+      "description": "Verbatim: the size of the change the system clock made at this edge pair (its increment at that moment); null for a pair that was not taken at an edge."
     },
     "provenance": {
       "allOf": [

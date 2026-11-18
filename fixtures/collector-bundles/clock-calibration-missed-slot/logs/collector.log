@@ -1,6 +1,6 @@
 2026-03-01T12:00:01.0000000Z collector clock-calibration version 1.0.0, helper version 1.2.0, no time window (snapshot), 90 s per source
-source clock_calibration: start pair at qpc 27345679526434, 5 interval slots of 5 s, stop at 30 s
-source clock_calibration: interval slot 2 (seq 2) was missed: the counter was already 60000400 ticks past it
+source clock_calibration: start pair at qpc 27345679057509, 5 interval slots of 5 s, stop at 30 s
+source clock_calibration: interval slot 2 (seq 2) was missed: the counter was already 60006425 ticks past it
 source clock_calibration: 1 of 7 expected pairs are missing (interval slots the session reached more than one interval late); the calibration is usable over longer segments, see docs/contracts/timestamps.md section 4.5
 source clock_calibration: status observed, 3 artifacts
 source operator_marks: status observed_zero, 3 artifacts

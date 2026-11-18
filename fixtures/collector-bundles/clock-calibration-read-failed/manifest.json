@@ -15,7 +15,7 @@
     "orchestrator": "wf-collector:clock-calibration",
     "orchestrator_version": "1.2.0",
     "elevated": false,
-    "incomplete": true
+    "incomplete": false
   },
   "machine": {
     "machine_id": "ae3a76a9f32fa71b72616118339e376c",
@@ -64,11 +64,11 @@
       "id": "clock_calibration",
       "kind": "clock",
       "required": true,
-      "status": "capture_failed",
-      "status_reason": "the session failed: synthetic backend: the performance counter read failed; 4 pairs had been taken and are not kept, because an unfinished session is not a calibration",
+      "status": "observed",
+      "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:05.0000000Z",
+        "at_utc": "2026-03-01T12:00:04.0000000Z",
         "checks": [
           {
             "name": "qpc_high_resolution",
@@ -79,11 +79,6 @@
             "name": "qpc_frequency",
             "ok": true,
             "detail": "Stopwatch.Frequency: 10000000 Hz"
-          },
-          {
-            "name": "system_time_increment_measured",
-            "ok": true,
-            "detail": "4 changes in 401 reads; smallest step 10000 x 100 ns"
           }
         ]
       },
@@ -97,7 +92,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "72cd8258d8fcd995826744d53a4a077d6be69baca540607483e95a90e2c217e0"
+        "value": "115272e3119def0f6c41dc150369e586d0fd7c7fb9f0ae919c7502496acf028c"
       },
       "filter_hash": null,
       "requested": {
@@ -110,7 +105,8 @@
           "interval_seconds": 5,
           "expected_pairs": 5,
           "timeout_seconds": 80,
-          "max_artifact_bytes": 67108864
+          "max_artifact_bytes": 67108864,
+          "edge_budget_milliseconds": 100
         }
       },
       "enabled": {
@@ -119,17 +115,19 @@
         "stack_walk": [],
         "counters": [],
         "options": {
-          "pairs_taken": 0,
-          "missing_pairs": 0,
+          "pairs_taken": 4,
+          "missing_pairs": 1,
+          "stop_pair_taken": false,
+          "edge_pairs": 4,
+          "largest_step_100ns": 10000,
           "qpc_frequency_hz": 10000000,
           "qpc_high_resolution": true,
-          "session_start_qpc": 27345678941434,
+          "session_start_qpc": 27345678911259,
           "session_stop_qpc": null,
-          "system_time_increment_100ns_start": 10000,
-          "system_time_increment_100ns_stop": null,
-          "time_adjustment": "not read: GetSystemTimeAdjustment is not reachable from Windows PowerShell 5.1 without compiling code"
+          "failure": "the session failed: synthetic backend: the performance counter read failed",
+          "time_adjustment": "not read: GetSystemTimeAdjustment is not reachable from Windows PowerShell 5.1 without compiling code; both members are null"
         },
-        "verified_by": "the pairs themselves in samples.jsonl (one line per pair, in the order taken); result.json carries the missed slots and the measured system time increments"
+        "verified_by": "the pairs themselves in samples.jsonl (one line per pair, in the order taken, each saying whether it was taken at a change of the system clock); result.json carries the missed slots, the largest clock step seen and any failure"
       },
       "events_lost": null,
       "buffers_lost": null,
@@ -137,22 +135,33 @@
       "artifacts": [
         {
           "path": "raw/clock_calibration/result.json",
-          "bytes": 676,
-          "sha256": "2c349cde3ae8d54e8db245d2205b5c6e5119d5429da6cf4e3c114fb48e2c4deb",
+          "bytes": 536,
+          "sha256": "01678551327b83c26c922384abb26ecd9d44712906f6bb6d8e06d125e39f3d46",
           "role": "report"
         },
         {
+          "path": "raw/clock_calibration/samples.jsonl",
+          "bytes": 1045,
+          "sha256": "f21556a2dfcd3a5b07c5c6c63c2edd83383638ad8232bcdf0a286da1082ef187",
+          "role": "primary"
+        },
+        {
           "path": "raw/clock_calibration/session.json",
-          "bytes": 1906,
-          "sha256": "72cd8258d8fcd995826744d53a4a077d6be69baca540607483e95a90e2c217e0",
+          "bytes": 2263,
+          "sha256": "115272e3119def0f6c41dc150369e586d0fd7c7fb9f0ae919c7502496acf028c",
           "role": "config"
         }
       ],
-      "raw_time_range": null,
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:00.0010000Z",
+        "end": "2026-03-01T12:00:15.0020000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
       "expectation": {
-        "declared": "a start pair and a stop pair read through the high resolution performance counter, with one pair every 5 s strictly inside the 20 s session (3 slots, 5 pairs in all) taken or counted in missing_pairs; the scenario's tolerance for missing pairs is the validator's check, not this collector's",
+        "declared": "5 pairs: a start pair, one every 5 s strictly inside the 20 s session (3 slots) and a stop pair, all read through the high resolution performance counter (timestamps.md section 3, clock calibration exception)",
         "met": false,
-        "detail": "0 pairs taken, 0 slots missed; Stopwatch.IsHighResolution True"
+        "detail": "4 of 5 pairs taken, 1 missing, stop pair taken: False, 4 at a clock edge; Stopwatch.IsHighResolution True; the session failed: synthetic backend: the performance counter read failed"
       },
       "target_process": null
     },
@@ -164,12 +173,12 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:04.0000000Z",
+        "at_utc": "2026-03-01T12:00:05.0000000Z",
         "checks": [
           {
             "name": "live_marks_file_created",
             "ok": true,
-            "detail": "raw/operator_marks/marks.open.jsonl"
+            "detail": "raw/operator_marks/marks.open.jsonl, opened right after the start pair"
           }
         ]
       },
@@ -185,7 +194,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "3a7205d8156dab9a5c05bf9f1a2cc7ab2f59a479ce31f24e87782652d853ad06"
+        "value": "40e3ca054d28534a3389fae437998ef91aafd5c02eeb5bd1e602b72572e0c468"
       },
       "filter_hash": null,
       "requested": {
@@ -218,8 +227,8 @@
       "artifacts": [
         {
           "path": "raw/operator_marks/instructions.json",
-          "bytes": 797,
-          "sha256": "3a7205d8156dab9a5c05bf9f1a2cc7ab2f59a479ce31f24e87782652d853ad06",
+          "bytes": 1365,
+          "sha256": "40e3ca054d28534a3389fae437998ef91aafd5c02eeb5bd1e602b72572e0c468",
           "role": "config"
         },
         {
@@ -236,7 +245,7 @@
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:00:02.0000000Z",
+        "start": "2026-03-01T12:00:00.0010000Z",
         "end": "2026-03-01T12:00:06.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
@@ -250,12 +259,41 @@
     }
   ],
   "calibration": {
-    "status": "capture_failed",
-    "method": "one thread reads Stopwatch.GetTimestamp (QueryPerformanceCounter), [DateTime]::UtcNow.ToFileTimeUtc() (GetSystemTimeAsFileTime, resolution the system timer increment, measured at run time and recorded in session.json), Stopwatch.GetTimestamp, at the session start, every 5 s strictly inside the session, and at the stop; the frequency is Stopwatch.Frequency (QueryPerformanceFrequency). GetSystemTimePreciseAsFileTime and GetSystemTimeAdjustment are not called: neither is reachable from Windows PowerShell 5.1 without compiling code, so time_adjustment is null. See docs/clock-calibration.md.",
+    "status": "observed",
+    "method": "one thread reads Stopwatch.GetTimestamp (QueryPerformanceCounter), [DateTime]::UtcNow.ToFileTimeUtc() (the system time at the resolution of the system timer), Stopwatch.GetTimestamp, at the session start, every 5 s strictly inside the session, and at the stop. Each pair is taken at the instant the system clock changes value: the clock is read in a loop until it changes, and the counter read before the last unchanged reading and the one after the changed reading bracket the moment the clock took its new value; the size of that change (the clock increment) is recorded with the pair. The frequency is Stopwatch.Frequency (QueryPerformanceFrequency). GetSystemTimePreciseAsFileTime and GetSystemTimeAdjustment are not called: neither is reachable from Windows PowerShell 5.1 without compiling code, so both members of time_adjustment are null. See docs/clock-calibration.md.",
     "qpc_frequency_hz": 10000000,
     "expected_pairs": 5,
-    "pairs": [],
-    "missing_pairs": 5,
+    "pairs": [
+      {
+        "seq": 0,
+        "phase": "start",
+        "qpc_before": 27345678911134,
+        "qpc_after": 27345678911384,
+        "filetime_utc_100ns": 134168400000010000
+      },
+      {
+        "seq": 1,
+        "phase": "interval",
+        "qpc_before": 27345728921084,
+        "qpc_after": 27345728921334,
+        "filetime_utc_100ns": 134168400050020000
+      },
+      {
+        "seq": 2,
+        "phase": "interval",
+        "qpc_before": 27345778921034,
+        "qpc_after": 27345778921284,
+        "filetime_utc_100ns": 134168400100020000
+      },
+      {
+        "seq": 3,
+        "phase": "interval",
+        "qpc_before": 27345828921134,
+        "qpc_after": 27345828921384,
+        "filetime_utc_100ns": 134168400150020000
+      }
+    ],
+    "missing_pairs": 1,
     "time_adjustment": {
       "start": null,
       "stop": null
@@ -298,6 +336,7 @@
     "Read only collector clock-calibration version 1.0.0: How does the system clock relate to the performance counter during this session, and when did the person at the PC feel something?",
     "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
-    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine."
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
+    "source clock_calibration: the session failed: synthetic backend: the performance counter read failed; the 4 pairs taken are kept and the 1 pairs not taken (the stop pair included) are counted in missing_pairs; timestamps after the last pair are unaligned"
   ]
 }
