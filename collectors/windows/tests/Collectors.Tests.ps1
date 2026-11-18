@@ -1674,7 +1674,29 @@ Describe 'dpcisr-trace against the synthetic backend' {
         $calls = Get-WprCalls
         $calls[4].Instance | Should -Match '^WfDpcIsrTrace-' -Because 'the cancel is scoped to the instance the collector started'
         (Get-TraceSource -Run $run2 -Id 'wpr_trace').enabled.options.session_state_final | Should -BeExactly 'idle'
+        (Get-TraceSource -Run $run2 -Id 'wpr_trace').status | Should -BeExactly 'not_collected'
         $global:WfSynthetic.Wpr.Instances.Values | Should -Not -Contain 'recording'
+    }
+
+    It 'reports a refused start whose leftover session survives the cancel as capture_failed, never as not_collected' {
+        $arguments = Start-TraceCase
+        $global:WfSynthetic.Wpr.StartExitCode = 1
+        $global:WfSynthetic.Wpr.StartStdErr = "synthetic wpr: access is denied`r`n"
+        $global:WfSynthetic.Wpr.StartLeavesRunning = $true
+        $global:WfSynthetic.Wpr.CancelLeavesRunning = $true
+        $out = Join-Path $TestDrive 'start-refused-unconfirmed'
+        $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out -Arguments $arguments
+        $run.ExitCode | Should -Be 1
+        Get-WprVerbs | Should -Be @('-status', '-profiles', '-start', '-status', '-cancel', '-status')
+        $trace = Get-TraceSource -Run $run -Id 'wpr_trace'
+        $trace.status | Should -BeExactly 'capture_failed' -Because 'a session may still be recording, which is not the same as nothing having run'
+        $trace.status_reason | Should -Match 'reads as active after the session was given up and the cancel'
+        $trace.status_reason | Should -Match 'wpr -start was refused.*access is denied'
+        $trace.enabled.options.session_state_final | Should -BeExactly 'active'
+        $trace.enabled.options.session_confirmed_stopped | Should -BeFalse
+        @($run.Manifest.notes | Where-Object { $_ -match 'wpr -cancel -instancename WfDpcIsrTrace-' }).Count | Should -BeGreaterThan 0
+        @(Get-TracerptRuns).Count | Should -Be 0
+        Assert-NoTraceLeft -Out $out
     }
 
     It 'cancels its own session and confirms when the stop fails or does not finish' {
@@ -1758,7 +1780,7 @@ Describe 'dpcisr-trace against the synthetic backend' {
         $trace.enabled.options.recording_seconds | Should -BeGreaterOrEqual 40
         $trace.enabled.options.recording_seconds | Should -BeLessThan 43
         $session = Get-Content -LiteralPath (Join-Path $out 'raw/wpr_trace/session.json') -Raw | ConvertFrom-Json
-        $session.worst_case_seconds | Should -Be (40 + 2 * 120 + 5 * 30)
+        $session.worst_case_seconds | Should -Be (40 + 4 * 120 + 5 * 30)
     }
 
     It 'keeps the final figures authoritative: a loss the summary shows fails the trace even when the live status showed none' {
@@ -1967,6 +1989,40 @@ Describe 'dpcisr-trace against the synthetic backend' {
         $run2 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'bad-cap') -Arguments (With-Arguments $arguments @{ MaxTraceBytes = 1024 })
         $run2.ExitCode | Should -Be 1
         $global:WfSynthetic.Processes.Count | Should -Be 0
+    }
+
+    It 'refuses to start when the worst case run time exceeds the dispatcher budget, and runs at the budget' {
+        $arguments = Start-TraceCase
+        $out = Join-Path $TestDrive 'over-budget'
+        $run = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out -Arguments (With-Arguments $arguments @{ DurationSeconds = 300 })
+        $run.ExitCode | Should -Be 1
+        ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'failed'
+        @($run.Stderr | Where-Object { $_ -match 'worst case run time is 930 seconds' }).Count | Should -BeGreaterThan 0
+        Test-Path -LiteralPath $out | Should -BeFalse
+        $global:WfSynthetic.Processes.Count | Should -Be 0 -Because 'the refusal comes before any wpr call'
+
+        $arguments = Start-TraceCase
+        $run2 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'one-over-budget') -Arguments (With-Arguments $arguments @{ DurationSeconds = 271 })
+        $run2.ExitCode | Should -Be 1
+        $global:WfSynthetic.Processes.Count | Should -Be 0
+
+        $arguments = Start-TraceCase
+        $out3 = Join-Path $TestDrive 'at-budget'
+        $run3 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out3 -Arguments (With-Arguments $arguments @{ DurationSeconds = 270 })
+        $run3.ExitCode | Should -Be 0
+        $trace3 = Get-TraceSource -Run $run3 -Id 'wpr_trace'
+        $trace3.status | Should -BeExactly 'observed'
+        $trace3.requested.options.worst_case_seconds | Should -Be 900
+        (Get-Content -LiteralPath (Join-Path $out3 'raw/wpr_trace/session.json') -Raw | ConvertFrom-Json).worst_case_seconds | Should -Be 900
+
+        $arguments = Start-TraceCase
+        $out4 = Join-Path $TestDrive 'short-duration'
+        $run4 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory $out4 -Arguments (With-Arguments $arguments @{ DurationSeconds = 5 })
+        (Get-TraceSource -Run $run4 -Id 'wpr_trace').requested.options.worst_case_seconds | Should -Be (5 + 25 + 4 * 120 + 5 * 30) -Because 'the status read after the start can outlast a duration below its own deadline'
+
+        $arguments = Start-TraceCase
+        $run5 = Invoke-TestCollector -Collector 'dpcisr-trace' -OutputDirectory (Join-Path $TestDrive 'long-with-short-timeouts') -Arguments (With-Arguments $arguments @{ DurationSeconds = 300; TimeoutSeconds = 112 })
+        $run5.ExitCode | Should -Be 0 -Because '300 + 4 * 112 + 150 is 898'
     }
 
     It 'records the parsed status, the final figures and every tool call in the session record, and pseudonymises hardware addresses in the texts that leave' {

@@ -124,7 +124,10 @@ param(
     # xperf), in seconds (1 to 3600). Status, profile enumeration and cancel
     # calls have their own fixed 30 second deadline. A process that does not
     # finish in time is stopped and the source is recorded as failed; the
-    # trace session is then cancelled.
+    # trace session is then cancelled. The collector refuses to start when
+    # the worst case run time (the duration, four long deadlines, five short
+    # ones, and the status read after the start when the duration is shorter
+    # than it) exceeds the dispatcher's 900 second budget.
     [int]$TimeoutSeconds = 120
 )
 
@@ -171,6 +174,19 @@ function Get-DpcIsrRequestedKeywords { return @('Interrupt', 'DPC', 'Loader') }
 function Get-DpcIsrBufferSizeKb { return 1024 }
 function Get-DpcIsrBufferCount { return 64 }
 function Get-DpcIsrShortTimeoutSeconds { return 30 }
+function Get-DpcIsrDispatcherBudgetSeconds { return 900 }
+function Get-DpcIsrWorstCaseSeconds {
+    # The longest a run can take: the recording, four long tool calls (wpr
+    # -start, wpr -stop, tracerpt, xperf), five short ones outside the
+    # recording (the default instance status, the profile enumeration, the
+    # status after the stop, the cancel and the final status), and the time
+    # by which the status read after the start (a short call inside the
+    # recording) can outlast a duration below the short deadline.
+    param([int]$DurationSeconds, [int]$TimeoutSeconds)
+    $short = Get-DpcIsrShortTimeoutSeconds
+    $statusOverrun = [math]::Max(0, $short - $DurationSeconds)
+    return ($DurationSeconds + $statusOverrun + 4 * $TimeoutSeconds + 5 * $short)
+}
 function Get-DpcIsrKernelCollectorName { return 'NT Kernel Logger' }
 
 function Get-DpcIsrProfileXml {
@@ -292,8 +308,11 @@ function Read-DpcIsrWprStatus {
 
 function Read-DpcIsrSummary {
     # The tracerpt summary: one figure for events lost and one for buffers
-    # lost, each from a line whose label names it ("... Events Lost ..." or
-    # "... Buffers Lost ...", colon or spaces before the value). Two lines
+    # lost, each from a line whose label is "Events Lost" or "Buffers Lost"
+    # with or without a "Total" prefix, or "Log Buffers Lost" (the name
+    # Microsoft's tracelog display gives EVENT_TRACE_PROPERTIES.LogBuffersLost,
+    # https://learn.microsoft.com/windows-hardware/drivers/devtest/tracelog-properties-display),
+    # colon or spaces before the value. Two lines
     # that disagree, a non numeric value or no line at all give null.
     param([string]$Text)
     $result = [ordered]@{ events_lost = $null; events_lost_lines = 0; buffers_lost = $null; buffers_lost_lines = 0; labelled_lines = 0 }
@@ -310,8 +329,8 @@ function Read-DpcIsrSummary {
         $label = ($m.Groups[1].Value.Trim() -replace '\s+', ' ')
         $valueText = $(if ($m.Groups[2].Success) { $m.Groups[2].Value } else { $m.Groups[3].Value })
         $value = ConvertTo-DpcIsrInteger -Text $valueText
-        if ($label -match '(?i)^(total\s+)?events?\s+lost$') { $events.Add($value) }
-        elseif ($label -match '(?i)^(total\s+)?(log\s+)?buffers?\s+lost$') { $buffers.Add($value) }
+        if ($label -match '(?i)^(total\s+)?events\s+lost$') { $events.Add($value) }
+        elseif ($label -match '(?i)^(total\s+)?(log\s+)?buffers\s+lost$') { $buffers.Add($value) }
     }
     $result.events_lost_lines = $events.Count
     $result.buffers_lost_lines = $buffers.Count
@@ -472,7 +491,7 @@ $invokeWprTrace = {
     $startArguments = @($profileRef, '-filemode', '-recordtempto', $tempDir)
     $stopArguments = @($etlPath, ('win-forensics ' + $collectorName + ' ' + (ConvertTo-WfCompactUtc -Value $started)), '-skipPdbGen')
     $recorded = { param([string]$Text) return (ConvertTo-DpcIsrRecordedText -Text $Text -BundleRoot $BundleRoot) }
-    $worstCase = $duration + 2 * $TimeoutSeconds + 5 * $short
+    $worstCase = Get-DpcIsrWorstCaseSeconds -DurationSeconds $duration -TimeoutSeconds $TimeoutSeconds
     $session = [ordered]@{
         tool                 = $tool
         tracerpt             = $tracerpt
@@ -730,6 +749,10 @@ $invokeWprTrace = {
         $session.trace_bytes = $traceBytes
         $session.trace_sha256 = $traceSha
         if ($traceOk -and $confirmed) {
+            # No -o is given. Microsoft documents the default name of the
+            # event dump (dumpfile.xml) and not whether "-summary" alone
+            # suppresses it; that no dump lands in the process's current
+            # directory is verification item 34 in the README.
             $summaryRun = Invoke-DpcIsrTool -Tool $tracerpt -Verb '' -Arguments @($etlPath, '-summary', $summaryPath, '-y') -TimeoutSeconds $TimeoutSeconds -Runs $runs -Log $Log -BundleRoot $BundleRoot -MaxBytes $MaxArtifactBytes
             if ((Test-DpcIsrRunOk -Run $summaryRun) -and (Test-Path -LiteralPath $summaryPath)) {
                 $summaryBytes = [int64](Get-Item -LiteralPath $summaryPath).Length
@@ -763,10 +786,15 @@ $invokeWprTrace = {
 
     # Status. Observed needs every one of: a clean session, settings
     # verified, a saved trace within the cap, a confirmed idle instance, and
-    # final figures that are numbers and zero. Everything else is a reason.
+    # final figures that are numbers and zero. Everything else is a reason,
+    # and an instance that was started and does not read as idle at the end
+    # is capture_failed whatever else went wrong.
     $met = $false
     $stopped = Get-WfUtcNow
-    if ($readErrorKind) {
+    if ($sessionStarted -and -not $confirmed) {
+        $entry.status = 'capture_failed'
+        $entry.status_reason = ('the collector''s instance reads as {0} after {1}{2}, so the session may still be recording; a session whose end is not confirmed is not a complete record{3}' -f $finalState, $(if ($stopIssued) { 'the stop' } else { 'the session was given up' }), $(if ($stateAfterStop -ne 'idle') { ' and the cancel' } else { '' }), $(if ($readErrorMessage) { '. Before that: ' + $readErrorMessage } else { '' }))
+    } elseif ($readErrorKind) {
         $resolved = Resolve-WfSourceStatus -ReadErrorKind $readErrorKind -ReadErrorMessage $readErrorMessage -WindowStartUtc $started
         $entry.status = $resolved['Status']
         $entry.status_reason = $resolved['Reason']
@@ -776,9 +804,6 @@ $invokeWprTrace = {
     } elseif ($traceBytes -gt $maxTraceBytes) {
         $entry.status = 'capture_failed'
         $entry.status_reason = ('the trace is {0} bytes, above the cap of {1}, and was not read' -f $traceBytes, $maxTraceBytes)
-    } elseif (-not $confirmed) {
-        $entry.status = 'capture_failed'
-        $entry.status_reason = ('the trace was saved but the collector''s instance reads as {0} after the stop{1}; a session whose end is not confirmed is not a complete record' -f $finalState, $(if ($stateAfterStop -ne 'idle') { ' and the cancel' } else { '' }))
     } elseif ($null -eq $summaryRun -or -not (Test-DpcIsrRunOk -Run $summaryRun) -or -not (Test-Path -LiteralPath $summaryPath)) {
         $entry.status = 'capture_failed'
         $entry.status_reason = 'the final loss statistics could not be read: ' + $(if ($null -eq $summaryRun) { 'tracerpt was not run' } else { & $recorded (Get-DpcIsrRunFailure -Run $summaryRun -Tool $tracerpt) })
@@ -1078,6 +1103,13 @@ if ($DurationSeconds -lt 5 -or $DurationSeconds -gt 300) {
 }
 if ($MaxTraceBytes -lt 16777216 -or $MaxTraceBytes -gt 17179869184) {
     [Console]::Error.WriteLine($collectorName + ': MaxTraceBytes must be between 16 MiB and 16 GiB')
+    Write-WfStdoutLine -Text (ConvertTo-WfSummaryLine -Collector $collectorName -Status 'failed' -Bundle $OutputDirectory -Artifacts 0)
+    exit 1
+}
+
+$worstCaseSeconds = Get-DpcIsrWorstCaseSeconds -DurationSeconds $DurationSeconds -TimeoutSeconds $TimeoutSeconds
+if ($worstCaseSeconds -gt (Get-DpcIsrDispatcherBudgetSeconds)) {
+    Write-WfStderrLine -Text (('{0}: the worst case run time is {1} seconds with -DurationSeconds {2} and -TimeoutSeconds {3}, above the dispatcher budget of {4}; lower one of them' -f $collectorName, $worstCaseSeconds, $DurationSeconds, $TimeoutSeconds, (Get-DpcIsrDispatcherBudgetSeconds)))
     Write-WfStdoutLine -Text (ConvertTo-WfSummaryLine -Collector $collectorName -Status 'failed' -Bundle $OutputDirectory -Artifacts 0)
     exit 1
 }

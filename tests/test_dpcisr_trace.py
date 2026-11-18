@@ -129,7 +129,7 @@ def test_a_clean_session_is_observed_with_zero_final_loss_verified_from_the_tool
         assert run["arguments"].endswith(f"-instancename {s['instance_name']}"), "every call on the session names the collector's own instance, last"
     assert s["runs"][0]["arguments"] == "-status", "the preflight looks at the default instance"
     assert s["events_lost_bound"] == 0 and s["buffers_lost_bound"] == 0 and s["stopped_early_at_cap"] is False
-    assert s["worst_case_seconds"] == 10 + 2 * 120 + 5 * 30
+    assert s["worst_case_seconds"] == 10 + 20 + 4 * 120 + 5 * 30
     assert s["settings_verified"] is True
 
 

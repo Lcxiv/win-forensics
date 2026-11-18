@@ -140,7 +140,7 @@
           ],
           "tool_timeout_seconds": 120,
           "short_timeout_seconds": 30,
-          "worst_case_seconds": 400
+          "worst_case_seconds": 660
         }
       },
       "enabled": {
@@ -187,7 +187,7 @@
         {
           "path": "raw/wpr_trace/session.json",
           "bytes": 1754,
-          "sha256": "1f993c4d551e7bd1eaf018e4bdae2c9ac937e5327806d1912c59df31497b9140",
+          "sha256": "e08d5bf821d0962138195ff1ad46931ceab6df1523d87a24387e7471c873ede7",
           "role": "report"
         }
       ],

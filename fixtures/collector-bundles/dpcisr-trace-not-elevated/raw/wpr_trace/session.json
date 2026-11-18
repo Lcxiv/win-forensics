@@ -17,7 +17,7 @@
   "max_trace_bytes": 2147483648,
   "tool_timeout_seconds": 120,
   "short_timeout_seconds": 30,
-  "worst_case_seconds": 400,
+  "worst_case_seconds": 660,
   "events_lost_bound": 0,
   "buffers_lost_bound": 0,
   "start_arguments": [

@@ -11,10 +11,10 @@ Tables (see docs/contracts/decoded-tables.md sections 5.1 and 5.2):
 Every row carries a provenance object whose ``row_id_or_offset`` is the 1-based
 line number of the raw line it was parsed from.
 
-When the bundle has a manifest, ``--source`` must be a normalised bundle
-relative path, inside the bundle, listed in the manifest as a primary artifact
-of a collector of kind ``xperf``, and present on disk; anything else is
-``decode_failed`` and nothing is written. The sidecar then also records that
+The bundle must have a ``manifest.json``, and ``--source`` must be a normalised
+bundle relative path, inside the bundle, listed in the manifest as a primary
+artifact of a collector of kind ``xperf``, and present on disk; anything else is
+``decode_failed`` and nothing is written. The sidecar also records that
 collector's measurement status as the ``collector_status`` check, which does
 not change the decoder's own status: a report decoded from a trace whose
 collector is ``capture_failed`` (lost events) still yields rows, and the
@@ -78,15 +78,15 @@ class DecodeError(Exception):
 OBSERVED = ("observed", "observed_zero")
 
 
-def collector_for_source(bundle: Path, source: str) -> dict[str, Any] | None:
-    """The manifest collector that lists ``source`` as a primary xperf artifact, or None without a manifest.
+def collector_for_source(bundle: Path, source: str) -> dict[str, Any]:
+    """The manifest collector that lists ``source`` as a primary xperf artifact.
 
-    Raises DecodeError when a manifest exists and the source is not such an artifact, or the path
-    is not a normalised bundle relative path inside the bundle.
+    Raises DecodeError when the bundle has no manifest, when the source is not such an artifact,
+    or when the path is not a normalised bundle relative path inside the bundle.
     """
     manifest_path = bundle / "manifest.json"
     if not manifest_path.is_file():
-        return None
+        raise DecodeError("the bundle has no manifest.json")
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -267,10 +267,9 @@ def decode(bundle: Path, source: str, decoded_at: str | None = None) -> dict[str
             status, reason = "decode_failed", "a decoder self check failed; see checks"
     except DecodeError as exc:
         status, reason = "decode_failed", str(exc)
-    if collector is not None:
-        # Informational, never gating: the collector decided its status before any decoder ran.
-        detail = collector["status"] + (f": {collector['status_reason']}" if collector["status_reason"] else "")
-        checks.append({"name": "collector_status", "ok": collector["status"] in OBSERVED, "detail": f"{collector['id']} {detail}"})
+    # Informational, never gating: the collector decided its status before any decoder ran.
+    detail = collector["status"] + (f": {collector['status_reason']}" if collector["status_reason"] else "")
+    checks.append({"name": "collector_status", "ok": collector["status"] in OBSERVED, "detail": f"{collector['id']} {detail}"})
 
     module_rows = [r for s in sections for r in s.module_rows]
     interval_rows = [r for s in sections for r in s.interval_rows]
