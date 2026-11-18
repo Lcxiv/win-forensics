@@ -1,6 +1,6 @@
 # Project agent memory
 
-win-forensics: capture, decode, and correlate Windows performance evidence. Read `README.md` first; it names the four contracts under `docs/contracts/` and the build order the repository follows (phase 0a is done, and the read only history collectors for the gaming PC are in `collectors/windows/`; the live capture collectors, decoders for the other tables, analyzers, and the correlator come in later phases and must be built against the contracts, not around them).
+win-forensics: capture, decode, and correlate Windows performance evidence. Read `README.md` first; it names the four contracts under `docs/contracts/` and the build order the repository follows (phase 0a is done, and the read only history collectors for the gaming PC and one live capture, `dpcisr-trace`, are in `collectors/windows/`; the other live capture collectors, decoders for the other tables, analyzers, and the correlator come in later phases and must be built against the contracts, not around them).
 
 ## Working rules that are not obvious from the code
 

@@ -84,7 +84,7 @@ Per CPU DPC and ISR usage per interval from the `Usage From ... Summing In N sec
 
 ### 5.3 `tracestats` (provisional)
 
-Session statistics from `xperf -i trace.etl -a tracestats -timezone utc` (with `-timespan actual` and `-detail` when available). Decoder: `scripts/decode_tracestats.py` (later phase). One row per reported key, because the report's exact keys vary by tool version and no committed fixture exists yet; a normalized subset is required so that validation can read events lost without knowing the tool's wording.
+Session statistics from `xperf -i trace.etl -a tracestats -timezone utc` (with `-timespan actual` and `-detail` when available). Decoder: `scripts/decode_tracestats.py` (this `xperf` source is a later phase; the sources it reads today are at the end of this section). One row per reported key, because the report's exact keys vary by tool version and no committed fixture exists yet; a normalized subset is required so that validation can read events lost without knowing the tool's wording.
 
 | Column | Type | Req | Notes |
 |---|---|---|---|

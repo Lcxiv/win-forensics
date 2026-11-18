@@ -14,7 +14,7 @@ Bundles captured from a real machine are never committed here; only schemas, cod
 
 ## Where this repository is in the build
 
-This is phase 0a of the build order in the captain's implementation plan (kept outside this repository under `firstmate/data/win-opt-framework/implementation-plan.md`, with the research and review history in `plan.md` next to it). Phase 0a writes the four contracts everything else depends on, settles three Process Monitor facts with committed runner fixtures, and lays out one example bundle. There are no live capture collectors, analyzers, or correlator yet; those are phases 1 to 4. The only CI job is the Process Monitor fact finding workflow.
+This is phase 0a of the build order in the captain's implementation plan (kept outside this repository under `firstmate/data/win-opt-framework/implementation-plan.md`, with the research and review history in `plan.md` next to it). Phase 0a writes the four contracts everything else depends on, settles three Process Monitor facts with committed runner fixtures, and lays out one example bundle. Apart from the one live capture described below, there are no live capture collectors, analyzers, or correlator yet; those are phases 1 to 4. The only CI job is the Process Monitor fact finding workflow.
 
 One set of collectors exists ahead of that order, because the captain's plan for reaching the gaming PC over SSH needs it: `collectors/windows/` holds named, read only PowerShell collectors that read history the machine already keeps (bug check and restart events, hardware error events, application crashes and hangs, GPU driver timeouts, reliability records, the driver inventory) as a standard account in Event Log Readers. Each writes a bundle to this contract with every source's measurement status, and `scripts/decode_eventlog.py` decodes the event exports into the `eventlog_events` table. They have never run on Windows; [collectors/windows/README.md](collectors/windows/README.md) lists what is still to be verified on the PC, and what needs Administrator and is therefore left for a later elevated task.
 
@@ -43,7 +43,7 @@ schemas/                 JSON Schema (draft 2020-12), one file per table, plus m
 collectors/windows/      read only PowerShell collectors for the PC, their shared helper _common.ps1, and README.md;
                          tests/ holds the Pester suite, the synthetic backend, and the fixture generator
 scripts/                 wf_schema.py (schema registry and validation), decode_dpcisr.py, decode_pdh.py, decode_eventlog.py,
-                         decode_tracestats.py (trace loss from the recorder's status text),
+                         decode_tracestats.py (trace loss from the recorder's status text and the tracerpt summary),
                          decode_rf_survey.py and analyze_rf_survey.py (the RF survey tables, evidence rows and report),
                          verify_bundle.py (manifest, checksums, no unlisted raw file), fetch_pwsh.sh (PowerShell 7 into tools/),
                          make_procmon_pmc.py, procmon_facts.ps1 and procmon_facts_summarize.py (runner harness)
