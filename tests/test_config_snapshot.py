@@ -290,8 +290,8 @@ def test_cpu_topology_rows_come_from_the_documented_api_and_cim_rows_say_what_th
     table = rows(bundle, "config_snapshot")
     cim = {r["key"]: r for r in table if r["category"] == "cpu_topology" and r["source_id"] in ("processors", "cpu_caches") and r["key"] != "cache"}
     assert cim["number_of_cores"]["value_number"] == 6 and cim["number_of_logical_processors"]["value_number"] == 12
-    assert cim["smt_enabled"]["value_text"] == "true" and "siblings is not recorded" in cim["smt_enabled"]["decoded"]["note"]
-    assert cim["processor_groups"]["decoded"]["groups"] == [0] and "processor-groups" in cim["processor_groups"]["documented_by"]
+    assert cim["smt_enabled"]["value_text"] == "true" and "logical_processor_map" in cim["smt_enabled"]["decoded"]["note"]
+    assert "processor_groups" not in cim, "the group layout is observed from the topology records, never inferred from a count"
     caches = [r for r in table if r["key"] == "cache"]
     assert [c["decoded"]["level"] for c in caches] == ["Primary", "Secondary", "Tertiary"]
     assert all("not which logical processors share it" in c["decoded"]["note"] for c in caches)

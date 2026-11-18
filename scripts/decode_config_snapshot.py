@@ -88,7 +88,6 @@ DOC_MSI = "https://learn.microsoft.com/windows-hardware/drivers/kernel/enabling-
 DOC_TDR = "https://learn.microsoft.com/windows-hardware/drivers/display/tdr-registry-keys"
 DOC_PROCESSOR = "https://learn.microsoft.com/windows/win32/cimwin32prov/win32-processor"
 DOC_CACHE = "https://learn.microsoft.com/windows/win32/cimwin32prov/win32-cachememory"
-DOC_GROUPS = "https://learn.microsoft.com/windows/win32/procthread/processor-groups"
 DOC_LPI = "https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex"
 DOC_POWERCFG = "https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options"
 DOC_SLIDER = "https://learn.microsoft.com/windows-hardware/customize/desktop/customize-power-slider"
@@ -411,7 +410,6 @@ def decode_processors(records: list[Any], source: str, entry: dict[str, Any], sc
               "NumberOfEnabledCore": "number_of_enabled_cores", "NumberOfLogicalProcessors": "number_of_logical_processors", "ThreadCount": "thread_count",
               "L2CacheSize": "l2_cache_kb", "L3CacheSize": "l3_cache_kb", "MaxClockSpeed": "max_clock_mhz", "CurrentClockSpeed": "current_clock_mhz",
               "ProcessorId": "processor_id", "Status": "status"}
-    total_logical = 0
     for index, record in enumerate(records):
         if not isinstance(record, dict):
             raise DecodeError(f"{source}: element {index} is not an object")
@@ -425,24 +423,13 @@ def decode_processors(records: list[Any], source: str, entry: dict[str, Any], sc
                                      device_name=record.get("Name"), present=True, documented_by=DOC_PROCESSOR, source_id=entry["id"]))
         cores, logical = as_number(record.get("NumberOfCores")), as_number(record.get("NumberOfLogicalProcessors"))
         if cores is not None and logical is not None:
-            total_logical += int(logical)
             smt = logical > cores
             rows.append(snapshot_row("cpu_topology", "smt_enabled", "true" if smt else "false", command, when, prov, value_number=1 if smt else 0, device_instance_id=device,
                                      device_name=record.get("Name"), present=True,
                                      decoded={"rule": "NumberOfCores is less than NumberOfLogicalProcessors when hyperthreading is enabled (Win32_Processor remarks)",
                                               "logical_per_core": (logical / cores) if cores else None,
-                                              "note": "which logical processors are siblings is not recorded; see the logical_processor_map source"},
+                                              "note": "a count only; which logical processors are siblings, and which group each is in, are the observed logical_processor:<group>:<i> and group:<g> rows from the logical_processor_map source"},
                                      documented_by=DOC_PROCESSOR, source_id=entry["id"]))
-    if records:
-        prov = provenance("config_snapshot", source, "index:0", schema_version)
-        if 0 < total_logical < 64:
-            rows.append(snapshot_row("cpu_topology", "processor_groups", "1", command, when, prov, value_number=1, present=True,
-                                     decoded={"groups": [0], "rule": "systems with fewer than 64 logical processors always have a single group, Group 0", "logical_processors": total_logical},
-                                     documented_by=DOC_GROUPS, source_id=entry["id"]))
-        else:
-            rows.append(snapshot_row("cpu_topology", "processor_groups", "unknown", command, when, prov, present=None,
-                                     decoded={"logical_processors": total_logical, "note": "64 or more logical processors; the group layout needs GetLogicalProcessorInformationEx"},
-                                     documented_by=DOC_GROUPS, source_id=entry["id"]))
     return rows
 
 
