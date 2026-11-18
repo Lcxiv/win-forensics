@@ -173,7 +173,7 @@ Not implemented here. Each of these is for the later elevated scheduled task, wh
 
 ## Facts to verify on the PC
 
-Nothing in this directory has run on Windows. The scripts pass PSScriptAnalyzer's Windows PowerShell 5.1 compatibility rules and the portable logic is tested with synthetic data, but each item below can only be settled at the PC. None of them needs an agent to touch the machine: the captain runs the step and reads the result.
+This list was written before anything in this directory had run on Windows. The scripts pass PSScriptAnalyzer's Windows PowerShell 5.1 compatibility rules and the portable logic is tested with synthetic data, but each item below can only be settled at the PC. None of them needs a development agent to touch the machine: the captain, or the agent session on the PC acting on his direction (see the project's `AGENTS.md`), runs the step and reads the result; a row leaves this list when that result is recorded here.
 
 | # | Unverified | How to check at the PC | If it fails |
 |---|---|---|---|
