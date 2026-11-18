@@ -1,15 +1,15 @@
-=== wpr -status (before)
+=== wpr -status -instancename wf-presentmon-frames (before)
 stdout:
 WPR is not recording.
 
 stderr:
 
-=== wpr -start
+=== wpr -start raw/presentmon_frames/profile.wprp!WfPresentMonFrames.Verbose -filemode -recordtempto raw/presentmon_frames/wpr-temp -instancename wf-presentmon-frames
 stdout:
 
 stderr:
 
-=== wpr -status collectors -details (before stop)
+=== wpr -status collectors -details -instancename wf-presentmon-frames (end of the window)
 stdout:
 WPR recording is in progress...
 
@@ -20,36 +20,37 @@ Dropped event           : 0
 Logging mode            : File
 
 Actively recording collectors:
-Collector Name          : WPR_initiated_wf-presentmon-frames
+Collector Name          : wf-presentmon-frames
+Collector Type          : Event Collector
 Buffer Size (KB)        : 64
 Events Lost             : 0
 Providers
-Microsoft-Windows-Kernel-Process: 0x8000000000000010: 0x04
-Microsoft-Windows-DxgKrnl: 0x8000841: 0x04
-Microsoft-Windows-Win32k: 0x8400000440c01000: 0x04
-Microsoft-Windows-Dwm-Core: 0x8000000000000081: 0x05
-Microsoft-Windows-DXGI: 0x8000000000000002: 0xff
-Microsoft-Windows-D3D9: 0x8000000000000002: 0xff
+    Microsoft-Windows-Kernel-Process: 0x8000000000000010: 0x04
+    {802ec45a-1e99-4b83-9920-87c98277ba9d}: 0x8000841: 0x04
+    Microsoft-Windows-Win32k: 0x8400000440c01000: 0x04
+    Microsoft-Windows-Dwm-Core: 0x8000000000000081: 0x05
+    {8c9dd1ad-e6e5-4b07-b455-684a9d879900}: 0x0: 0x05
+    {65cd4c8a-0848-4583-92a0-31c0fbaf00c0}: 0x0: 0x04
+    Microsoft-Windows-DXGI: 0x8000000000000002: 0xff
+    Microsoft-Windows-D3D9: 0x8000000000000002: 0xff
 CaptureState Providers on Start
-Microsoft-Windows-Kernel-Process: 0x8000000000000010: 0x04
-Microsoft-Windows-DxgKrnl: 0x840: 0x04
+    Microsoft-Windows-Kernel-Process: 0x8000000000000010: 0x04
+    {802ec45a-1e99-4b83-9920-87c98277ba9d}: 0x840: 0x04
 
 stderr:
 
-=== wpr -stop
+=== wpr -stop raw/presentmon_frames/trace.etl win-forensics presentmon-frames -skipPdbGen -instancename wf-presentmon-frames
 stdout:
 
 stderr:
 
-=== wpr -status (after)
+=== wpr -status -instancename wf-presentmon-frames (after the stop)
 stdout:
 WPR is not recording.
 
 stderr:
 
-=== PresentMon --etl_file
-stdout:
-Started recording.
-
+=== PresentMon --etl_file (stdout is the CSV)
+stdout: the CSV (2998 bytes), kept as frames.csv when the source is observed
 stderr:
 

@@ -8,7 +8,8 @@
     "product_version": null,
     "error": null,
     "pin_matched": false,
-    "length_matched": false
+    "length_matched": false,
+    "sha256_before_run": null
   },
   "controller": {
     "path": "C:\\Windows\\System32\\wpr.exe",
@@ -25,6 +26,16 @@
       "oversized": false,
       "duration_ms": null,
       "deadline_seconds": 30,
+      "error": null
+    },
+    "leftover_cancel": {
+      "attempted": false,
+      "started": false,
+      "exit_code": null,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": null,
+      "deadline_seconds": 60,
       "error": null
     },
     "start": {
@@ -88,27 +99,12 @@
       "error": null
     }
   },
-  "recording": {
-    "source_started_utc": "2026-03-01T12:00:02.0000000Z",
-    "source_stopped_utc": "2026-03-01T12:00:04.0000000Z",
-    "started_utc": null,
-    "stop_requested_utc": null,
-    "duration_seconds": 60,
-    "in_progress_before_stop": false,
-    "in_progress_after_stop": false,
-    "stop_confirmed": false,
-    "collectors_reported": [],
-    "events_lost": null,
-    "events_lost_source": null,
-    "buffers_lost": null,
-    "etl_bytes": 0,
-    "etl_header": {
-      "found": false
-    }
-  },
+  "source_started_utc": "2026-03-01T12:00:02.0000000Z",
+  "source_stopped_utc": "2026-03-01T12:00:04.0000000Z",
   "csv": {
     "path": "raw/presentmon_frames/frames.csv",
     "present": false,
+    "bytes": 0,
     "header": [],
     "qpc_time_column": false,
     "frames": 0,
@@ -116,7 +112,6 @@
     "truncated_process_list": false,
     "unknown_application_frames": 0
   },
-  "console_flagged_lines": [],
   "account": {
     "elevated": false,
     "performance_log_users": true

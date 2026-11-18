@@ -1,5 +1,5 @@
-2026-03-01T12:00:01.0000000Z collector presentmon-frames version 2.0.0, helper version 1.2.0, no time window (snapshot), 660 s per source
+2026-03-01T12:00:01.0000000Z collector presentmon-frames version 2.1.0, helper version 1.2.0, no time window (snapshot), 750 s per source
 source presentmon_frames: the account is neither elevated nor a member of Performance Log Users (S-1-5-32-559), the two groups Microsoft documents as able to control event tracing sessions; expect the recording to be refused
-source presentmon_frames: wpr -start raw/presentmon_frames/profile.wprp!WfPresentMonFrames.Verbose -filemode -recordtempto raw/presentmon_frames/wpr-temp
-source presentmon_frames: status not_collected, 4 artifacts
-2026-03-01T12:00:10.0000000Z manifest written: bundle 20260301T120001Z_presentmon_frames_ae3a76a9, status failed, 4 artifacts
+source presentmon_frames: wpr -start raw/presentmon_frames/profile.wprp!WfPresentMonFrames.Verbose -filemode -recordtempto raw/presentmon_frames/wpr-temp -instancename wf-presentmon-frames
+source presentmon_frames: status not_collected, 5 artifacts
+2026-03-01T12:00:11.0000000Z manifest written: bundle 20260301T120001Z_presentmon_frames_ae3a76a9, status failed, 5 artifacts

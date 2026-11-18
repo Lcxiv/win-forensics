@@ -2,24 +2,25 @@
 """Decode a presentmon-frames capture into the ``presentmon_frames`` table.
 
 See docs/contracts/decoded-tables.md section 5.5. The ``presentmon-frames``
-collector records an ETW trace with Windows Performance Recorder
-(``raw/presentmon_frames/trace.etl``, the primary artifact) and runs the
-pinned PresentMon console application over that file with ``--etl_file`` and
-``--qpc_time``; the CSV it writes is kept untouched as
-``raw/presentmon_frames/frames.csv`` (role report). PresentMon creates the
-CSV at the first frame it emits, so a recording with no frame has no CSV.
-One row per CSV data row; the provenance ``row_id_or_offset`` is ``row:<n>``
-with the 1-based data row, not counting the header line.
+collector records an ETW trace with Windows Performance Recorder on the PC,
+runs the pinned PresentMon console application over that file with
+``--etl_file``, ``--output_stdout`` and ``--qpc_time``, keeps the CSV it
+printed as ``raw/presentmon_frames/frames.csv`` (the primary artifact), and
+deletes the recording (a merged WPR trace can carry network adapter
+addresses, which never enter a bundle). What the recording's log file header
+said (its clock, its loss counters, its start and end) is in
+``raw/presentmon_frames/recording.json`` (role report) and repeated in the
+manifest entry's ``enabled.options``; the decoder reads both and refuses to
+build a table when they disagree or report loss. One row per CSV data row;
+the provenance ``row_id_or_offset`` is ``row:<n>`` with the 1-based data row,
+not counting the header line.
 
-The time domain comes from the recording, not from the CSV: the log file
-header of the ``.etl`` (TRACE_LOGFILE_HEADER, the first event of any log
-file) names the clock the events were stamped with (``ReservedFlags``: 1 is
-the performance counter, 2 is system time, 3 the CPU cycle counter). With the
-performance counter the table is ``etw_qpc``; with system time the values
-are FILETIME units and the table is ``system_time``; a cycle counter clock
-or an unreadable header is ``decode_failed``, because the frames could not
-be placed in a domain. The header's events and buffers lost are reported
-next to the manifest's ``events_lost``.
+The time domain comes from the recording's header as the collector read it:
+``clock_type`` ``qpc`` (ReservedFlags 1, the performance counter) gives
+``etw_qpc`` in ``qpc_ticks``; ``system_time`` (2) gives ``system_time`` with
+the values as FILETIME units; the CPU cycle counter (3) or a header the
+collector could not read is ``decode_failed``, because the frames could not
+be placed in a domain.
 
 Column names follow the PresentMon 2.6.0 console README ("CSV columns") and
 the header its source writes for the default options (CsvOutput.cpp
@@ -32,10 +33,13 @@ PresentMon can write (``CPUStartTime``, ``CPUStartTimeInMs``,
 does not place in a domain, and a CSV carrying one is ``decode_failed``.
 
 Without ``--source`` the decoder reads the manifest and takes every
-collector of kind ``presentmon`` whose status is ``observed`` or
-``observed_zero``. A collector that did not capture has no recording, and
-the decoder then reports ``not_collected`` and writes nothing. Every
-``--source`` must be the bundle relative path of such a collector's CSV.
+collector of kind ``presentmon`` whose status is ``observed``. The collector
+never reports ``observed_zero`` (with the pinned binary an empty output cannot
+be told from a read that stopped early), so an observed capture always has a
+CSV with at least one frame. A collector that did not capture has nothing to
+decode, and the decoder then reports ``not_collected`` and writes nothing.
+Every ``--source`` must be the bundle relative path of such a collector's
+CSV or of its ``recording.json``.
 
 Usage::
 
@@ -47,9 +51,8 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import struct
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -57,9 +60,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import wf_schema  # noqa: E402
 
 DECODER = "decode_presentmon"
-DECODER_VERSION = "2.0.0"
+DECODER_VERSION = "3.0.0"
 TABLE = "presentmon_frames"
-TOOL_NAME = "PresentMon console application (GameTechDev/PresentMon), --etl_file over a Windows Performance Recorder trace"
+TOOL_NAME = "PresentMon console application (GameTechDev/PresentMon), --etl_file over a Windows Performance Recorder trace read on the PC"
 OBSERVED = ("observed", "observed_zero")
 
 # PresentMon 2.6.0 console README, "CSV columns", plus the two v1 metric
@@ -110,76 +113,12 @@ OPTIONAL_STRINGS = ("frame_type",)
 START_COLUMN = "CPUStartQPC"
 OTHER_START_COLUMNS = ("CPUStartTime", "CPUStartTimeInMs", "CPUStartTimeInSeconds", "CPUStartQPCTime", "CPUStartQPCTimeInMs", "CPUStartDateTime")
 NA = "NA"
-
-# The log file header event: EventTraceGuid {68fdd900-4a3e-11d1-84f4-0000f80464e3}
-# (EventTraceEvent MOF class) in the 48 byte EVENT_TRACE_HEADER, GUID at offset
-# 24, followed by TRACE_LOGFILE_HEADER. The buffer header before it is not
-# documented, so the GUID is searched for in the first 64 KiB.
-EVENT_TRACE_GUID = bytes.fromhex("00d9fd683e4ad11184f40000f80464e3")
-CLOCK_TYPES = {1: "qpc", 2: "system_time", 3: "cpu_cycle_counter"}
-FILETIME_EPOCH = datetime(1601, 1, 1, tzinfo=timezone.utc)
+# The clock names the collector writes from the header's ReservedFlags (WNODE_HEADER ClientContext: 1 QPC, 2 system time, 3 CPU cycle counter).
+DOMAINS = {"qpc": ("etw_qpc", "qpc_ticks"), "system_time": ("system_time", "filetime_100ns")}
 
 
 class DecodeError(Exception):
     pass
-
-
-def filetime_to_utc(value: int) -> str:
-    moment = FILETIME_EPOCH + timedelta(microseconds=value // 10)
-    return moment.strftime("%Y-%m-%dT%H:%M:%S.") + f"{value % 10_000_000:07d}Z"
-
-
-def read_etl_header(path: Path) -> dict[str, Any]:
-    """The documented fields of the log file header, or ``found`` false with the reason.
-
-    The field offsets follow TRACE_LOGFILE_HEADER (EventTrace_Header MOF class):
-    the two pointer members take PointerSize each and TIME_ZONE_INFORMATION is
-    padded to 176 bytes so BootTime is 8 byte aligned. This layout is inferred
-    from the documented structures and awaits a file from a real machine
-    (collectors/windows/README.md, verification item 27).
-    """
-    header: dict[str, Any] = {"found": False, "error": None}
-    try:
-        with path.open("rb") as fh:
-            data = fh.read(65536)
-    except OSError as exc:
-        header["error"] = str(exc)
-        return header
-    at = data.find(EVENT_TRACE_GUID, 24)
-    if at < 0 or at + 300 > len(data):
-        header["error"] = "no log file header event (EventTraceGuid) in the first 64 KiB"
-        return header
-    p = at - 24 + 48
-    pointer_size = struct.unpack_from("<I", data, p + 44)[0]
-    if pointer_size not in (4, 8):
-        header["error"] = f"implausible PointerSize {pointer_size}"
-        return header
-    tail = p + 56 + 2 * pointer_size + 176
-    if tail + 32 > len(data):
-        header["error"] = "the header is cut short"
-        return header
-    reserved = struct.unpack_from("<I", data, tail + 24)[0]
-    start_time = struct.unpack_from("<q", data, tail + 16)[0]
-    end_time = struct.unpack_from("<q", data, p + 16)[0]
-    if reserved not in CLOCK_TYPES or start_time <= 0:
-        header["error"] = f"implausible ReservedFlags {reserved} or StartTime {start_time}"
-        return header
-    header.update({
-        "found": True,
-        "offset": p,
-        "buffer_size_bytes": struct.unpack_from("<I", data, p)[0],
-        "number_of_processors": struct.unpack_from("<I", data, p + 12)[0],
-        "pointer_size": pointer_size,
-        "buffers_written": struct.unpack_from("<I", data, p + 36)[0],
-        "events_lost": struct.unpack_from("<I", data, p + 48)[0],
-        "buffers_lost": struct.unpack_from("<I", data, tail + 28)[0],
-        "perf_freq_hz": struct.unpack_from("<q", data, tail + 8)[0],
-        "start_time_utc": filetime_to_utc(start_time),
-        "end_time_utc": filetime_to_utc(end_time) if end_time > 0 else None,
-        "reserved_flags": reserved,
-        "clock_type": CLOCK_TYPES[reserved],
-    })
-    return header
 
 
 def load_manifest(bundle: Path) -> dict[str, Any]:
@@ -193,17 +132,19 @@ def load_manifest(bundle: Path) -> dict[str, Any]:
 
 
 def captures(manifest: dict[str, Any]) -> list[dict[str, Any]]:
-    """Every observed PresentMon collector: its recording, its CSV (None when no frame was emitted), its status."""
+    """Every observed PresentMon collector: its CSV (the primary), its recording record, its status and loss."""
     out = []
     for collector in manifest["collectors"]:
         if collector["kind"] != "presentmon" or collector["status"] not in OBSERVED:
             continue
-        etl = [a["path"] for a in collector["artifacts"] if a["role"] == "primary" and a["path"].endswith(".etl")]
-        csv_paths = [a["path"] for a in collector["artifacts"] if a["path"].endswith("/frames.csv")]
-        if len(etl) != 1:
-            raise DecodeError(f"collector {collector['id']}: expected one primary .etl artifact, found {len(etl)}")
-        out.append({"id": collector["id"], "etl": etl[0], "csv": csv_paths[0] if csv_paths else None,
-                    "status": collector["status"], "events_lost": collector.get("events_lost")})
+        primary = [a["path"] for a in collector["artifacts"] if a["role"] == "primary"]
+        records = [a["path"] for a in collector["artifacts"] if a["path"].endswith("/recording.json")]
+        if len(primary) != 1 or not primary[0].endswith("/frames.csv"):
+            raise DecodeError(f"collector {collector['id']}: expected one primary frames.csv artifact, found {primary}")
+        if len(records) != 1:
+            raise DecodeError(f"collector {collector['id']}: expected one recording.json artifact, found {len(records)}")
+        out.append({"id": collector["id"], "csv": primary[0], "recording": records[0], "status": collector["status"],
+                    "events_lost": collector.get("events_lost"), "options": (collector.get("enabled") or {}).get("options") or {}})
     return out
 
 
@@ -227,9 +168,39 @@ def check_source_path(bundle: Path, source: str, allowed: list[str]) -> None:
     if root not in target.parents:
         raise DecodeError(f"{source}: resolves outside the bundle")
     if source not in allowed:
-        raise DecodeError(f"{source}: not listed in the manifest as the CSV or recording of an observed PresentMon collector")
+        raise DecodeError(f"{source}: not listed in the manifest as the CSV or recording record of an observed PresentMon collector")
     if not target.is_file():
         raise DecodeError(f"{source}: listed in the manifest but missing from the bundle")
+
+
+def read_recording(bundle: Path, capture: dict[str, Any]) -> dict[str, Any]:
+    """The recording record the collector wrote, cross checked against the manifest entry; raises when it cannot vouch for the capture."""
+    path = capture["recording"]
+    try:
+        record = json.loads((bundle / path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DecodeError(f"{path}: {exc}") from exc
+    header = record.get("header") or {}
+    options = capture["options"]
+    if not header.get("found"):
+        raise DecodeError(f"{path}: the collector could not read the recording's log file header ({header.get('error')}), so the frames cannot be placed in a time domain")
+    clock = header.get("clock_type")
+    if clock not in DOMAINS:
+        raise DecodeError(f"{path}: the recording was stamped with the {clock or 'unknown'} clock, which the table does not place in a time domain")
+    if options.get("clock_type") != clock:
+        raise DecodeError(f"{path}: the manifest says clock {options.get('clock_type')!r}, the recording record {clock!r}")
+    events_lost = record.get("events_lost")
+    buffers_lost = record.get("buffers_lost")
+    if events_lost != 0 or buffers_lost != 0 or header.get("events_lost") != 0 or header.get("buffers_lost") != 0:
+        raise DecodeError(f"{path}: the recording lost data (events lost {events_lost}, buffers lost {buffers_lost}, header {header.get('events_lost')} and {header.get('buffers_lost')}); a recording with loss is capture_failed, not a table")
+    if capture["events_lost"] != 0:
+        raise DecodeError(f"{path}: the manifest records events_lost {capture['events_lost']!r} for an observed capture, the record 0")
+    if record.get("stop_confirmed") is not True or record.get("in_progress_at_end") is not True or record.get("session_ended_early"):
+        raise DecodeError(f"{path}: the recording did not run for the whole window or its stop was not confirmed")
+    overflow = (record.get("presentmon") or {}).get("overflowed_presents")
+    if overflow:
+        raise DecodeError(f"{path}: PresentMon threw {overflow} presents away while reading the recording, so the table would be incomplete")
+    return {"clock": clock, "header": header, "record": record}
 
 
 def parse_integer(text: str, column: str, source: str, row: int, optional: bool = False) -> int | None:
@@ -345,26 +316,23 @@ def decode(bundle: Path, sources: list[str] | None = None, decoded_at: str | Non
     try:
         manifest = load_manifest(bundle)
         found = captures(manifest)
-        allowed = [c["csv"] for c in found if c["csv"]] + [c["etl"] for c in found]
+        allowed = [c["csv"] for c in found] + [c["recording"] for c in found]
         if sources is None:
             selected = found
             if not selected:
                 # Nothing is written: a sidecar must name at least one source
                 # file, and a table with no input does not exist for this bundle.
-                return {"status": "not_collected", "reason": "the bundle holds no recording of an observed PresentMon capture to decode", "rows": 0, "sources": 0}
+                return {"status": "not_collected", "reason": "the bundle holds no observed PresentMon capture to decode", "rows": 0, "sources": 0}
         else:
             if not sources:
                 raise DecodeError("no source was named")
             selected = []
             for source in sources:
                 check_source_path(bundle, source, allowed)
-                selected += [c for c in found if source in (c["csv"], c["etl"]) and c not in selected]
+                selected += [c for c in found if source in (c["csv"], c["recording"]) and c not in selected]
         for capture in selected:
-            check_source_path(bundle, capture["etl"], allowed)
-            if capture["csv"]:
-                check_source_path(bundle, capture["csv"], allowed)
-            elif capture["status"] == "observed":
-                raise DecodeError(f"collector {capture['id']} is observed but has no frames.csv artifact")
+            check_source_path(bundle, capture["csv"], allowed)
+            check_source_path(bundle, capture["recording"], allowed)
     except DecodeError as exc:
         # Nothing is written either: an input that is missing, unlisted, or
         # outside the bundle must not become a table, and the sidecar could
@@ -382,31 +350,18 @@ def decode(bundle: Path, sources: list[str] | None = None, decoded_at: str | Non
         clocks: set[str] = set()
         processes: dict[tuple[str, int], int] = {}
         for capture in selected:
-            etl = capture["etl"]
-            source_files.append(etl)
-            header = read_etl_header(bundle / etl)
-            if not header["found"]:
-                raise DecodeError(f"{etl}: the log file header could not be read ({header['error']}), so the frames cannot be placed in a time domain")
-            clock = header["clock_type"]
-            if clock == "cpu_cycle_counter":
-                raise DecodeError(f"{etl}: the recording was stamped with the CPU cycle counter, which the table does not place in a time domain")
-            clocks.add(clock)
-            checks.append({"name": f"etl_header:{etl}", "ok": True,
-                           "detail": f"clock {clock}, PerfFreq {header['perf_freq_hz']} Hz, {header['buffers_written']} buffers written, "
-                                     f"{header['events_lost']} events lost, {header['buffers_lost']} buffers lost, "
-                                     f"start {header['start_time_utc']}, end {header['end_time_utc']}"})
-            loss_ok = header["events_lost"] == 0 and header["buffers_lost"] == 0
-            checks.append({"name": f"etl_no_loss:{etl}", "ok": loss_ok,
-                           "detail": f"header: {header['events_lost']} events lost, {header['buffers_lost']} buffers lost; manifest events_lost {capture['events_lost']}"})
-            if capture["events_lost"] is not None and capture["events_lost"] != header["events_lost"]:
-                checks.append({"name": f"etl_events_lost_agrees:{etl}", "ok": False,
-                               "detail": f"the manifest records {capture['events_lost']} events lost (wpr -status before the stop), the header {header['events_lost']}"})
-            if capture["csv"] is None:
-                checks.append({"name": f"rows_read:{etl}", "ok": True,
-                               "detail": "no frames.csv: PresentMon emitted no frame from the recording (it creates the CSV at the first frame)"})
-                continue
             source_files.append(capture["csv"])
+            source_files.append(capture["recording"])
+            recording = read_recording(bundle, capture)
+            header = recording["header"]
+            clocks.add(recording["clock"])
+            checks.append({"name": f"recording:{capture['recording']}", "ok": True,
+                           "detail": f"clock {recording['clock']}, PerfFreq {header.get('perf_freq_hz')} Hz, {header.get('buffers_written')} buffers written, "
+                                     f"0 events lost, 0 buffers lost, session {header.get('start_time_utc')} to {header.get('end_time_utc')}, "
+                                     f"stop confirmed, {recording['record'].get('etl_bytes')} byte recording deleted on the PC (sha256 {recording['record'].get('etl_sha256')})"})
             result = decode_csv(bundle, capture["csv"], schema_version)
+            if not result["rows"]:
+                raise DecodeError(f"{capture['csv']}: an observed capture with no frame row; the collector never reports one (zero frames is capture_failed)")
             rows += result["rows"]
             for key, count in result["processes"].items():
                 processes[key] = processes.get(key, 0) + count
@@ -415,14 +370,12 @@ def decode(bundle: Path, sources: list[str] | None = None, decoded_at: str | Non
                                      f"unmapped kept in raw_columns: {', '.join(result['unmapped']) or 'none'}"})
             checks.append({"name": f"rows_read:{capture['csv']}", "ok": True,
                            "detail": f"{len(result['rows'])} frames, {result['na_cells']} NA cells, {result['unknown_rows']} frames of <unknown> processes"})
-            if result["rows"]:
-                checks.append({"name": f"qpc_increases_per_swap_chain:{capture['csv']}", "ok": result["qpc_monotonic"],
-                               "detail": "CPUStartQPC increases from one frame to the next within each (process, swap chain)"
-                               if result["qpc_monotonic"] else "CPUStartQPC does not increase within at least one (process, swap chain); the rows are kept in CSV order"})
+            checks.append({"name": f"qpc_increases_per_swap_chain:{capture['csv']}", "ok": result["qpc_monotonic"],
+                           "detail": "CPUStartQPC increases from one frame to the next within each (process, swap chain)"
+                           if result["qpc_monotonic"] else "CPUStartQPC does not increase within at least one (process, swap chain); the rows are kept in CSV order"})
         if len(clocks) > 1:
             raise DecodeError(f"the recordings disagree on the clock ({', '.join(sorted(clocks))}); decode them separately")
-        clock = next(iter(clocks))
-        domain, unit = ("etw_qpc", "qpc_ticks") if clock == "qpc" else ("system_time", "filetime_100ns")
+        domain, unit = DOMAINS[next(iter(clocks))]
         summary = sorted(processes.items(), key=lambda item: (-item[1], item[0][0], item[0][1]))
         checks.append({"name": "processes", "ok": True,
                        "detail": "; ".join(f"{application} pid {pid}: {count} frames" for (application, pid), count in summary[:20]) or "none"})
@@ -430,13 +383,12 @@ def decode(bundle: Path, sources: list[str] | None = None, decoded_at: str | Non
         checks.append({"name": "rows_validate", "ok": not errors, "detail": "; ".join(errors[:3]) or None})
         if errors:
             status, reason, rows = "decode_failed", "; ".join(errors[:3]), []
-        elif not rows:
-            status, reason = "observed_zero", "the recording holds no frame for the processes PresentMon kept"
     except DecodeError as exc:
         status, reason, rows = "decode_failed", str(exc), []
+        domain, unit = "none", "none"
         checks.append({"name": "capture_read", "ok": False, "detail": str(exc)})
         if not source_files:
-            source_files = [c["etl"] for c in selected]
+            source_files = [c["csv"] for c in selected]
 
     native_range = None
     if rows:
@@ -469,7 +421,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--bundle", required=True, type=Path)
     ap.add_argument("--source", action="append", default=None,
-                    help="bundle relative path of a capture's CSV or recording, for example raw/presentmon_frames/frames.csv; repeatable")
+                    help="bundle relative path of a capture's CSV or recording record, for example raw/presentmon_frames/frames.csv; repeatable")
     ap.add_argument("--decoded-at", default=None)
     args = ap.parse_args(argv)
     result = decode(args.bundle, args.source, args.decoded_at)

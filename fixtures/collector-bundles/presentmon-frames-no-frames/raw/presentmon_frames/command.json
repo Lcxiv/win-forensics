@@ -12,41 +12,52 @@
     "digest_source": "the digest GitHub records for the release asset (release API digest field), read 2026-11-18"
   },
   "controller": "C:\\Windows\\System32\\wpr.exe",
-  "method": "wpr records the providers below to a file inside the bundle for the window; PresentMon then reads that file with --etl_file. Live PresentMon is not run: in realtime mode it opens a PROCESS_QUERY_LIMITED_INFORMATION handle to every presenting process (OutputThread.cpp QueryProcessName, v2.6.0) and enables SeDebugPrivilege when it can (MainThread.cpp); with --etl_file both are skipped (the same two functions test args.mEtlFileName)",
+  "method": "wpr records the providers below, under the instance name, to a file inside the bundle for the window; PresentMon then reads that file with --etl_file and prints its CSV on stdout, captured under the artifact cap; the file is deleted after it was read because a WPR merged recording may carry the network adapter hardware and IP addresses. Live PresentMon is not run: in realtime mode it opens a PROCESS_QUERY_LIMITED_INFORMATION handle to every presenting process (OutputThread.cpp QueryProcessName, v2.6.0) and enables SeDebugPrivilege when it can (MainThread.cpp); with --etl_file both are skipped (the same two functions test args.mEtlFileName)",
   "wpr_commands": {
     "probe": [
-      "-status"
+      "-status",
+      "-instancename",
+      "wf-presentmon-frames"
     ],
     "start": [
       "-start",
       "raw/presentmon_frames/profile.wprp!WfPresentMonFrames.Verbose",
       "-filemode",
       "-recordtempto",
-      "raw/presentmon_frames/wpr-temp"
+      "raw/presentmon_frames/wpr-temp",
+      "-instancename",
+      "wf-presentmon-frames"
     ],
     "status": [
       "-status",
       "collectors",
-      "-details"
+      "-details",
+      "-instancename",
+      "wf-presentmon-frames"
     ],
     "stop": [
       "-stop",
       "raw/presentmon_frames/trace.etl",
       "win-forensics presentmon-frames",
-      "-skipPdbGen"
+      "-skipPdbGen",
+      "-instancename",
+      "wf-presentmon-frames"
     ],
     "cancel": [
-      "-cancel"
+      "-cancel",
+      "-instancename",
+      "wf-presentmon-frames"
     ]
   },
-  "session_name": "wf-presentmon-frames",
+  "instance_name": "wf-presentmon-frames",
   "profile": {
     "path": "raw/presentmon_frames/profile.wprp",
     "name": "WfPresentMonFrames",
-    "maximum_file_size_mb": 64,
+    "maximum_file_size_mb": 48,
     "buffer_size_kb": 64,
     "buffers": 256,
-    "file_mode": "Sequential"
+    "file_mode": "Sequential",
+    "event_id_filters": true
   },
   "providers": [
     {
@@ -198,12 +209,13 @@
   "presentmon_arguments": [
     "--etl_file",
     "raw/presentmon_frames/trace.etl",
-    "--output_file",
-    "raw/presentmon_frames/frames.csv",
-    "--no_console_stats",
+    "--output_stdout",
     "--qpc_time"
   ],
   "output_paths_recorded_as": "bundle relative paths; the processes received the absolute paths of the same files in this bundle, in double quotes",
+  "csv_console_code_page": "utf-8",
+  "recording_kept": false,
+  "recording_deleted_because": "a WPR merged recording may hold the network adapter hardware and IP addresses (SystemConfig_NIC through the merge's NetworkInterface custom event); the project keeps those out of every bundle, so the recording is read on the PC and deleted. recording.json keeps its size, SHA-256 and header",
   "duration_seconds": 30,
   "deadlines_seconds": {
     "start": 60,
@@ -212,20 +224,28 @@
     "decode": 240,
     "cancel": 60
   },
-  "helper_deadline_seconds": 630,
+  "helper_deadline_seconds": 720,
   "process_names": [],
   "max_artifact_bytes": 67108864,
   "console_cap_bytes": 1048576,
+  "disk_budget": {
+    "session_file_max_bytes": 50331648,
+    "merged_file_max_bytes": 67108864,
+    "csv_max_bytes": 67108864,
+    "console_max_bytes_per_stream": 1048576,
+    "peak_bytes_bound": 186646528,
+    "note": "the session stops at session_file_max_bytes (MaximumFileSize, sequential); the merged file is checked against merged_file_max_bytes and deleted either way; the CSV is captured under csv_max_bytes by the process runner, which stops PresentMon at the cap; the merge temp folder is removed on every path. The peak is bounded by the session file plus the merged file plus the CSV plus two console streams (peak_bytes_bound), and ETW keeps 200 MB free on the system drive"
+  },
   "option_citations": {
     "--etl_file": "Analyze an ETW trace log file instead of the actively running processes.",
-    "--output_file": "Write CSV output to the specified path.",
-    "--no_console_stats": "Do not display active swap chains and frame statistics in the console.",
+    "--output_stdout": "Write CSV output to STDOUT.",
     "--qpc_time": "Output the CPU start time as a performance counter value.",
     "--process_name": "Only record processes with the specified exe name. This argument can be repeated to capture multiple processes.",
     "wpr -start": "Starts one or more profiles. -filemode: recording is done in file mode. -recordtempto: the temporary folder path that the recording is saved to.",
-    "wpr -status": "Displays the status of an active recording (if any). collectors: lists collector information, with Events Lost per collector.",
+    "wpr -status": "Displays the status of an active recording (if any). collectors: lists collector information, with Events Lost per collector and the enabled providers.",
     "wpr -stop": "Cancels and saves the recording initiated by WPR (if any) to the given file. -skipPdbGen disables dynamic generation of pdbs for .NET modules.",
-    "wpr -cancel": "Cancels the current recording without saving the recorded data."
+    "wpr -cancel": "Cancels the current recording without saving the recorded data.",
+    "-instancename": "Specifies a name to uniquely identify the tracing instance. This option can be applied to any commands that manipulate the logging session. -instancename must be the last parameter."
   },
   "account": {
     "elevated": false,

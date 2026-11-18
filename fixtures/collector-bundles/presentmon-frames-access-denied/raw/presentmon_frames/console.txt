@@ -1,10 +1,10 @@
-=== wpr -status (before)
+=== wpr -status -instancename wf-presentmon-frames (before)
 stdout:
 WPR is not recording.
 
 stderr:
 
-=== wpr -start
+=== wpr -start raw/presentmon_frames/profile.wprp!WfPresentMonFrames.Verbose -filemode -recordtempto raw/presentmon_frames/wpr-temp -instancename wf-presentmon-frames
 stdout:
 
 stderr:

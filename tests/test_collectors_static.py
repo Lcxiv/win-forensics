@@ -114,12 +114,12 @@ PRESENTMON = COLLECTOR_DIR / "presentmon-frames.ps1"
 # Every PresentMon option the collector may pass, each documented in the pinned version's console README
 # (collectors/windows/README.md cites them). PresentMon only ever reads a file: every option of its realtime
 # mode (a session, a timer, a process id, elevation, a hotkey) is deliberately absent.
-PRESENTMON_ALLOWED_OPTIONS = {"--etl_file", "--output_file", "--no_console_stats", "--qpc_time", "--process_name"}
+PRESENTMON_ALLOWED_OPTIONS = {"--etl_file", "--output_stdout", "--qpc_time", "--process_name"}
 PRESENTMON_LIVE_OPTIONS = ("--timed", "--session_name", "--terminate_after_timed", "--terminate_existing_session", "--stop_existing_session",
-                           "--process_id", "--restart_as_admin", "--hotkey", "--output_stdout", "--multi_csv", "--delay", "--terminate_on_proc_exit")
+                           "--process_id", "--restart_as_admin", "--hotkey", "--output_file", "--multi_csv", "--delay", "--terminate_on_proc_exit")
 # The wpr verbs the collector may use: one recording started, read, saved and cancelled. Everything that
 # changes a machine setting or configures a boot trace is deliberately absent.
-WPR_ALLOWED = {"-start", "-filemode", "-recordtempto", "-status", "-stop", "-skipPdbGen", "-cancel", "-details"}
+WPR_ALLOWED = {"-start", "-filemode", "-recordtempto", "-status", "-stop", "-skipPdbGen", "-cancel", "-details", "-instancename"}
 WPR_FORBIDDEN = ("-disablepagingexecutive", "-heaptracingconfig", "-boottrace", "-addboot", "-stopboot", "-setprofint", "-resetprofint",
                  "-snapshotconfig", "-enableperiodicsnapshot", "-marker", "-markerflush", "-flush", "-merge", "-purgecache", "-capturestateondemand")
 
@@ -165,9 +165,15 @@ def test_presentmon_only_ever_reads_a_recording_and_wpr_only_records_one():
     assert used == PRESENTMON_ALLOWED_OPTIONS, used ^ PRESENTMON_ALLOWED_OPTIONS
     for forbidden in PRESENTMON_LIVE_OPTIONS:
         assert forbidden not in code, forbidden
-    # The offline read is built in this order and always with the file and QPC time stamps.
-    assert re.search(r"\$decodeArguments\.Add\('--etl_file'\).*?\$decodeArguments\.Add\('--output_file'\).*?\$decodeArguments\.Add\('--no_console_stats'\)\s*"
+    # The offline read is built in this order and always with the file, the CSV on stdout and QPC time stamps.
+    assert re.search(r"\$decodeArguments\.Add\('--etl_file'\).*?\$decodeArguments\.Add\('--output_stdout'\)\s*"
                      r"\$decodeArguments\.Add\('--qpc_time'\)", code, re.S)
+    # Every wpr argument string the collector builds ends in the instance name, and the one cancel in the
+    # catch block names it too; no wpr call is ever unnamed.
+    for text in re.findall(r"\$(?:probe|start|status|stop|cancel)Text = \('([^']+)'", code):
+        assert text.endswith("-instancename {0}") or text.endswith("-instancename {1}") or text.endswith("-instancename {2}"), text
+    assert "'-cancel -instancename ' + $instance" in code
+    assert re.search(r"Invoke-WfProcess -FilePath \$wpr -Arguments '-", code) is None, "no wpr call with a bare literal argument string"
     # wpr: the four verbs and their switches, nothing that changes a setting.
     wpr_tokens = set(re.findall(r"(?<![\w-])(-[A-Za-z]+)(?=[\s\"'])", "\n".join(line for line in code.splitlines() if "wpr" in line.lower() or "-start" in line or "-stop" in line or "-status" in line or "-cancel" in line)))
     assert WPR_ALLOWED <= wpr_tokens, WPR_ALLOWED - wpr_tokens
@@ -190,8 +196,10 @@ def test_presentmon_documents_elevation_and_the_anti_cheat_position():
     readme = (COLLECTOR_DIR / "README.md").read_text(encoding="utf-8")
     section = readme[readme.index("### The presentmon-frames source"):]
     for term in ("Performance Log Users", "S-1-5-32-559", "<unknown>", "Easy Anti-Cheat", "not documented", "ETW",
-                 "--qpc_time", "CPUStartQPC", "--etl_file", "OpenProcess", "PROCESS_QUERY_LIMITED_INFORMATION", "SeDebugPrivilege",
-                 "wpr -cancel", "Events Lost", "events_lost", "Flash Injector", "Anticheat Mitigation", "MaximumFileSize",
-                 "one at a time", "OutputThread.cpp", "ReadAndExecute", "collect-presentmon-frames"):
+                 "--qpc_time", "CPUStartQPC", "--etl_file", "--output_stdout", "OpenProcess", "PROCESS_QUERY_LIMITED_INFORMATION", "SeDebugPrivilege",
+                 "wpr -cancel", "Events Lost", "Dropped event", "events_lost", "Flash Injector", "Anticheat Mitigation", "MaximumFileSize",
+                 "-instancename", "OutputThread.cpp", "ReadAndExecute", "collect-presentmon-frames", "Blizzard", "Overwatch",
+                 "SystemConfig_NIC", "NetworkInterface", "never leaves the PC", "overflowed present events", "EventFilters",
+                 "not a quiet window", "Sysmon", "gold-test_case_0.first-buffer.etl"):
         assert term in section, term
     assert "live PresentMon" in section.lower() or "realtime" in section.lower()

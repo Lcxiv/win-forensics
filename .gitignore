@@ -3,8 +3,8 @@
 bundles/
 captures/
 *.etl
-# The one exception: the invented log file header the presentmon-frames fixture bundles carry
-!fixtures/collector-bundles/**/trace.etl
+# The one exception: the first buffer of a recording from PresentMon's own test fixtures (format fixture)
+!fixtures/presentmon/*.etl
 *.pml
 *.PML
 *.dmp

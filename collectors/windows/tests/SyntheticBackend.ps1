@@ -30,6 +30,7 @@
 #              ExitCode; StdOut; StdErr; Stuck; Seconds = <how long the run takes>;
 #              OutputFileArgument = <regex with one group capturing a path in the arguments>;
 #              OutputText or OutputBytes = <written to that path before the process "exits"> },
+#              OnCall = <scriptblock run when the program is started, for a side effect> },
 #              for wpr and the PresentMon binary, matched in order after Commands; a run with
 #              no match exits 1. An entry may instead carry Responses = <list of such maps>, used
 #              in call order with the last repeating. Waited = seconds passed to Wait-WfSeconds, summed
@@ -435,6 +436,11 @@ function Invoke-WfProcess {
     if ($entry.Contains('Seconds')) {
         $global:WfSynthetic.Ticks += [int]$entry['Seconds']
         $result.DurationMs = [int64]$entry['Seconds'] * 1000
+    }
+    if ($entry.Contains('OnCall')) {
+        # A side effect the test wants when this program runs (the binary on
+        # disk changing between the preflight hash and the run).
+        & $entry['OnCall']
     }
     if ($entry.Contains('OutputFileArgument')) {
         # wpr writes its ETL to the -stop path and PresentMon its CSV to the
