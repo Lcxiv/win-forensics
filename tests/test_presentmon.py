@@ -16,6 +16,7 @@ import json
 import re
 import shutil
 import struct
+import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -286,6 +287,19 @@ def test_the_committed_first_buffer_is_the_vendor_recording_and_reads_as_the_col
 
 
 # ---------------------------------------------------------------- shapes the pinned source documents
+
+def test_git_keeps_the_vendor_first_buffer_and_no_other_etl_in_its_folder():
+    # .gitignore is asked through git itself: exit 0 means ignored, 1 means kept.
+    def ignored(relative: str) -> bool:
+        done = subprocess.run(["git", "check-ignore", "--no-index", "-q", relative], cwd=REPO_ROOT, capture_output=True)
+        assert done.returncode in (0, 1), done.stderr
+        return done.returncode == 0
+
+    assert not ignored("fixtures/presentmon/gold-test_case_0.first-buffer.etl")
+    assert ignored("fixtures/presentmon/trace.etl"), "a real trace dropped next to the fixture cannot be committed"
+    assert ignored("fixtures/presentmon/gold-test_case_1.first-buffer.etl")
+    assert not ignored("fixtures/presentmon/PROVENANCE.md") and not ignored("fixtures/presentmon/LICENSE-PresentMon.txt")
+
 
 def test_only_cpustartqpc_is_accepted_as_the_frame_start(bundle_copy):
     bundle = bundle_copy(HAPPY)

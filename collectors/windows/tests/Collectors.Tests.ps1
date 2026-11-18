@@ -1864,6 +1864,8 @@ Describe 'presentmon-frames against the synthetic backend' {
         $start['OnCall'] = {
             $null = New-Item -ItemType Directory -Path $global:PmSessionDir -Force
             [System.IO.File]::WriteAllBytes((Join-Path $global:PmSessionDir 'session.etl'), [byte[]](1..16))
+            # Not readable either, as a file a writer holds without read sharing: hashing it would fail.
+            & chmod 000 (Join-Path $global:PmSessionDir 'session.etl')
             & chmod 555 $global:PmSessionDir
         }
         try {
@@ -1879,7 +1881,62 @@ Describe 'presentmon-frames against the synthetic backend' {
         $source.status_reason | Should -Match 'recorded data could not be deleted from the bundle'
         @($run.Manifest.notes | Where-Object { $_ -match 'run "wpr -cancel -instancename wf-presentmon-frames" as an administrator' }).Count | Should -Be 1
         @($run.Manifest.notes | Where-Object { $_ -match 'recorded data could not be deleted and is still in the bundle.*wpr-temp' }).Count | Should -Be 1
-        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/result.json') | Should -BeTrue
+        @($run.Manifest.notes | Where-Object { $_ -match 'raw/presentmon_frames/wpr-temp/session\.etl \(16 bytes\)' }).Count | Should -Be 1
+        # The held file is named by path and size and never opened: it is not an artifact and has no hash.
+        @($source.artifacts | Where-Object { $_.path -match 'wpr-temp' }).Count | Should -Be 0
+        @($source.artifacts | ForEach-Object { $_.role + ':' + (Split-Path -Leaf $_.path) } | Sort-Object) | Should -Be @('config:command.json', 'config:profile.wprp', 'log:console.txt', 'report:recording.json', 'report:result.json')
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/presentmon_frames/result.json') -Raw | ConvertFrom-Json
+        @($result.recorded_data_left).Count | Should -Be 1
+        $result.recorded_data_left[0].path | Should -BeExactly 'raw/presentmon_frames/wpr-temp/session.etl'
+        $result.recorded_data_left[0].bytes | Should -Be 16
+    }
+
+    It 'is capture_failed, not not_collected, when a start that timed out left a session file that cannot be deleted' {
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ StartStuck = $true }
+        $out = Join-Path $TestDrive 'pm-start-stuck-held'
+        $global:PmSessionDir = Join-Path $out 'raw/presentmon_frames/wpr-temp'
+        $start = @($global:WfSynthetic.Programs | Where-Object { $_['Match'] -eq '-start' })[0]
+        $start['OnCall'] = {
+            $null = New-Item -ItemType Directory -Path $global:PmSessionDir -Force
+            [System.IO.File]::WriteAllBytes((Join-Path $global:PmSessionDir 'session.etl'), [byte[]](1..16))
+            & chmod 555 $global:PmSessionDir
+        }
+        try {
+            $run = Invoke-PmCollector -OutputDirectory $out
+        } finally {
+            if (Test-Path -LiteralPath $global:PmSessionDir) { & chmod 755 $global:PmSessionDir }
+        }
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match '^wpr -start did not complete'
+        $source.status_reason | Should -Match 'recorded data could not be deleted from the bundle'
+        $source.status_reason | Should -Not -Match 'nothing was recorded'
+    }
+
+    It 'claims no frames when the read succeeded but the recording could not be deleted afterwards' -Skip:(-not $IsMacOS) {
+        Start-PmCase
+        Reset-PmPrograms
+        $out = Join-Path $TestDrive 'pm-etl-held'
+        $global:PmHeldEtl = Join-Path $out 'raw/presentmon_frames/trace.etl'
+        # The file flag stands in for a recording something still holds: it can be read but not deleted.
+        $decode = @($global:WfSynthetic.Programs | Where-Object { $_['Match'] -eq '--etl_file' })[0]
+        $decode['OnCall'] = { & chflags uchg $global:PmHeldEtl }
+        try {
+            $run = Invoke-PmCollector -OutputDirectory $out
+        } finally {
+            if (Test-Path -LiteralPath $global:PmHeldEtl) { & chflags nouchg $global:PmHeldEtl }
+        }
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match '^recorded data could not be deleted from the bundle'
+        $source.enabled.options.records | Should -Be 0
+        $source.expectation.detail | Should -Match '; 0 frames from '
+        $source.raw_time_range | Should -BeNullOrEmpty
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/frames.csv') | Should -BeFalse
+        @($source.artifacts | Where-Object { $_.path -match 'trace\.etl' }).Count | Should -Be 0
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/presentmon_frames/result.json') -Raw | ConvertFrom-Json
+        @($result.recorded_data_left | ForEach-Object { $_.path }) | Should -Be @('raw/presentmon_frames/trace.etl')
     }
 
     It 'fails when the recording was not in progress at the end, closed before the stop, or merged above the cap' {

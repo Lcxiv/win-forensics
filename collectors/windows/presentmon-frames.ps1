@@ -594,6 +594,46 @@ function Remove-WfPresentMonRecordingData {
     return @($failures.ToArray())
 }
 
+function Get-WfPresentMonLeftoverRecords {
+    # The files under raw/<source id>/ that are not one of the collector's own
+    # artifacts, by path and size. Nothing is opened: a session the collector
+    # could not stop may still hold its file, so the sizes come from the
+    # directory listing and no hash is taken.
+    param([string]$BundleRoot, [string]$RelativeDir, [hashtable]$Roles)
+    $records = New-Object 'System.Collections.Generic.List[object]'
+    $dir = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath $RelativeDir
+    try {
+        foreach ($file in @(Get-ChildItem -LiteralPath $dir -File -Recurse | Sort-Object -Property FullName)) {
+            $tail = $file.FullName.Substring($dir.Length).TrimStart('\', '/') -replace '\\', '/'
+            if (-not $Roles.ContainsKey($tail)) { $records.Add([ordered]@{ path = $RelativeDir + '/' + $tail; bytes = [int64]$file.Length }) }
+        }
+    } catch {
+        $records.Add([ordered]@{ path = $RelativeDir; bytes = $null; error = 'the folder could not be listed: ' + $_.Exception.Message })
+    }
+    return @($records.ToArray())
+}
+
+function Get-WfPresentMonOwnArtifactRecords {
+    # The manifest artifact list when recorded data was left behind: only the
+    # files the collector wrote itself, by name, so nothing a live session
+    # holds is opened for hashing.
+    param([string]$BundleRoot, [string]$RelativeDir, [hashtable]$Roles)
+    $records = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($tail in @($Roles.Keys | Sort-Object)) {
+        $path = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($RelativeDir + '/' + $tail)
+        if (Test-Path -LiteralPath $path) {
+            $records.Add([ordered]@{ path = $RelativeDir + '/' + $tail; bytes = [int64](Get-Item -LiteralPath $path).Length; sha256 = Get-WfSha256OfFile -Path $path; role = $Roles[$tail] })
+        }
+    }
+    return , $records.ToArray()
+}
+
+function Get-WfPresentMonLeftoverNote {
+    param([string]$Id, [object[]]$Undeleted, [object[]]$Leftover)
+    $files = @($Leftover | ForEach-Object { [string]$_['path'] + ' (' + [string]$_['bytes'] + ' bytes)' })
+    return ('source ' + $Id + ': recorded data could not be deleted and is still in the bundle, which must not leave the PC until it is deleted by hand: ' + ($Undeleted -join '; ') + '; left in the bundle, not hashed and not listed as artifacts: ' + ($files -join ', '))
+}
+
 function Invoke-WfPresentMonFramesSource {
     # The custom source the definition below names. Verifies the pinned binary
     # and the controller, records the providers with wpr for the window under
@@ -607,7 +647,8 @@ function Invoke-WfPresentMonFramesSource {
     #   recording.json  the recording's size, SHA-256, header, loss counts and
     #                   the settings comparison (role report)
     #   console.txt     what wpr and PresentMon printed, verbatim (role log)
-    #   result.json     the verification, every run, the CSV summary (role report)
+    #   result.json     the verification, every run, the CSV summary, any
+    #                   recorded data that could not be deleted (role report)
     param(
         [hashtable]$Source,
         [string]$BundleRoot,
@@ -651,6 +692,8 @@ function Invoke-WfPresentMonFramesSource {
     # or our cancel completed: the only state in which a cancel is ours to send.
     $ownsRecording = $false
     $cancelRun = $null
+    $dataLeft = $false
+    $leftover = @()
     try {
         $null = New-Item -ItemType Directory -Force -Path $dir
         $profileXml = Get-WfPresentMonProfileXml -MaximumFileSizeMb $sessionCapMb
@@ -1022,14 +1065,17 @@ function Invoke-WfPresentMonFramesSource {
         # The recording never leaves the PC (see command.json recording_deleted_because).
         $undeleted = @(Remove-WfPresentMonRecordingData -wprTempPath $wprTempPath -etlPath $etlPath)
         if ($undeleted.Count -gt 0) {
-            $message = 'source ' + $id + ': recorded data could not be deleted and is still in the bundle, which must not leave the PC until it is deleted by hand: ' + ($undeleted -join '; ')
+            $dataLeft = $true
+            $leftover = @(Get-WfPresentMonLeftoverRecords -BundleRoot $BundleRoot -RelativeDir $relativeDir -Roles $roles)
+            $message = Get-WfPresentMonLeftoverNote -Id $id -Undeleted $undeleted -Leftover $leftover
             $Notes.Add($message); $Log.Add($message)
+            $frames = 0
             if ($readErrorKind) {
-                $readErrorMessage += '; recorded data could not be deleted from the bundle (see the manifest notes)'
+                $readErrorMessage = ($readErrorMessage -replace '; nothing was recorded$', '') + '; recorded data could not be deleted from the bundle (see the manifest notes)'
             } else {
-                $readErrorKind = 'other'
                 $readErrorMessage = 'recorded data could not be deleted from the bundle (see the manifest notes), so nothing is claimed from this run'
             }
+            $readErrorKind = 'other'
         }
         $stopped = Get-WfUtcNow
         if ($ownsRecording) {
@@ -1119,6 +1165,7 @@ function Invoke-WfPresentMonFramesSource {
                 truncated_process_list     = [bool]$csv['truncated_process_list']
                 unknown_application_frames = [int]$csv['unknown_application_frames']
             }
+            recorded_data_left = @($leftover)
             account     = $config.account
         }
         Write-WfJsonFile -Path (Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/result.json')) -Object $report
@@ -1188,14 +1235,20 @@ function Invoke-WfPresentMonFramesSource {
         }
         $undeleted = @(Remove-WfPresentMonRecordingData -wprTempPath $wprTempPath -etlPath $etlPath)
         if ($undeleted.Count -gt 0) {
-            $message = 'source ' + $id + ': recorded data could not be deleted and is still in the bundle, which must not leave the PC until it is deleted by hand: ' + ($undeleted -join '; ')
+            $dataLeft = $true
+            $leftover = @(Get-WfPresentMonLeftoverRecords -BundleRoot $BundleRoot -RelativeDir $relativeDir -Roles $roles)
+            $message = Get-WfPresentMonLeftoverNote -Id $id -Undeleted $undeleted -Leftover $leftover
             $Notes.Add($message); $Log.Add($message)
             $entry.status_reason += '; recorded data could not be deleted from the bundle (see the manifest notes)'
         }
         if (Test-Path -LiteralPath $outputPath) { Remove-Item -LiteralPath $outputPath -Force }
     }
     $entry.stopped_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
-    $entry.artifacts = Get-WfArtifactRecords -BundleRoot $BundleRoot -SourceId $id -Roles $roles
+    if ($dataLeft) {
+        $entry.artifacts = Get-WfPresentMonOwnArtifactRecords -BundleRoot $BundleRoot -RelativeDir $relativeDir -Roles $roles
+    } else {
+        $entry.artifacts = Get-WfArtifactRecords -BundleRoot $BundleRoot -SourceId $id -Roles $roles
+    }
     $Log.Add(('source {0}: status {1}, {2} artifacts' -f $id, $entry.status, @($entry.artifacts).Count))
     return [ordered]@{ Entry = $entry; Rows = @(); Tools = $tools }
 }

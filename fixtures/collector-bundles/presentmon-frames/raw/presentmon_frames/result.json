@@ -152,6 +152,7 @@
     "truncated_process_list": false,
     "unknown_application_frames": 2
   },
+  "recorded_data_left": [],
   "account": {
     "elevated": false,
     "performance_log_users": true
