@@ -1550,7 +1550,7 @@ function Get-WfProtectionDescription {
 }
 
 function Invoke-WfCommandSource {
-    # Runs one fixed, read only netsh query and writes, under raw/<id>/:
+    # Runs one fixed, read only netsh or powercfg query and writes, under raw/<id>/:
     #   command.json  the executable, the exact arguments, the limits and the
     #                 pseudonym rules (role config, hashed as config_hash)
     #   result.json   exit code, timing, byte counts, the protected stderr,

@@ -99,7 +99,7 @@ param(
     [int]$MaxEvents = 5000,
     # Cap on the size of one export, in bytes (1 MiB to 1 GiB).
     [long]$MaxArtifactBytes = 67108864,
-    # Deadline for reading one source, in seconds (1 to 3600). Sixteen sources
+    # Deadline for reading one source, in seconds (1 to 3600). Seventeen sources
     # read something and share the dispatcher's 900 second budget, so the
     # default is 50.
     [int]$TimeoutSeconds = 50
@@ -132,7 +132,7 @@ $powercfgExpectation = 'powercfg exits with code 0 and prints at least one line 
 
 # The questions this collector cannot answer with a documented read only
 # path. Each is recorded as not_collected with its reason, never as an
-# empty observation, and listed under Follow-up in the README.
+# empty observation, and listed in the README's source table.
 $powerModeReason = 'Microsoft documents the power mode (performance power slider) overlays and their GUIDs (https://learn.microsoft.com/windows-hardware/customize/desktop/customize-power-slider) and that "powercfg /q" without arguments enumerates the active overlay scheme when one is active (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options), but no command that prints the active overlay by itself; the decoder compares the scheme GUID printed by /query (power_settings) with /getactivescheme (power_active_scheme) and names a documented overlay GUID when they differ, which is an interpretation of that sentence, not a direct read'
 $timerReason = 'the current timer resolution has no documented read this collector can make: timeGetDevCaps (https://learn.microsoft.com/windows/win32/api/timeapi/nf-timeapi-timegetdevcaps) returns the minimum and maximum period only, and Microsoft documents no public query of the period in effect; "powercfg /energy" observes the system for 60 seconds by default and writes a report file, which Microsoft documents for an idle system with no open programs (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options), so it is left to the elevated task, and whether its report names the timer resolution and its requesters is a verification item, not a fact asserted here. "powercfg /requests" lists power requests, not timer requests, and is not timer evidence. Nothing here requests a timer period'
 

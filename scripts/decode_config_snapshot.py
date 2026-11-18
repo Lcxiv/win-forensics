@@ -113,8 +113,8 @@ CACHE_TYPE = {1: "Other", 2: "Unknown", 3: "Instruction", 4: "Data", 5: "Unified
 CACHE_ASSOCIATIVITY = {1: "Other", 2: "Unknown", 3: "Direct Mapped", 4: "2-way Set-Associative", 5: "4-way Set-Associative",
                        6: "Fully Associative", 7: "8-way Set-Associative", 8: "16-way Set-Associative"}
 
-# The two power mode overlays whose GUIDs are not also a power scheme (the Better Performance overlay shares the Balanced scheme's GUID).
-# The power mode overlays the power slider page documents: two registry setting GUIDs and one INF GUID that is also the Balanced scheme's.
+# The three overlay GUIDs the power slider page documents for the default slider mode. The same page lists the Balanced scheme's
+# GUID as the INF GUID of Better Performance; that one is a scheme, stays out of this map and is handled in the active_overlay reading.
 OVERLAYS = {"961cc777-2547-4f9d-8174-7d86181b8a7a": "better_battery", "3af9b8d9-7c97-431d-ad78-34a8bfea439f": "better_performance",
             "ded574b5-45a0-4f42-8737-46345c09c238": "best_performance"}
 BALANCED_GUID = "381b4222-f694-41f0-9685-ff5bb260df2e"
