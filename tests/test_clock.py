@@ -111,11 +111,13 @@ def test_a_pair_not_taken_at_a_clock_edge_carries_the_increment_term():
     pairs = session(20)
     pairs[2]["edge"], pairs[2]["step_100ns"] = False, None
     model = decode_clock.fit_pairs(pairs, FREQ)
-    # The largest step the collector saw (10000) is below the documented default period, so the default applies.
+    # The term is the larger of the largest step the collector saw (10000) and the documented default period:
+    # the increment can change during a session, so a small step seen at other pairs does not bound this one.
     assert model.largest_step_100ns == 10_000 and model.fallback_increment_100ns == 156_250
     assert [s.increment_100ns for s in model.segments] == [0, 156_250, 156_250, 0]
     assert model.segments[1].error_bound_100ns == 51 + 156_250
-    assert model.segments[1].quantisation_limit_ppm == pytest.approx(2 * 156_250 / 50_000_000 * 1e6)
+    assert model.segments[1].quantisation_limit_ppm == pytest.approx(2 * (156_250 + 51) / 50_000_000 * 1e6)
+    assert model.clock_step_segments == 0
     coarse = session(20, step=200_000)
     coarse[1]["edge"], coarse[1]["step_100ns"] = False, None
     coarse_model = decode_clock.fit_pairs(coarse, FREQ)
@@ -155,6 +157,29 @@ def test_a_steady_drift_within_the_rule_is_fitted_and_a_large_one_is_a_clock_ste
         assert segment.error_bound_100ns == 51 + max(segment.span_100ns, segment.qpc_span_100ns)
     aligned = fast.align(fast.first_filetime + 10_000_000)
     assert aligned.aligned and aligned.clock_step and aligned.error_bound_100ns >= 50_000_000
+
+
+def test_a_wide_counter_bracket_on_a_perfect_clock_is_not_a_clock_step():
+    """An edge pair whose loop was preempted for 30 ms: its midpoint sits 15 ms from the edge, 3000 ppm over 5 s.
+
+    The pair's own half width explains that deviation, so neither neighbouring segment is a clock step and no
+    file time is refused as shown twice; the wide half width still enters the bound.
+    """
+    pairs = session(30)
+    pairs[3]["qpc_after"] = pairs[3]["qpc_before"] + 300_000
+    model = decode_clock.fit_pairs(pairs, FREQ)
+    assert model.aligned and model.clock_step_segments == 0
+    assert [s.step_kind for s in model.segments] == ["none"] * 6
+    assert all(s.ambiguous_range is None for s in model.segments)
+    for index in (2, 3):
+        segment = model.segments[index]
+        assert segment.deviation_ppm == pytest.approx(3000, abs=2) and segment.half_width_max_100ns == 150_001
+        assert segment.quantisation_limit_ppm == pytest.approx(2 * 150_001 / 50_000_000 * 1e6)
+        assert segment.error_bound_100ns == 150_001, "the wide half width is still in the bound"
+    for seconds in (2, 7, 12, 17, 22, 27):
+        placed = model.align(FT0 + seconds * 10_000_000)
+        assert placed.aligned and not placed.clock_step
+    assert model.align(FT0 + 70_000_000).error_bound_100ns == 51
 
 
 def test_a_forward_clock_step_in_one_segment_widens_only_that_segment():
@@ -250,13 +275,6 @@ def test_join_bounds_add_and_are_never_shrunk():
         decode_clock.check_join("j", "a", "b", -1, left, right)
 
 
-def test_an_etl_header_epoch_overrides_the_first_pair():
-    pairs = session(20)
-    model = decode_clock.fit_pairs(pairs, FREQ, epoch_qpc=pairs[0]["qpc_before"] - 10_000_000)
-    assert model.epoch_source == "etl_header"
-    assert model.align(pairs[0]["filetime_utc_100ns"]).t_master_100ns == 10_000_050
-
-
 def test_file_time_conversions_round_trip_at_100_ns():
     assert decode_clock.filetime_to_iso(134_168_400_000_040_000) == "2026-03-01T12:00:00.0040000Z"
     assert decode_clock.iso_to_filetime("2026-03-01T12:00:00.0040000Z") == 134_168_400_000_040_000
@@ -290,7 +308,8 @@ def test_decoded_tables_validate_and_the_bundle_still_verifies(case, bundle_copy
     assert meta(bundle, "clock_pairs")["time_domain"] == "system_time"
     pairs = rows(bundle, "clock_pairs")
     assert all(p["edge"] and p["system_time_step_100ns"] in (10_000, 156_250) for p in pairs), "the synthetic session takes every pair at a clock edge"
-    assert all(s["system_time_increment_100ns"] == 0 and s["quantisation_limit_ppm"] == 0 for s in rows(bundle, "clock_segments"))
+    assert all(s["system_time_increment_100ns"] == 0 for s in rows(bundle, "clock_segments"))
+    assert all(s["quantisation_limit_ppm"] == pytest.approx(2 * s["half_width_max_100ns"] / s["span_100ns"] * 1e6) for s in rows(bundle, "clock_segments"))
     assert all(s["epoch_qpc"] == pairs[0]["qpc_before"] for s in rows(bundle, "clock_segments"))
     assert verify_bundle.verify(bundle)["ok"]
 

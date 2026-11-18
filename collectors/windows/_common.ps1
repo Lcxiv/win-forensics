@@ -2226,7 +2226,6 @@ function Invoke-WfCollector {
             if ($result.Contains('Calibration') -and $null -ne $result['Calibration']) { $calibration = $result['Calibration'] }
             if ($result.Contains('Marks') -and $null -ne $result['Marks']) { $marks = @($result['Marks']) }
             if ($result.Contains('RequestedDurationSeconds') -and $null -ne $result['RequestedDurationSeconds']) { $requestedDuration = $result['RequestedDurationSeconds'] }
-            if ($result.Contains('Entry') -and $null -ne $result['Entry']) { $entries.Add($result['Entry']) }
             if ($result.Contains('Entries')) { foreach ($extra in @($result['Entries'])) { $entries.Add($extra) } }
             continue
         }

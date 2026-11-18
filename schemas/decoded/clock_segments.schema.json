@@ -106,7 +106,7 @@
     },
     "epoch_qpc": {
       "type": "integer",
-      "description": "The master epoch: the counter value master time counts from (timestamps.md section 4.1, the first pair's qpc_before when no trace header gives one)."
+      "description": "The master epoch: the counter value master time counts from (timestamps.md section 4.1): the first pair's qpc_before."
     },
     "epoch_source": {
       "type": "string",
@@ -129,11 +129,11 @@
     },
     "quantisation_limit_ppm": {
       "type": "number",
-      "description": "2 * system_time_increment_100ns / span_100ns in parts per million: the deviation the increment term alone can produce over this segment (zero when both pairs were taken at a clock edge). Above 1000 the clock step rule cannot tell a step from quantisation."
+      "description": "2 * (system_time_increment_100ns + half_width_max_100ns) / span_100ns in parts per million: the rate deviation the two pairs' own uncertainty (the increment term and the half widths) can produce over this segment. The clock step rule allows for it; above 1000 a clock step smaller than this allowance is not flagged."
     },
     "clock_step": {
       "type": "boolean",
-      "description": "True when rate_deviation_ppm exceeds 1000; the bound is then the larger of span_100ns and qpc_span_100ns plus the ordinary terms (timestamps.md section 4.3)."
+      "description": "True when rate_deviation_ppm exceeds 1000 plus quantisation_limit_ppm, that is, by more than 1000 parts per million beyond what the two pairs' own uncertainty can explain; the bound is then the larger of span_100ns and qpc_span_100ns plus the ordinary terms (timestamps.md section 4.3)."
     },
     "step_kind": {
       "type": "string",
@@ -183,7 +183,7 @@
     "system_time_increment_100ns": {
       "type": "integer",
       "minimum": 0,
-      "description": "The increment term added to the bound: zero when both pairs were taken at a clock edge; otherwise the largest clock step the collector observed in the session, or 156250 (the 15.625 ms period of the 64 Hz PC real time clock in Microsoft's clock table) when it observed none."
+      "description": "The increment term added to the bound: zero when both pairs were taken at a clock edge; otherwise the larger of the largest clock step the collector observed in the session and 156250 (the 15.625 ms period of the 64 Hz PC real time clock in Microsoft's clock table), because the increment can change during a session."
     },
     "residual_max_100ns": {
       "type": "integer",

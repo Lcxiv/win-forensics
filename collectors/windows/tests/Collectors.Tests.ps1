@@ -2196,6 +2196,11 @@ Describe 'clock-calibration against the synthetic backend' {
         # A live file exists, but the label is unusable.
         New-OpenSession -OutputDirectory $out -AcceptsUntil $global:WfSynthetic.Now.AddHours(1)
         (Invoke-Mark -OutputDirectory $out -Label '   ').ExitCode | Should -Be 1
+        $empty = Invoke-Mark -OutputDirectory $out -Label ''
+        $empty.ExitCode | Should -Be 1
+        $empty.Lines.Count | Should -Be 1
+        $empty.Parsed.error | Should -Match 'the mark label is empty'
+        Test-Path -LiteralPath (Join-Path $out 'manifest.json') | Should -BeFalse
         (Invoke-Mark -OutputDirectory $out -Label ('x' * 81)).ExitCode | Should -Be 1
         (Invoke-Mark -OutputDirectory $out -Label "tab`there").ExitCode | Should -Be 1
         (Get-Content -LiteralPath (Join-Path $out 'raw/operator_marks/marks.open.jsonl') -Raw) | Should -BeNullOrEmpty
@@ -2443,9 +2448,9 @@ for (`$i = 1; `$i -le `$Count; `$i++) {
         $run2.Manifest.calibration.missing_pairs | Should -Be 3
     }
 
-    It 'rejects a duration or interval outside its range with a failed summary and no bundle' {
+    It 'rejects a duration outside its range with a failed summary and no bundle' {
         Reset-WfSynthetic
-        foreach ($arguments in @(@{ DurationSeconds = 5 }, @{ DurationSeconds = 841 }, @{ IntervalSeconds = 0 }, @{ IntervalSeconds = 61 }, @{ DurationSeconds = 10; IntervalSeconds = 10 })) {
+        foreach ($arguments in @(@{ DurationSeconds = 5 }, @{ DurationSeconds = 9 }, @{ DurationSeconds = 841 })) {
             $out = Join-Path $TestDrive ('clock-range-' + [guid]::NewGuid().ToString('N').Substring(0, 6))
             $run = Invoke-TestCollector -Collector 'clock-calibration' -OutputDirectory $out -Arguments $arguments
             $run.ExitCode | Should -Be 1

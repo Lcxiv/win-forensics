@@ -12,7 +12,7 @@
 #                       calibration triples the timestamp contract asks for:
 #                       a performance counter reading, the system time as a
 #                       file time, and a second counter reading, at the start,
-#                       every -IntervalSeconds, and at the stop. The counter
+#                       every 5 seconds, and at the stop. The counter
 #                       is read through Stopwatch.GetTimestamp, which Microsoft
 #                       documents as QueryPerformanceCounter for managed code,
 #                       the frequency through Stopwatch.Frequency, and the
@@ -48,15 +48,12 @@ param(
     # Session length in seconds (10 to 840; the dispatcher stops a collector
     # after 900).
     [int]$DurationSeconds = 120,
-    # Seconds between two calibration pairs (1 to 60). The timestamp contract
-    # names 5.
-    [int]$IntervalSeconds = 5,
     # Cap on the size of one export, in bytes (1 MiB to 1 GiB).
     [long]$MaxArtifactBytes = 67108864,
     # Mark mode: append one counter stamped mark with this label to the marks
     # file of the session running in -OutputDirectory, then exit. Nothing else
     # is read or written.
-    [string]$Mark = ''
+    [string]$Mark
 )
 
 Set-StrictMode -Version 2.0
@@ -88,6 +85,8 @@ function Get-WfClockMarksLiveName { return 'marks.open.jsonl' }
 function Get-WfClockMarksFinalName { return 'marks.jsonl' }
 function Get-WfClockMaxLabelLength { return 80 }
 function Get-WfClockEdgeBudgetMilliseconds { return 100 }
+# Seconds between two calibration pairs: the cadence docs/contracts/timestamps.md section 3 names.
+function Get-WfClockIntervalSeconds { return 5 }
 
 function ConvertFrom-WfFileTime {
     param([int64]$FileTime)
@@ -324,7 +323,7 @@ function Invoke-WfClockSessionSource {
     # calibration section and the operator marks for scenario.marks.
     param($Source, [string]$BundleRoot, [int64]$MaxArtifactBytes, [int]$TimeoutSeconds, [System.Collections.Generic.List[string]]$Log, [System.Collections.Generic.List[string]]$Notes, $MachineInfo)
     $duration = [int]$Source['DurationSeconds']
-    $interval = [int]$Source['IntervalSeconds']
+    $interval = Get-WfClockIntervalSeconds
     $clockId = 'clock_calibration'
     $marksId = 'operator_marks'
     $clockEntry = New-WfCollectorEntry -Id $clockId -Kind 'clock' -Required $true
@@ -713,13 +712,13 @@ function Invoke-WfClockSessionSource {
     }
 }
 
-if ($Mark) {
+if ($PSBoundParameters.ContainsKey('Mark')) {
     $markExit = @(Invoke-WfClockMark -OutputDirectory $OutputDirectory -Label $Mark -MaxArtifactBytes $MaxArtifactBytes)[-1]
     exit $markExit
 }
 
-if ($DurationSeconds -lt 10 -or $DurationSeconds -gt 840 -or $IntervalSeconds -lt 1 -or $IntervalSeconds -gt 60 -or $IntervalSeconds -ge $DurationSeconds) {
-    [Console]::Error.WriteLine($collectorName + ': DurationSeconds must be between 10 and 840 and IntervalSeconds between 1 and 60 and smaller than the duration')
+if ($DurationSeconds -lt 10 -or $DurationSeconds -gt 840) {
+    [Console]::Error.WriteLine($collectorName + ': DurationSeconds must be between 10 and 840')
     $bundleText = ([string]$OutputDirectory).Replace('\', '\\').Replace('"', '\"')
     Write-WfStdoutLine -Text ('{"collector":"' + $collectorName + '","status":"failed","bundle":"' + $bundleText + '","artifacts":0}')
     exit 1
@@ -735,7 +734,6 @@ $definition = @{
             Type            = 'custom'
             Invoke          = 'Invoke-WfClockSessionSource'
             DurationSeconds = $DurationSeconds
-            IntervalSeconds = $IntervalSeconds
         }
     )
 }
