@@ -2801,8 +2801,10 @@ function Invoke-WfProcess {
     # an oversized run keeps only the first 4096 characters of each stream as
     # a diagnostic. MaxBytes 0 means the caller enforces its own cap on what
     # it writes (wevtutil prints a line or two). The executables started
-    # through this are wevtutil (export verb), netsh (wlan show queries) and
-    # the pinned PresentMon console binary (presentmon-frames.ps1).
+    # through this are wevtutil (export verb), netsh (wlan show queries),
+    # wpr (start, status, stop and cancel of one named recording) and the
+    # pinned PresentMon console binary reading that recording offline
+    # (presentmon-frames.ps1).
     param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null, [int64]$MaxBytes = 0)
     $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Oversized = $false; Error = $null; DurationMs = $null; StdOutBytes = [int64]0; StdErrBytes = [int64]0; Diagnostic = $null }
     if ($TimeoutSeconds -lt 1) {
@@ -2902,6 +2904,19 @@ function New-WfPseudonymSalt {
 
 function Get-WfNetshPath {
     return [System.IO.Path]::Combine([string]$env:SystemRoot, 'System32', 'netsh.exe')
+}
+
+function Get-WfWprPath {
+    # Windows Performance Recorder ships with Windows 8.1 and later and does
+    # not need the ADK: https://learn.microsoft.com/troubleshoot/windows-server/support-tools/support-tools-xperf-wpa-wpr
+    return [System.IO.Path]::Combine([string]$env:SystemRoot, 'System32', 'wpr.exe')
+}
+
+function Wait-WfSeconds {
+    # The recording window of a live capture. Replaced by the synthetic
+    # backend, which advances its clock instead of sleeping.
+    param([int]$Seconds)
+    if ($Seconds -gt 0) { Start-Sleep -Seconds $Seconds }
 }
 
 function Test-WfToolPresent {

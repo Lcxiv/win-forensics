@@ -1,3 +1,3 @@
-2026-03-01T12:00:01.0000000Z collector presentmon-frames version 1.0.0, helper version 1.2.0, no time window (snapshot), 120 s per source
-source presentmon_frames: status not_collected, 2 artifacts
-2026-03-01T12:00:06.0000000Z manifest written: bundle 20260301T120001Z_presentmon_frames_ae3a76a9, status failed, 2 artifacts
+2026-03-01T12:00:01.0000000Z collector presentmon-frames version 2.0.0, helper version 1.2.0, no time window (snapshot), 660 s per source
+source presentmon_frames: status not_collected, 3 artifacts
+2026-03-01T12:00:06.0000000Z manifest written: bundle 20260301T120001Z_presentmon_frames_ae3a76a9, status failed, 3 artifacts

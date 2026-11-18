@@ -10,21 +10,105 @@
     "pin_matched": true,
     "length_matched": true
   },
-  "run": {
-    "started_utc": "2026-03-01T12:00:02.0000000Z",
-    "stopped_utc": "2026-03-01T12:00:06.0000000Z",
-    "started": true,
-    "exit_code": 1,
-    "timed_out": false,
-    "oversized": false,
-    "duration_ms": 1000,
-    "stdout_bytes": 0,
-    "stderr_bytes": 54,
-    "error": null
+  "controller": {
+    "path": "C:\\Windows\\System32\\wpr.exe",
+    "present": true,
+    "file_version": null,
+    "sha256": null
+  },
+  "runs": {
+    "probe": {
+      "attempted": true,
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": 1000,
+      "deadline_seconds": 30,
+      "error": null
+    },
+    "start": {
+      "attempted": true,
+      "started": true,
+      "exit_code": 1,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": 3000,
+      "deadline_seconds": 60,
+      "error": null
+    },
+    "status": {
+      "attempted": false,
+      "started": false,
+      "exit_code": null,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": null,
+      "deadline_seconds": 30,
+      "error": null
+    },
+    "stop": {
+      "attempted": false,
+      "started": false,
+      "exit_code": null,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": null,
+      "deadline_seconds": 180,
+      "error": null
+    },
+    "after": {
+      "attempted": false,
+      "started": false,
+      "exit_code": null,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": null,
+      "deadline_seconds": 30,
+      "error": null
+    },
+    "cancel": {
+      "attempted": false,
+      "started": false,
+      "exit_code": null,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": null,
+      "deadline_seconds": 60,
+      "error": null
+    },
+    "decode": {
+      "attempted": false,
+      "started": false,
+      "exit_code": null,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": null,
+      "deadline_seconds": 240,
+      "error": null
+    }
+  },
+  "recording": {
+    "source_started_utc": "2026-03-01T12:00:02.0000000Z",
+    "source_stopped_utc": "2026-03-01T12:00:08.0000000Z",
+    "started_utc": null,
+    "stop_requested_utc": null,
+    "duration_seconds": 60,
+    "in_progress_before_stop": false,
+    "in_progress_after_stop": false,
+    "stop_confirmed": false,
+    "collectors_reported": [],
+    "events_lost": null,
+    "events_lost_source": null,
+    "buffers_lost": null,
+    "etl_bytes": 0,
+    "etl_header": {
+      "found": false
+    }
   },
   "csv": {
     "path": "raw/presentmon_frames/frames.csv",
-    "bytes": 0,
+    "present": false,
     "header": [],
     "qpc_time_column": false,
     "frames": 0,
@@ -33,18 +117,8 @@
     "unknown_application_frames": 0
   },
   "console_flagged_lines": [
-    "error: failed to start trace session (access denied)"
+    "Access is denied."
   ],
-  "events_lost": null,
-  "events_lost_note": "PresentMon 2.6.0 documents no lost event count for the console application; the console text is kept verbatim in console.txt and the lines above are the ones that look like warnings",
-  "cleanup": {
-    "attempted": true,
-    "started": true,
-    "exit_code": 0,
-    "timed_out": false,
-    "duration_ms": 1000,
-    "output": null
-  },
   "account": {
     "elevated": false,
     "performance_log_users": false

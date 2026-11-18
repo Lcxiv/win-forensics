@@ -27,9 +27,12 @@
 #   Commands   netsh argument string -> @{ ExitCode; StdOut; StdErr } or @{ Stuck = $true }
 #              (the process never finishes); a missing key exits 1 with a message
 #   Programs   list of @{ Path = <executable>; Match = <text found in the arguments>;
-#              ExitCode; StdOut; StdErr; Stuck; CsvText = <written to the --output_file path
-#              before the process "exits">; Seconds = <how long the run takes> }, for the
-#              PresentMon binary, matched after Commands; a run with no match exits 1
+#              ExitCode; StdOut; StdErr; Stuck; Seconds = <how long the run takes>;
+#              OutputFileArgument = <regex with one group capturing a path in the arguments>;
+#              OutputText or OutputBytes = <written to that path before the process "exits"> },
+#              for wpr and the PresentMon binary, matched in order after Commands; a run with
+#              no match exits 1. An entry may instead carry Responses = <list of such maps>, used
+#              in call order with the last repeating. Waited = seconds passed to Wait-WfSeconds, summed
 #   Binaries   full path -> @{ Length; Sha256; FileVersion; ProductVersion } for Get-WfBinaryInfo;
 #              a missing key is a file that does not exist
 #   Account    the values Get-WfAccountInfo returns (elevated, group memberships)
@@ -56,9 +59,11 @@ function Reset-WfSynthetic {
         Binaries     = @{}
         Account      = @{ Elevated = $false; EventLogReaders = $true; PerformanceLogUsers = $false }
         NetshPresent = $true
+        WprPresent   = $true
         Files        = @{}
         Pnp          = @{ Devices = @() }
         Processes    = New-Object 'System.Collections.Generic.List[object]'
+        Waited       = 0
         Salt         = 'synthetic-salt-0001'
         Stdout       = New-Object 'System.Collections.Generic.List[string]'
         Stderr       = New-Object 'System.Collections.Generic.List[string]'
@@ -351,7 +356,19 @@ function Get-WfNetshPath {
 function Test-WfToolPresent {
     param([string]$Path)
     if ($Path -like '*netsh.exe') { return [bool]$global:WfSynthetic.NetshPresent }
+    if ($Path -like '*wpr.exe') { return [bool]$global:WfSynthetic.WprPresent }
     return $true
+}
+
+function Get-WfWprPath {
+    return 'C:\Windows\System32\wpr.exe'
+}
+
+function Wait-WfSeconds {
+    # The recording window passes on the synthetic clock, not in real time.
+    param([int]$Seconds)
+    $global:WfSynthetic.Ticks += $Seconds
+    $global:WfSynthetic.Waited += $Seconds
 }
 
 function Get-WfBinaryInfo {
@@ -405,16 +422,32 @@ function Invoke-WfProcess {
         $result.StdErr = 'synthetic backend: no output is defined for ' + $FilePath + ' ' + $Arguments
         return $result
     }
+    if ($entry.Contains('Responses')) {
+        # A program whose answer changes from call to call (wpr -status before
+        # and after a recording): the responses are used in order and the last
+        # one repeats.
+        $calls = 0
+        if ($entry.Contains('Calls')) { $calls = [int]$entry['Calls'] }
+        $entry['Calls'] = $calls + 1
+        $responses = @($entry['Responses'])
+        $entry = $responses[[math]::Min($calls, $responses.Count - 1)]
+    }
     if ($entry.Contains('Seconds')) {
         $global:WfSynthetic.Ticks += [int]$entry['Seconds']
         $result.DurationMs = [int64]$entry['Seconds'] * 1000
     }
-    if ($entry.Contains('CsvText')) {
-        # PresentMon writes its CSV to the --output_file path; the synthetic
-        # program does the same before it "exits", so the collector reads a
-        # file it did not write itself.
-        $m = [regex]::Match($Arguments, '--output_file "([^"]+)"')
-        if ($m.Success) { Write-WfTextFile -Path $m.Groups[1].Value -Text ([string]$entry['CsvText']) }
+    if ($entry.Contains('OutputFileArgument')) {
+        # wpr writes its ETL to the -stop path and PresentMon its CSV to the
+        # --output_file path; the synthetic program does the same before it
+        # "exits", so the collector reads a file it did not write itself.
+        $m = [regex]::Match($Arguments, [string]$entry['OutputFileArgument'])
+        if ($m.Success) {
+            $target = $m.Groups[1].Value
+            $parent = Split-Path -Parent $target
+            if ($parent -and -not (Test-Path -LiteralPath $parent)) { $null = New-Item -ItemType Directory -Force -Path $parent }
+            if ($entry.Contains('OutputBytes')) { [System.IO.File]::WriteAllBytes($target, [byte[]]$entry['OutputBytes']) }
+            elseif ($entry.Contains('OutputText')) { Write-WfTextFile -Path $target -Text ([string]$entry['OutputText']) }
+        }
     }
     if ($entry['Stuck']) {
         $global:WfSynthetic.Ticks += $TimeoutSeconds

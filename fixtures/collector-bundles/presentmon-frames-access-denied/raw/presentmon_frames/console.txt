@@ -1,5 +1,12 @@
+=== wpr -status (before)
+stdout:
+WPR is not recording.
+
+stderr:
+
+=== wpr -start
 stdout:
 
 stderr:
-error: failed to start trace session (access denied)
+Access is denied.
 

@@ -10,21 +10,105 @@
     "pin_matched": false,
     "length_matched": false
   },
-  "run": {
-    "started_utc": "2026-03-01T12:00:02.0000000Z",
-    "stopped_utc": "2026-03-01T12:00:04.0000000Z",
-    "started": false,
-    "exit_code": null,
-    "timed_out": false,
-    "oversized": false,
-    "duration_ms": null,
-    "stdout_bytes": null,
-    "stderr_bytes": null,
-    "error": null
+  "controller": {
+    "path": "C:\\Windows\\System32\\wpr.exe",
+    "present": true,
+    "file_version": null,
+    "sha256": null
+  },
+  "runs": {
+    "probe": {
+      "attempted": false,
+      "started": false,
+      "exit_code": null,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": null,
+      "deadline_seconds": 30,
+      "error": null
+    },
+    "start": {
+      "attempted": false,
+      "started": false,
+      "exit_code": null,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": null,
+      "deadline_seconds": 60,
+      "error": null
+    },
+    "status": {
+      "attempted": false,
+      "started": false,
+      "exit_code": null,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": null,
+      "deadline_seconds": 30,
+      "error": null
+    },
+    "stop": {
+      "attempted": false,
+      "started": false,
+      "exit_code": null,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": null,
+      "deadline_seconds": 180,
+      "error": null
+    },
+    "after": {
+      "attempted": false,
+      "started": false,
+      "exit_code": null,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": null,
+      "deadline_seconds": 30,
+      "error": null
+    },
+    "cancel": {
+      "attempted": false,
+      "started": false,
+      "exit_code": null,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": null,
+      "deadline_seconds": 60,
+      "error": null
+    },
+    "decode": {
+      "attempted": false,
+      "started": false,
+      "exit_code": null,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": null,
+      "deadline_seconds": 240,
+      "error": null
+    }
+  },
+  "recording": {
+    "source_started_utc": "2026-03-01T12:00:02.0000000Z",
+    "source_stopped_utc": "2026-03-01T12:00:04.0000000Z",
+    "started_utc": null,
+    "stop_requested_utc": null,
+    "duration_seconds": 60,
+    "in_progress_before_stop": false,
+    "in_progress_after_stop": false,
+    "stop_confirmed": false,
+    "collectors_reported": [],
+    "events_lost": null,
+    "events_lost_source": null,
+    "buffers_lost": null,
+    "etl_bytes": 0,
+    "etl_header": {
+      "found": false
+    }
   },
   "csv": {
     "path": "raw/presentmon_frames/frames.csv",
-    "bytes": 0,
+    "present": false,
     "header": [],
     "qpc_time_column": false,
     "frames": 0,
@@ -33,16 +117,6 @@
     "unknown_application_frames": 0
   },
   "console_flagged_lines": [],
-  "events_lost": null,
-  "events_lost_note": "PresentMon 2.6.0 documents no lost event count for the console application; the console text is kept verbatim in console.txt and the lines above are the ones that look like warnings",
-  "cleanup": {
-    "attempted": false,
-    "started": false,
-    "exit_code": null,
-    "timed_out": false,
-    "duration_ms": null,
-    "output": null
-  },
   "account": {
     "elevated": false,
     "performance_log_users": true

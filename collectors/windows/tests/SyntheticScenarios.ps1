@@ -191,51 +191,72 @@ function Get-WfSyntheticCases {
             }
         })
 
-    # The PresentMon frame capture. The binary, its output and every frame
-    # are invented; the hash the synthetic file reports is the pinned one so
-    # the collector's verification passes, and the CSV follows the column
-    # list the vendor documents for 2.6.0 (see Get-WfSyntheticPresentMonCsv).
+    # The PresentMon frame capture: wpr records the providers PresentMon
+    # needs to a file, PresentMon reads that file offline. The binary, wpr's
+    # output, the recording and every frame are invented; the hash the
+    # synthetic file reports is the pinned one so the collector's
+    # verification passes; the CSV follows the header PresentMon 2.6.0 writes
+    # for its default options with --qpc_time (CsvOutput.cpp
+    # WriteCsvHeader<FrameMetrics>, lines 531 to 667), and the recording's
+    # header follows TRACE_LOGFILE_HEADER (see New-WfSyntheticEtlBytes).
 
-    # A completed 60 second capture of every presenting process: a game and
-    # a process PresentMon could not name. Status ok, source observed.
+    # A completed 60 second recording of every presenting process with no
+    # loss, read by PresentMon into frames of a game and of a process whose
+    # start event was not in the recording. Status ok, source observed.
     $cases.Add(@{
             Case = 'presentmon-frames'; Collector = 'presentmon-frames'; ExitCode = 0
             Arguments = @{ PresentMonPath = (Get-WfSyntheticPresentMonPath); DurationSeconds = 60 }
             Setup = {
                 New-WfSyntheticPresentMon -PerformanceLogUsers $true
-                Add-WfSyntheticPresentMonRun -CsvText (Get-WfSyntheticPresentMonCsv -Name 'two-processes') -Seconds 60
+                Add-WfSyntheticWprRuns -EventsLost 0 -EtlBytes (New-WfSyntheticEtlBytes -DurationSeconds 60)
+                Add-WfSyntheticPresentMonDecode -CsvText (Get-WfSyntheticPresentMonCsv -Name 'two-processes')
             }
         })
 
-    # The same capture while nothing presented: a header and no rows, which
-    # is the quiet window the collector accepts without a process filter.
+    # The same recording while nothing presented: PresentMon writes no CSV
+    # (it creates the file at the first frame), and the recording itself is
+    # the proof of a quiet window.
     $cases.Add(@{
             Case = 'presentmon-frames-quiet'; Collector = 'presentmon-frames'; ExitCode = 0
             Arguments = @{ PresentMonPath = (Get-WfSyntheticPresentMonPath); DurationSeconds = 30 }
             Setup = {
                 New-WfSyntheticPresentMon -PerformanceLogUsers $true
-                Add-WfSyntheticPresentMonRun -CsvText (Get-WfSyntheticPresentMonCsv -Name 'header-only') -Seconds 30
+                Add-WfSyntheticWprRuns -EventsLost 0 -EtlBytes (New-WfSyntheticEtlBytes -DurationSeconds 30)
+                Add-WfSyntheticPresentMonDecode
             }
         })
 
-    # The operator has not placed the binary: nothing runs, the source is
-    # not_collected with the download hint, the collector exits 1.
+    # The operator has not placed the binary: nothing runs, not even wpr; the
+    # source is not_collected with the download hint; the collector exits 1.
     $cases.Add(@{
             Case = 'presentmon-frames-no-binary'; Collector = 'presentmon-frames'; ExitCode = 1
             Arguments = @{ PresentMonPath = (Get-WfSyntheticPresentMonPath); DurationSeconds = 60 }
             Setup = {
                 New-WfSyntheticPresentMon -PerformanceLogUsers $true -Present $false
+                Add-WfSyntheticWprRuns
             }
         })
 
-    # The account is outside Performance Log Users and PresentMon refuses to
-    # start its trace session: not_collected with the tool's own message.
+    # The controller lost events during the window: the recording is kept for
+    # inspection, the source is capture_failed, PresentMon never runs.
+    $cases.Add(@{
+            Case = 'presentmon-frames-lost-events'; Collector = 'presentmon-frames'; ExitCode = 1
+            Arguments = @{ PresentMonPath = (Get-WfSyntheticPresentMonPath); DurationSeconds = 60 }
+            Setup = {
+                New-WfSyntheticPresentMon -PerformanceLogUsers $true
+                Add-WfSyntheticWprRuns -EventsLost 12 -EtlBytes (New-WfSyntheticEtlBytes -DurationSeconds 60 -EventsLost 12)
+                Add-WfSyntheticPresentMonDecode -CsvText (Get-WfSyntheticPresentMonCsv -Name 'two-processes')
+            }
+        })
+
+    # The account may not control event tracing sessions and wpr refuses to
+    # start: not_collected with wpr's words, nothing recorded.
     $cases.Add(@{
             Case = 'presentmon-frames-access-denied'; Collector = 'presentmon-frames'; ExitCode = 1
             Arguments = @{ PresentMonPath = (Get-WfSyntheticPresentMonPath); DurationSeconds = 60 }
             Setup = {
                 New-WfSyntheticPresentMon -PerformanceLogUsers $false
-                Add-WfSyntheticPresentMonRun -ExitCode 1 -StdErr "error: failed to start trace session (access denied)`r`n" -Seconds 1
+                Add-WfSyntheticWprRuns -StartExitCode 1 -StartStdErr "Access is denied.`r`n"
             }
         })
 
@@ -246,6 +267,10 @@ function Get-WfSyntheticPresentMonPath {
     # Where the fixture cases say the binary is; the synthetic backend never
     # touches the path, it only looks it up.
     return 'C:\ProgramData\win-forensics\tools\PresentMon-2.6.0-x64.exe'
+}
+
+function Get-WfSyntheticWprPath {
+    return 'C:\Windows\System32\wpr.exe'
 }
 
 function Get-WfSyntheticPresentMonPinnedSha256 {
@@ -268,69 +293,213 @@ function New-WfSyntheticPresentMon {
     $global:WfSynthetic.Binaries[(Get-WfSyntheticPresentMonPath)] = @{ Length = $Length; Sha256 = $Sha256; FileVersion = '2.6.0.0'; ProductVersion = '2.6.0' }
 }
 
-function Add-WfSyntheticPresentMonRun {
-    # What the synthetic binary does when started for a capture (arguments
-    # carrying --timed) and for the cleanup call (--terminate_existing_session).
-    param([int]$ExitCode = 0, [string]$StdOut = '', [string]$StdErr = '', $CsvText = $null, [int]$Seconds = 60, [bool]$Stuck = $false,
-        [int]$CleanupExitCode = 0, [string]$CleanupStdOut = '', [bool]$CleanupStuck = $false)
-    $capture = @{ Path = (Get-WfSyntheticPresentMonPath); Match = '--timed'; ExitCode = $ExitCode; StdOut = $StdOut; StdErr = $StdErr; Seconds = $Seconds }
-    if ($null -ne $CsvText) { $capture['CsvText'] = [string]$CsvText }
-    if ($Stuck) { $capture['Stuck'] = $true }
-    $global:WfSynthetic.Programs.Add($capture)
-    $cleanup = @{ Path = (Get-WfSyntheticPresentMonPath); Match = '--terminate_existing_session'; ExitCode = $CleanupExitCode; StdOut = $CleanupStdOut; StdErr = ''; Seconds = 1 }
-    if ($CleanupStuck) { $cleanup['Stuck'] = $true }
-    $global:WfSynthetic.Programs.Add($cleanup)
+function Get-WfSyntheticWprStatusText {
+    # What the synthetic wpr -status prints. The in progress text follows the
+    # sample on the WPR Command-Line Options page ("WPR recording is in
+    # progress...", "Collector Name", "Events Lost" per collector); the text
+    # when nothing records is invented, since Microsoft documents only that
+    # "a message displays that WPR is not recording".
+    param([bool]$InProgress, [int64]$EventsLost = 0, [bool]$Collectors = $false)
+    $nl = "`r`n"
+    if (-not $InProgress) { return ('WPR is not recording.' + $nl) }
+    $text = 'WPR recording is in progress...' + $nl + $nl + 'Time since start        : 00:01:00' + $nl + $nl + ('Dropped event           : {0}' -f $EventsLost) + $nl + $nl + 'Logging mode            : File' + $nl
+    if ($Collectors) {
+        $text += $nl + 'Actively recording collectors:' + $nl
+        $text += 'Collector Name          : WPR_initiated_wf-presentmon-frames' + $nl
+        $text += 'Buffer Size (KB)        : 64' + $nl
+        $text += ('Events Lost             : {0}' -f $EventsLost) + $nl
+        $text += 'Providers' + $nl
+        $text += 'Microsoft-Windows-Kernel-Process: 0x8000000000000010: 0x04' + $nl
+        $text += 'Microsoft-Windows-DxgKrnl: 0x8000841: 0x04' + $nl
+        $text += 'Microsoft-Windows-Win32k: 0x8400000440c01000: 0x04' + $nl
+        $text += 'Microsoft-Windows-Dwm-Core: 0x8000000000000081: 0x05' + $nl
+        $text += 'Microsoft-Windows-DXGI: 0x8000000000000002: 0xff' + $nl
+        $text += 'Microsoft-Windows-D3D9: 0x8000000000000002: 0xff' + $nl
+        $text += 'CaptureState Providers on Start' + $nl
+        $text += 'Microsoft-Windows-Kernel-Process: 0x8000000000000010: 0x04' + $nl
+        $text += 'Microsoft-Windows-DxgKrnl: 0x840: 0x04' + $nl
+    }
+    return $text
+}
+
+function New-WfSyntheticEtlBytes {
+    # A stand in for the first bytes of an ETW log file: the log file header
+    # event laid out as Read-WfEtlHeader in presentmon-frames.ps1 reads it,
+    # which is the documented TRACE_LOGFILE_HEADER (EventTrace_Header MOF
+    # class) behind a 48 byte EVENT_TRACE_HEADER carrying EventTraceGuid,
+    # behind a buffer header whose size is not documented (72 zero bytes
+    # here). The layout is inferred from the documented structures; a file
+    # from a real machine is what proves it (README verification item 27).
+    # Everything in it is invented.
+    param([int]$DurationSeconds = 60, [int64]$EventsLost = 0, [int64]$BuffersLost = 0, [int64]$BuffersWritten = 40, [int]$ClockType = 1,
+        [int64]$PerfFreq = 10000000, [int]$PointerSize = 8, [int]$MaximumFileSizeMb = 64, [int]$StartOffsetSeconds = 4)
+    $stream = New-Object System.IO.MemoryStream
+    $writer = New-Object System.IO.BinaryWriter($stream)
+    try {
+        $start = $global:WfSynthetic.Now.AddSeconds($StartOffsetSeconds)
+        $end = $start.AddSeconds($DurationSeconds)
+        $writer.Write((New-Object byte[] 72))
+        $payload = New-Object System.IO.MemoryStream
+        $pw = New-Object System.IO.BinaryWriter($payload)
+        $pw.Write([uint32]65536)                    # BufferSize
+        $pw.Write([uint32]0x0000000A)               # Version (10.0)
+        $pw.Write([uint32]26100)                    # ProviderVersion (build)
+        $pw.Write([uint32]16)                       # NumberOfProcessors
+        $pw.Write([int64]$end.ToFileTimeUtc())      # EndTime
+        $pw.Write([uint32]156250)                   # TimerResolution
+        $pw.Write([uint32]$MaximumFileSizeMb)       # MaximumFileSize
+        $pw.Write([uint32]0x1)                      # LogFileMode (sequential)
+        $pw.Write([uint32]$BuffersWritten)          # BuffersWritten
+        $pw.Write([uint32]1)                        # StartBuffers
+        $pw.Write([uint32]$PointerSize)             # PointerSize
+        $pw.Write([uint32]$EventsLost)              # EventsLost
+        $pw.Write([uint32]3000)                     # CpuSpeedInMHz
+        $pw.Write((New-Object byte[] (2 * $PointerSize)))  # LoggerName, LogFileName pointers
+        $pw.Write((New-Object byte[] 176))          # TIME_ZONE_INFORMATION, padded
+        $pw.Write([int64]$global:WfSynthetic.Now.AddDays(-2).ToFileTimeUtc())  # BootTime
+        $pw.Write([int64]$PerfFreq)                 # PerfFreq
+        $pw.Write([int64]$start.ToFileTimeUtc())    # StartTime
+        $pw.Write([uint32]$ClockType)               # ReservedFlags (clock type)
+        $pw.Write([uint32]$BuffersLost)             # BuffersLost
+        $pw.Write([System.Text.Encoding]::Unicode.GetBytes("wf-presentmon-frames`0"))
+        $pw.Write([System.Text.Encoding]::Unicode.GetBytes("trace.etl`0"))
+        $pw.Flush()
+        $payloadBytes = $payload.ToArray()
+        $writer.Write([uint16](48 + $payloadBytes.Length))   # EVENT_TRACE_HEADER.Size
+        $writer.Write([uint16]0xC001)                        # HeaderType and marker (invented)
+        $writer.Write([uint32]0)                             # Class
+        $writer.Write([uint32]4)                             # ThreadId
+        $writer.Write([uint32]4)                             # ProcessId
+        $writer.Write([int64]$start.ToFileTimeUtc())         # TimeStamp
+        $writer.Write([byte[]](0x00, 0xd9, 0xfd, 0x68, 0x3e, 0x4a, 0xd1, 0x11, 0x84, 0xf4, 0x00, 0x00, 0xf8, 0x04, 0x64, 0xe3))  # EventTraceGuid
+        $writer.Write([int64]0)                              # KernelTime, UserTime
+        $writer.Write($payloadBytes)
+        $writer.Write((New-Object byte[] 512))               # the rest of the buffer, invented
+        $writer.Flush()
+        return $stream.ToArray()
+    } finally {
+        $writer.Dispose()
+        $stream.Dispose()
+    }
+}
+
+function Add-WfSyntheticWprRuns {
+    # What the synthetic wpr does for each verb the collector uses, in the
+    # order the collector calls them: -status (before), -start, -status
+    # collectors -details (end of window), -stop, -status (after), -cancel.
+    param([bool]$ProbeInProgress = $false, [int]$StartExitCode = 0, [string]$StartStdOut = '', [string]$StartStdErr = '', [bool]$StartStuck = $false,
+        [bool]$InProgressAtEnd = $true, [int64]$EventsLost = 0, [int]$StopExitCode = 0, [bool]$StopStuck = $false, $EtlBytes = $null,
+        [bool]$AfterInProgress = $false, [int]$CancelExitCode = 0, [bool]$CancelStuck = $false, [int]$StartSeconds = 3, [int]$StopSeconds = 5)
+    $wpr = Get-WfSyntheticWprPath
+    $global:WfSynthetic.Programs.Add(@{ Path = $wpr; Match = '-status collectors -details'; ExitCode = 0; StdOut = (Get-WfSyntheticWprStatusText -InProgress $InProgressAtEnd -EventsLost $EventsLost -Collectors $true); StdErr = ''; Seconds = 1 })
+    $start = @{ Path = $wpr; Match = '-start'; ExitCode = $StartExitCode; StdOut = $StartStdOut; StdErr = $StartStdErr; Seconds = $StartSeconds }
+    if ($StartStuck) { $start['Stuck'] = $true }
+    $global:WfSynthetic.Programs.Add($start)
+    $stop = @{ Path = $wpr; Match = '-stop'; ExitCode = $StopExitCode; StdOut = ''; StdErr = ''; Seconds = $StopSeconds }
+    if ($StopStuck) { $stop['Stuck'] = $true }
+    if ($null -ne $EtlBytes) { $stop['OutputFileArgument'] = '-stop "([^"]+)"'; $stop['OutputBytes'] = [byte[]]$EtlBytes }
+    $global:WfSynthetic.Programs.Add($stop)
+    $cancel = @{ Path = $wpr; Match = '-cancel'; ExitCode = $CancelExitCode; StdOut = ''; StdErr = ''; Seconds = 1 }
+    if ($CancelStuck) { $cancel['Stuck'] = $true }
+    $global:WfSynthetic.Programs.Add($cancel)
+    $global:WfSynthetic.Programs.Add(@{ Path = $wpr; Match = '-status'; Responses = @(
+                @{ ExitCode = 0; StdOut = (Get-WfSyntheticWprStatusText -InProgress $ProbeInProgress); StdErr = ''; Seconds = 1 },
+                @{ ExitCode = 0; StdOut = (Get-WfSyntheticWprStatusText -InProgress $AfterInProgress); StdErr = ''; Seconds = 1 }
+            ) })
+}
+
+function Add-WfSyntheticPresentMonDecode {
+    # What the synthetic PresentMon does when started with --etl_file: prints
+    # "Started recording." as the real one does in simple console mode
+    # (MainThread.cpp StartRecording) and, when given a CSV, writes it with
+    # the UTF-8 byte order mark the real one writes (the file is opened with
+    # "w,ccs=UTF-8", CsvOutput.cpp UpdateCsvT). No CSV means no frame.
+    param([int]$ExitCode = 0, [string]$StdOut = "Started recording.`r`n", [string]$StdErr = '', $CsvText = $null, [bool]$Stuck = $false, [int]$Seconds = 4)
+    $decode = @{ Path = (Get-WfSyntheticPresentMonPath); Match = '--etl_file'; ExitCode = $ExitCode; StdOut = $StdOut; StdErr = $StdErr; Seconds = $Seconds }
+    if ($Stuck) { $decode['Stuck'] = $true }
+    if ($null -ne $CsvText) {
+        $decode['OutputFileArgument'] = '--output_file "([^"]+)"'
+        $decode['OutputBytes'] = [byte[]]((0xEF, 0xBB, 0xBF) + (New-Object System.Text.UTF8Encoding($false)).GetBytes([string]$CsvText))
+    }
+    $global:WfSynthetic.Programs.Add($decode)
+}
+
+function ConvertTo-WfSyntheticCsvCell {
+    # The writer's rule for several metrics: a zero prints NA, anything else
+    # prints with the given number of decimals.
+    param([double]$Value, [int]$Decimals)
+    if ($Value -eq 0.0) { return 'NA' }
+    return $Value.ToString('F' + $Decimals, [System.Globalization.CultureInfo]::InvariantCulture)
 }
 
 function Get-WfSyntheticPresentMonCsv {
-    # Invented CSV text in the column list the PresentMon 2.6.0 console
-    # README documents under "CSV columns" (every default metric, with
-    # CPUStartQPC because the collector passes --qpc_time, without the three
-    # columns that need --write_display_metadata). Values are made up: a
-    # 10 MHz counter (the synthetic machine's QueryPerformanceFrequency), a
-    # game at about 144 frames per second, a second process PresentMon could
-    # not name, and NA where the vendor documents NA (a frame that was not
-    # displayed) or where no input reached the frame.
+    # Invented CSV text in the layout PresentMon 2.6.0 writes for the console
+    # application's default options with --qpc_time: the 28 column header of
+    # WriteCsvHeader<FrameMetrics> (CsvOutput.cpp lines 531 to 667, v1
+    # metrics, track display, GPU and input on) and rows shaped by
+    # WriteCsvRow<FrameMetrics> (lines 675 to 854): integers for the two QPC
+    # columns, 14 decimals for the four Ms* columns written with DBL_DIG - 1,
+    # 4 decimals elsewhere, and NA where the writer prints NA for a zero or
+    # missing value. Values are made up: a 10 MHz counter, a game at about
+    # 144 frames per second whose name came from the recorded Kernel-Process
+    # events, and a second process whose start event was not recorded.
     param([string]$Name)
     $nl = "`r`n"
-    $header = 'Application,ProcessID,SwapChainAddress,PresentRuntime,SyncInterval,PresentFlags,AllowsTearing,PresentMode,FrameType,CPUStartQPC,MsCPUBusy,MsCPUWait,MsGPULatency,MsGPUTime,MsGPUBusy,MsGPUWait,VideoBusy,DisplayLatency,DisplayedTime,MsAnimationError,AnimationTime,MsClickToPhotonLatency,MsAllInputToPhotonLatency,InstrumentedLatency,MsBetweenPresents,MsInPresentAPI,MsBetweenDisplayChange,MsUntilDisplayed,MsRenderPresentLatency,MsBetweenSimulationStart,MsPCLatency,MsBetweenAppStart'
+    $inv = [System.Globalization.CultureInfo]::InvariantCulture
+    $header = 'Application,ProcessID,SwapChainAddress,PresentRuntime,SyncInterval,PresentFlags,AllowsTearing,PresentMode,TimeInQPC,MsBetweenSimulationStart,MsBetweenPresents,MsBetweenDisplayChange,MsInPresentAPI,MsRenderPresentLatency,MsUntilDisplayed,CPUStartQPC,MsBetweenAppStart,MsCPUBusy,MsCPUWait,MsGPULatency,MsGPUTime,MsGPUBusy,MsGPUWait,MsAnimationError,AnimationTime,MsFlipDelay,MsAllInputToPhotonLatency,MsClickToPhotonLatency'
     switch ($Name) {
         'header-only' { return ($header + $nl) }
         'no-qpc' {
-            return (($header -replace 'CPUStartQPC', 'CPUStartTime') + $nl +
-                'SyntheticGame.exe,4242,0x000001F3A0C0B2E0,DXGI,0,512,1,Hardware: Independent Flip,Application,0.000000,5.812,1.102,0.401,5.633,5.511,0.122,0.000,12.338,6.944,NA,0.000000,NA,NA,NA,NA,0.214,NA,NA,6.112,NA,NA,6.914' + $nl)
+            return (($header -replace 'CPUStartQPC', 'CPUStartTimeInMs') + $nl +
+                'SyntheticGame.exe,4242,0x1F3A0C0B2E0,DXGI,0,512,1,Hardware: Independent Flip,123456858140,NA,6.91400000000000,NA,0.21400000000000,6.11200000000000,NA,0.0000,6.9140,5.8120,1.1020,0.4010,5.6330,5.5110,0.1220,NA,NA,NA,NA,NA' + $nl)
         }
         'two-processes' {
             $lines = New-Object 'System.Collections.Generic.List[string]'
             $lines.Add($header)
             $qpc = [int64]123456789000
+            # BetweenPresents, CPUBusy, CPUWait, GPULatency, GPUTime, GPUBusy, GPUWait, DisplayChange, UntilDisplayed, AnimationError, AnimationTime, FlipDelay, AllInput, Click, InPresentAPI, RenderPresentLatency
             $game = @(
-                @('6.914', '5.812', '1.102', '0.401', '5.633', '5.511', '0.122', '12.338', '6.944', '0.030', 'NA', 'NA', '6.914', '0.214', '6.944', '6.112'),
-                @('6.930', '5.790', '1.140', '0.398', '5.701', '5.590', '0.111', '12.401', '6.930', '-0.014', '18.772', '18.772', '6.930', '0.201', '6.930', '6.144'),
-                @('6.902', '5.820', '1.082', '0.405', '5.655', '5.540', '0.115', '12.350', '6.902', '0.028', 'NA', 'NA', '6.902', '0.219', '6.902', '6.090'),
-                @('13.804', '12.650', '1.154', '0.412', '12.511', '12.400', '0.111', '19.250', '13.804', '6.902', 'NA', 'NA', '13.804', '0.233', '13.804', '13.011'),
-                @('6.944', '5.801', '1.143', '0.399', '5.622', '5.500', '0.122', '12.299', 'NA', '-6.860', 'NA', 'NA', '6.944', '0.208', 'NA', 'NA'),
-                @('6.920', '5.833', '1.087', '0.403', '5.690', '5.577', '0.113', '12.388', '13.864', '0.000', 'NA', 'NA', '6.920', '0.211', '13.864', '6.120'),
-                @('6.911', '5.809', '1.102', '0.400', '5.640', '5.521', '0.119', '12.344', '6.911', '0.009', '25.104', '25.104', '6.911', '0.215', '6.911', '6.100'),
-                @('6.933', '5.822', '1.111', '0.404', '5.661', '5.548', '0.113', '12.360', '6.933', '-0.022', 'NA', 'NA', '6.933', '0.209', '6.933', '6.133')
+                @(6.914, 5.812, 1.102, 0.401, 5.633, 5.511, 0.122, 6.944, 6.112, 0.030, 12345.6858, 0.0, 0.0, 0.0, 0.214, 6.112),
+                @(6.930, 5.790, 1.140, 0.398, 5.701, 5.590, 0.111, 6.930, 6.144, -0.014, 12352.6158, 0.0, 18.772, 18.772, 0.201, 6.144),
+                @(6.902, 5.820, 1.082, 0.405, 5.655, 5.540, 0.115, 6.902, 6.090, 0.028, 12359.5178, 0.0, 0.0, 0.0, 0.219, 6.090),
+                @(13.804, 12.650, 1.154, 0.412, 12.511, 12.400, 0.111, 13.804, 13.011, 6.902, 12373.3218, 0.0, 0.0, 0.0, 0.233, 13.011),
+                @(6.944, 5.801, 1.143, 0.399, 5.622, 5.500, 0.122, 0.0, 0.0, -6.860, 12380.2658, 0.0, 0.0, 0.0, 0.208, 6.120),
+                @(6.920, 5.833, 1.087, 0.403, 5.690, 5.577, 0.113, 13.864, 6.120, 0.000, 12387.1858, 0.0, 0.0, 0.0, 0.211, 6.120),
+                @(6.911, 5.809, 1.102, 0.400, 5.640, 5.521, 0.119, 6.911, 6.100, 0.009, 12394.0968, 0.0, 25.104, 25.104, 0.215, 6.100),
+                @(6.933, 5.822, 1.111, 0.404, 5.661, 5.548, 0.113, 6.933, 6.133, -0.022, 12401.0298, 0.0, 0.0, 0.0, 0.209, 6.133)
             )
             $modes = @('Hardware: Independent Flip', 'Hardware: Independent Flip', 'Hardware: Independent Flip', 'Hardware Composed: Independent Flip', 'Hardware: Independent Flip', 'Hardware: Independent Flip', 'Hardware: Independent Flip', 'Hardware: Independent Flip')
             $i = 0
-            foreach ($frame in $game) {
-                $qpc += [int64]([double]$frame[0] * 10000)
-                # BetweenPresents, CPUBusy, CPUWait, GPULatency, GPUTime, GPUBusy, GPUWait, DisplayLatency, DisplayedTime, AnimationError, ClickToPhoton, AllInputToPhoton, BetweenAppStart, InPresentAPI, BetweenDisplayChange, UntilDisplayed
-                $lines.Add(('SyntheticGame.exe,4242,0x000001F3A0C0B2E0,DXGI,0,512,1,{0},Application,{1},{2},{3},{4},{5},{6},{7},0.000,{8},{9},{10},{11},{12},{13},NA,{14},{15},{16},{17},6.112,NA,NA,{18}' -f
-                        $modes[$i], $qpc, $frame[1], $frame[2], $frame[3], $frame[4], $frame[5], $frame[6], $frame[7], $frame[8], $frame[9], ($qpc / 10000.0).ToString('F6', [System.Globalization.CultureInfo]::InvariantCulture), $frame[10], $frame[11], $frame[0], $frame[13], $frame[14], $frame[15], $frame[12]))
+            foreach ($f in $game) {
+                $qpc += [int64]([double]$f[0] * 10000)
+                $cells = New-Object 'System.Collections.Generic.List[string]'
+                $cells.Add('SyntheticGame.exe'); $cells.Add('4242'); $cells.Add('0x1F3A0C0B2E0'); $cells.Add('DXGI'); $cells.Add('0'); $cells.Add('512'); $cells.Add('1'); $cells.Add($modes[$i])
+                $cells.Add([string]($qpc + 2140))                                   # TimeInQPC
+                $cells.Add('NA')                                                    # MsBetweenSimulationStart (zero prints NA)
+                $cells.Add(([double]$f[0]).ToString('F14', $inv))                   # MsBetweenPresents
+                $cells.Add((ConvertTo-WfSyntheticCsvCell -Value $f[7] -Decimals 14)) # MsBetweenDisplayChange
+                $cells.Add(([double]$f[14]).ToString('F14', $inv))                  # MsInPresentAPI
+                $cells.Add(([double]$f[15]).ToString('F14', $inv))                  # MsRenderPresentLatency
+                $cells.Add((ConvertTo-WfSyntheticCsvCell -Value $f[8] -Decimals 4))  # MsUntilDisplayed
+                $cells.Add([string]$qpc)                                            # CPUStartQPC
+                foreach ($k in @(0, 1, 2, 3, 4, 5, 6)) { $cells.Add(([double]$f[$k]).ToString('F4', $inv)) }  # MsBetweenAppStart, CPU busy and wait, GPU latency, time, busy, wait
+                $cells.Add(([double]$f[9]).ToString('F4', $inv))                    # MsAnimationError
+                $cells.Add(([double]$f[10]).ToString('F4', $inv))                   # AnimationTime
+                $cells.Add((ConvertTo-WfSyntheticCsvCell -Value $f[11] -Decimals 4)) # MsFlipDelay
+                $cells.Add((ConvertTo-WfSyntheticCsvCell -Value $f[12] -Decimals 4)) # MsAllInputToPhotonLatency
+                $cells.Add((ConvertTo-WfSyntheticCsvCell -Value $f[13] -Decimals 4)) # MsClickToPhotonLatency
+                $lines.Add(($cells.ToArray() -join ','))
                 $i += 1
                 if ($i -eq 3 -or $i -eq 6) {
-                    # A frame from a process PresentMon could not name, composed by the desktop.
-                    $lines.Add(('<unknown>,5120,0x000001F3A1D44F00,DXGI,1,0,0,Composed: Flip,Application,{0},2.011,14.655,0.902,1.244,1.201,0.043,0.000,22.104,16.667,0.000,{1},NA,NA,NA,16.666,0.088,16.667,20.104,1.500,NA,NA,16.666' -f ($qpc + 31000), (($qpc + 31000) / 10000.0).ToString('F6', [System.Globalization.CultureInfo]::InvariantCulture)))
+                    # A frame from a process whose start or rundown event was not in the recording, composed by the desktop.
+                    $u = $qpc + 31000
+                    $lines.Add('<unknown>,5120,0x1F3A1D44F00,DXGI,1,0,0,Composed: Flip,' + ($u + 1800) + ',NA,16.66600000000000,16.66700000000000,0.08800000000000,1.50000000000000,20.1040,' + $u + ',16.6660,2.0110,14.6550,0.9020,1.2440,1.2010,0.0430,0.0000,' + ([double]($u / 10000.0)).ToString('F4', $inv) + ',NA,NA,NA')
                 }
             }
             return (($lines.ToArray() -join $nl) + $nl)
         }
         'ragged' {
-            return ($header + $nl + 'SyntheticGame.exe,4242,0x000001F3A0C0B2E0,DXGI,0,512' + $nl)
+            return ($header + $nl + 'SyntheticGame.exe,4242,0x1F3A0C0B2E0,DXGI,0,512' + $nl)
         }
     }
     throw ('no synthetic PresentMon CSV named ' + $Name)

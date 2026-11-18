@@ -3,6 +3,8 @@
 bundles/
 captures/
 *.etl
+# The one exception: the invented log file header the presentmon-frames fixture bundles carry
+!fixtures/collector-bundles/**/trace.etl
 *.pml
 *.PML
 *.dmp

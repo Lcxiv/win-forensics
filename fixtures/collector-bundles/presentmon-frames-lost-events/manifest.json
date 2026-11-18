@@ -1,0 +1,524 @@
+{
+  "manifest_version": "1.0.0",
+  "bundle_id": "20260301T120001Z_presentmon_frames_ae3a76a9",
+  "created_utc": "2026-03-01T12:01:19.0000000Z",
+  "scenario": {
+    "id": "presentmon_frames",
+    "version": "2.0.0",
+    "requested_duration_s": 60,
+    "target_process": null,
+    "marks": []
+  },
+  "capture": {
+    "start_utc": "2026-03-01T12:00:01.0000000Z",
+    "stop_utc": "2026-03-01T12:01:19.0000000Z",
+    "orchestrator": "wf-collector:presentmon-frames",
+    "orchestrator_version": "1.2.0",
+    "elevated": false,
+    "incomplete": true
+  },
+  "machine": {
+    "machine_id": "ae3a76a9f32fa71b72616118339e376c",
+    "hostname": "SYNTHETIC-PC",
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26100",
+      "build": 26100,
+      "ubr": 1,
+      "display_version": "24H2",
+      "architecture": "64-bit",
+      "edition": "Professional"
+    },
+    "cpu": {
+      "name": "Synthetic CPU",
+      "logical_processors": 16,
+      "qpc_frequency_hz": 10000000
+    },
+    "memory_bytes": 34359738368,
+    "gpus": [
+      {
+        "name": "Synthetic Display Adapter",
+        "driver_version": "1.2.3.4",
+        "driver_date": "2026-01-15T00:00:00.0000000Z",
+        "device_id": "PCI\\VEN_FFFF&DEV_0001"
+      }
+    ],
+    "bios": {
+      "vendor": "Synthetic Firmware",
+      "version": "S1.00",
+      "release_date": "2025-11-01T00:00:00.0000000Z"
+    },
+    "board": {
+      "manufacturer": "Synthetic Boards",
+      "product": "SB-1"
+    },
+    "drivers": [],
+    "time_zone": {
+      "name": "UTC",
+      "utc_offset_minutes": 0,
+      "dst_active": false
+    }
+  },
+  "collectors": [
+    {
+      "id": "presentmon_frames",
+      "kind": "presentmon",
+      "required": true,
+      "status": "capture_failed",
+      "status_reason": "the recording lost events: 12 events lost (wpr -status collectors -details, read before the stop), 0 buffers lost (log file header); a recording with loss is capture_failed under docs/contracts/measurement-status.md and is kept for inspection, never as proof of absence",
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:04.0000000Z",
+        "checks": [
+          {
+            "name": "binary_present",
+            "ok": true,
+            "detail": "C:\\ProgramData\\win-forensics\\tools\\PresentMon-2.6.0-x64.exe"
+          },
+          {
+            "name": "binary_sha256_pinned",
+            "ok": true,
+            "detail": "sha256 b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af, pinned b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af"
+          },
+          {
+            "name": "binary_length_pinned",
+            "ok": true,
+            "detail": "980320 bytes, pinned 980320"
+          },
+          {
+            "name": "wpr_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\wpr.exe"
+          },
+          {
+            "name": "no_other_wpr_recording",
+            "ok": true,
+            "detail": "wpr -status exit code 0; in progress: False"
+          }
+        ]
+      },
+      "command": [
+        "C:\\ProgramData\\win-forensics\\tools\\PresentMon-2.6.0-x64.exe",
+        "--etl_file",
+        "raw/presentmon_frames/trace.etl",
+        "--output_file",
+        "raw/presentmon_frames/frames.csv",
+        "--no_console_stats",
+        "--qpc_time"
+      ],
+      "started_utc": "2026-03-01T12:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:18.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "f82421112368c93d8e614a1b1a5d6b63b28f5d3917f0a7c1762f3035993ba786"
+      },
+      "filter_hash": {
+        "algorithm": "sha256",
+        "value": "b4901f394d56746ef297cb1334b479e8319c573b388c6f97a9775c39fb0af9c4"
+      },
+      "requested": {
+        "providers": [
+          "Microsoft-Windows-Kernel-Process",
+          "Microsoft-Windows-DxgKrnl",
+          "Microsoft-Windows-Win32k",
+          "Microsoft-Windows-Dwm-Core",
+          "Microsoft-Windows-Dwm-Core-Win7",
+          "Microsoft-Windows-DxgKrnl-Win7",
+          "Microsoft-Windows-DXGI",
+          "Microsoft-Windows-D3D9",
+          "NVIDIA-DisplayDriver"
+        ],
+        "keywords": [
+          "Microsoft-Windows-Kernel-Process:0x8000000000000010",
+          "Microsoft-Windows-DxgKrnl:0x8000841",
+          "Microsoft-Windows-Win32k:0x8400000440c01000",
+          "Microsoft-Windows-Dwm-Core:0x8000000000000081",
+          "Microsoft-Windows-Dwm-Core-Win7:all",
+          "Microsoft-Windows-DxgKrnl-Win7:all",
+          "Microsoft-Windows-DXGI:0x8000000000000002",
+          "Microsoft-Windows-D3D9:0x8000000000000002",
+          "NVIDIA-DisplayDriver:0x1000000000000000"
+        ],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\ProgramData\\win-forensics\\tools\\PresentMon-2.6.0-x64.exe",
+          "pinned": {
+            "version": "2.6.0",
+            "file_name": "PresentMon-2.6.0-x64.exe",
+            "sha256": "b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af",
+            "length": 980320,
+            "release_url": "https://github.com/GameTechDev/PresentMon/releases/tag/v2.6.0",
+            "asset_url": "https://github.com/GameTechDev/PresentMon/releases/download/v2.6.0/PresentMon-2.6.0-x64.exe",
+            "documentation_url": "https://github.com/GameTechDev/PresentMon/blob/v2.6.0/README-ConsoleApplication.md",
+            "source_url": "https://github.com/GameTechDev/PresentMon/tree/v2.6.0",
+            "digest_source": "the digest GitHub records for the release asset (release API digest field), read 2026-11-18"
+          },
+          "controller": "C:\\Windows\\System32\\wpr.exe",
+          "method": "wpr records the providers below to a file inside the bundle for the window; PresentMon then reads that file with --etl_file. Live PresentMon is not run: in realtime mode it opens a PROCESS_QUERY_LIMITED_INFORMATION handle to every presenting process (OutputThread.cpp QueryProcessName, v2.6.0) and enables SeDebugPrivilege when it can (MainThread.cpp); with --etl_file both are skipped (the same two functions test args.mEtlFileName)",
+          "wpr_commands": {
+            "probe": [
+              "-status"
+            ],
+            "start": [
+              "-start",
+              "raw/presentmon_frames/profile.wprp!WfPresentMonFrames.Verbose",
+              "-filemode",
+              "-recordtempto",
+              "raw/presentmon_frames/wpr-temp"
+            ],
+            "status": [
+              "-status",
+              "collectors",
+              "-details"
+            ],
+            "stop": [
+              "-stop",
+              "raw/presentmon_frames/trace.etl",
+              "win-forensics presentmon-frames",
+              "-skipPdbGen"
+            ],
+            "cancel": [
+              "-cancel"
+            ]
+          },
+          "session_name": "wf-presentmon-frames",
+          "profile": {
+            "path": "raw/presentmon_frames/profile.wprp",
+            "name": "WfPresentMonFrames",
+            "maximum_file_size_mb": 64,
+            "buffer_size_kb": 64,
+            "buffers": 256,
+            "file_mode": "Sequential"
+          },
+          "providers": [
+            {
+              "id": "Microsoft-Windows-Kernel-Process",
+              "guid": "22fb2cd6-0e7b-422b-a0c7-2fad1fd0e716",
+              "keywords": "0x8000000000000010",
+              "level": 4,
+              "capture_state": "0x8000000000000010",
+              "strict": false,
+              "events": [
+                1,
+                2,
+                15
+              ],
+              "source": "EnableProvidersListing: ProcessStart_Start, ProcessStop_Stop, ProcessRundown_Info, plus EVENT_CONTROL_CODE_CAPTURE_STATE for the rundown of processes already running"
+            },
+            {
+              "id": "Microsoft-Windows-DxgKrnl",
+              "guid": "802ec45a-1e99-4b83-9920-87c98277ba9d",
+              "keywords": "0x8000841",
+              "level": 4,
+              "capture_state": "0x840",
+              "strict": true,
+              "events": [
+                17,
+                27,
+                28,
+                29,
+                30,
+                31,
+                32,
+                116,
+                166,
+                168,
+                171,
+                172,
+                175,
+                177,
+                178,
+                180,
+                184,
+                215,
+                244,
+                252,
+                259,
+                266,
+                273,
+                382,
+                422,
+                424,
+                501
+              ],
+              "source": "EnableProvidersListing: the present history, flip, blit, queue packet, VSync, context, device, hardware queue and DMA packet events for track display and track GPU; the Performance keyword (0x4000000000000000) is removed as PresentMon does; capture state for Context_DCStart and Device_DCStart"
+            },
+            {
+              "id": "Microsoft-Windows-Win32k",
+              "guid": "8c416c79-d49b-4f01-a467-e56d3aa8234c",
+              "keywords": "0x8400000440c01000",
+              "level": 4,
+              "capture_state": null,
+              "strict": true,
+              "events": [
+                63,
+                73,
+                201,
+                225,
+                301
+              ],
+              "source": "EnableProvidersListing: TokenCompositionSurfaceObject_Info, TokenStateChanged_Info (track display), InputDeviceRead_Stop, RetrieveInputMessage_Info, OnInputXformUpdate_Info (track input)"
+            },
+            {
+              "id": "Microsoft-Windows-Dwm-Core",
+              "guid": "9e9bba3c-2e38-40cb-99f4-9e8281425164",
+              "keywords": "0x8000000000000081",
+              "level": 5,
+              "capture_state": null,
+              "strict": true,
+              "events": [
+                15,
+                64,
+                69,
+                70,
+                101,
+                196
+              ],
+              "source": "EnableProvidersListing: GetPresentHistory_Info, SCHEDULE_PRESENT_Start, SCHEDULE_SURFACEUPDATE_Info, FlipChain_Pending, FlipChain_Complete, FlipChain_Dirty; Composition (0x1) is added for Windows 10, where PresentMon swaps it for Scheduling (0x80)"
+            },
+            {
+              "id": "Microsoft-Windows-Dwm-Core-Win7",
+              "guid": "8c9dd1ad-e6e5-4b07-b455-684a9d879900",
+              "keywords": null,
+              "level": 5,
+              "capture_state": null,
+              "strict": false,
+              "events": [],
+              "source": "EnableProvidersListing: EnableWithoutFiltering(Microsoft_Windows_Dwm_Core::Win7::GUID, TRACE_LEVEL_VERBOSE)"
+            },
+            {
+              "id": "Microsoft-Windows-DxgKrnl-Win7",
+              "guid": "65cd4c8a-0848-4583-92a0-31c0fbaf00c0",
+              "keywords": null,
+              "level": 4,
+              "capture_state": null,
+              "strict": false,
+              "events": [],
+              "source": "EnableProvidersListing: EnableWithoutFiltering(Microsoft_Windows_DxgKrnl::Win7::GUID, TRACE_LEVEL_INFORMATION)"
+            },
+            {
+              "id": "Microsoft-Windows-DXGI",
+              "guid": "ca11c036-0102-4a2d-a6ad-f03cfed5d3c9",
+              "keywords": "0x8000000000000002",
+              "level": 0,
+              "capture_state": null,
+              "strict": true,
+              "events": [
+                42,
+                43,
+                55,
+                56
+              ],
+              "source": "EnableProvidersListing: Present_Start, Present_Stop, PresentMultiplaneOverlay_Start, PresentMultiplaneOverlay_Stop"
+            },
+            {
+              "id": "Microsoft-Windows-D3D9",
+              "guid": "783aca0a-790e-4d7f-8451-aa850511c6b9",
+              "keywords": "0x8000000000000002",
+              "level": 0,
+              "capture_state": null,
+              "strict": true,
+              "events": [
+                1,
+                2
+              ],
+              "source": "EnableProvidersListing: Present_Start, Present_Stop"
+            },
+            {
+              "id": "NVIDIA-DisplayDriver",
+              "guid": "ae4f8626-8265-40d1-a70b-11b64240e8e9",
+              "keywords": "0x1000000000000000",
+              "level": 4,
+              "capture_state": null,
+              "strict": false,
+              "events": [
+                1
+              ],
+              "source": "EnableProvidersListing: NvidiaDisplayDriver_Events::FlipRequest (PresentData/ETW/NV_DD.h)"
+            }
+          ],
+          "presentmon_arguments": [
+            "--etl_file",
+            "raw/presentmon_frames/trace.etl",
+            "--output_file",
+            "raw/presentmon_frames/frames.csv",
+            "--no_console_stats",
+            "--qpc_time"
+          ],
+          "output_paths_recorded_as": "bundle relative paths; the processes received the absolute paths of the same files in this bundle, in double quotes",
+          "duration_seconds": 60,
+          "deadlines_seconds": {
+            "start": 60,
+            "status": 30,
+            "stop": 180,
+            "decode": 240,
+            "cancel": 60
+          },
+          "helper_deadline_seconds": 660,
+          "process_names": [],
+          "max_artifact_bytes": 67108864,
+          "console_cap_bytes": 1048576,
+          "option_citations": {
+            "--etl_file": "Analyze an ETW trace log file instead of the actively running processes.",
+            "--output_file": "Write CSV output to the specified path.",
+            "--no_console_stats": "Do not display active swap chains and frame statistics in the console.",
+            "--qpc_time": "Output the CPU start time as a performance counter value.",
+            "--process_name": "Only record processes with the specified exe name. This argument can be repeated to capture multiple processes.",
+            "wpr -start": "Starts one or more profiles. -filemode: recording is done in file mode. -recordtempto: the temporary folder path that the recording is saved to.",
+            "wpr -status": "Displays the status of an active recording (if any). collectors: lists collector information, with Events Lost per collector.",
+            "wpr -stop": "Cancels and saves the recording initiated by WPR (if any) to the given file. -skipPdbGen disables dynamic generation of pdbs for .NET modules.",
+            "wpr -cancel": "Cancels the current recording without saving the recorded data."
+          },
+          "account": {
+            "elevated": false,
+            "performance_log_users": true
+          }
+        }
+      },
+      "enabled": {
+        "providers": [
+          "WPR_initiated_wf-presentmon-frames"
+        ],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "wpr_start_exit_code": 0,
+          "recording_in_progress": true,
+          "stop_confirmed": true,
+          "events_lost": 12,
+          "events_lost_source": "wpr -status collectors -details, read before the stop",
+          "buffers_lost": 0,
+          "etl_bytes": 974,
+          "etl_header_found": true,
+          "clock_type": "qpc",
+          "perf_freq_hz": 10000000,
+          "presentmon_exit_code": null,
+          "csv_present": false,
+          "csv_header": [],
+          "qpc_time_column": false,
+          "records": 0,
+          "processes": [],
+          "unknown_application_frames": 0,
+          "console_flagged_lines": [
+            "Dropped event           : 12",
+            "Events Lost             : 12"
+          ],
+          "elevated": false,
+          "performance_log_users": true
+        },
+        "verified_by": "wpr -status before the stop (recording in progress, Events Lost per collector), the log file header of trace.etl (events and buffers lost, clock type, start and end), the CSV header PresentMon wrote from the file (a CPUStartQPC column proves --qpc_time), and the exit codes and console text of every run in console.txt"
+      },
+      "events_lost": 12,
+      "buffers": {
+        "size_kb": 64,
+        "count": 256,
+        "mode": "file"
+      },
+      "artifacts": [
+        {
+          "path": "raw/presentmon_frames/command.json",
+          "bytes": 8094,
+          "sha256": "f82421112368c93d8e614a1b1a5d6b63b28f5d3917f0a7c1762f3035993ba786",
+          "role": "config"
+        },
+        {
+          "path": "raw/presentmon_frames/console.txt",
+          "bytes": 1011,
+          "sha256": "f9c80ae3dac5b3be2c8072f1fab1b92d4debe29f3a63cfaf2dbb4e54cd6a8576",
+          "role": "log"
+        },
+        {
+          "path": "raw/presentmon_frames/profile.wprp",
+          "bytes": 4075,
+          "sha256": "b4901f394d56746ef297cb1334b479e8319c573b388c6f97a9775c39fb0af9c4",
+          "role": "config"
+        },
+        {
+          "path": "raw/presentmon_frames/result.json",
+          "bytes": 3659,
+          "sha256": "305f206246184676478eabc77ad03cf09b4d87ed7eb5b074806aa780df842aed",
+          "role": "report"
+        },
+        {
+          "path": "raw/presentmon_frames/trace.etl",
+          "bytes": 974,
+          "sha256": "8f2a6dfbca40b30ef099a73010b6fb7c0a38b9557ed88999007f3bb890336e45",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "wpr starts the profile and reports the recording in progress at the end of the window with zero events lost; wpr -stop saves the file below its cap and the log file header agrees (zero events and buffers lost); the pinned PresentMon exits with code 0 reading it with --etl_file and --qpc_time; at least one frame row was written. With no process filter, zero frames after such a recording is a quiet window (observed_zero); with a filter, zero frames is capture_failed",
+        "met": false,
+        "detail": "wpr start exit 0; in progress at the end True; events lost 12; file 974 bytes; PresentMon exit ; 0 frames from 0 processes; CPUStartQPC column False; stop confirmed True"
+      },
+      "target_process": null
+    }
+  ],
+  "calibration": {
+    "status": "not_applicable",
+    "method": "none in this collector: the recording is an ETW file whose events carry the clock the log file header names (clock_type in the manifest; QPC is the etw_qpc master domain of docs/contracts/timestamps.md), and PresentMon writes CPUStartQPC from those timestamps; the calibration pairs that relate them to system time come from the clock collector of a later runner",
+    "qpc_frequency_hz": 10000000,
+    "expected_pairs": 0,
+    "pairs": [],
+    "missing_pairs": 0,
+    "time_adjustment": {
+      "start": null,
+      "stop": null
+    },
+    "boot_time_utc": "2026-02-27T12:00:00.0000000Z"
+  },
+  "tools": [
+    {
+      "name": "powershell",
+      "version": "5.1.26100.1",
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "sha256": null
+    },
+    {
+      "name": "wevtutil",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wevtutil.exe",
+      "sha256": null
+    },
+    {
+      "name": "collector:presentmon-frames",
+      "version": "2.0.0",
+      "path": "<install directory>\\presentmon-frames.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector-helper:_common.ps1",
+      "version": "1.2.0",
+      "path": "<install directory>\\_common.ps1",
+      "sha256": null
+    },
+    {
+      "name": "presentmon",
+      "version": "2.6.0",
+      "path": "C:\\ProgramData\\win-forensics\\tools\\PresentMon-2.6.0-x64.exe",
+      "sha256": "b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af"
+    },
+    {
+      "name": "wpr",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wpr.exe",
+      "sha256": null
+    }
+  ],
+  "symbols": {
+    "symbol_path": null,
+    "cache_path": null,
+    "dbghelp_version": null
+  },
+  "checksum_algorithm": "sha256",
+  "notes": [
+    "Read only collector presentmon-frames version 2.0.0: What did the frame pipeline do, frame by frame, during a bounded window: present cadence, time in Present, CPU and GPU busy and wait, display latency, every frame stamped in the ETW performance counter domain?",
+    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine."
+  ]
+}

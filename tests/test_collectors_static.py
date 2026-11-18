@@ -59,10 +59,11 @@ def test_shipped_scripts_are_read_only(path):
     # The only deletions are of the collector's own exports inside the output directory: a failed or
     # over-cap .evtx, and a primary export that must not be left behind ($Path is the primary passed to
     # Remove-WfPrimaryUnlessKept; the others are the primaries of the event, WMI, netsh, file and device
-    # sources).
+    # sources, and the recording, CSV and wpr temp folder of presentmon-frames).
     removals = [line.strip() for line in code.splitlines() if "Remove-Item" in line]
     own = ("-LiteralPath $evtxPath", "-LiteralPath $recordsPath", "-LiteralPath $eventsPath", "-LiteralPath $outputPath",
-           "-LiteralPath $summaryPath", "-LiteralPath $devicesPath", "-LiteralPath $Path -Force")
+           "-LiteralPath $summaryPath", "-LiteralPath $devicesPath", "-LiteralPath $Path -Force",
+           "-LiteralPath $etlPath -Force", "-LiteralPath $wprTempPath -Recurse -Force")
     assert all(any(marker in r for marker in own) for r in removals), removals
     # The only process the helper builds itself is wevtutil, with the export verb and nothing else; the
     # netsh queries rf-survey runs and the PresentMon runs of presentmon-frames go through the helper's
@@ -111,10 +112,16 @@ def test_rf_survey_sources_are_documented_with_their_privacy_rule():
 
 PRESENTMON = COLLECTOR_DIR / "presentmon-frames.ps1"
 # Every PresentMon option the collector may pass, each documented in the pinned version's console README
-# (collectors/windows/README.md cites them). --process_id, --restart_as_admin, --stop_existing_session,
-# --hotkey, --etl_file and --output_stdout are deliberately absent.
-PRESENTMON_ALLOWED_OPTIONS = {"--session_name", "--output_file", "--no_console_stats", "--qpc_time", "--timed",
-                              "--terminate_after_timed", "--process_name", "--terminate_existing_session"}
+# (collectors/windows/README.md cites them). PresentMon only ever reads a file: every option of its realtime
+# mode (a session, a timer, a process id, elevation, a hotkey) is deliberately absent.
+PRESENTMON_ALLOWED_OPTIONS = {"--etl_file", "--output_file", "--no_console_stats", "--qpc_time", "--process_name"}
+PRESENTMON_LIVE_OPTIONS = ("--timed", "--session_name", "--terminate_after_timed", "--terminate_existing_session", "--stop_existing_session",
+                           "--process_id", "--restart_as_admin", "--hotkey", "--output_stdout", "--multi_csv", "--delay", "--terminate_on_proc_exit")
+# The wpr verbs the collector may use: one recording started, read, saved and cancelled. Everything that
+# changes a machine setting or configures a boot trace is deliberately absent.
+WPR_ALLOWED = {"-start", "-filemode", "-recordtempto", "-status", "-stop", "-skipPdbGen", "-cancel", "-details"}
+WPR_FORBIDDEN = ("-disablepagingexecutive", "-heaptracingconfig", "-boottrace", "-addboot", "-stopboot", "-setprofint", "-resetprofint",
+                 "-snapshotconfig", "-enableperiodicsnapshot", "-marker", "-markerflush", "-flush", "-merge", "-purgecache", "-capturestateondemand")
 
 
 def presentmon_code() -> str:
@@ -152,26 +159,39 @@ def test_presentmon_pin_is_one_release_and_is_repeated_in_the_docs_and_the_fixtu
     assert f"[int64]$Length = {pin['length']}" in scenarios
 
 
-def test_presentmon_passes_only_the_allowlisted_options_and_never_a_process_id():
+def test_presentmon_only_ever_reads_a_recording_and_wpr_only_records_one():
     code = presentmon_code()
     used = set(re.findall(r"'(--[a-z_]+)'", code))
     assert used == PRESENTMON_ALLOWED_OPTIONS, used ^ PRESENTMON_ALLOWED_OPTIONS
-    for forbidden in ("--process_id", "--restart_as_admin", "--stop_existing_session", "--hotkey", "--etl_file", "--output_stdout", "--multi_csv"):
+    for forbidden in PRESENTMON_LIVE_OPTIONS:
         assert forbidden not in code, forbidden
-    # The options that make the run passive and bounded are all passed, in this order.
-    assert re.search(r"\$arguments\.Add\('--session_name'\).*?\$arguments\.Add\('--output_file'\).*?\$arguments\.Add\('--no_console_stats'\)\s*"
-                     r"\$arguments\.Add\('--qpc_time'\)\s*\$arguments\.Add\('--timed'\).*?\$arguments\.Add\('--terminate_after_timed'\)", code, re.S)
-    # Session control stays in the collector: the helper knows no PresentMon option.
+    # The offline read is built in this order and always with the file and QPC time stamps.
+    assert re.search(r"\$decodeArguments\.Add\('--etl_file'\).*?\$decodeArguments\.Add\('--output_file'\).*?\$decodeArguments\.Add\('--no_console_stats'\)\s*"
+                     r"\$decodeArguments\.Add\('--qpc_time'\)", code, re.S)
+    # wpr: the four verbs and their switches, nothing that changes a setting.
+    wpr_tokens = set(re.findall(r"(?<![\w-])(-[A-Za-z]+)(?=[\s\"'])", "\n".join(line for line in code.splitlines() if "wpr" in line.lower() or "-start" in line or "-stop" in line or "-status" in line or "-cancel" in line)))
+    assert WPR_ALLOWED <= wpr_tokens, WPR_ALLOWED - wpr_tokens
+    for forbidden in WPR_FORBIDDEN:
+        assert forbidden not in code, forbidden
+    # Session control stays in the collector: the helper knows no PresentMon or wpr option.
     helper = (COLLECTOR_DIR / HELPER).read_text(encoding="ascii")
-    assert "--timed" not in helper and "--session_name" not in helper
+    helper_code = "\n".join(line for line in helper.splitlines() if not line.lstrip().startswith("#"))
+    for token in ("--etl_file", "--qpc_time", "-recordtempto", "-filemode", "profile.wprp"):
+        assert token not in helper_code, token
     # The collector never downloads: no URL is fetched, the release URL is only printed in a reason.
     assert "Invoke-WebRequest" not in code and "DownloadFile" not in code
+    # The profile never enables the DxgKrnl Performance keyword PresentMon avoids: it appears only in the
+    # provider table's explanation, never as a keyword value.
+    assert "keywords = '0x4000000000000000'" not in code and 'Value="0x4000000000000000"' not in code
+    assert "0x4000000000000000) is removed as PresentMon does" in code
 
 
 def test_presentmon_documents_elevation_and_the_anti_cheat_position():
     readme = (COLLECTOR_DIR / "README.md").read_text(encoding="utf-8")
     section = readme[readme.index("### The presentmon-frames source"):]
     for term in ("Performance Log Users", "S-1-5-32-559", "<unknown>", "Easy Anti-Cheat", "not documented", "ETW",
-                 "--qpc_time", "CPUStartQPC", "--terminate_existing_session", "--terminate_after_timed", "Flash Injector",
-                 "Anticheat Mitigation", "events_lost"):
+                 "--qpc_time", "CPUStartQPC", "--etl_file", "OpenProcess", "PROCESS_QUERY_LIMITED_INFORMATION", "SeDebugPrivilege",
+                 "wpr -cancel", "Events Lost", "events_lost", "Flash Injector", "Anticheat Mitigation", "MaximumFileSize",
+                 "one at a time", "OutputThread.cpp", "ReadAndExecute", "collect-presentmon-frames"):
         assert term in section, term
+    assert "live PresentMon" in section.lower() or "realtime" in section.lower()
