@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/diskio_activity.schema.json",
+  "title": "diskio_activity row",
+  "description": "Provisional. One row per one second bin, process, volume, directory, extension, disk and operation from the aggregate the diskio-trace collector makes on the PC from a kernel trace (DiskIo Read and Write, PageFault_HardFault, FileIo_Name, Process and Thread events) and keeps as raw/diskio_aggregate/aggregate.jsonl; the trace itself never leaves the PC. bin_start_s counts whole seconds from the trace header's StartTime (etw_qpc_relative). Directories keep fixed Windows roots and one level below them in clear, <profile> for the user folder, and dir-<12 hex> per run salted pseudonyms below that; file names are never kept. Decoder: scripts/decode_diskio.py.",
+  "x-schema-version": "0.1.0",
+  "x-decoded-table": "diskio_activity",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "bin_start_s",
+    "process_id",
+    "process_image",
+    "volume",
+    "directory",
+    "path_class",
+    "extension",
+    "disk_number",
+    "operation",
+    "operations",
+    "transferred_bytes",
+    "paging_operations",
+    "paging_bytes",
+    "irp_flags_operations",
+    "irp_flags_bytes",
+    "response_time_sum_us",
+    "response_time_max_us",
+    "response_time_p50_us",
+    "response_time_p95_us",
+    "provenance"
+  ],
+  "properties": {
+    "bin_start_s": {
+      "type": "integer",
+      "description": "Start of the one second bin, in whole seconds since the trace header's StartTime."
+    },
+    "process_id": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "The process of the issuing thread (DiskIo IssuingThreadId, PageFault_HardFault TThreadId) from the trace's own Thread events; null when the trace never names the thread."
+    },
+    "process_image": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^([A-Za-z0-9][A-Za-z0-9 ._()+-]{0,63}|image-[0-9a-f]{12})$",
+      "description": "ImageFileName of the process, or image-<12 hex> when the name is outside the readable pattern; null without a Process event."
+    },
+    "volume": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^([A-Za-z][A-Za-z0-9]{0,31}|dir-[0-9a-f]{12})$"
+    },
+    "directory": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^\\\\",
+      "description": "The directory of the file, without the volume and the file name; null for path_class unnamed and collector."
+    },
+    "path_class": {
+      "type": "string",
+      "enum": [
+        "named",
+        "unnamed",
+        "collector"
+      ]
+    },
+    "extension": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^(\\.[a-z0-9]{1,8}|other)$"
+    },
+    "disk_number": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "DiskIo DiskNumber; null for hard_fault rows (the event carries no disk)."
+    },
+    "operation": {
+      "type": "string",
+      "enum": [
+        "read",
+        "write",
+        "hard_fault"
+      ]
+    },
+    "operations": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "transferred_bytes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Sum of DiskIo TransferSize, or of PageFault_HardFault ByteCount for hard_fault rows."
+    },
+    "paging_operations": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Disk requests whose IrpFlags carry IRP_PAGING_IO (0x2, the wdm.h value, not stated on Microsoft Learn; collectors/windows/README.md verification list); null for hard_fault rows."
+    },
+    "paging_bytes": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "irp_flags_operations": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "propertyNames": {
+        "pattern": "^0x[0-9a-f]+$"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "description": "Disk requests per verbatim IrpFlags value, as the collector counted them."
+    },
+    "irp_flags_bytes": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "propertyNames": {
+        "pattern": "^0x[0-9a-f]+$"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "response_time_sum_us": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Sum of HighResResponseTime over the row's disk requests, converted with the header's PerfFreq; null for hard_fault rows."
+    },
+    "response_time_max_us": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "response_time_p50_us": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "response_time_p95_us": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "properties": {
+            "decoded_table": {
+              "const": "diskio_activity"
+            },
+            "schema_version": {
+              "const": "0.1.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

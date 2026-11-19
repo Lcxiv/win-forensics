@@ -22,6 +22,8 @@ It also holds the first live capture, `dpcisr-trace`: one bounded Windows Perfor
 
 It also holds a second live capture, `presentmon-frames`: Windows Performance Recorder records the ETW providers and event ids PresentMon needs into a file on the PC for a bounded window, under the collector's own instance name (stopped on every exit path, any loss from the controller or the file failing the capture), and an operator supplied, pinned PresentMon console binary (verified by SHA-256 before the recording and again before it runs) reads that file offline with `--etl_file` and prints the CSV the bundle keeps; the recording is deleted on the PC because a merged trace can carry network addresses. PresentMon as run opens no process; whether WPR does is a verification item, not a claim. `scripts/decode_presentmon.py` decodes the CSV and the recording record into the `presentmon_frames` table. The pinned version, every option and provider with its citation, why PresentMon never runs live, the elevation question, and the anti-cheat position are in the same README.
 
+A third live capture, `diskio-trace`, answers what reads from and writes to disk while the PC is in use: one bounded Windows Performance Recorder session from its own profile (kernel DiskIO, Filename, HardFaults and ProcessThread events, no stacks, no FileIO until a pilot measures its volume), under its own instance name, stopped and confirmed on every exit path, any lost event failing the capture. The trace is read on the PC by the inbox `tracerpt`, aggregated there into one second bins per process, directory, disk and operation, and deleted with its dump: file paths, command lines and the machine's addresses never leave the PC, directories keep a fixed root and one level below it in clear and become per run salted pseudonyms deeper down, and the bundle keeps only the aggregate, the rules and the hashes that show the trace existed and was removed. `scripts/decode_diskio.py` decodes it into the `diskio_activity` table. It runs alone until a second kernel session beside `dpcisr-trace` is verified, and it needs an elevated account ([collectors/windows/README.md](collectors/windows/README.md), "The diskio-trace sources").
+
 The same directory holds `clock-calibration`, the clock session collector: for a bounded session it records the calibration triples the timestamp contract asks for (performance counter, system time, performance counter, at the start, every 5 s and at the stop), and it gives the person at the PC a mark command for a second console that stamps "I felt it here" with the same counter the kernel trace uses, without touching the game. `scripts/decode_clock.py` fits the contract's piecewise model on the Mac, writes the `clock_pairs`, `clock_segments` and `operator_marks` tables, and is the library a correlator uses to place a system time stamp on the master clock with its error bound and to refuse a join the calibration cannot support. Method, the deviation from the contract's named precise time API and the limits are in [docs/clock-calibration.md](docs/clock-calibration.md).
 
 The same directory holds `rf-survey`, a read only survey of the 2.4 GHz band around the desk for a PC that is on Ethernet but drives a wireless mouse and headset: which adapter carries the traffic, which networks are on the air on which channels, where the receivers sit on the USB tree, and which radios are on. Network names and hardware addresses are pseudonymised before anything is written. `scripts/decode_rf_survey.py` decodes it into five typed tables and `scripts/analyze_rf_survey.py` writes evidence rows and a plain language report with a cited recommendation for the router channel, the receiver ports and the unused radios. The method, its limits (a packet capture cannot see RF noise), and the before and after test the owner runs are in [docs/rf-survey.md](docs/rf-survey.md).
@@ -52,6 +54,7 @@ collectors/windows/      read only PowerShell collectors for the PC, their share
 scripts/                 wf_schema.py (schema registry and validation), decode_dpcisr.py, decode_pdh.py, decode_eventlog.py,
                          decode_tracestats.py (trace loss from the recorder's status text and the tracerpt summary),
                          decode_presentmon.py (the presentmon_frames table from a presentmon-frames bundle),
+                         decode_diskio.py (the diskio_activity table from a diskio-trace bundle),
                          decode_rf_survey.py and analyze_rf_survey.py (the RF survey tables, evidence rows and report),
                          decode_config_snapshot.py (config_snapshot, powercfg and process_inventory from a config-snapshot bundle),
                          decode_clock.py (the clock calibration tables, the fitted model, alignment and join refusal),
@@ -120,6 +123,15 @@ python scripts/decode_presentmon.py --bundle <bundle directory>
 ```
 
 It reads the collector's record of the recording (clock, loss counts, the confirmed stop) and PresentMon's CSV for the frames, writes `decoded/presentmon_frames.jsonl` with its sidecar, or reports `not_collected` and writes nothing when the capture did not happen.
+
+A `diskio-trace` bundle is decoded with:
+
+```
+python scripts/decode_tracestats.py --bundle <bundle directory>
+python scripts/decode_diskio.py --bundle <bundle directory>
+```
+
+The first reads the trace loss as for `dpcisr-trace`; the second checks the aggregate against the manifest and the collector's record (zero loss, a confirmed stop, the performance counter clock, the trace and dump removed, every event read) and writes `decoded/diskio_activity.jsonl` with its sidecar, or reports `not_collected` and writes nothing when no aggregate was made.
 
 A `clock-calibration` bundle is fitted with:
 

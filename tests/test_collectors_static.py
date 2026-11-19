@@ -12,7 +12,7 @@ COLLECTOR_NAME = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 HELPER = "_common.ps1"
 SHIPPED = sorted(COLLECTOR_DIR.glob("*.ps1"))
 COLLECTORS = [p for p in SHIPPED if p.name != HELPER]
-EXPECTED_COLLECTORS = ["application-errors", "bugcheck-history", "clock-calibration", "config-snapshot", "dpcisr-trace", "driver-inventory", "presentmon-frames", "reliability-records", "rf-survey", "tdr-events", "whea-errors"]
+EXPECTED_COLLECTORS = ["application-errors", "bugcheck-history", "clock-calibration", "config-snapshot", "diskio-trace", "dpcisr-trace", "driver-inventory", "presentmon-frames", "reliability-records", "rf-survey", "tdr-events", "whea-errors"]
 
 # Commands that change the machine, reach the network, prompt, handle credentials, or run text
 # as code. A read only collector has no use for any of them.
@@ -306,3 +306,16 @@ def test_clock_calibration_sources_are_documented():
     readme = (COLLECTOR_DIR / "README.md").read_text(encoding="utf-8")
     for source_id in ("clock_calibration", "operator_marks"):
         assert f"`{source_id}`" in readme, source_id
+
+
+def test_diskio_trace_sources_and_privacy_rules_are_documented_and_kept():
+    """Both diskio-trace source ids and its table appear in the README; the aggregate never reads a command line or a user id."""
+    readme = (COLLECTOR_DIR / "README.md").read_text(encoding="utf-8")
+    for term in ("`wpr_trace`", "`diskio_aggregate`", "`diskio_activity`", "`<profile>`", "dir-", "image-", "The diskio-trace sources"):
+        assert term in readme, term
+    script = (COLLECTOR_DIR / "diskio-trace.ps1").read_text(encoding="ascii")
+    code = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+    for field in ("'CommandLine'", "'UserSID'", "CommandLine]", "UserSID]"):
+        assert field not in code, field
+    assert re.search(r"return @\('DiskIO', 'Filename', 'HardFaults', 'ProcessThread'\)", code), "the four keywords, no FileIO until a pilot has measured it"
+    assert "FileIO'" not in code and "<Stack" not in code

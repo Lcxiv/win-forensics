@@ -1,0 +1,107 @@
+{
+  "tool": "C:\\Windows\\System32\\tracerpt.exe",
+  "arguments": [],
+  "dump_format": "XML, the documented event schema (one Event element per event; System/Provider/@Guid, System/Opcode, System/TimeCreated/@SystemTime, EventData/Data/@Name)",
+  "event_classes": {
+    "DiskIo": {
+      "guid": "3d6fa8d4-fe05-11d0-9dda-00c04fd7ba7c",
+      "event_types": [
+        10,
+        11
+      ],
+      "fields": [
+        "DiskNumber",
+        "IrpFlags",
+        "TransferSize",
+        "FileObject",
+        "HighResResponseTime",
+        "IssuingThreadId"
+      ]
+    },
+    "PageFault": {
+      "guid": "3d6fa8d3-fe05-11d0-9dda-00c04fd7ba7c",
+      "event_types": [
+        32
+      ],
+      "fields": [
+        "FileObject",
+        "TThreadId",
+        "ByteCount"
+      ]
+    },
+    "FileIo": {
+      "guid": "90cbdc39-4a3e-11d1-84f4-0000f80464e3",
+      "event_types": [
+        0,
+        32,
+        35,
+        36
+      ],
+      "fields": [
+        "FileObject",
+        "FileName"
+      ]
+    },
+    "Thread": {
+      "guid": "3d6fa8d1-fe05-11d0-9dda-00c04fd7ba7c",
+      "event_types": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "fields": [
+        "ProcessId",
+        "TThreadId"
+      ]
+    },
+    "Process": {
+      "guid": "3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c",
+      "event_types": [
+        1,
+        2,
+        3,
+        4,
+        39
+      ],
+      "fields": [
+        "ProcessId",
+        "ImageFileName"
+      ]
+    }
+  },
+  "bins": "one second, counted from the trace header's StartTime on the trace's own clock (the header must name the performance counter); an event is placed by its rendered SystemTime",
+  "response_time_unit": "microseconds: HighResResponseTime (KeQueryPerformanceCounter ticks) times 1000000 over the header's PerfFreq",
+  "percentiles": "nearest rank over the response times of the row's disk requests",
+  "irp_flags": "kept per row as the verbatim IrpFlags value (hex) with its operations and bytes; the paging share is derived from them by scripts/decode_diskio.py",
+  "pseudonyms": {
+    "fixed_roots": [
+      "\\Windows",
+      "\\Program Files",
+      "\\Program Files (x86)",
+      "\\ProgramData",
+      "\\$<NTFS metadata name>",
+      "\\Users\\<profile>\\AppData\\Local",
+      "\\Users\\<profile>\\AppData\\LocalLow",
+      "\\Users\\<profile>\\AppData\\Roaming",
+      "\\Users\\<profile>\\Desktop",
+      "\\Users\\<profile>\\Documents",
+      "\\Users\\<profile>\\Downloads"
+    ],
+    "readable_levels_below_root": 1,
+    "profile_name": "the folder name under \\Users becomes <profile>, whatever it is",
+    "root_files": "a file directly in the volume root is counted under the directory \\ (pagefile.sys, swapfile.sys and hiberfil.sys are such files); its name is never kept",
+    "other_components": "every directory component that is not a fixed root or the one readable level below it becomes dir-<12 hex>, the first 12 hex digits of SHA-256 over a random salt and the lower cased path up to and including that component; the salt is made for this run and never written",
+    "file_names": "never kept; a row is per directory",
+    "extension": "the lower cased file extension when it is a dot and 1 to 8 letters or digits, other when it is anything else, null without one",
+    "volume": "the device name after \\Device\\ when the path starts with one and the name is 1 to 32 letters and digits (HarddiskVolume3), else a dir- pseudonym; null when the path carries no device",
+    "collector_files": "files under this bundle's own directory (the trace being written, the temporary recording, the dump) are counted with path_class collector and no directory",
+    "unnamed_files": "a disk or hard fault event whose file object has no name event anywhere in the trace is counted with path_class unnamed and no directory",
+    "process_image": "ImageFileName of the process kept when it is 1 to 64 letters, digits, spaces and . _ ( ) + - starting with a letter or digit, else image-<12 hex> keyed like the directories; a thread with no Thread event in the trace has a null process",
+    "command_lines_and_user_ids": "never read: the Process events carry them and they stay in the trace and the dump on the PC"
+  },
+  "max_dump_bytes": 4294967296,
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 120,
+  "recording_kept": false
+}

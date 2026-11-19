@@ -1,0 +1,23 @@
+{
+  "started_utc": "2026-03-01T12:00:15.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:17.0000000Z",
+  "trace": "<bundle>/private/trace.etl",
+  "trace_sha256": null,
+  "trace_bytes": null,
+  "trace_header": null,
+  "trace_events_processed": null,
+  "dump": "<bundle>/private/dump.xml",
+  "dump_bytes": null,
+  "dump_sha256": null,
+  "dump_events": null,
+  "counts": null,
+  "threads_named": null,
+  "processes_named": null,
+  "file_objects_named": null,
+  "rows": 0,
+  "totals": null,
+  "bin_range": null,
+  "recording_and_dump_removed": true,
+  "removal_error": null,
+  "runs": []
+}
