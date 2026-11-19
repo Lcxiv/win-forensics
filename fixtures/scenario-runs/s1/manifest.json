@@ -2893,8 +2893,8 @@
       },
       {
         "name": "tool:xperf",
-        "ok": false,
-        "detail": "C:\\Tools\\WindowsPerformanceToolkit\\xperf.exe: SHA-256 7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b, version 10.0.26100.1 (synthetic) matches no pinned build"
+        "ok": true,
+        "detail": "C:\\Tools\\WindowsPerformanceToolkit\\xperf.exe: SHA-256 and version 10.0.26100.1 (synthetic) match a pinned build"
       },
       {
         "name": "tool:presentmon",

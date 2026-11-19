@@ -314,6 +314,30 @@ Describe 'the scenario runner' {
         (Get-TestEntry $run.Manifest 'dpcisr_report')['status'] | Should -BeExactly 'not_collected'
     }
 
+    It 'accepts an xperf whose hash and version are a pinned build' {
+        $run = Invoke-TestRun -OutputDirectory $script:out
+        $check = Get-TestCheck $run.Manifest 'tool:xperf'
+        $check['ok'] | Should -BeTrue
+        $check['detail'] | Should -Match 'match a pinned build'
+        (Get-TestEntry $run.Manifest 'dpcisr_report')['status'] | Should -BeExactly 'observed'
+    }
+
+    It 'says no xperf build is pinned yet when none is' {
+        $global:WfSynthetic.PinnedTools['xperf'] = @()
+        $run = Invoke-TestRun -OutputDirectory $script:out
+        $check = Get-TestCheck $run.Manifest 'tool:xperf'
+        $check['ok'] | Should -BeFalse
+        $check['detail'] | Should -Match 'no xperf build is pinned yet'
+    }
+
+    It 'refuses an xperf whose hash is not a pinned build' {
+        $global:WfSynthetic.PinnedTools['xperf'] = @(@{ Version = '10.0.26100.1 (synthetic)'; Sha256 = ('0' * 63) + '9'; Source = 'another build' })
+        $run = Invoke-TestRun -OutputDirectory $script:out
+        $check = Get-TestCheck $run.Manifest 'tool:xperf'
+        $check['ok'] | Should -BeFalse
+        $check['detail'] | Should -Match 'matches no pinned build'
+    }
+
     It 'refuses when the volume has less free space than the scenario needs, or cannot be read' {
         $global:WfSynthetic.FreeBytes = [int64]1000000
         $run = Invoke-TestRun -OutputDirectory $script:out

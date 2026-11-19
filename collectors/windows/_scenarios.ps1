@@ -298,12 +298,12 @@ function Invoke-WfScenarioPreflight {
                     continue
                 }
                 $info = Get-WfExternalToolInfo -Path $path
-                $pins = @(Get-WfPinnedToolBuilds -Name $tool['Tool'])
+                $pins = Get-WfPinnedToolBuilds -Name $tool['Tool']
                 $pinned = $false
                 foreach ($pin in $pins) { if ([string]$pin['Sha256'] -eq [string]$info['Sha256'] -and [string]$pin['Version'] -eq [string]$info['Version']) { $pinned = $true } }
                 $detail = $(if (-not $info['Exists']) { $path + ' does not exist; the runner never downloads or installs it' }
                     elseif ($pinned) { ('{0}: SHA-256 and version {1} match a pinned build' -f $path, $info['Version']) }
-                    elseif ($pins.Count -eq 0) { ('{0}: no {1} build is pinned yet (Get-WfPinnedToolBuilds); source {2} will be not_collected' -f $path, $tool['Tool'], $tool['Source']) }
+                    elseif (@($pins).Count -eq 0) { ('{0}: no {1} build is pinned yet (Get-WfPinnedToolBuilds); source {2} will be not_collected' -f $path, $tool['Tool'], $tool['Source']) }
                     else { ('{0}: SHA-256 {1}, version {2} matches no pinned build' -f $path, $info['Sha256'], $info['Version']) })
                 & $add $name ([bool]$info['Exists'] -and $pinned) $detail $toolRequired
             }
