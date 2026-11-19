@@ -94,6 +94,7 @@ def test_entry_scripts_default_to_plan_and_take_explicit_verbs(path):
     for verb in ("Plan", "Apply", "Undo", "Readback"):
         assert re.search(rf"\[switch\]\${verb}\s*,", code), verb
         assert not re.search(rf"\[switch\]\${verb}\s*=", code), f"{verb} must not default to on"
+    assert "name one verb" in code
 
 
 @pytest.mark.parametrize("path", ENTRY_SCRIPTS, ids=lambda p: p.name)
