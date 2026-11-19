@@ -1,0 +1,2 @@
+{"label":"felt a stutter","qpc_before":27345851901284,"filetime_utc_100ns":134168400173000000,"qpc_after":27345851901384,"at_utc":"2026-03-01T12:00:17.3000000Z","process_id":4242}
+{"label":"second stutter, shorter","qpc_before":27346089401284,"filetime_utc_100ns":134168400410520000,"qpc_after":27346089401384,"at_utc":"2026-03-01T12:00:41.0520000Z","process_id":4242}
