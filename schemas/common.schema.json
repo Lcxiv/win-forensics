@@ -78,6 +78,8 @@
         "clock_segments",
         "operator_marks",
         "diskio_activity",
+        "dpcisr_class_cpu",
+        "driver_service_class",
         "net_quality",
         "net_quality_bursts"
       ]

@@ -1,0 +1,17 @@
+{
+  "class": "Win32_PnPEntity",
+  "namespace": "root/cimv2",
+  "properties": [
+    "Service",
+    "ClassGuid"
+  ],
+  "filter": "Present = TRUE",
+  "time_property": null,
+  "window_days": null,
+  "window_start_utc": null,
+  "window_end_utc": null,
+  "coverage_probe_filter": null,
+  "max_records": 20000,
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 300
+}

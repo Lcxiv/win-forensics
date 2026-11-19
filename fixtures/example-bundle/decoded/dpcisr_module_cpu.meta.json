@@ -1,8 +1,8 @@
 {
   "decoded_table": "dpcisr_module_cpu",
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "decoder": "decode_dpcisr",
-  "decoder_version": "1.1.0",
+  "decoder_version": "1.2.0",
   "tool": {
     "name": "xperf -a dpcisr",
     "version": null
@@ -70,9 +70,29 @@
       "detail": "line:299 Distribution of number of 2000 ms intervals w.r.t. DPC/ISR usage:"
     },
     {
+      "name": "driver_class_map",
+      "ok": true,
+      "detail": "map version 1.0.0"
+    },
+    {
+      "name": "dpc_class_totals_reconcile",
+      "ok": true,
+      "detail": "modules by classification source: inventory 0, inbox-map 6, none 8"
+    },
+    {
+      "name": "isr_class_totals_reconcile",
+      "ok": true,
+      "detail": "modules by classification source: inventory 0, inbox-map 4, none 0"
+    },
+    {
       "name": "collector_status",
       "ok": true,
       "detail": "dpcisr observed"
+    },
+    {
+      "name": "driver_inventory_join",
+      "ok": true,
+      "detail": "no driver inventory given; classes come from the driver class map 1.0.0 only, so vendor drivers stay unclassified"
     }
   ],
   "decoded_at_utc": "2026-09-03T00:00:00Z"

@@ -618,6 +618,12 @@ function New-WfCimProducer {
                 $null = $allowed.Add($m.Groups[2].Value)
             }
             $rows = @($rows | Where-Object { $allowed.Contains([string]$_[$property]) })
+        } elseif ([string]$Filter -match '^(\w+) = (TRUE|FALSE)$') {
+            # A boolean literal, as WQL writes it (Present = TRUE). A row
+            # without the property does not match, as WMI would not.
+            $property = $Matches[1]
+            $wanted = ($Matches[2] -eq 'TRUE')
+            $rows = @($rows | Where-Object { $_.Contains($property) -and $_[$property] -is [bool] -and $_[$property] -eq $wanted })
         } else {
             $message = 'synthetic:other: unsupported filter ' + $Filter
             return @{ Producer = { throw $message }.GetNewClosure(); Convert = $convert }

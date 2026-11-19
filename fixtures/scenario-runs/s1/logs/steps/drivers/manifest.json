@@ -1,17 +1,17 @@
 {
   "manifest_version": "1.1.0",
   "bundle_id": "20260301T120543Z_driver_inventory_ae3a76a9",
-  "created_utc": "2026-03-01T12:05:59.0000000Z",
+  "created_utc": "2026-03-01T12:06:20.0000000Z",
   "scenario": {
     "id": "driver_inventory",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "requested_duration_s": 0,
     "target_process": null,
     "marks": []
   },
   "capture": {
     "start_utc": "2026-03-01T12:05:43.0000000Z",
-    "stop_utc": "2026-03-01T12:05:59.0000000Z",
+    "stop_utc": "2026-03-01T12:06:20.0000000Z",
     "orchestrator": "wf-collector:driver-inventory",
     "orchestrator_version": "1.2.0",
     "elevated": false,
@@ -230,7 +230,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:05:57.0000000Z",
+        "at_utc": "2026-03-01T12:06:03.0000000Z",
         "checks": [
           {
             "name": "class_readable",
@@ -251,7 +251,7 @@
         "300"
       ],
       "started_utc": "2026-03-01T12:05:52.0000000Z",
-      "stopped_utc": "2026-03-01T12:05:58.0000000Z",
+      "stopped_utc": "2026-03-01T12:06:04.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -320,8 +320,8 @@
           "window_days": null,
           "window_start_utc": null,
           "window_end_utc": null,
-          "records_read": 2,
-          "records_exported": 2,
+          "records_read": 8,
+          "records_exported": 8,
           "truncated": false,
           "coverage_probe": null
         },
@@ -339,21 +339,136 @@
         },
         {
           "path": "raw/system_drivers/records.json",
-          "bytes": 629,
-          "sha256": "1db1c8e1280eb26cb6a2774b5bee2d3d01cdfadad521134a377c2688a89c2bac",
+          "bytes": 2731,
+          "sha256": "76e1979ffc451eb384cd481ac64bf440964bed2139130db96964f6126f370ae2",
           "role": "primary"
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:05:57.0000000Z",
-        "end": "2026-03-01T12:05:57.0000000Z",
+        "start": "2026-03-01T12:06:03.0000000Z",
+        "end": "2026-03-01T12:06:03.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
         "declared": "the class returns at least one instance",
         "met": true,
-        "detail": "2 instances"
+        "detail": "8 instances"
+      },
+      "target_process": null
+    },
+    {
+      "id": "pnp_device_services",
+      "kind": "config_snapshot",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:06:18.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_PnPEntity"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/cimv2",
+        "-ClassName",
+        "Win32_PnPEntity",
+        "-Property",
+        "Service,ClassGuid",
+        "-OperationTimeoutSec",
+        "300",
+        "-Filter",
+        "Present = TRUE"
+      ],
+      "started_utc": "2026-03-01T12:06:05.0000000Z",
+      "stopped_utc": "2026-03-01T12:06:19.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "1845426a5588f0ec9b66e3862eaf2b9db90c7dce156aa4399b545b5224401408"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_PnPEntity",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Service",
+            "ClassGuid"
+          ],
+          "filter": "Present = TRUE",
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "coverage_probe_filter": null,
+          "max_records": 20000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_PnPEntity",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Service",
+            "ClassGuid"
+          ],
+          "filter": "Present = TRUE",
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "records_read": 10,
+          "records_exported": 10,
+          "truncated": false,
+          "coverage_probe": null
+        },
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/pnp_device_services/query.json",
+          "bytes": 365,
+          "sha256": "1845426a5588f0ec9b66e3862eaf2b9db90c7dce156aa4399b545b5224401408",
+          "role": "config"
+        },
+        {
+          "path": "raw/pnp_device_services/records.json",
+          "bytes": 729,
+          "sha256": "a3336aa936dac39499253192300091c11fcbc0150eea3f6b84949102b78718dc",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:06:18.0000000Z",
+        "end": "2026-03-01T12:06:18.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": true,
+        "detail": "10 instances"
       },
       "target_process": null
     }
@@ -386,7 +501,7 @@
     },
     {
       "name": "collector:driver-inventory",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "path": "<install directory>\\driver-inventory.ps1",
       "sha256": null
     },
@@ -404,7 +519,7 @@
   },
   "checksum_algorithm": "sha256",
   "notes": [
-    "Read only collector driver-inventory version 1.0.0: Which drivers are installed, in which versions, from which providers, and which kernel drivers are running?",
+    "Read only collector driver-inventory version 1.1.0: Which drivers are installed, in which versions, from which providers, and which kernel drivers are running?",
     "Ran as the collector account (its name is not recorded); elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine."

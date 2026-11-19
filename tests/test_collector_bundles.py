@@ -81,7 +81,7 @@ EXPECTED = {
     "connection-quality-link-drop": ("ok", {"gateway_probes": "observed", "public_probes": "observed", "link_state": "observed"}),
     "connection-quality-no-gateway": ("partial", {"gateway_probes": "not_collected", "public_probes": "observed", "link_state": "not_collected"}),
     "connection-quality-session-failed": ("failed", {"gateway_probes": "capture_failed", "public_probes": "capture_failed", "link_state": "capture_failed"}),
-    "driver-inventory": ("ok", {"pnp_signed_drivers": "observed", "system_drivers": "observed"}),
+    "driver-inventory": ("ok", {"pnp_signed_drivers": "observed", "system_drivers": "observed", "pnp_device_services": "observed"}),
     "reliability-records": ("ok", {"reliability_records": "observed", "reliability_stability_metrics": "observed"}),
     "rf-survey": ("ok", {"net_adapters": "observed", "default_routes": "observed", "wlan_interfaces": "observed", "wlan_drivers": "observed",
                          "wlan_networks": "observed", "wlan_profiles": "observed", "wlan_report": "observed",
@@ -301,8 +301,12 @@ def test_status_and_evidence_stay_separate(case):
                 assert collector["command"][0] == "System.Net.NetworkInformation.Ping.SendPingAsync" and "-DnsOnly" in collector["command"]
             if collector["status"] in OBSERVED:
                 assert primary[0]["path"].endswith("/samples.jsonl") and collector["enabled"]["options"]["failure"] is None
-        elif collector["command"][0] == "Get-CimInstance" and "Win32_PnPEntity" not in collector["command"]:
+        elif collector["command"][0] == "Get-CimInstance" and not {"Get-PnpDeviceProperty", "SetupDiOpenDevRegKey"} & set(collector["command"]):
             assert "-OperationTimeoutSec" in collector["command"] and "-Property" in collector["command"]
+            if "Win32_PnPEntity" in collector["command"]:
+                # The one plain read of Plug and Play devices: service and setup class of present devices, nothing that identifies one.
+                assert collector["requested"]["options"]["properties"] == ["Service", "ClassGuid"]
+                assert collector["requested"]["options"]["filter"] == "Present = TRUE"
             if collector["requested"]["options"]["time_property"]:
                 assert "-Filter" in collector["command"] and collector["requested"]["options"]["filter"].startswith("TimeGenerated >= '")
         elif collector["kind"] == "presentmon":

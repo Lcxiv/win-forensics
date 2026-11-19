@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/driver_service_class.schema.json",
+  "title": "driver_service_class row",
+  "description": "One row per driver service listed by Win32_SystemDriver in a driver-inventory bundle, joined on the service name to the present Plug and Play devices (Win32_PnPEntity Service and ClassGuid). Carries only the service name, the file name of its binary, and device setup classes; never a device instance path, hardware identifier, device name or full path.",
+  "x-schema-version": "1.0.0",
+  "x-decoded-table": "driver_service_class",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "service",
+    "driver_file",
+    "device_count",
+    "setup_classes",
+    "driver_class",
+    "class_reason",
+    "class_map_version",
+    "device_records",
+    "provenance"
+  ],
+  "properties": {
+    "service": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Win32_SystemDriver Name: the service name."
+    },
+    "driver_file": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "pattern": "^[^\\\\/ ]+$",
+      "description": "File name at the end of PathName, case kept; null when PathName is empty or gives no file name."
+    },
+    "device_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Present devices whose Service is this service (case insensitive)."
+    },
+    "setup_classes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "class_guid",
+          "setup_class",
+          "device_count"
+        ],
+        "properties": {
+          "class_guid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "description": "Lower case, without braces; null when the device reported no GUID."
+          },
+          "setup_class": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Class name from the Learn setup class tables, null when the GUID is not in the map."
+          },
+          "device_count": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "driver_class": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "gpu",
+        "network",
+        "usb",
+        "bluetooth",
+        "audio",
+        "storage",
+        "kernel",
+        "other",
+        "unclassified",
+        null
+      ],
+      "description": "The driver class the setup classes give (scripts/driver_classes.py classify_service), null when they give none."
+    },
+    "class_reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "class_map_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "device_records": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "description": "0-based indexes of the matching devices in the pnp_device_services primary export."
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "properties": {
+            "decoded_table": {
+              "const": "driver_service_class"
+            },
+            "schema_version": {
+              "const": "1.0.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

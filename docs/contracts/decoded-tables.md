@@ -1,6 +1,6 @@
 # Decoded tables contract
 
-Status: phase 0a, version 1.5.0 (1.4.0 plus `net_quality` and `net_quality_bursts` at schema version 0.1.0 in sections 5.21 and 5.22, decoded from the probes the `connection-quality` collector stamps on the performance counter; 1.4.0 was 1.3.0 plus `diskio_activity` at schema version 0.1.0 in section 5.20, decoded from the aggregate the `diskio-trace` collector makes on the PC, the trace and its dump staying there, and that collector's `wpr` source as a further `tracestats` source in section 5.3; 1.3.0 was 1.2.0 plus `presentmon_frames` at schema version 0.2.0 in section 5.5, decoded from the CSV and recording record the `presentmon-frames` collector keeps, the recording itself staying on the PC, and the three `clock-calibration` tables in sections 5.17 to 5.19; 1.2.0 was 1.1.0 plus the first fixtured source of the `tracestats` table in section 5.3 and the manifest check of the `dpcisr` decoder in section 5.1, and gave `process_inventory`, `config_snapshot` and `powercfg` their first decoder, `scripts/decode_config_snapshot.py`, taking each to schema version 1.1.0 with the optional columns that decoder fills; 1.1.0 was 1.0.0 plus the five `rf-survey` tables in sections 5.12 to 5.16; `netsh_fields` and `pnp_device` are at schema version 1.1.0 after the saved profile mapping and the Bluetooth peer node rename). Companion contracts: [timestamps.md](timestamps.md), [measurement-status.md](measurement-status.md), [bundle.md](bundle.md). Schemas live under `schemas/decoded/`.
+Status: phase 0a, version 1.6.0 (1.5.0 plus the driver class columns of `dpcisr_module_cpu` at schema version 1.1.0 in section 5.1, the per class summary `dpcisr_class_cpu` at schema version 1.0.0 in section 5.23, and `driver_service_class` at schema version 1.0.0 in section 5.24, the driver service to device setup class join from the `driver-inventory` collector that classes vendor drivers; 1.5.0 was 1.4.0 plus `net_quality` and `net_quality_bursts` at schema version 0.1.0 in sections 5.21 and 5.22, decoded from the probes the `connection-quality` collector stamps on the performance counter; 1.4.0 was 1.3.0 plus `diskio_activity` at schema version 0.1.0 in section 5.20, decoded from the aggregate the `diskio-trace` collector makes on the PC, the trace and its dump staying there, and that collector's `wpr` source as a further `tracestats` source in section 5.3; 1.3.0 was 1.2.0 plus `presentmon_frames` at schema version 0.2.0 in section 5.5, decoded from the CSV and recording record the `presentmon-frames` collector keeps, the recording itself staying on the PC, and the three `clock-calibration` tables in sections 5.17 to 5.19; 1.2.0 was 1.1.0 plus the first fixtured source of the `tracestats` table in section 5.3 and the manifest check of the `dpcisr` decoder in section 5.1, and gave `process_inventory`, `config_snapshot` and `powercfg` their first decoder, `scripts/decode_config_snapshot.py`, taking each to schema version 1.1.0 with the optional columns that decoder fills; 1.1.0 was 1.0.0 plus the five `rf-survey` tables in sections 5.12 to 5.16; `netsh_fields` and `pnp_device` are at schema version 1.1.0 after the saved profile mapping and the Bluetooth peer node rename). Companion contracts: [timestamps.md](timestamps.md), [measurement-status.md](measurement-status.md), [bundle.md](bundle.md). Schemas live under `schemas/decoded/`.
 
 ## 1. What a decoded table is
 
@@ -62,11 +62,17 @@ Per module, per CPU DPC and ISR time from the `CPU Usage Summing By Module For t
 | `percent` | number | yes | The printed percentage of the CPU's time over the trace span |
 | `trace_span_start_us` | integer | yes | From `CPU Usage from A us to B us` |
 | `trace_span_end_us` | integer | yes | Same |
+| `driver_class` | string | no | One of `gpu`, `network`, `usb`, `bluetooth`, `audio`, `storage`, `kernel`, `other`, `unclassified` ([driver-classes.md](../driver-classes.md)); decoder 1.2.0 always fills it |
+| `classification_source` | string | no | `inventory` (the machine's `driver_service_class` table, section 5.24), `inbox-map` (the cited map of Microsoft inbox binaries), or `none`; always filled |
+| `classification_reason` | string | no | Why, in words, including what the inventory said when the map decided; always filled |
+| `classification_reference` | string or null | no | The entry's Learn page for `inbox-map`; `<inventory bundle_id>/decoded/driver_service_class.jsonl#line:<n>` (several joined by `;`) for `inventory`; null for `none` |
 | `provenance` | object | yes | `line:<n>` of the module row; `col` is not used because the whole row is one raw line |
 
 The decoder also checks the report's own reconciliation line (`All Module = X, Total = Y, EQUAL`) and records the result in the sidecar as `consistency_check`; a report that fails its own reconciliation decodes with status `decode_failed`.
 
 The report a live capture produces is `raw/dpcisr_report/dpcisr.txt`, written on the PC by the `dpcisr-trace` collector from a hash pinned `xperf`; the trace itself never leaves the machine ([collectors/windows/README.md](../../collectors/windows/README.md), privacy). The decoder (1.1.0) requires the bundle's `manifest.json` (without it the result is `decode_failed` and nothing is written), accepts only a normalised bundle relative path that the manifest lists as the primary artifact of an `xperf` collector, and records that collector's measurement status in the sidecar as the `collector_status` check without letting it change the decoder's own status: a report made from a trace that lost events still yields rows, the check says `capture_failed` and why, and the manifest and the `tracestats` table are where the loss is read. A decoder never upgrades a collector's status ([measurement-status.md](measurement-status.md) section 2, rule 3).
+
+Schema 1.1.0 (decoder 1.2.0) adds the four driver class columns as optional columns that the decoder always fills. A module is classed first through the `driver_service_class` table of a decoded bundle of the same machine named with `--inventory` (a `driver_inventory` run, or a scenario run such as S1 that lists both sources), then through the map of Microsoft inbox binaries in `scripts/driver_classes.py`, each entry with its Learn citation, and otherwise is `unclassified` with source `none`; the rules, the map and its version are in [driver-classes.md](../driver-classes.md). The decoder refuses (`decode_failed`, nothing written) an inventory bundle of another machine (`machine.machine_id` differs), a bundle that does not list both `system_drivers` and `pnp_device_services`, an inventory whose two sources were observed but that has no decoded table, a table that is not `observed` or `observed_zero`, an inventory whose primary `system_drivers` or `pnp_device_services` export is missing or does not match its manifest SHA-256, and a decoded table that differs from the rows those hash checked exports give (an edited table is refused even when it stays schema valid). The rows used are the ones derived again from the exports. An inventory whose sources were not observed has no table; the decoder then uses the map alone and says so in the `driver_inventory_join` check with `ok` false. Every sidecar of the report carries `driver_inventory_join`, `driver_class_map` (the map version) and, per kind, `<kind>_class_totals_reconcile`, whose detail counts the modules per classification source.
 
 ### 5.2 `dpcisr_interval`
 
@@ -270,6 +276,44 @@ Required: `source_id`, `probe`, `target` (null for `link`), `seq` (the slot, one
 One row per run of consecutive lines of one source, probe and target that share a condition: `loss_burst` (echoes sent and not answered), `dns_failure_burst` (failed queries), `probe_unknown` (echoes whose outcome is unknown), `link_down` (readings not connected or not up), `link_unknown` (readings that could not be made), `route_changed` (readings on a changed default route); and one per run of consecutive `missed` lines of a source, `sampling_gap`, which says the PC did not take those slots, not that the network lost them. A probe run's `first_seq` to `last_seq` can span missed slots, which are their own `sampling_gap` rows. Decoder: `scripts/decode_net_quality.py`, from the same lines as section 5.21 and under the same refusals; `observed_zero` when the observed sources hold no such run. The table sidecars carry the per target summary as checks: echoes sent, answered, not answered and unknown with the loss share and the nearest rank p50, p95 and maximum round trip; queries answered and failed; readings connected, not and unknown with the link speeds seen and the route changes; slots taken and missed per source. Time domain: `etw_qpc`.
 
 Required: `kind`, `source_id`, `probe` (null for a gap), `target` (null for a gap and for `link`), `first_seq`, `last_seq`, `count` (lines in the run), `qpc_start` (`qpc_before` of the first probe, or the `slot_qpc` of the first missed slot), `qpc_end` (`qpc_done` of the last probe, or the counter reading that found the last slot missed), `start_utc` and `end_utc` (the first and last probe's `time_utc`; null for a gap), `provenance` (every line of the run, `line:<a>;line:<b>;...`).
+
+### 5.23 `dpcisr_class_cpu`
+
+DPC and ISR time per driver class per CPU, summed from the `dpcisr_module_cpu` rows of the same report by `scripts/decode_dpcisr.py`. One row per `(kind, driver_class, cpu)` for every class that has at least one module in that section, including zero cells, plus one row per `(kind, driver_class)` with `cpu` null for the sum over every CPU of the section. A class with no module has no row: its absence is not an observation, and time of that class may sit in `unclassified` ([driver-classes.md](../driver-classes.md)). The table is written only when the module table decoded `observed`. Time domain: `etw_qpc_relative`, the same trace span as the module table.
+
+| Column | Type | Req | Notes |
+|---|---|---|---|
+| `kind` | `dpc` or `isr` | yes | |
+| `driver_class` | string | yes | As in section 5.1 |
+| `cpu` | integer or null | yes | null for all CPUs together |
+| `usec` | integer | yes | Sum of the class's module `usec` on that CPU |
+| `kind_usec` | integer | yes | Sum of every module's `usec` of the same kind on that CPU: the denominator of `share` |
+| `share` | number or null | yes | `usec / kind_usec`, null when `kind_usec` is 0 |
+| `module_count`, `modules` | integer, array | yes | The class's module names, sorted |
+| `classification_sources` | array | yes | The distinct sources of its modules, sorted |
+| `class_map_version` | string | yes | The driver class map version |
+| `trace_span_start_us`, `trace_span_end_us` | integer | yes | From the section's range header |
+| `provenance` | object | yes | `line:<a>;line:<b>...`: every module row of the class in the report |
+
+The `<kind>_class_totals_reconcile` check fails the decode when the class sums of a CPU differ from its module sums.
+
+### 5.24 `driver_service_class`
+
+One row per driver service of a bundle that lists both driver inventory sources (a `driver-inventory` run, or a scenario run such as S1), decoded by `scripts/decode_driver_inventory.py` from two snapshot sources taken in the same run: `system_drivers` (Win32_SystemDriver `Name` and `PathName`) and `pnp_device_services` (Win32_PnPEntity of present devices, read with only `Service` and `ClassGuid`). The two are joined on the service name, ignoring case. The row carries the service name, the file name at the end of the binary path, and the device setup classes; never a device instance path, hardware identifier, device name, or the full binary path. The table needs both sources: when either is not `observed` the result is `not_collected` and nothing is written, because a service list without the device read would look like services without devices. A damaged export (a record that is not an object, a service without a name or listed twice) is `decode_failed` with an empty table. Time domain: `none` (a snapshot; the manifest's source entries carry when it was read).
+
+| Column | Type | Req | Notes |
+|---|---|---|---|
+| `service` | string | yes | Win32_SystemDriver `Name` |
+| `driver_file` | string or null | yes | File name at the end of `PathName`, case kept; null when there is none |
+| `device_count` | integer | yes | Present devices whose `Service` is this service |
+| `setup_classes` | array | yes | One `{class_guid, setup_class, device_count}` per class GUID (lower case, no braces; the class name from the Learn tables, null when not in the map) |
+| `driver_class` | string or null | yes | The class the setup classes give ([driver-classes.md](../driver-classes.md)), null when they give none |
+| `class_reason` | string | yes | Why, in words |
+| `class_map_version` | string | yes | |
+| `device_records` | array | yes | 0-based indexes of the matching devices in the `pnp_device_services` export |
+| `provenance` | object | yes | `index:<n>` of the service in the `system_drivers` export |
+
+The sidecar's checks count the present devices that name no service, those that name a service Win32_SystemDriver does not list, and the service paths that give no file name.
 
 ## 6. Sidecar metadata
 
