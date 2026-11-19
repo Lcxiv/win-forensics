@@ -54,6 +54,10 @@ schemas/                 JSON Schema (draft 2020-12), one file per table, plus m
 collectors/windows/      read only PowerShell collectors for the PC, their shared helper _common.ps1, the scenario runner
                          _run-scenario.ps1 with its library _scenarios.ps1, and README.md;
                          tests/ holds the Pester suite, the synthetic backend, and the fixture generator
+changes/windows/         the change scripts, the only code here that writes to the PC: one self contained script per
+                         undo order step (gpu-affinity-1a.ps1), the Stutter Guard journal reader, README.md with the
+                         area's rules and its facts to verify; tests/ holds their Pester suite and synthetic backend
+docs/changes/            one operator page per change step
 scripts/                 wf_schema.py (schema registry and validation), decode_dpcisr.py, decode_pdh.py, decode_eventlog.py,
                          decode_tracestats.py (trace loss from the recorder's status text and the tracerpt summary),
                          decode_presentmon.py (the presentmon_frames table from a presentmon-frames bundle),
@@ -69,8 +73,8 @@ fixtures/scenario-runs/  synthetic bundles written by the scenario runner with t
 fixtures/procmon/        committed .pmc test configurations and the runner's facts and export heads
 fixtures/presentmon/     the first buffer of a PresentMon regression recording (the one .etl git keeps), with its
                          provenance and licence
-tests/                   pytest: schemas, decoders, the example bundle, collector bundles and scripts, documentation
-                         hygiene, procmon fixtures
+tests/                   pytest: schemas, decoders, the example bundle, collector bundles and scripts, the change area,
+                         documentation hygiene, procmon fixtures
 .github/workflows/       procmon-facts.yml only
 ```
 
@@ -164,3 +168,7 @@ The one file in `fixtures/presentmon/` is a format fixture from the PresentMon p
 ## Reaching the gaming PC
 
 `remote-access/` holds the SSH front door from the captain's plan for reaching the gaming PC from his Mac: an elevated, idempotent setup script he runs once at the PC, the dispatcher that is the only thing the dedicated standard account can run (an exact allowlist: a health check, named collectors, and fetching a finished bundle with its SHA-256), the Mac side scripts for the key, the host key pin, the acceptance checks, and the transfer, the three action flow (one Mac command, one double click at the PC, one Mac command) that orchestrates them, and the checklist he follows. No agent runs any of it against the PC. Start with [remote-access/README.md](remote-access/README.md), which carries the design, its sources, and the list of what is still unverified on Windows; the person at the PC follows [remote-access/CHECKLIST.md](remote-access/CHECKLIST.md). `tests/test_remote_access.py` covers it and skips its PowerShell parts when no `pwsh` is found.
+
+## Changing the PC
+
+Everything above reads. The only code that changes the gaming PC lives in `changes/windows/`, one self contained script per step of the undo order, run by hand at the PC on the captain's own Yes for that step: `-Plan` (the default) reads and refuses with a reason, `-Apply` saves the before-state first and refuses without it, `-Undo` restores exactly what was saved, and `-Readback` prints PASS or FAIL per value. No collector, no part of the scenario runner and nothing in `remote-access/` may refer to that directory or start anything in it; `tests/test_changes_area.py` enforces it. The rules, sources and facts still to verify are in [changes/windows/README.md](changes/windows/README.md); each step's operator page is under `docs/changes/`, starting with [step 1a](docs/changes/step-1a-gpu-affinity.md). Their PowerShell checks run from `tests/test_changes_pwsh.py` and skip without `pwsh`, like the collectors'.
