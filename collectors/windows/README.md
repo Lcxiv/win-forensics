@@ -173,7 +173,7 @@ Not implemented here. Each of these is for the later elevated scheduled task, wh
 
 ## Facts to verify on the PC
 
-Nothing in this directory has run on Windows. The scripts pass PSScriptAnalyzer's Windows PowerShell 5.1 compatibility rules and the portable logic is tested with synthetic data, but each item below can only be settled at the PC. None of them needs an agent to touch the machine: the captain runs the step and reads the result.
+The scripts pass PSScriptAnalyzer's Windows PowerShell 5.1 compatibility rules and the portable logic is tested with synthetic data, but each item below still needs evidence from the PC under the account, elevation and session conditions the row names. Results from the agent session's captain-directed collector runs may support a row within the permission in the project's `AGENTS.md`; this list grants no additional command or SSH permission, and steps assigned to the owner remain his. Retain each numbered row and record a non-sensitive verification summary with the date, revision, account role and elevation, session type, and a reference to the privately held result. Mark a row verified only when the result establishes its stated conditions. A result from a different account or session does not settle those conditions.
 
 | # | Unverified | How to check at the PC | If it fails |
 |---|---|---|---|
