@@ -2,7 +2,7 @@
 
 changes/windows/ holds one self contained script per change, run only by the captain at the PC.
 Nothing the dispatcher, the scenario runner or a collector does may call one, so no file under
-collectors/ or remote-access/ names the area. The Pester suite under changes/windows/tests runs
+collectors/, remote-access/ or scripts/ names the area. The Pester suite under changes/windows/tests runs
 every verb against synthetic backends; it skips without pwsh, like tests/test_collectors_pwsh.py.
 """
 from __future__ import annotations
