@@ -511,18 +511,23 @@ $removePrivate = {
 }
 
 # ---------------------------------------------------------------------------
-# Session control. Each step is its own function over one state map, so the
-# scenario runner can adopt them: Start-DiskIoSession (preflight and start),
+# Session control. The order, the bound's place and the end check are the
+# helper's one live session path (Invoke-WfLiveSession and its end check
+# Complete-WfLiveSession, shared with dpcisr-trace, presentmon-frames and
+# clock-calibration); what is particular to WPR and the kernel collector is
+# here, one function per step over one state map:
+# Test-DiskIoSessionPreflight (tools, elevation, no recording in progress,
+# the profile enumerated), Start-DiskIoSession (the start),
 # Test-DiskIoSessionSettings (requested versus enabled from wpr -status),
 # Wait-DiskIoSessionWindow (the bounded window), Stop-DiskIoSession (the
-# save), Confirm-DiskIoSessionStopped (status, cancel, status).
+# save), Read-DiskIoSessionState and Stop-DiskIoSessionUnsaved (the status
+# and the cancel the end check calls).
 # ---------------------------------------------------------------------------
-function Start-DiskIoSession {
-    # Preflight (tools, elevation, no recording in progress on the default
-    # instance, the profile enumerated) and the start. Returns the checks;
-    # sets State.ErrorKind and State.ErrorMessage on a refusal and
-    # State.Started when a start was attempted (a refused start may still have
-    # left a session behind, which Confirm-DiskIoSessionStopped checks).
+function Test-DiskIoSessionPreflight {
+    # Preflight: tools, elevation, no recording in progress on the default
+    # instance, the profile enumerated. Returns the checks; sets
+    # State.PreflightOk, and State.ErrorKind and State.ErrorMessage on a
+    # refusal. Starts nothing.
     param($State)
     $checks = New-Object 'System.Collections.Generic.List[object]'
     $tool = [string]$State.Tool
@@ -559,20 +564,30 @@ function Start-DiskIoSession {
     } elseif (-not $accepted) {
         $State.ErrorKind = 'preflight'; $State.ErrorMessage = 'wpr -profiles did not enumerate the recording profile: ' + [string]$checks[$checks.Count - 1]['detail']
     }
-    if (-not $State.ErrorKind) {
-        $null = New-Item -ItemType Directory -Force -Path $State.TempDir
-        $start = Invoke-DiskIoTool -Tool $tool -Verb 'start' -Arguments $State.StartArguments -Instance $State.Instance -TimeoutSeconds $State.Timeout -Runs $State.Runs -Log $State.Log -BundleRoot $State.BundleRoot
-        $State.MonotonicStart = Get-WfMonotonicSeconds
-        $State.Started = $true
-        if (Test-DiskIoRunOk -Run $start) {
-            $State.Session.session_started_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
-            $State.Log.Add(('session {0} started, recording for {1} s' -f $State.Instance, $State.Duration))
-        } else {
-            $State.ErrorKind = 'preflight'
-            $State.ErrorMessage = 'wpr -start was refused (another kernel trace session in progress is one documented cause: "There is only one NT Kernel Logger session"): ' + (ConvertTo-DiskIoRecordedText -Text (Get-DiskIoRunFailure -Run $start -Tool $tool) -BundleRoot $State.BundleRoot)
-        }
-    }
     return , $checks.ToArray()
+}
+
+function Start-DiskIoSession {
+    # The start, after a preflight that passed. Returns the map the live
+    # session path expects: Ok when the session is running, MayRemain always
+    # (a refused start may still have left a session behind, which the end
+    # check reads and cancels). Sets State.ErrorKind and State.ErrorMessage
+    # on a refusal.
+    param($State)
+    $tool = [string]$State.Tool
+    $null = New-Item -ItemType Directory -Force -Path $State.TempDir
+    $start = Invoke-DiskIoTool -Tool $tool -Verb 'start' -Arguments $State.StartArguments -Instance $State.Instance -TimeoutSeconds $State.Timeout -Runs $State.Runs -Log $State.Log -BundleRoot $State.BundleRoot
+    $State.MonotonicStart = Get-WfMonotonicSeconds
+    $State.Started = $true
+    $ok = Test-DiskIoRunOk -Run $start
+    if ($ok) {
+        $State.Session.session_started_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
+        $State.Log.Add(('session {0} started, recording for {1} s' -f $State.Instance, $State.Duration))
+    } else {
+        $State.ErrorKind = 'preflight'
+        $State.ErrorMessage = 'wpr -start was refused (another kernel trace session in progress is one documented cause: "There is only one NT Kernel Logger session"): ' + (ConvertTo-DiskIoRecordedText -Text (Get-DiskIoRunFailure -Run $start -Tool $tool) -BundleRoot $State.BundleRoot)
+    }
+    return @{ Ok = $ok; MayRemain = $true }
 }
 
 function Test-DiskIoSessionSettings {
@@ -644,6 +659,7 @@ function Wait-DiskIoSessionWindow {
         }
     }
     $State.Session.recording_seconds = [math]::Round((Get-WfMonotonicSeconds) - [double]$State.MonotonicStart, 3)
+    return [bool]$State.Session.stopped_early_at_cap
 }
 
 function Stop-DiskIoSession {
@@ -651,31 +667,29 @@ function Stop-DiskIoSession {
     $State.Session.session_stop_issued_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
     $State.StopIssued = $true
     $stop = Invoke-DiskIoTool -Tool $State.Tool -Verb 'stop' -Arguments $State.StopArguments -Instance $State.Instance -TimeoutSeconds $State.Timeout -Runs $State.Runs -Log $State.Log -BundleRoot $State.BundleRoot
-    if (-not (Test-DiskIoRunOk -Run $stop)) {
+    $ok = Test-DiskIoRunOk -Run $stop
+    if (-not $ok) {
         $State.ErrorKind = 'other'
         $State.ErrorMessage = 'wpr -stop failed, so no trace was saved: ' + (ConvertTo-DiskIoRecordedText -Text (Get-DiskIoRunFailure -Run $stop -Tool $State.Tool) -BundleRoot $State.BundleRoot)
     }
+    return $ok
 }
 
-function Confirm-DiskIoSessionStopped {
-    # The collector's own instance is checked; anything but a confirmed idle
-    # state is cancelled and checked again. Sets State.FinalState; never
-    # throws, and an unconfirmed state is a failure, never a quiet success.
+function Read-DiskIoSessionState {
+    # One read of the collector's own instance for the end check: idle,
+    # active or unknown.
     param($State)
-    try {
-        $after = Invoke-DiskIoTool -Tool $State.Tool -Verb 'status' -Arguments @() -Instance $State.Instance -TimeoutSeconds $State.Short -Runs $State.Runs -Log $State.Log -BundleRoot $State.BundleRoot
-        $State.StateAfterStop = Get-DiskIoStatusState -Run $after
-        $State.FinalState = $State.StateAfterStop
-        if ($State.StateAfterStop -ne 'idle') {
-            $cancel = Invoke-DiskIoTool -Tool $State.Tool -Verb 'cancel' -Arguments @() -Instance $State.Instance -TimeoutSeconds $State.Short -Runs $State.Runs -Log $State.Log -BundleRoot $State.BundleRoot
-            $State.Log.Add(('session {0} read as {1}; cancelled: exit code {2}' -f $State.Instance, $State.StateAfterStop, [string]$cancel['ExitCode']))
-            $again = Invoke-DiskIoTool -Tool $State.Tool -Verb 'status' -Arguments @() -Instance $State.Instance -TimeoutSeconds $State.Short -Runs $State.Runs -Log $State.Log -BundleRoot $State.BundleRoot
-            $State.FinalState = Get-DiskIoStatusState -Run $again
-        }
-    } catch {
-        $State.FinalState = 'unknown'
-        $State.Log.Add('the session state could not be confirmed: ' + $_.Exception.Message)
-    }
+    $run = Invoke-DiskIoTool -Tool $State.Tool -Verb 'status' -Arguments @() -Instance $State.Instance -TimeoutSeconds $State.Short -Runs $State.Runs -Log $State.Log -BundleRoot $State.BundleRoot
+    return (Get-DiskIoStatusState -Run $run)
+}
+
+function Stop-DiskIoSessionUnsaved {
+    # The end check's cancel of the collector's own instance (wpr -cancel
+    # saves nothing). Returns whether the cancel completed.
+    param($State, [string]$Read)
+    $cancel = Invoke-DiskIoTool -Tool $State.Tool -Verb 'cancel' -Arguments @() -Instance $State.Instance -TimeoutSeconds $State.Short -Runs $State.Runs -Log $State.Log -BundleRoot $State.BundleRoot
+    $State.Log.Add(('session {0} read as {1}; cancelled: exit code {2}' -f $State.Instance, $Read, [string]$cancel['ExitCode']))
+    return (Test-DiskIoRunOk -Run $cancel)
 }
 
 # ---------------------------------------------------------------------------
@@ -1250,19 +1264,46 @@ $invokeWprTrace = {
             }
         }
         $entry.buffers = [ordered]@{ size_kb = Get-DiskIoBufferSizeKb; count = Get-DiskIoBufferCount; mode = 'file' }
-        $checks = Start-DiskIoSession -State $state
+        $checks = Test-DiskIoSessionPreflight -State $state
         $entry.preflight = [ordered]@{ ok = [bool]$state.PreflightOk; at_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow); checks = @($checks) }
-        if ($state.Started -and -not $state.ErrorKind) { Test-DiskIoSessionSettings -State $state -Salt ([string]$Context['Salt']) }
-        if ($state.Started -and -not $state.ErrorKind) {
-            Wait-DiskIoSessionWindow -State $state
-            Stop-DiskIoSession -State $state
+        if (-not $state.ErrorKind) {
+            # The session runs through the helper's one live session path:
+            # start, verify, the bound, stop, and on every exit path the end
+            # check (the collector's own instance is read; anything but a
+            # confirmed idle state, a start that did not complete, or a stop
+            # that did not complete, is cancelled and read again). The hooks
+            # pass the collector's state map, kept under Disk because the
+            # path writes its own record under Session.
+            $live = @{ Disk = $state; Salt = [string]$Context['Salt'] }
+            $liveHooks = @{
+                Start   = { param($S) return (Start-DiskIoSession -State $S.Disk) }
+                Verify  = {
+                    param($S)
+                    Test-DiskIoSessionSettings -State $S.Disk -Salt $S.Salt
+                    if ($S.Disk.ErrorKind) { return [string]$S.Disk.ErrorMessage }
+                    return $null
+                }
+                Bound   = { param($S) return (Wait-DiskIoSessionWindow -State $S.Disk) }
+                Stop    = { param($S) return (Stop-DiskIoSession -State $S.Disk) }
+                Fail    = {
+                    param($S, [string]$Message)
+                    $S.Disk.ErrorKind = 'other'
+                    $S.Disk.ErrorMessage = 'the collector raised while running the trace session: ' + $Message
+                    $S.Disk.Log.Add('source ' + $id + ' raised: ' + $Message)
+                }
+                Confirm = { param($S, [string]$Moment) $null = $Moment; return (Read-DiskIoSessionState -State $S.Disk) }
+                Cancel  = { param($S, [string]$Read) return (Stop-DiskIoSessionUnsaved -State $S.Disk -Read $Read) }
+            }
+            $liveRecord = Invoke-WfLiveSession -LiveHooks $liveHooks -LiveState $live -LiveSeconds $duration
+            $state.Started = [bool]$liveRecord.may_remain
+            $state.StateAfterStop = $liveRecord.state_after_stop
+            $state.FinalState = $liveRecord.state_final
+            if ($null -ne $liveRecord.end_error) { $Log.Add('the session state could not be confirmed: ' + [string]$liveRecord.end_error) }
         }
     } catch {
         $state.ErrorKind = 'other'
         $state.ErrorMessage = 'the collector raised while running the trace session: ' + $_.Exception.Message
         $Log.Add('source ' + $id + ' raised: ' + $_.Exception.Message)
-    } finally {
-        if ($state.Started) { Confirm-DiskIoSessionStopped -State $state }
     }
     $confirmed = $null
     if ($state.Started) { $confirmed = ($state.FinalState -eq 'idle') }

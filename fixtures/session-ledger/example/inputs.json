@@ -14,7 +14,7 @@
       "collector": "application-errors",
       "capture_start_utc": "2026-03-01T12:00:01.0000000Z",
       "manifest": "raw/inputs/20260301T120001Z_application_errors_ae3a76a9/manifest.json",
-      "manifest_sha256": "a3e68f22ec2325508363bed8bb448fde5778c451c4d41a7e78cc4004bdbda6e5",
+      "manifest_sha256": "37bf48f17502ed65c504c6a8d3763b490b6d562fe41f1e7648bb4b90400a19ff",
       "sources": {
         "application_error_events": "observed"
       }
@@ -24,7 +24,7 @@
       "collector": "bugcheck-history",
       "capture_start_utc": "2026-03-01T12:00:01.0000000Z",
       "manifest": "raw/inputs/20260301T120001Z_bugcheck_history_ae3a76a9/manifest.json",
-      "manifest_sha256": "365e401aba0d4ed8126f84093fc808e14c1f491c194ecb7078f7006a23aafd75",
+      "manifest_sha256": "aeaaf1ded703e6f367f1ae8b4937a9e78f360ea869f2051ed52a3657be069906",
       "sources": {
         "system_restart_events": "observed"
       }
@@ -34,7 +34,7 @@
       "collector": "session-ledger",
       "capture_start_utc": "2026-03-01T12:00:01.0000000Z",
       "manifest": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/manifest.json",
-      "manifest_sha256": "669afad8e177a63dae7c58b383d5c4acd3028dec96fba065f838cdd38015ce6f",
+      "manifest_sha256": "6596ed66e548420d60d060dbc6abf8e6caab35326884706fb1d5ecb5c1018f8f",
       "sources": {
         "overwatch_logs": "observed",
         "battlenet_logs": "observed",
@@ -54,7 +54,7 @@
       "collector": "tdr-events",
       "capture_start_utc": "2026-03-01T12:00:01.0000000Z",
       "manifest": "raw/inputs/20260301T120001Z_tdr_events_ae3a76a9/manifest.json",
-      "manifest_sha256": "19b407e18c9cc6ab7e03c0273f9fbe170b800bf6e9d0d445a8f3b6568ef64d0a",
+      "manifest_sha256": "c866211a47d2a4557ca4b7ef88a6e1a5e75199c2dc5eb53afa84291d573e623f",
       "sources": {
         "system_display_events": "observed",
         "system_bugcheck_events": "observed"
@@ -65,7 +65,7 @@
       "collector": "whea-errors",
       "capture_start_utc": "2026-03-01T12:00:01.0000000Z",
       "manifest": "raw/inputs/20260301T120001Z_whea_errors_ae3a76a9/manifest.json",
-      "manifest_sha256": "26fbdf52bb1780cc43e470ebaa04210b46aee659103415b581613e835814c8ed",
+      "manifest_sha256": "7205767b0b4205ec2eb7ae98ccb789450577fdaabf34ea1f9089a6d67f1cffe7",
       "sources": {
         "system_whea_events": "observed_zero"
       }

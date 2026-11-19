@@ -40,7 +40,7 @@ The other records `bugcheck-history` exports (6006, 6008, 6009, 1074, 46, 7045) 
 
 A session is one log file of a game or launcher (Overwatch, Fortnite, the Battle.net desktop app, the Epic Games Launcher), from its file times. No source here records a session; the times are inferences, and the row says so:
 
-- `start_utc` is the file's creation time, `start_basis` `file_creation_time`, `start_inferred` true. Whether a log is created at launch is verification item 79.
+- `start_utc` is the file's creation time, `start_basis` `file_creation_time`, `start_inferred` true. Whether a log is created at launch is verification item 86.
 - `end_utc` is the file's last write time, `end_basis` `file_last_write_time`, `end_inferred` true. A game stops writing before it exits, and a session that ends in a freeze ends at the last write before it; either way the end is not a recorded exit.
 - `duration_s` is the difference, set only when both are known and `session_check` is `ok`.
 
@@ -48,7 +48,7 @@ Only `.log` files at the top of a title's folder count. Overwatch's `Errors` fol
 
 `session_check` takes three other values, each of which leaves the start and the duration null:
 
-- `creation_shared`: two logs of one title in one bundle have the same creation time. File name tunnelling gives a file created under a name that was just renamed or deleted the old file's creation time ([MS-FSA, tunnel cache](https://learn.microsoft.com/openspecs/windows_protocols/ms-fsa/69f1cc34-20d8-4889-8108-e871065cf9f9); [FsRtlAddToTunnelCache](https://learn.microsoft.com/windows-hardware/drivers/ddi/ntifs/nf-ntifs-_fsrtl_advanced_fcb_header-fsrtladdtotunnelcache)), which is what a game that renames its log to a backup and opens a new one under the old name would see (item 80). The log written first keeps its start; the others lose it.
+- `creation_shared`: two logs of one title in one bundle have the same creation time. File name tunnelling gives a file created under a name that was just renamed or deleted the old file's creation time ([MS-FSA, tunnel cache](https://learn.microsoft.com/openspecs/windows_protocols/ms-fsa/69f1cc34-20d8-4889-8108-e871065cf9f9); [FsRtlAddToTunnelCache](https://learn.microsoft.com/windows-hardware/drivers/ddi/ntifs/nf-ntifs-_fsrtl_advanced_fcb_header-fsrtladdtotunnelcache)), which is what a game that renames its log to a backup and opens a new one under the old name would see (item 87). The log written first keeps its start; the others lose it.
 - `replaced_in_place`: a later bundle shows the same file (same title, name and creation time) smaller, or last written earlier, than an earlier bundle did. It is not the same file grown, so its start cannot be trusted.
 - `end_before_start`: the two times disagree.
 
@@ -62,7 +62,7 @@ An event row is identified by its log, record id, provider, event id and time, s
 
 `bugcheck_code` is read only from the record's named `BugcheckCode` data item, decimal as Windows writes it ([event 41](https://learn.microsoft.com/troubleshoot/windows-client/performance/event-id-41-restart)); a record without the name leaves it null rather than trusting a position. Learn says a 41 with `BugcheckCode` 0 and `PowerButtonTimestamp` 0 is a power cut or a hang the machine did not report, which is the freeze this ledger is for.
 
-`image_name` is copied only when a crash or hang record names one of the four game and launcher images on the allowlist in the builder (item 90); any other program's name stays out, and its crash is still counted.
+`image_name` is copied only when a crash or hang record names one of the four game and launcher images on the allowlist in the builder (item 97); any other program's name stays out, and its crash is still counted.
 
 ## Configuration periods
 
@@ -97,7 +97,7 @@ Without a `session-ledger` bundle there are no sessions to place, and the result
 
 ## Privacy
 
-The collector never writes a resolved profile path, the profile name or the account name: folders are written as tokens (`<MyDocuments>\Overwatch\Logs`), names outside a plain pattern become salted `name-<12 hex>` pseudonyms, the running account is `account-<12 hex>`, and an exception's text is never copied. The ledger copies only the artifacts it read and adds no name the bundles did not hold. `tests/test_session_ledger.py` checks that the profile name of the synthetic scenario reaches neither the bundles nor the ledger.
+The collector never writes a resolved profile path, the profile name or the account name: folders are written as tokens (`<MyDocuments>\Overwatch\Logs`), names outside a plain pattern become salted `name-<12 hex>` pseudonyms, the helper records the running account only as two booleans (elevated, member of Event Log Readers), never its name, and an exception's text is never copied. The ledger copies only the artifacts it read and adds no name the bundles did not hold. `tests/test_session_ledger.py` checks that the profile name of the synthetic scenario reaches neither the bundles nor the ledger.
 
 ## Running it
 
@@ -115,6 +115,6 @@ The output holds `inputs.json` (each bundle with its manifest SHA-256 and source
 
 - Process Lasso's log through an allowlist parser, once Bitsum documents the line format or a committed synthetic sample is accepted as the format fixture.
 - A `collect-session-ledger` route in the SSH dispatcher. The dispatcher runs as the collector account, whose profile holds no game logs, so it needs a design that runs as the player without storing the player's credential; until then the collector is run by hand at the PC.
-- Fortnite session starts when item 80 shows tunnelling: a source that records the launch itself (a line inside the log, which would need a reader of the log text and its own privacy review).
+- Fortnite session starts when item 87 shows tunnelling: a source that records the launch itself (a line inside the log, which would need a reader of the log text and its own privacy review).
 - An analyzer that compares periods: the summary gives counts and hours; a judgement of whether a change helped needs a stated model for rare events and enough hours, and belongs in an analyzer with its own contract.
 - Reliability Monitor records, once a key to deduplicate them against the event exports is settled.

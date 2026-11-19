@@ -430,78 +430,128 @@ function Invoke-WfClockSessionSource {
         } else {
             $clockEntry.preflight = [ordered]@{ ok = $true; at_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow); checks = @($preflightChecks) }
             $deadlineTicks = [int64]$TimeoutSeconds * $frequency
-            $seq = 0
-            $reading = Read-WfClockPair -QpcFrequency $frequency -BudgetMilliseconds $budgetMs
-            $sessionStartQpc = [int64][math]::Floor(([double]$reading['qpc_before'] + [double]$reading['qpc_after']) / 2)
-            $samplesBytes += Add-WfClockSample -Path $samplesPath -Pair (New-WfClockPairRecord -Seq $seq -Phase 'start' -Reading $reading -SlotQpc $sessionStartQpc) -Pairs $pairs
-            $seq += 1
-            # The live marks file opens right after the start pair, so no mark
-            # can precede it.
-            try {
-                [System.IO.File]::WriteAllText($livePath, '', $utf8)
-                $marksFileCreated = $true
-            } catch {
-                $marksReadError = 'the live marks file could not be created: ' + $_.Exception.Message
-                $Log.Add('source ' + $marksId + ': ' + $marksReadError)
+            # The session runs through the helper's one live session path,
+            # Invoke-WfLiveSession. Its start is the start pair and the live
+            # marks file; its bound is the interval slots on the counter; its
+            # stop is the stop pair; and on every exit path its end is the
+            # marks file closed (renamed), so no later mark can land in it.
+            # The hooks write their results into $live, never into variables.
+            $live = @{ Seq = 0; SessionStartQpc = $null; SessionStopQpc = $null; SamplesBytes = [int64]0; MarksFileCreated = $false; MarksRenamed = $false; MarksReadError = $null; Failure = $null }
+            $closeMarks = {
+                param($S)
+                $closeError = Close-WfClockMarksFile -LivePath $livePath -FinalPath $finalPath
+                if ($null -eq $closeError) { $S.MarksRenamed = $true; return $true }
+                $S.MarksReadError = $closeError
+                $Log.Add('source ' + $marksId + ': ' + $closeError)
+                return $false
             }
-            $marksEntry.preflight = [ordered]@{ ok = $marksFileCreated; at_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow); checks = @(
-                    [ordered]@{ name = 'live_marks_file_created'; ok = $marksFileCreated; detail = 'raw/' + $marksId + '/' + (Get-WfClockMarksLiveName) + ', opened right after the start pair' }
-                ) }
-            $Log.Add(('source {0}: start pair at qpc {1}, {2} interval slots of {3} s, stop at {4} s' -f $clockId, $sessionStartQpc, $slots, $interval, $duration))
-
-            for ($k = 1; $k -le $slots; $k++) {
-                $slotQpc = $sessionStartQpc + [int64]$k * $interval * $frequency
-                $missed = $false
-                while ($true) {
-                    $now = Get-WfQpcTimestamp
-                    if (($now - $sessionStartQpc) -gt $deadlineTicks) { throw ('the session passed its deadline of ' + $TimeoutSeconds + ' s before slot ' + $k) }
-                    if ($now -ge $slotQpc) {
-                        # More than a whole interval late: the slot is missed, not taken late.
-                        if (($now - $slotQpc) -gt ([int64]$interval * $frequency)) { $missed = $true }
-                        break
+            $liveHooks = @{
+                Start   = {
+                    param($S)
+                    $reading = Read-WfClockPair -QpcFrequency $frequency -BudgetMilliseconds $budgetMs
+                    $startQpc = [int64][math]::Floor(([double]$reading['qpc_before'] + [double]$reading['qpc_after']) / 2)
+                    $S.SessionStartQpc = $startQpc
+                    $S.SamplesBytes += Add-WfClockSample -Path $samplesPath -Pair (New-WfClockPairRecord -Seq $S.Seq -Phase 'start' -Reading $reading -SlotQpc $startQpc) -Pairs $pairs
+                    $S.Seq += 1
+                    # The live marks file opens right after the start pair, so no mark
+                    # can precede it.
+                    try {
+                        [System.IO.File]::WriteAllText($livePath, '', $utf8)
+                        $S.MarksFileCreated = $true
+                    } catch {
+                        $S.MarksReadError = 'the live marks file could not be created: ' + $_.Exception.Message
+                        $Log.Add('source ' + $marksId + ': ' + $S.MarksReadError)
                     }
-                    $remainingMs = [int][math]::Ceiling(($slotQpc - $now) * 1000.0 / $frequency)
-                    Wait-WfMilliseconds -Milliseconds ([math]::Max(1, $remainingMs))
+                    $marksEntry.preflight = [ordered]@{ ok = [bool]$S.MarksFileCreated; at_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow); checks = @(
+                            [ordered]@{ name = 'live_marks_file_created'; ok = [bool]$S.MarksFileCreated; detail = 'raw/' + $marksId + '/' + (Get-WfClockMarksLiveName) + ', opened right after the start pair' }
+                        ) }
+                    $Log.Add(('source {0}: start pair at qpc {1}, {2} interval slots of {3} s, stop at {4} s' -f $clockId, $startQpc, $slots, $interval, $duration))
+                    return @{ Ok = $true; MayRemain = $true }
                 }
-                if ($missed) {
-                    $missedSlots.Add([ordered]@{ seq = $seq; phase = 'interval'; slot_qpc = $slotQpc; seen_qpc = $now })
-                    $message = ('source {0}: interval slot {1} (seq {2}) was missed: the counter was already {3} ticks past it' -f $clockId, $k, $seq, ($now - $slotQpc))
-                    $Log.Add($message)
-                    $Notes.Add($message)
-                    $seq += 1
-                    continue
+                Bound   = {
+                    # Interval slots strictly inside the session, then the wait for
+                    # the stop slot, all on the counter and all under the deadline.
+                    param($S)
+                    $startQpc = [int64]$S.SessionStartQpc
+                    for ($k = 1; $k -le $slots; $k++) {
+                        $slotQpc = $startQpc + [int64]$k * $interval * $frequency
+                        $missed = $false
+                        while ($true) {
+                            $now = Get-WfQpcTimestamp
+                            if (($now - $startQpc) -gt $deadlineTicks) { throw ('the session passed its deadline of ' + $TimeoutSeconds + ' s before slot ' + $k) }
+                            if ($now -ge $slotQpc) {
+                                # More than a whole interval late: the slot is missed, not taken late.
+                                if (($now - $slotQpc) -gt ([int64]$interval * $frequency)) { $missed = $true }
+                                break
+                            }
+                            $remainingMs = [int][math]::Ceiling(($slotQpc - $now) * 1000.0 / $frequency)
+                            Wait-WfMilliseconds -Milliseconds ([math]::Max(1, $remainingMs))
+                        }
+                        if ($missed) {
+                            $missedSlots.Add([ordered]@{ seq = $S.Seq; phase = 'interval'; slot_qpc = $slotQpc; seen_qpc = $now })
+                            $message = ('source {0}: interval slot {1} (seq {2}) was missed: the counter was already {3} ticks past it' -f $clockId, $k, $S.Seq, ($now - $slotQpc))
+                            $Log.Add($message)
+                            $Notes.Add($message)
+                            $S.Seq += 1
+                            continue
+                        }
+                        $reading = Read-WfClockPair -QpcFrequency $frequency -BudgetMilliseconds $budgetMs
+                        $S.SamplesBytes += Add-WfClockSample -Path $samplesPath -Pair (New-WfClockPairRecord -Seq $S.Seq -Phase 'interval' -Reading $reading -SlotQpc $slotQpc) -Pairs $pairs
+                        if ($S.SamplesBytes -gt $MaxArtifactBytes) { throw ('the samples file exceeded its cap of ' + $MaxArtifactBytes + ' bytes') }
+                        $S.Seq += 1
+                    }
+                    $stopQpc = $startQpc + [int64]$duration * $frequency
+                    while ($true) {
+                        $now = Get-WfQpcTimestamp
+                        if (($now - $startQpc) -gt $deadlineTicks) { throw ('the session passed its deadline of ' + $TimeoutSeconds + ' s before the stop pair') }
+                        if ($now -ge $stopQpc) { break }
+                        $remainingMs = [int][math]::Ceiling(($stopQpc - $now) * 1000.0 / $frequency)
+                        Wait-WfMilliseconds -Milliseconds ([math]::Max(1, $remainingMs))
+                    }
+                    return $false
                 }
-                $reading = Read-WfClockPair -QpcFrequency $frequency -BudgetMilliseconds $budgetMs
-                $samplesBytes += Add-WfClockSample -Path $samplesPath -Pair (New-WfClockPairRecord -Seq $seq -Phase 'interval' -Reading $reading -SlotQpc $slotQpc) -Pairs $pairs
-                if ($samplesBytes -gt $MaxArtifactBytes) { throw ('the samples file exceeded its cap of ' + $MaxArtifactBytes + ' bytes') }
-                $seq += 1
+                Stop    = {
+                    # The stop pair, then the marks file closed at once.
+                    param($S)
+                    $stopQpc = [int64]$S.SessionStartQpc + [int64]$duration * $frequency
+                    $reading = Read-WfClockPair -QpcFrequency $frequency -BudgetMilliseconds $budgetMs
+                    $S.SessionStopQpc = [int64][math]::Floor(([double]$reading['qpc_before'] + [double]$reading['qpc_after']) / 2)
+                    $S.SamplesBytes += Add-WfClockSample -Path $samplesPath -Pair (New-WfClockPairRecord -Seq $S.Seq -Phase 'stop' -Reading $reading -SlotQpc $stopQpc) -Pairs $pairs
+                    if ($S.MarksFileCreated) { return (& $closeMarks $S) }
+                    return $true
+                }
+                Fail    = {
+                    param($S, [string]$Message)
+                    $S.Failure = 'the session failed: ' + $Message
+                    $Log.Add('source ' + $clockId + ' raised: ' + $Message)
+                }
+                Confirm = {
+                    # The session is open while its live marks file is.
+                    param($S, [string]$Moment)
+                    $null = $Moment
+                    if ($S.MarksFileCreated -and -not $S.MarksRenamed -and (Test-Path -LiteralPath $livePath)) { return 'active' }
+                    return 'idle'
+                }
+                Cancel  = {
+                    param($S, [string]$Read)
+                    $null = $Read
+                    if ($S.MarksFileCreated -and -not $S.MarksRenamed) { return (& $closeMarks $S) }
+                    return $true
+                }
             }
-
-            $stopQpc = $sessionStartQpc + [int64]$duration * $frequency
-            while ($true) {
-                $now = Get-WfQpcTimestamp
-                if (($now - $sessionStartQpc) -gt $deadlineTicks) { throw ('the session passed its deadline of ' + $TimeoutSeconds + ' s before the stop pair') }
-                if ($now -ge $stopQpc) { break }
-                $remainingMs = [int][math]::Ceiling(($stopQpc - $now) * 1000.0 / $frequency)
-                Wait-WfMilliseconds -Milliseconds ([math]::Max(1, $remainingMs))
-            }
-            $reading = Read-WfClockPair -QpcFrequency $frequency -BudgetMilliseconds $budgetMs
-            $sessionStopQpc = [int64][math]::Floor(([double]$reading['qpc_before'] + [double]$reading['qpc_after']) / 2)
-            $samplesBytes += Add-WfClockSample -Path $samplesPath -Pair (New-WfClockPairRecord -Seq $seq -Phase 'stop' -Reading $reading -SlotQpc $stopQpc) -Pairs $pairs
+            $liveRecord = Invoke-WfLiveSession -LiveHooks $liveHooks -LiveState $live -LiveSeconds $duration
+            $sessionStartQpc = $live.SessionStartQpc
+            $sessionStopQpc = $live.SessionStopQpc
+            $samplesBytes = [int64]$live.SamplesBytes
+            $marksFileCreated = [bool]$live.MarksFileCreated
+            $marksRenamed = [bool]$live.MarksRenamed
+            if ($null -ne $live.MarksReadError) { $marksReadError = [string]$live.MarksReadError }
+            if ($null -ne $live.Failure) { $failure = [string]$live.Failure }
+            if ($null -ne $liveRecord.end_error) { $Log.Add('source ' + $marksId + ': the end check raised: ' + [string]$liveRecord.end_error) }
         }
     } catch {
         $failure = 'the session failed: ' + $_.Exception.Message
         $Log.Add('source ' + $clockId + ' raised: ' + $_.Exception.Message)
-    }
-    # The session is over, by its stop pair or by its failure: close the marks
-    # file before anything else, so no later mark can land in it.
-    if ($marksFileCreated) {
-        $closeError = Close-WfClockMarksFile -LivePath $livePath -FinalPath $finalPath
-        if ($null -eq $closeError) { $marksRenamed = $true }
-        else {
-            $marksReadError = $closeError
-            $Log.Add('source ' + $marksId + ': ' + $closeError)
-        }
     }
 
     # Read the closed marks file.

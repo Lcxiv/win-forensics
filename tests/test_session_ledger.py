@@ -170,7 +170,7 @@ def test_privacy_no_profile_name_account_or_path_reaches_a_bundle_or_the_ledger(
                 assert "synthetic-player" not in text, path
                 assert "C:\\\\Users" not in text and "C:\\Users" not in text, path
     manifest = json.loads((BUNDLES / "session-ledger" / "manifest.json").read_text(encoding="utf-8"))
-    assert any(note.startswith("Ran as account-") for note in manifest["notes"]), "the player's account name is a pseudonym"
+    assert any(note.startswith("Ran as the collector account (its name is not recorded)") for note in manifest["notes"])
 
 
 @pytest.mark.parametrize("case", ["tampered", "two_machines", "same_twice", "not_joined", "overlap", "open_then_more", "other_machine",

@@ -30,6 +30,8 @@ The same directory holds `rf-survey`, a read only survey of the 2.4 GHz band aro
 
 It also holds `config-snapshot`, the first piece of the live latency capture: the machine configuration that confounds every run, read before and after a capture (`-Snapshot start`, `-Snapshot stop`). It records each PCI function's interrupt affinity policy and MSI mode as the registry holds them, read through the documented device key API (type and bytes, decoded alongside, never reconciled with the routing a trace shows), the GPU timeout detection values, the CPU counts and caches with the SMT sibling map from `GetLogicalProcessorInformationEx`, the active power scheme with the AC and DC processor and idle settings, and the state of two third party tuning tools (installed files with versions and hashes, running components by process name, protected copies of their configuration and journal, and a summary of the vendor log that carries none of its text). Two questions it cannot answer with a documented read only path (which power mode overlay is active, the current timer resolution) are recorded `not_collected` with their reasons rather than guessed. `scripts/decode_config_snapshot.py` decodes a bundle into `config_snapshot`, `powercfg` and `process_inventory`.
 
+The same directory holds the local scenario runner, `_run-scenario.ps1`, which the owner starts at the PC (never through SSH). Before anything runs it makes read only preflight checks (Windows PowerShell 5.1, the token's elevation and groups as booleans, each collector's rights, free space against the scenario's minimum, the pinned SHA-256 of every operator supplied tool) and refuses rather than fixes. Then it runs scenario S1's collectors as separate processes in a fixed order, each under a deadline: the clock session in the background across the three live captures (the DPC trace, the frame recording and the disk activity trace, one after another), then the history collectors, with two reserved slots for the configuration snapshot before and after. A collector stopped at its deadline has its partial raw data removed and its live session read and cancelled. The runner merges every collector's sources into one bundle whose manifest (contract 1.2.0, with `preflight` and `run` sections) is written last. The four live collectors (with the clock session) share one tested session path in the helper (start, bound, stop, end check), and each still runs on its own with unchanged output. The method, the deadlines, the privacy rules and what is still to verify on the PC are in [collectors/windows/README.md](collectors/windows/README.md), "Scenario runner".
+
 It also holds `session-ledger`, the history behind the session and incident ledger: the names, sizes and times of the Overwatch, Fortnite, Battle.net and Epic Games Launcher log files, never their text, the display driver's System log records under the service name WMI reports, the WerKernel channel, and the names, sizes and times of the live kernel dumps, minidumps and Windows Error Reporting report folders, never their content. It runs between play sessions as the account that plays and never touches a game. On the Mac, `scripts/build_session_ledger.py` joins it with the `bugcheck-history`, `tdr-events`, `application-errors` and `whea-errors` bundles of the same machine and an operator's configuration periods file into the `session_ledger` and `session_ledger_periods` tables: every session and incident on one timeline, and per period the hours played, the sessions and the incidents by type, each count beside its hours and coverage and a rate only when every input is complete ([docs/session-ledger.md](docs/session-ledger.md)).
 
 ## The four contracts
@@ -52,7 +54,8 @@ docs/clock-calibration.md  the clock calibration session and operator marks: how
 docs/session-ledger.md   the session and incident ledger: the split, the session and rate rules, the refusals, follow-up
 schemas/                 JSON Schema (draft 2020-12), one file per table, plus manifest, evidence, verdict, common,
                          analysis/ for an analyzer's structured result, and input/ for operator written files
-collectors/windows/      read only PowerShell collectors for the PC, their shared helper _common.ps1, and README.md;
+collectors/windows/      read only PowerShell collectors for the PC, their shared helper _common.ps1, the scenario runner
+                         _run-scenario.ps1 with its library _scenarios.ps1, and README.md;
                          tests/ holds the Pester suite, the synthetic backend, and the fixture generator
 scripts/                 wf_schema.py (schema registry and validation), decode_dpcisr.py, decode_pdh.py, decode_eventlog.py,
                          decode_tracestats.py (trace loss from the recorder's status text and the tracerpt summary),
@@ -66,6 +69,7 @@ scripts/                 wf_schema.py (schema registry and validation), decode_d
                          make_procmon_pmc.py, procmon_facts.ps1 and procmon_facts_summarize.py (runner harness)
 fixtures/example-bundle/ one bundle laid out to the contract from two win-opt format fixtures
 fixtures/collector-bundles/  synthetic bundles written by the collectors against the synthetic backend, one per case
+fixtures/scenario-runs/  synthetic bundles written by the scenario runner with the real collectors as its children
 fixtures/session-ledger/ the example periods file and the ledger built from five synthetic collector bundles
 fixtures/procmon/        committed .pmc test configurations and the runner's facts and export heads
 fixtures/presentmon/     the first buffer of a PresentMon regression recording (the one .etl git keeps), with its
@@ -168,7 +172,7 @@ The collector checks that need PowerShell (PSScriptAnalyzer with the Windows Pow
 
 ## What the fixtures are and are not
 
-The bundles in `fixtures/collector-bundles/` are synthetic from end to end: the real collector scripts wrote them, but every event, record, driver, and machine detail in them is invented in `collectors/windows/tests/SyntheticScenarios.ps1`. They exist to prove the layout, the manifest, the checksums, and the status rules, and they are regenerated, not edited.
+The bundles in `fixtures/collector-bundles/` and `fixtures/scenario-runs/` are synthetic from end to end: the real collector scripts wrote them, but every event, record, driver, and machine detail in them is invented in `collectors/windows/tests/SyntheticScenarios.ps1`. They exist to prove the layout, the manifest, the checksums, and the status rules, and they are regenerated, not edited.
 
 The two raw files in `fixtures/example-bundle/raw/` are win-opt's recorded `xperf -a dpcisr` report and per CPU PDH counter CSV. They are format fixtures: they prove that the readers parse those shapes and that provenance can point at a real line and cell. No number, module name, or conclusion inside them is treated as a finding, and none is used as an example or threshold in the contracts. Thresholds in later playbooks come from Microsoft and tool documentation only.
 

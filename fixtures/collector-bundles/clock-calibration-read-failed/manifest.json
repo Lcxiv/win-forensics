@@ -334,7 +334,7 @@
   "checksum_algorithm": "sha256",
   "notes": [
     "Read only collector clock-calibration version 1.0.0: How does the system clock relate to the performance counter during this session, and when did the person at the PC feel something?",
-    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "Ran as the collector account (its name is not recorded); elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
     "source clock_calibration: the session failed: synthetic backend: the performance counter read failed; the 4 pairs taken are kept and the 1 pairs not taken (the stop pair included) are counted in missing_pairs; timestamps after the last pair are unaligned"

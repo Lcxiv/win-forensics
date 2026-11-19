@@ -1264,7 +1264,7 @@
   "checksum_algorithm": "sha256",
   "notes": [
     "Read only collector session-ledger version 1.0.0: When was a game or launcher played, and which crash records does the machine keep that the history collectors do not read?",
-    "Ran as account-9e510f51005f; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "Ran as the collector account (its name is not recorded); elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
     "Each event log query selects a fixed interval, window_end_utc minus the window to window_end_utc, so records raised while the query ran are not part of the result.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",

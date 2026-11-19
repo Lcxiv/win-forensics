@@ -1,0 +1,3 @@
+2026-03-01T12:00:01.0000000Z scenario-runner 1.0.0 started: scenario s1
+2026-03-01T12:00:02.0000000Z preflight: refused: rights:dpcisr, rights:frames
+2026-03-01T12:00:03.0000000Z manifest written: bundle 20260301T120001Z_s1_ae3a76a9, status failed, 0 artifacts

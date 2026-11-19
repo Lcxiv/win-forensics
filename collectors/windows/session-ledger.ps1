@@ -120,8 +120,6 @@ $definition = @{
     Name               = $collectorName
     Version            = '1.0.0'
     Question           = 'When was a game or launcher played, and which crash records does the machine keep that the history collectors do not read?'
-    # The collector runs as the player, whose account name is a user name.
-    ProtectAccountName = $true
     Sources            = @(
         @{
             # Blizzard documents Documents > Overwatch > Logs (with an Errors

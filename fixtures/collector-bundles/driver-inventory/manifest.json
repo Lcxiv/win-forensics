@@ -405,7 +405,7 @@
   "checksum_algorithm": "sha256",
   "notes": [
     "Read only collector driver-inventory version 1.0.0: Which drivers are installed, in which versions, from which providers, and which kernel drivers are running?",
-    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "Ran as the collector account (its name is not recorded); elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine."
   ]

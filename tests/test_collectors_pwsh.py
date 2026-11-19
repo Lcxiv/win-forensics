@@ -23,6 +23,7 @@ from conftest import REPO_ROOT
 COLLECTOR_DIR = REPO_ROOT / "collectors" / "windows"
 TESTS_DIR = COLLECTOR_DIR / "tests"
 FIXTURES = REPO_ROOT / "fixtures" / "collector-bundles"
+RUN_FIXTURES = REPO_ROOT / "fixtures" / "scenario-runs"
 
 
 def find_pwsh() -> str | None:
@@ -66,15 +67,49 @@ def test_committed_fixture_bundles_match_a_fresh_run(tmp_path):
     result = run(["-File", str(TESTS_DIR / "New-FixtureBundles.ps1")], cwd=tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout == "", "the generator keeps collector output off its own stdout"
-    fresh = tmp_path / "fixtures" / "collector-bundles"
-    committed_files = sorted(p.relative_to(FIXTURES).as_posix() for p in FIXTURES.rglob("*") if p.is_file())
-    fresh_files = sorted(p.relative_to(fresh).as_posix() for p in fresh.rglob("*") if p.is_file())
-    assert fresh_files == committed_files, "regenerate with collectors/windows/tests/New-FixtureBundles.ps1"
-    stale = [f for f in committed_files if normalised(FIXTURES / f) != normalised(fresh / f)]
-    assert not stale, f"stale fixtures, regenerate with collectors/windows/tests/New-FixtureBundles.ps1: {stale}"
+    for committed_root, fresh in ((FIXTURES, tmp_path / "fixtures" / "collector-bundles"), (RUN_FIXTURES, tmp_path / "fixtures" / "scenario-runs")):
+        committed_files = sorted(p.relative_to(committed_root).as_posix() for p in committed_root.rglob("*") if p.is_file())
+        fresh_files = sorted(p.relative_to(fresh).as_posix() for p in fresh.rglob("*") if p.is_file())
+        assert fresh_files == committed_files, "regenerate with collectors/windows/tests/New-FixtureBundles.ps1"
+        stale = [f for f in committed_files if normalised(committed_root / f) != normalised(fresh / f)]
+        assert not stale, f"stale fixtures, regenerate with collectors/windows/tests/New-FixtureBundles.ps1: {stale}"
 
 
-COLLECTORS = sorted(p.stem for p in COLLECTOR_DIR.glob("*.ps1") if p.name != "_common.ps1")
+COLLECTORS = sorted(p.stem for p in COLLECTOR_DIR.glob("*.ps1") if not p.name.startswith("_"))
+RUNNER = COLLECTOR_DIR / "_run-scenario.ps1"
+
+
+def test_runner_without_an_output_directory_prints_one_failed_line():
+    result = run(["-File", str(RUNNER)])
+    assert result.returncode == 1
+    assert json.loads(result.stdout) == {"collector": "scenario-runner", "status": "failed", "bundle": "", "artifacts": 0}
+    assert "-OutputDirectory is required" in result.stderr
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="on Windows the real adapters would read the machine")
+def test_runner_with_real_adapters_refuses_off_windows_and_starts_nothing(tmp_path):
+    """The unmodified runner as a process where no Windows API exists: the preflight fails closed.
+
+    PowerShell 7 is not Windows PowerShell 5.1 and the account cannot be read, so the run is refused
+    before any collector starts; the bundle is still valid and lists every declared source.
+    """
+    out = tmp_path / "run dir"
+    result = run(["-File", str(RUNNER), "-OutputDirectory", str(out)])
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert result.stdout.count("\n") == 1
+    summary = json.loads(result.stdout)
+    assert summary["collector"] == "scenario-runner" and summary["status"] == "failed"
+    assert verify_bundle.verify(out)["ok"]
+    manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["preflight"]["ok"] is False
+    failed = {c["name"] for c in manifest["preflight"]["checks"] if not c["ok"]}
+    assert {"interpreter", "account"} <= failed
+    assert all(c["status"] == "not_collected" and "refused to start" in c["status_reason"] for c in manifest["collectors"])
+    assert {s["outcome"] for s in manifest["run"]["steps"]} <= {"not_started", "absent"}
+    assert not (out / "logs" / "steps").exists() or not any((out / "logs" / "steps").iterdir())
+    tools = {t["name"]: t for t in manifest["tools"]}
+    assert tools["scenario-runner-library:_scenarios.ps1"]["sha256"] == wf_schema.sha256_of(COLLECTOR_DIR / "_scenarios.ps1")
+    assert str(out) not in (out / "manifest.json").read_text(encoding="utf-8"), "the output directory is written as <bundle>"
 
 
 @pytest.mark.parametrize("collector", COLLECTORS)

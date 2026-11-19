@@ -2047,6 +2047,43 @@ function New-WfSyntheticLpiBuffer {
     return , $buffer
 }
 
+function Set-WfSyntheticScenarioMachine {
+    # The machine the scenario runner itself sees for S1: an elevated account,
+    # the pinned PresentMon at its default place, a pinned xperf, room on the
+    # volume, and for each collector the case above whose Setup prepares the
+    # machine that collector sees when the runner starts it. The clock session
+    # runs alongside the runner. Every value is invented.
+    New-WfSyntheticTraceMachine -EventsLost 0 -Xperf 'pinned'
+    New-WfSyntheticPresentMon -PerformanceLogUsers $false -Elevated $true
+    $global:WfSynthetic.Children = @{
+        'clock-calibration'   = @{ Case = 'clock-calibration'; Concurrent = $true }
+        'dpcisr-trace'        = @{ Case = 'dpcisr-trace' }
+        'presentmon-frames'   = @{ Case = 'presentmon-frames' }
+        'diskio-trace'        = @{ Case = 'diskio-trace' }
+        'bugcheck-history'    = @{ Case = 'bugcheck-history' }
+        'whea-errors'         = @{ Case = 'whea-errors-quiet' }
+        'application-errors'  = @{ Case = 'application-errors' }
+        'tdr-events'          = @{ Case = 'tdr-events-partial' }
+        'reliability-records' = @{ Case = 'reliability-records' }
+        'driver-inventory'    = @{ Case = 'driver-inventory' }
+    }
+}
+
+function Get-WfSyntheticRunCases {
+    # The runs behind fixtures/scenario-runs. Each Setup runs after
+    # Reset-WfSynthetic and Set-WfSyntheticScenarioMachine.
+    return @(
+        # S1 as it should go: every capture observed, the history optional and
+        # partial (the undocumented Display provider never yields a quiet
+        # window), the state snapshot slots absent until it is registered. Exit 0.
+        @{ Case = 's1'; ExitCode = 0; Setup = { } },
+        # The account is not elevated: the kernel trace cannot be started, the
+        # preflight refuses before anything runs, every declared source is
+        # not_collected with the reason. Exit 1.
+        @{ Case = 's1-preflight-refused'; ExitCode = 1; Setup = { $global:WfSynthetic.Elevated = $false } }
+    )
+}
+
 function New-WfSyntheticDiskIoMachine {
     # The machine behind the diskio-trace cases. The live status right after
     # the start shows no loss; a loss, when the case has one, is in the saved

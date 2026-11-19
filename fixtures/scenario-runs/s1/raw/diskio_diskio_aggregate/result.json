@@ -1,0 +1,60 @@
+{
+  "started_utc": "2026-03-01T12:03:55.0000000Z",
+  "stopped_utc": "2026-03-01T12:03:57.0000000Z",
+  "trace": "<bundle>/private/trace.etl",
+  "trace_sha256": "a3dbc203662e0f92d378b33fdf515bbcde249a57a0e865b330c418b79ef9ed40",
+  "trace_bytes": 4096,
+  "trace_header": {
+    "found": true,
+    "pointer_size": 8,
+    "number_of_processors": 16,
+    "events_lost": 0,
+    "buffers_lost": 0,
+    "perf_freq_hz": 10000000,
+    "start_time_utc": "2026-03-01T12:02:56.0000000Z",
+    "start_filetime": 134168401760000000,
+    "end_time_utc": "2026-03-01T12:03:17.0000000Z",
+    "reserved_flags": 1,
+    "clock_type": "qpc",
+    "error": null
+  },
+  "trace_events_processed": 31,
+  "dump": "<bundle>/private/dump.xml",
+  "dump_bytes": 29592,
+  "dump_sha256": "9b0f1d60a48c86320686915592d5e29c06fc88215006efdd6015ce2e040d8279",
+  "dump_events": 31,
+  "counts": {
+    "events": 31,
+    "disk_read": 7,
+    "disk_write": 5,
+    "hard_fault": 2,
+    "file_name": 6,
+    "thread": 6,
+    "process": 4,
+    "other": 1,
+    "malformed": 0,
+    "malformed_first": null,
+    "before_start": 0,
+    "unresolved_thread": 1,
+    "unnamed_file": 1,
+    "timed_out": false
+  },
+  "threads_named": 6,
+  "processes_named": 4,
+  "file_objects_named": 6,
+  "rows": 11,
+  "totals": {
+    "read_operations": 7,
+    "read_bytes": 242688,
+    "write_operations": 5,
+    "write_bytes": 49152,
+    "hard_fault_operations": 2,
+    "hard_fault_bytes": 49152
+  },
+  "bin_range": {
+    "first_bin_start_s": 0,
+    "last_bin_start_s": 2
+  },
+  "recording_and_dump_removed": true,
+  "removal_error": null
+}

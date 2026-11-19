@@ -438,7 +438,7 @@
   "checksum_algorithm": "sha256",
   "notes": [
     "Read only collector dpcisr-trace version 1.1.0: Where do DPC and interrupt time land, per CPU and per module, while the PC is in use?",
-    "Ran as SYNTHETIC-PC\\wf-collector; elevated: True; member of Event Log Readers (S-1-5-32-573): True.",
+    "Ran as the collector account (its name is not recorded); elevated: True; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
     "source dpcisr_report: the dpcisr report comes from a trace that is not a complete record and is kept as capture_failed; read it as a lower bound, never as an absence"
