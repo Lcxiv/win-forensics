@@ -52,7 +52,7 @@ Only `.log` files at the top of a title's folder count. Overwatch's `Errors` fol
 - `replaced_in_place`: a later bundle shows the same file (same title, name and creation time) smaller, or last written earlier, than an earlier bundle did. It is not the same file grown, so its start cannot be trusted.
 - `end_before_start`: the two times disagree.
 
-Across bundles, one log is one row: the identity is the title, the kept name (null when the name is a pseudonym, which is salted per run) and the creation time. The row shows the latest bundle's observation and `observations` counts the bundles that saw it.
+Across bundles, one log is one row: the identity is the title and the creation time, plus the last write time for a `creation_shared` log. The name is not part of it, because a game that renames its log to a backup between two runs keeps the file's times and changes its name, and a pseudonym is salted per run. The row shows the latest bundle's observation, its file name included, and `observations` counts the bundles that saw it.
 
 Process Lasso's log is not read. Bitsum does not document its line format ([logging](https://bitsum.com/apps/process-lasso/docs/interface/logging/)), and an allowlist parser needs one; it is under Follow-up.
 

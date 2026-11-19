@@ -263,6 +263,28 @@ def test_a_log_seen_twice_is_one_session_and_a_replaced_one_loses_its_start():
     assert replaced[0]["duration_s"] is None
 
 
+def test_a_log_renamed_to_a_backup_between_runs_is_still_one_session():
+    created, written = "2026-02-27T10:00:00.0000000Z", "2026-02-27T13:00:00.0000000Z"
+    backup = "FortniteGame-backup-2026.02.27-10.00.00.log"
+    out = ledger.build_sessions([
+        session("b1", "2026-02-27T14:00:00", created, written, 300),
+        session("b2", "2026-03-01T12:00:00", created, written, 300, backup),
+        session("b2", "2026-03-01T12:00:00", created, "2026-02-28T20:00:00.0000000Z", 100),
+    ])
+    first = [r for r in out if r["start_utc"] == created]
+    assert len(first) == 1, out
+    assert first[0]["observations"] == 2 and first[0]["file_name"] == backup and first[0]["source_bundle_id"] == "b2"
+    assert first[0]["session_check"] == "ok" and first[0]["duration_s"] == 3 * 3600
+    assert [r["session_check"] for r in out if r is not first[0]] == ["creation_shared"]
+
+
+def test_a_log_written_before_it_was_created_has_no_start():
+    out = ledger.build_sessions([session("b1", "2026-03-01T12:00:00", "2026-02-27T10:00:00.0000000Z", "2026-02-27T09:00:00.0000000Z", 100)])
+    assert len(out) == 1 and out[0]["session_check"] == "end_before_start"
+    assert out[0]["start_utc"] is None and out[0]["start_basis"] is None and out[0]["start_inferred"] is False
+    assert out[0]["duration_s"] is None and out[0]["end_utc"] == "2026-02-27T09:00:00.0000000Z"
+
+
 def test_the_cli_exit_codes(tmp_path, capsys):
     args = []
     for name in INPUTS:

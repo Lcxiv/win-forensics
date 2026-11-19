@@ -405,7 +405,7 @@ def build_sessions(observations: list[dict[str, Any]]) -> list[dict[str, Any]]:
             shared.add(id(later))
     merged: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
     for o in sessions:
-        identity = ("session", o["title"], o["name"], o["created_text"], "shared" if id(o) in shared else "own",
+        identity = ("session", o["title"], o["created_text"], "shared" if id(o) in shared else "own",
                     o["written_text"] if id(o) in shared else None)
         merged.setdefault(identity, []).append(o)
     rows = []
@@ -425,7 +425,7 @@ def build_sessions(observations: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if check == "replaced_in_place":
             start = None
         if start is not None and end < start:
-            check = "end_before_start"
+            check, start = "end_before_start", None
         row = blank_row()
         row.update({
             "entry_kind": "session", "title": latest["title"], "title_role": latest["role"],
