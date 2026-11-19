@@ -145,7 +145,7 @@ def captures(manifest: dict[str, Any]) -> list[dict[str, Any]]:
         if len(records) != 1:
             raise DecodeError(f"collector {collector['id']}: expected one recording.json artifact, found {len(records)}")
         out.append({"id": collector["id"], "csv": primary[0], "recording": records[0], "status": collector["status"],
-                    "events_lost": collector.get("events_lost"), "options": (collector.get("enabled") or {}).get("options") or {}})
+                    "events_lost": collector.get("events_lost"), "buffers_lost": collector.get("buffers_lost"), "options": (collector.get("enabled") or {}).get("options") or {}})
     return out
 
 
@@ -198,6 +198,10 @@ def read_recording(bundle: Path, capture: dict[str, Any]) -> dict[str, Any]:
         raise DecodeError(f"{path}: the recording lost data (events lost {events_lost}, buffers lost {buffers_lost}, header {header.get('events_lost')} and {header.get('buffers_lost')}); a recording with loss is capture_failed, not a table")
     if capture["events_lost"] != 0:
         raise DecodeError(f"{path}: the manifest records events_lost {capture['events_lost']!r} for an observed capture, the record 0")
+    if capture["buffers_lost"] != buffers_lost:
+        raise DecodeError(f"{path}: the manifest records buffers_lost {capture['buffers_lost']!r} for an observed capture, the record {buffers_lost!r}")
+    if options.get("buffers_lost") != buffers_lost:
+        raise DecodeError(f"{path}: the manifest's enabled.options record buffers_lost {options.get('buffers_lost')!r} for an observed capture, the record {buffers_lost!r}")
     if record.get("stop_confirmed") is not True or record.get("in_progress_at_end") is not True or record.get("session_ended_early"):
         raise DecodeError(f"{path}: the recording did not run for the whole window or its stop was not confirmed")
     overflow = (record.get("presentmon") or {}).get("overflowed_presents")

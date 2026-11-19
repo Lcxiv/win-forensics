@@ -229,14 +229,27 @@ def test_loss_overflow_or_an_unconfirmed_window_in_the_record_is_decode_failed(b
         assert result["status"] == "decode_failed" and reason in result["reason"], (name, result)
         rows, meta = rows_and_meta(bundle)
         assert rows == [] and meta["status"] == "decode_failed" and meta["checks"][-1]["name"] == "capture_read"
-    # The manifest's own loss count is cross checked against the record.
+
+
+MANIFEST_LOSS_TAMPERS = {
+    "entry events_lost": (lambda c: c.__setitem__("events_lost", 1), "the manifest records events_lost 1"),
+    "entry buffers_lost": (lambda c: c.__setitem__("buffers_lost", 3), "the manifest records buffers_lost 3 for an observed capture, the record 0"),
+    "options buffers_lost": (lambda c: c["enabled"]["options"].__setitem__("buffers_lost", 3), "enabled.options record buffers_lost 3 for an observed capture, the record 0"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(MANIFEST_LOSS_TAMPERS))
+def test_a_manifest_loss_count_that_disagrees_with_the_record_is_decode_failed(bundle_copy, name):
+    tamper, reason = MANIFEST_LOSS_TAMPERS[name]
     bundle = bundle_copy(HAPPY)
     manifest_path = bundle / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["collectors"][0]["events_lost"] = 1
+    tamper(manifest["collectors"][0])
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     result = decode_presentmon.decode(bundle, decoded_at=DECODED_AT)
-    assert result["status"] == "decode_failed" and "the manifest records events_lost 1" in result["reason"]
+    assert result["status"] == "decode_failed" and reason in result["reason"], result
+    rows, meta = rows_and_meta(bundle)
+    assert rows == [] and meta["status"] == "decode_failed"
 
 
 def test_an_observed_capture_with_no_frame_row_is_refused(bundle_copy):
