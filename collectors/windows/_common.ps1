@@ -4940,8 +4940,10 @@ function Invoke-WfProcess {
     # the one session dpcisr-trace owns), the inbox tracerpt.exe (the summary
     # of that trace), a pinned xperf.exe (the dpcisr report of that trace),
     # the same wpr.exe for the one named recording presentmon-frames owns,
-    # and the pinned PresentMon console binary reading that recording
-    # offline (presentmon-frames.ps1). The scenario runner starts the
+    # the pinned PresentMon console binary reading that recording offline
+    # (presentmon-frames.ps1), and the same wpr.exe and tracerpt.exe (summary
+    # and XML dump) for the one session diskio-trace owns (diskio-trace.ps1).
+    # The scenario runner starts the
     # collectors themselves (Start-WfCollectorChild) and, after it stopped
     # presentmon-frames at its deadline, the same wpr.exe status and cancel
     # of that collector's named recording.

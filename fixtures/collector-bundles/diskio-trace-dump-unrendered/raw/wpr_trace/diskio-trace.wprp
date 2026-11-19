@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WindowsPerformanceRecorder Version="1.0" Author="win-forensics" Comments="diskio-trace 1.0.0: kernel disk I/O, file name, hard fault, process and thread events, to attribute disk activity to processes and directories on the PC. No file I/O events, no stacks.">
+  <Profiles>
+    <SystemCollector Id="WfDiskIoSystemCollector" Name="NT Kernel Logger">
+      <BufferSize Value="1024"/>
+      <Buffers Value="64"/>
+    </SystemCollector>
+    <SystemProvider Id="WfDiskIoSystemProvider">
+      <Keywords>
+        <Keyword Value="DiskIO"/>
+        <Keyword Value="Filename"/>
+        <Keyword Value="HardFaults"/>
+        <Keyword Value="ProcessThread"/>
+      </Keywords>
+    </SystemProvider>
+    <Profile Id="WfDiskIoTrace.Verbose.File" Name="WfDiskIoTrace" DetailLevel="Verbose" LoggingMode="File" Description="win-forensics diskio-trace: disk I/O, file names, hard faults, processes and threads, without stacks">
+      <Collectors>
+        <SystemCollectorId Value="WfDiskIoSystemCollector">
+          <SystemProviderId Value="WfDiskIoSystemProvider"/>
+        </SystemCollectorId>
+      </Collectors>
+    </Profile>
+    <Profile Id="WfDiskIoTrace.Verbose.Memory" Name="WfDiskIoTrace" DetailLevel="Verbose" LoggingMode="Memory" Description="win-forensics diskio-trace: disk I/O, file names, hard faults, processes and threads, without stacks">
+      <Collectors>
+        <SystemCollectorId Value="WfDiskIoSystemCollector">
+          <SystemProviderId Value="WfDiskIoSystemProvider"/>
+        </SystemCollectorId>
+      </Collectors>
+    </Profile>
+  </Profiles>
+</WindowsPerformanceRecorder>

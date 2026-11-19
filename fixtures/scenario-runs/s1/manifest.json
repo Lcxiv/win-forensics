@@ -1,11 +1,11 @@
 {
   "manifest_version": "1.2.0",
   "bundle_id": "20260301T120001Z_s1_ae3a76a9",
-  "created_utc": "2026-03-01T12:04:48.0000000Z",
+  "created_utc": "2026-03-01T12:06:01.0000000Z",
   "scenario": {
     "id": "s1",
     "version": "1.0.0",
-    "requested_duration_s": 300,
+    "requested_duration_s": 450,
     "target_process": null,
     "marks": [
       {
@@ -22,7 +22,7 @@
   },
   "capture": {
     "start_utc": "2026-03-01T12:00:01.0000000Z",
-    "stop_utc": "2026-03-01T12:04:48.0000000Z",
+    "stop_utc": "2026-03-01T12:06:01.0000000Z",
     "orchestrator": "wf-runner:s1",
     "orchestrator_version": "1.0.0",
     "elevated": true,
@@ -116,7 +116,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "3cab18cc6532b92bf87e35ea298c4b1d4f0c4598f60d968fd465ea5972e1e305"
+        "value": "b232d5809cb7f97cad8f939b856bebda0332591ac7ce7e1c2abcbf89aa326da7"
       },
       "filter_hash": null,
       "requested": {
@@ -125,10 +125,10 @@
         "stack_walk": [],
         "counters": [],
         "options": {
-          "duration_seconds": 300,
+          "duration_seconds": 450,
           "interval_seconds": 5,
-          "expected_pairs": 61,
-          "timeout_seconds": 360,
+          "expected_pairs": 91,
+          "timeout_seconds": 510,
           "max_artifact_bytes": 67108864,
           "edge_budget_milliseconds": 100
         }
@@ -139,15 +139,15 @@
         "stack_walk": [],
         "counters": [],
         "options": {
-          "pairs_taken": 61,
+          "pairs_taken": 91,
           "missing_pairs": 0,
           "stop_pair_taken": true,
-          "edge_pairs": 61,
+          "edge_pairs": 91,
           "largest_step_100ns": 10000,
           "qpc_frequency_hz": 10000000,
           "qpc_high_resolution": true,
           "session_start_qpc": 27345678911259,
-          "session_stop_qpc": 27348678921259,
+          "session_stop_qpc": 27350178926259,
           "failure": null,
           "time_adjustment": "not read: GetSystemTimeAdjustment is not reachable from Windows PowerShell 5.1 without compiling code; both members are null"
         },
@@ -160,32 +160,32 @@
         {
           "path": "raw/clock_calibration/result.json",
           "bytes": 477,
-          "sha256": "5d8a14b54c61727462a08a2ce701476965d4313cf710713aba7fd777d79afd1a",
+          "sha256": "9b91b536f6a6ef07bcac0ac11c6dba01fb0b5c7c7896711a0e9cd5bc7571346c",
           "role": "report"
         },
         {
           "path": "raw/clock_calibration/samples.jsonl",
-          "bytes": 16056,
-          "sha256": "69014b4ffc454121cbc12daae1bb2c18a28382ed06e4612e8ed2c078cfcc464b",
+          "bytes": 23961,
+          "sha256": "be51c32607f9d784a51ff24e89ca9f7517f5041df4ff1fba85499619fb1bfaaf",
           "role": "primary"
         },
         {
           "path": "raw/clock_calibration/session.json",
           "bytes": 2267,
-          "sha256": "3cab18cc6532b92bf87e35ea298c4b1d4f0c4598f60d968fd465ea5972e1e305",
+          "sha256": "b232d5809cb7f97cad8f939b856bebda0332591ac7ce7e1c2abcbf89aa326da7",
           "role": "config"
         }
       ],
       "raw_time_range": {
         "start": "2026-03-01T12:00:05.0010000Z",
-        "end": "2026-03-01T12:05:05.0170000Z",
+        "end": "2026-03-01T12:07:35.0250000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
-        "declared": "61 pairs: a start pair, one every 5 s strictly inside the 300 s session (59 slots) and a stop pair, all read through the high resolution performance counter (timestamps.md section 3, clock calibration exception)",
+        "declared": "91 pairs: a start pair, one every 5 s strictly inside the 450 s session (89 slots) and a stop pair, all read through the high resolution performance counter (timestamps.md section 3, clock calibration exception)",
         "met": true,
-        "detail": "61 of 61 pairs taken, 0 missing, stop pair taken: True, 61 at a clock edge; Stopwatch.IsHighResolution True"
+        "detail": "91 of 91 pairs taken, 0 missing, stop pair taken: True, 91 at a clock edge; Stopwatch.IsHighResolution True"
       },
       "target_process": null
     },
@@ -270,7 +270,7 @@
       ],
       "raw_time_range": {
         "start": "2026-03-01T12:00:05.0010000Z",
-        "end": "2026-03-01T12:05:05.0170000Z",
+        "end": "2026-03-01T12:07:35.0250000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -1085,6 +1085,304 @@
       "target_process": null
     },
     {
+      "id": "diskio_wpr_trace",
+      "kind": "wpr",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:02:52.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\wpr.exe"
+          },
+          {
+            "name": "tracerpt_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\tracerpt.exe"
+          },
+          {
+            "name": "account_elevated",
+            "ok": true,
+            "detail": "controlling an NT Kernel Logger session needs an elevated account (see the collector header for the citation)"
+          },
+          {
+            "name": "concurrent_kernel_session",
+            "ok": true,
+            "detail": "not checked: Microsoft documents no read only command that lists the kernel trace sessions in progress; this collector is run alone, and a start that collides with another NT Kernel Logger session is refused by WPR and reported"
+          },
+          {
+            "name": "no_recording_in_progress",
+            "ok": true,
+            "detail": "wpr -status (default instance) reads as idle: WPR is not recording"
+          },
+          {
+            "name": "profile_enumerated",
+            "ok": true,
+            "detail": "wpr -profiles enumerated the profile file and exited 0"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\wpr.exe",
+        "-start",
+        "<bundle>/raw/wpr_trace/diskio-trace.wprp!WfDiskIoTrace.Verbose",
+        "-filemode",
+        "-recordtempto",
+        "<bundle>/private/temp",
+        "-instancename",
+        "WfDiskIoTrace-20260301T120251Z"
+      ],
+      "started_utc": "2026-03-01T12:02:51.0000000Z",
+      "stopped_utc": "2026-03-01T12:03:54.0000000Z",
+      "exit_code": 0,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "945fbbc8ac4b80c1b62edd29698747df725dfe76ab345b4caeacedfe11bb9b12"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [
+          "NT Kernel Logger"
+        ],
+        "keywords": [
+          "DiskIO",
+          "Filename",
+          "HardFaults",
+          "ProcessThread"
+        ],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "profile_name": "WfDiskIoTrace",
+          "profile_id": "WfDiskIoTrace.Verbose.File",
+          "logging_mode": "file",
+          "instance_name": "WfDiskIoTrace-20260301T120251Z",
+          "buffer_size_kb": 1024,
+          "buffer_count": 64,
+          "duration_seconds": 60,
+          "max_trace_bytes": 2147483648,
+          "events_lost_bound": 0,
+          "buffers_lost_bound": 0,
+          "record_temp_to": "<bundle>/private/temp",
+          "trace_path": "<bundle>/private/trace.etl",
+          "trace_kept_in_bundle": false,
+          "stop_arguments": [
+            "-stop",
+            "<bundle>/private/trace.etl",
+            "win-forensics diskio-trace 20260301T120251Z",
+            "-skipPdbGen",
+            "-instancename",
+            "WfDiskIoTrace-20260301T120251Z"
+          ],
+          "tool_timeout_seconds": 120,
+          "short_timeout_seconds": 30,
+          "worst_case_seconds": 690,
+          "concurrent_kernel_session_check": "not_checked",
+          "run_alone": "until the PC verification of two WPR instances with system collectors recording at once has passed (README verification list), this collector is run alone and never next to dpcisr-trace"
+        }
+      },
+      "enabled": {
+        "providers": [
+          "NT Kernel Logger"
+        ],
+        "keywords": [
+          "DiskIO",
+          "Filename",
+          "HardFaults",
+          "ProcessThread"
+        ],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "instance_name": "WfDiskIoTrace-20260301T120251Z",
+          "dropped_events_after_start": 0,
+          "events_lost_after_start": 0,
+          "buffers_lost_listed_after_start": false,
+          "logging_mode": "File",
+          "final_events_lost": 0,
+          "final_buffers_lost": 0,
+          "final_events_processed": 31,
+          "clock_type": "qpc",
+          "perf_freq_hz": 10000000,
+          "header_events_lost": 0,
+          "header_buffers_lost": 0,
+          "session_started_utc": "2026-03-01T12:02:53.0000000Z",
+          "session_stop_issued_utc": "2026-03-01T12:03:53.0000000Z",
+          "recording_seconds": 60,
+          "trace_bytes": 4096,
+          "trace_sha256": "a3dbc203662e0f92d378b33fdf515bbcde249a57a0e865b330c418b79ef9ed40",
+          "trace_kept_in_bundle": false,
+          "temp_bytes_seen": 4096,
+          "stopped_early_at_cap": false,
+          "concurrent_kernel_session_check": "not_checked",
+          "session_state_after_stop": "idle",
+          "session_state_final": "idle",
+          "session_confirmed_stopped": true
+        },
+        "verified_by": "keywords and buffer size from \"wpr -status profiles collectors -details -instancename <name>\" right after the start (status.txt); clock, PerfFreq, start, end and the header loss counters from the saved trace's log file header (session.json header); final events lost and buffers lost from the summary of \"tracerpt <trace> -o <private dump> -of XML -summary <file> -y\" after the stop (tracerpt-summary.txt); the session end from \"wpr -status -instancename <name>\""
+      },
+      "events_lost": 0,
+      "buffers_lost": 0,
+      "buffers": {
+        "size_kb": 1024,
+        "count": 64,
+        "mode": "file"
+      },
+      "artifacts": [
+        {
+          "path": "raw/diskio_wpr_trace/diskio-trace.wprp",
+          "bytes": 1630,
+          "sha256": "945fbbc8ac4b80c1b62edd29698747df725dfe76ab345b4caeacedfe11bb9b12",
+          "role": "config"
+        },
+        {
+          "path": "raw/diskio_wpr_trace/session.json",
+          "bytes": 6501,
+          "sha256": "14fd8617240bb6125cdca5e644a10317eac11c42a38e27d60b0d86a066a7a288",
+          "role": "report"
+        },
+        {
+          "path": "raw/diskio_wpr_trace/status.txt",
+          "bytes": 451,
+          "sha256": "7ba20bf3cb7e76b586ed94d318f51eccd0cce3653a35ad3c7dee45858ab73ad2",
+          "role": "report"
+        },
+        {
+          "path": "raw/diskio_wpr_trace/tracerpt-summary.txt",
+          "bytes": 270,
+          "sha256": "c5d940774cf20f66463a52392d63f3c53c20da94f8e6d0f20876662fcabe2fd3",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:02:56.0000000Z",
+        "end": "2026-03-01T12:03:17.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "wpr starts the profile under the collector's own instance name, lists the kernel collector with DiskIO, Filename, HardFaults and ProcessThread and a readable loss figure, records for the requested duration, saves a non empty trace within the cap whose header names the performance counter clock, an end time and no loss, reads as idle after the stop, and the one tracerpt call that writes the dump into the private folder and the summary reports zero events lost and zero buffers lost",
+        "met": true,
+        "detail": "final events lost 0; final buffers lost 0; trace 4096 bytes; clock qpc; recording 60 s of 60 requested; session idle"
+      },
+      "target_process": null
+    },
+    {
+      "id": "diskio_diskio_aggregate",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:03:56.0000000Z",
+        "checks": [
+          {
+            "name": "trace_observed",
+            "ok": true,
+            "detail": "the wpr_trace source is observed: zero events and buffers lost, the session confirmed stopped, a performance counter clock"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\tracerpt.exe",
+        "<bundle>/private/trace.etl",
+        "-o",
+        "<bundle>/private/dump.xml",
+        "-of",
+        "XML",
+        "-summary",
+        "<bundle>/raw/wpr_trace/tracerpt-summary.txt",
+        "-y"
+      ],
+      "started_utc": "2026-03-01T12:03:55.0000000Z",
+      "stopped_utc": "2026-03-01T12:03:57.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "5d1730ca867f589afe863d22e2bb9c66c13c22384e6424306e503babff3aa928"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "max_dump_bytes": 4294967296,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 120,
+          "bin_seconds": 1,
+          "readable_levels_below_root": 1,
+          "recording_kept": false
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "rows": 11,
+          "dump_events": 31,
+          "trace_events_processed": 31,
+          "disk_read_events": 7,
+          "disk_write_events": 5,
+          "hard_fault_events": 2,
+          "malformed_events": 0,
+          "unresolved_thread_operations": 1,
+          "unnamed_file_operations": 1,
+          "trace_sha256": "a3dbc203662e0f92d378b33fdf515bbcde249a57a0e865b330c418b79ef9ed40",
+          "dump_bytes": 29592,
+          "dump_sha256": "9b0f1d60a48c86320686915592d5e29c06fc88215006efdd6015ce2e040d8279",
+          "recording_and_dump_removed": true,
+          "clock_type": "qpc",
+          "perf_freq_hz": 10000000,
+          "trace_start_utc": "2026-03-01T12:02:56.0000000Z"
+        },
+        "verified_by": "the dump's event count against the tracerpt summary's events processed, every counted event read whole, and the removal of the trace and the dump checked on disk (result.json)"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/diskio_diskio_aggregate/aggregate.jsonl",
+          "bytes": 5074,
+          "sha256": "1301e4af9e9e38c269ba13950d86b8e47ca30c46ae2a15822e093ff83f98acb9",
+          "role": "primary"
+        },
+        {
+          "path": "raw/diskio_diskio_aggregate/command.json",
+          "bytes": 5811,
+          "sha256": "5d1730ca867f589afe863d22e2bb9c66c13c22384e6424306e503babff3aa928",
+          "role": "config"
+        },
+        {
+          "path": "raw/diskio_diskio_aggregate/result.json",
+          "bytes": 1569,
+          "sha256": "51f752e26b67b13145374e8fff35e6732eff3ef82dc0e8dd7fa45c14a3b74362",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:02:56.0000000Z",
+        "end": "2026-03-01T12:03:17.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the XML dump tracerpt made of the observed trace is there and within the cap, the dump holds exactly the events the summary says were processed, every disk, hard fault, file name, thread and process event reads whole, at least one disk request is recognised, the aggregate fits the cap, and the trace and the dump are deleted and seen gone (when they are not, both sources are capture_failed and the run is failed)",
+        "met": true,
+        "detail": "31 events in the dump, 7 reads, 5 writes, 2 hard faults, 0 malformed, 11 rows; trace and dump removed: True"
+      },
+      "target_process": null
+    },
+    {
       "id": "system_restart_events",
       "kind": "eventlog",
       "required": false,
@@ -1092,7 +1390,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:03:02.0000000Z",
+        "at_utc": "2026-03-01T12:04:15.0000000Z",
         "checks": [
           {
             "name": "channel_found",
@@ -1111,12 +1409,12 @@
         "System",
         "raw/system_restart_events/query.xml"
       ],
-      "started_utc": "2026-03-01T12:02:52.0000000Z",
-      "stopped_utc": "2026-03-01T12:03:04.0000000Z",
+      "started_utc": "2026-03-01T12:04:05.0000000Z",
+      "stopped_utc": "2026-03-01T12:04:17.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "6d7c134bb38ccd22f59aafec185891df8caf3e30da8e0d55720d44f474e91cf1"
+        "value": "90ae630c16808f2ebc444a52b997614630b2a23b65f9780115feeb373daf9ff2"
       },
       "filter_hash": null,
       "requested": {
@@ -1137,12 +1435,12 @@
             7045
           ],
           "window_days": 30,
-          "window_start_utc": "2026-01-30T12:02:53.0000000Z",
-          "window_end_utc": "2026-03-01T12:02:53.0000000Z",
+          "window_start_utc": "2026-01-30T12:04:06.0000000Z",
+          "window_end_utc": "2026-03-01T12:04:06.0000000Z",
           "max_events": 5000,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 300,
-          "query_sha256": "6d7c134bb38ccd22f59aafec185891df8caf3e30da8e0d55720d44f474e91cf1"
+          "query_sha256": "90ae630c16808f2ebc444a52b997614630b2a23b65f9780115feeb373daf9ff2"
         }
       },
       "enabled": {
@@ -1153,8 +1451,8 @@
         "options": {
           "channel": "System",
           "query_accepted": true,
-          "window_start_utc": "2026-01-30T12:02:53.0000000Z",
-          "window_end_utc": "2026-03-01T12:02:53.0000000Z",
+          "window_start_utc": "2026-01-30T12:04:06.0000000Z",
+          "window_end_utc": "2026-03-01T12:04:06.0000000Z",
           "records_read": 4,
           "records_exported": 4,
           "truncated": false,
@@ -1173,32 +1471,32 @@
         {
           "path": "raw/system_restart_events/channel_state.json",
           "bytes": 776,
-          "sha256": "6fece5528c7e03c2950fc92f759f9176a05ce5636e27f1e54d8b314dc1cc3ad3",
+          "sha256": "837227d094864011f17c1c98f4ac33f3ebf9b9f51dac7128b2691be6bd0d8745",
           "role": "report"
         },
         {
           "path": "raw/system_restart_events/events.json",
           "bytes": 4808,
-          "sha256": "ca46622e340cfb659b342cb1f19a5fee30883ce7b8fc245799265d54ecb391a1",
+          "sha256": "1a16352aebbe591f2b5e4fb3d19d363970999ce1958c3c4f37ae58e039d0ba1c",
           "role": "primary"
         },
         {
           "path": "raw/system_restart_events/query.xml",
           "bytes": 347,
-          "sha256": "6d7c134bb38ccd22f59aafec185891df8caf3e30da8e0d55720d44f474e91cf1",
+          "sha256": "90ae630c16808f2ebc444a52b997614630b2a23b65f9780115feeb373daf9ff2",
           "role": "config"
         }
       ],
       "raw_time_range": {
-        "start": "2026-01-30T12:02:53.0000000Z",
-        "end": "2026-03-01T12:02:53.0000000Z",
+        "start": "2026-01-30T12:04:06.0000000Z",
+        "end": "2026-03-01T12:04:06.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
         "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
         "met": true,
-        "detail": "4 records read; requested window 2026-01-30T12:02:53.0000000Z to 2026-03-01T12:02:53.0000000Z; covered range starts 2026-01-30T12:02:53.0000000Z"
+        "detail": "4 records read; requested window 2026-01-30T12:04:06.0000000Z to 2026-03-01T12:04:06.0000000Z; covered range starts 2026-01-30T12:04:06.0000000Z"
       },
       "target_process": null
     },
@@ -1210,7 +1508,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:03:17.0000000Z",
+        "at_utc": "2026-03-01T12:04:30.0000000Z",
         "checks": [
           {
             "name": "channel_found",
@@ -1229,12 +1527,12 @@
         "System",
         "raw/system_whea_events/query.xml"
       ],
-      "started_utc": "2026-03-01T12:03:11.0000000Z",
-      "stopped_utc": "2026-03-01T12:03:19.0000000Z",
+      "started_utc": "2026-03-01T12:04:24.0000000Z",
+      "stopped_utc": "2026-03-01T12:04:32.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "c12e238fc924063c75791fa02707e2aea9d8c3b24dad90648491ae003c77732d"
+        "value": "18adf23f138d8207d9703a9edb5dea6b06693c181989d88d0ea7acae0a264bb3"
       },
       "filter_hash": null,
       "requested": {
@@ -1248,12 +1546,12 @@
           "channel": "System",
           "event_ids": [],
           "window_days": 30,
-          "window_start_utc": "2026-01-30T12:03:12.0000000Z",
-          "window_end_utc": "2026-03-01T12:03:12.0000000Z",
+          "window_start_utc": "2026-01-30T12:04:25.0000000Z",
+          "window_end_utc": "2026-03-01T12:04:25.0000000Z",
           "max_events": 5000,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 300,
-          "query_sha256": "c12e238fc924063c75791fa02707e2aea9d8c3b24dad90648491ae003c77732d"
+          "query_sha256": "18adf23f138d8207d9703a9edb5dea6b06693c181989d88d0ea7acae0a264bb3"
         }
       },
       "enabled": {
@@ -1266,8 +1564,8 @@
         "options": {
           "channel": "System",
           "query_accepted": true,
-          "window_start_utc": "2026-01-30T12:03:12.0000000Z",
-          "window_end_utc": "2026-03-01T12:03:12.0000000Z",
+          "window_start_utc": "2026-01-30T12:04:25.0000000Z",
+          "window_end_utc": "2026-03-01T12:04:25.0000000Z",
           "records_read": 0,
           "records_exported": 0,
           "truncated": false,
@@ -1286,7 +1584,7 @@
         {
           "path": "raw/system_whea_events/channel_state.json",
           "bytes": 821,
-          "sha256": "bc6ffd9010afa4462b1466389f4cc788be7c733dfa62876cf02bcf8077a92d49",
+          "sha256": "4d8570426104cbc0906a8902376e66e2dd37e4d3b9406360cf76044c62fa55b5",
           "role": "report"
         },
         {
@@ -1298,20 +1596,20 @@
         {
           "path": "raw/system_whea_events/query.xml",
           "bytes": 272,
-          "sha256": "c12e238fc924063c75791fa02707e2aea9d8c3b24dad90648491ae003c77732d",
+          "sha256": "18adf23f138d8207d9703a9edb5dea6b06693c181989d88d0ea7acae0a264bb3",
           "role": "config"
         }
       ],
       "raw_time_range": {
-        "start": "2026-01-30T12:03:12.0000000Z",
-        "end": "2026-03-01T12:03:12.0000000Z",
+        "start": "2026-01-30T12:04:25.0000000Z",
+        "end": "2026-03-01T12:04:25.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
         "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
         "met": true,
-        "detail": "0 records read; requested window 2026-01-30T12:03:12.0000000Z to 2026-03-01T12:03:12.0000000Z; covered range starts 2026-01-30T12:03:12.0000000Z"
+        "detail": "0 records read; requested window 2026-01-30T12:04:25.0000000Z to 2026-03-01T12:04:25.0000000Z; covered range starts 2026-01-30T12:04:25.0000000Z"
       },
       "target_process": null
     },
@@ -1323,7 +1621,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:03:34.0000000Z",
+        "at_utc": "2026-03-01T12:04:47.0000000Z",
         "checks": [
           {
             "name": "channel_found",
@@ -1342,12 +1640,12 @@
         "Application",
         "raw/application_error_events/query.xml"
       ],
-      "started_utc": "2026-03-01T12:03:26.0000000Z",
-      "stopped_utc": "2026-03-01T12:03:36.0000000Z",
+      "started_utc": "2026-03-01T12:04:39.0000000Z",
+      "stopped_utc": "2026-03-01T12:04:49.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "3861b6c55a46c04cfaaf040866464618c957a68413d09e60665a1466b64bcd6e"
+        "value": "8b3cac5b5450b04c606719bac46efb5c6789c4c382904e76d2546ff984fecad1"
       },
       "filter_hash": null,
       "requested": {
@@ -1369,12 +1667,12 @@
             1026
           ],
           "window_days": 30,
-          "window_start_utc": "2026-01-30T12:03:27.0000000Z",
-          "window_end_utc": "2026-03-01T12:03:27.0000000Z",
+          "window_start_utc": "2026-01-30T12:04:40.0000000Z",
+          "window_end_utc": "2026-03-01T12:04:40.0000000Z",
           "max_events": 5000,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 300,
-          "query_sha256": "3861b6c55a46c04cfaaf040866464618c957a68413d09e60665a1466b64bcd6e"
+          "query_sha256": "8b3cac5b5450b04c606719bac46efb5c6789c4c382904e76d2546ff984fecad1"
         }
       },
       "enabled": {
@@ -1390,8 +1688,8 @@
         "options": {
           "channel": "Application",
           "query_accepted": true,
-          "window_start_utc": "2026-02-20T12:03:24.0000000Z",
-          "window_end_utc": "2026-03-01T12:03:27.0000000Z",
+          "window_start_utc": "2026-02-20T12:04:37.0000000Z",
+          "window_end_utc": "2026-03-01T12:04:40.0000000Z",
           "records_read": 2,
           "records_exported": 2,
           "truncated": false,
@@ -1410,32 +1708,32 @@
         {
           "path": "raw/application_error_events/channel_state.json",
           "bytes": 906,
-          "sha256": "8e701385750b86d198a67e6369cfda92cab0978bf3f11ed503f5140ae4a9d52a",
+          "sha256": "a6662d22730383be89d18b4a59369433ca3b00c8a97409b0cef928e0f555afc9",
           "role": "report"
         },
         {
           "path": "raw/application_error_events/events.json",
           "bytes": 3007,
-          "sha256": "b153e360aa497837aef8ca0adf8f8a8a7adf0e01ed041039f0e01624c5f1f834",
+          "sha256": "81ba7d5676c777d994bce6c67c8f52b6ab12481c61617ed466946cf3c27340e7",
           "role": "primary"
         },
         {
           "path": "raw/application_error_events/query.xml",
           "bytes": 940,
-          "sha256": "3861b6c55a46c04cfaaf040866464618c957a68413d09e60665a1466b64bcd6e",
+          "sha256": "8b3cac5b5450b04c606719bac46efb5c6789c4c382904e76d2546ff984fecad1",
           "role": "config"
         }
       ],
       "raw_time_range": {
-        "start": "2026-02-20T12:03:24.0000000Z",
-        "end": "2026-03-01T12:03:27.0000000Z",
+        "start": "2026-02-20T12:04:37.0000000Z",
+        "end": "2026-03-01T12:04:40.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
         "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
         "met": true,
-        "detail": "2 records read; requested window 2026-01-30T12:03:27.0000000Z to 2026-03-01T12:03:27.0000000Z; covered range starts 2026-02-20T12:03:24.0000000Z"
+        "detail": "2 records read; requested window 2026-01-30T12:04:40.0000000Z to 2026-03-01T12:04:40.0000000Z; covered range starts 2026-02-20T12:04:37.0000000Z"
       },
       "target_process": null
     },
@@ -1447,7 +1745,7 @@
       "status_reason": "zero matching records, but Microsoft does not document which provider logs this signal, so an empty result is not accepted as a quiet window until the verification step in collectors/windows/README.md has been done on this machine",
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:03:49.0000000Z",
+        "at_utc": "2026-03-01T12:05:02.0000000Z",
         "checks": [
           {
             "name": "channel_found",
@@ -1466,12 +1764,12 @@
         "System",
         "raw/system_display_events/query.xml"
       ],
-      "started_utc": "2026-03-01T12:03:43.0000000Z",
-      "stopped_utc": "2026-03-01T12:03:51.0000000Z",
+      "started_utc": "2026-03-01T12:04:56.0000000Z",
+      "stopped_utc": "2026-03-01T12:05:04.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "537e702d6a3753708be0dbc7294f0c477ccbffc316900335987e65d472851111"
+        "value": "8ec72bd869cd5d6ab221cd82d127a2636f7641513e66145cce82c8628947b7e7"
       },
       "filter_hash": null,
       "requested": {
@@ -1485,12 +1783,12 @@
           "channel": "System",
           "event_ids": [],
           "window_days": 30,
-          "window_start_utc": "2026-01-30T12:03:44.0000000Z",
-          "window_end_utc": "2026-03-01T12:03:44.0000000Z",
+          "window_start_utc": "2026-01-30T12:04:57.0000000Z",
+          "window_end_utc": "2026-03-01T12:04:57.0000000Z",
           "max_events": 5000,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 300,
-          "query_sha256": "537e702d6a3753708be0dbc7294f0c477ccbffc316900335987e65d472851111"
+          "query_sha256": "8ec72bd869cd5d6ab221cd82d127a2636f7641513e66145cce82c8628947b7e7"
         }
       },
       "enabled": {
@@ -1503,8 +1801,8 @@
         "options": {
           "channel": "System",
           "query_accepted": true,
-          "window_start_utc": "2026-01-30T12:03:44.0000000Z",
-          "window_end_utc": "2026-03-01T12:03:44.0000000Z",
+          "window_start_utc": "2026-01-30T12:04:57.0000000Z",
+          "window_end_utc": "2026-03-01T12:04:57.0000000Z",
           "records_read": 0,
           "records_exported": 0,
           "truncated": false,
@@ -1523,26 +1821,26 @@
         {
           "path": "raw/system_display_events/channel_state.json",
           "bytes": 799,
-          "sha256": "8606ea3e89c039fca923fc212f964ff67e41acf27244d7c810f1a8aa2a5d332b",
+          "sha256": "e73830b59352e5933b7855e97338af38d204b1e3b0d3180d0e97bcbafe52740f",
           "role": "report"
         },
         {
           "path": "raw/system_display_events/query.xml",
           "bytes": 250,
-          "sha256": "537e702d6a3753708be0dbc7294f0c477ccbffc316900335987e65d472851111",
+          "sha256": "8ec72bd869cd5d6ab221cd82d127a2636f7641513e66145cce82c8628947b7e7",
           "role": "config"
         }
       ],
       "raw_time_range": {
-        "start": "2026-01-30T12:03:44.0000000Z",
-        "end": "2026-03-01T12:03:44.0000000Z",
+        "start": "2026-01-30T12:04:57.0000000Z",
+        "end": "2026-03-01T12:04:57.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
         "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
         "met": false,
-        "detail": "0 records read; requested window 2026-01-30T12:03:44.0000000Z to 2026-03-01T12:03:44.0000000Z; covered range starts 2026-01-30T12:03:44.0000000Z"
+        "detail": "0 records read; requested window 2026-01-30T12:04:57.0000000Z to 2026-03-01T12:04:57.0000000Z; covered range starts 2026-01-30T12:04:57.0000000Z"
       },
       "target_process": null
     },
@@ -1554,7 +1852,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:03:58.0000000Z",
+        "at_utc": "2026-03-01T12:05:11.0000000Z",
         "checks": [
           {
             "name": "channel_found",
@@ -1573,12 +1871,12 @@
         "System",
         "raw/system_bugcheck_events/query.xml"
       ],
-      "started_utc": "2026-03-01T12:03:52.0000000Z",
-      "stopped_utc": "2026-03-01T12:04:00.0000000Z",
+      "started_utc": "2026-03-01T12:05:05.0000000Z",
+      "stopped_utc": "2026-03-01T12:05:13.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "17859e330b6e7e3d4fffa4bfa1a5cb3bcfe1f5ca22c195138f11adb2bb93ef5a"
+        "value": "a202456d76f1964c3bde38660bfae09f89c2e222595b5fd3812712877c128c9f"
       },
       "filter_hash": null,
       "requested": {
@@ -1593,12 +1891,12 @@
             1001
           ],
           "window_days": 30,
-          "window_start_utc": "2026-01-30T12:03:53.0000000Z",
-          "window_end_utc": "2026-03-01T12:03:53.0000000Z",
+          "window_start_utc": "2026-01-30T12:05:06.0000000Z",
+          "window_end_utc": "2026-03-01T12:05:06.0000000Z",
           "max_events": 5000,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 300,
-          "query_sha256": "17859e330b6e7e3d4fffa4bfa1a5cb3bcfe1f5ca22c195138f11adb2bb93ef5a"
+          "query_sha256": "a202456d76f1964c3bde38660bfae09f89c2e222595b5fd3812712877c128c9f"
         }
       },
       "enabled": {
@@ -1609,8 +1907,8 @@
         "options": {
           "channel": "System",
           "query_accepted": true,
-          "window_start_utc": "2026-01-30T12:03:53.0000000Z",
-          "window_end_utc": "2026-03-01T12:03:53.0000000Z",
+          "window_start_utc": "2026-01-30T12:05:06.0000000Z",
+          "window_end_utc": "2026-03-01T12:05:06.0000000Z",
           "records_read": 0,
           "records_exported": 0,
           "truncated": false,
@@ -1629,7 +1927,7 @@
         {
           "path": "raw/system_bugcheck_events/channel_state.json",
           "bytes": 776,
-          "sha256": "cd442df145e7a0599cbfa112a18f3b447e478f503b7a3b9015796981deb63c39",
+          "sha256": "1665cd0017c42c2da00db619e26ed064084b52c4442f9380a3fce03a108bd009",
           "role": "report"
         },
         {
@@ -1641,20 +1939,20 @@
         {
           "path": "raw/system_bugcheck_events/query.xml",
           "bytes": 253,
-          "sha256": "17859e330b6e7e3d4fffa4bfa1a5cb3bcfe1f5ca22c195138f11adb2bb93ef5a",
+          "sha256": "a202456d76f1964c3bde38660bfae09f89c2e222595b5fd3812712877c128c9f",
           "role": "config"
         }
       ],
       "raw_time_range": {
-        "start": "2026-01-30T12:03:53.0000000Z",
-        "end": "2026-03-01T12:03:53.0000000Z",
+        "start": "2026-01-30T12:05:06.0000000Z",
+        "end": "2026-03-01T12:05:06.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
         "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
         "met": true,
-        "detail": "0 records read; requested window 2026-01-30T12:03:53.0000000Z to 2026-03-01T12:03:53.0000000Z; covered range starts 2026-01-30T12:03:53.0000000Z"
+        "detail": "0 records read; requested window 2026-01-30T12:05:06.0000000Z to 2026-03-01T12:05:06.0000000Z; covered range starts 2026-01-30T12:05:06.0000000Z"
       },
       "target_process": null
     },
@@ -1666,7 +1964,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:04:12.0000000Z",
+        "at_utc": "2026-03-01T12:05:25.0000000Z",
         "checks": [
           {
             "name": "class_readable",
@@ -1686,14 +1984,14 @@
         "-OperationTimeoutSec",
         "300",
         "-Filter",
-        "TimeGenerated >= '20260130120408.000000+000' AND TimeGenerated <= '20260301120408.000000+000'"
+        "TimeGenerated >= '20260130120521.000000+000' AND TimeGenerated <= '20260301120521.000000+000'"
       ],
-      "started_utc": "2026-03-01T12:04:07.0000000Z",
-      "stopped_utc": "2026-03-01T12:04:15.0000000Z",
+      "started_utc": "2026-03-01T12:05:20.0000000Z",
+      "stopped_utc": "2026-03-01T12:05:28.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "56db541f8108ccb2bd0e29aacde13b8bb1c6fa29d508333f9db3007c8d65f4cc"
+        "value": "c038c9b1f5d8725777bf7d5c77ee0ec278e294bf72fe0d475abcab771c106d8f"
       },
       "filter_hash": null,
       "requested": {
@@ -1716,12 +2014,12 @@
             "TimeGenerated",
             "User"
           ],
-          "filter": "TimeGenerated >= '20260130120408.000000+000' AND TimeGenerated <= '20260301120408.000000+000'",
+          "filter": "TimeGenerated >= '20260130120521.000000+000' AND TimeGenerated <= '20260301120521.000000+000'",
           "time_property": "TimeGenerated",
           "window_days": 30,
-          "window_start_utc": "2026-01-30T12:04:08.0000000Z",
-          "window_end_utc": "2026-03-01T12:04:08.0000000Z",
-          "coverage_probe_filter": "TimeGenerated < '20260130120408.000000+000'",
+          "window_start_utc": "2026-01-30T12:05:21.0000000Z",
+          "window_end_utc": "2026-03-01T12:05:21.0000000Z",
+          "coverage_probe_filter": "TimeGenerated < '20260130120521.000000+000'",
           "max_records": 5000,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 300
@@ -1747,11 +2045,11 @@
             "TimeGenerated",
             "User"
           ],
-          "filter": "TimeGenerated >= '20260130120408.000000+000' AND TimeGenerated <= '20260301120408.000000+000'",
+          "filter": "TimeGenerated >= '20260130120521.000000+000' AND TimeGenerated <= '20260301120521.000000+000'",
           "time_property": "TimeGenerated",
           "window_days": 30,
-          "window_start_utc": "2026-01-30T12:04:08.0000000Z",
-          "window_end_utc": "2026-03-01T12:04:08.0000000Z",
+          "window_start_utc": "2026-01-30T12:05:21.0000000Z",
+          "window_end_utc": "2026-03-01T12:05:21.0000000Z",
           "records_read": 2,
           "records_exported": 2,
           "truncated": false,
@@ -1766,26 +2064,26 @@
         {
           "path": "raw/reliability_records/query.json",
           "bytes": 709,
-          "sha256": "56db541f8108ccb2bd0e29aacde13b8bb1c6fa29d508333f9db3007c8d65f4cc",
+          "sha256": "c038c9b1f5d8725777bf7d5c77ee0ec278e294bf72fe0d475abcab771c106d8f",
           "role": "config"
         },
         {
           "path": "raw/reliability_records/records.json",
           "bytes": 719,
-          "sha256": "3b2af3bb6b30dfb5f3dce27136f31a08c57293bb72ddab5f3f0d4ed2c12812b4",
+          "sha256": "86e9859b38e258a9a5fc80ab44223c04177839e60654a7638de2086828345465",
           "role": "primary"
         }
       ],
       "raw_time_range": {
-        "start": "2026-01-30T12:04:08.0000000Z",
-        "end": "2026-03-01T12:04:08.0000000Z",
+        "start": "2026-01-30T12:05:21.0000000Z",
+        "end": "2026-03-01T12:05:21.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
         "declared": "every instance inside the window is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when a record at or before the window start proves the range was covered",
         "met": true,
-        "detail": "2 instances inside the window; coverage probe found 1 record at or before the window start; covered range starts 2026-01-30T12:04:08.0000000Z"
+        "detail": "2 instances inside the window; coverage probe found 1 record at or before the window start; covered range starts 2026-01-30T12:05:21.0000000Z"
       },
       "target_process": null
     },
@@ -1797,7 +2095,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:04:21.0000000Z",
+        "at_utc": "2026-03-01T12:05:34.0000000Z",
         "checks": [
           {
             "name": "class_readable",
@@ -1817,14 +2115,14 @@
         "-OperationTimeoutSec",
         "300",
         "-Filter",
-        "TimeGenerated >= '20260130120417.000000+000' AND TimeGenerated <= '20260301120417.000000+000'"
+        "TimeGenerated >= '20260130120530.000000+000' AND TimeGenerated <= '20260301120530.000000+000'"
       ],
-      "started_utc": "2026-03-01T12:04:16.0000000Z",
-      "stopped_utc": "2026-03-01T12:04:24.0000000Z",
+      "started_utc": "2026-03-01T12:05:29.0000000Z",
+      "stopped_utc": "2026-03-01T12:05:37.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "aeee02f25ab34974c1bac222d5ea26fd41526bcbfe04adf0339e0b8a1f87c167"
+        "value": "1522d4b7107582916ed3d3f6dc41182984a400b2b8603580420b95a9ea081a32"
       },
       "filter_hash": null,
       "requested": {
@@ -1842,12 +2140,12 @@
             "SystemStabilityIndex",
             "TimeGenerated"
           ],
-          "filter": "TimeGenerated >= '20260130120417.000000+000' AND TimeGenerated <= '20260301120417.000000+000'",
+          "filter": "TimeGenerated >= '20260130120530.000000+000' AND TimeGenerated <= '20260301120530.000000+000'",
           "time_property": "TimeGenerated",
           "window_days": 30,
-          "window_start_utc": "2026-01-30T12:04:17.0000000Z",
-          "window_end_utc": "2026-03-01T12:04:17.0000000Z",
-          "coverage_probe_filter": "TimeGenerated < '20260130120417.000000+000'",
+          "window_start_utc": "2026-01-30T12:05:30.0000000Z",
+          "window_end_utc": "2026-03-01T12:05:30.0000000Z",
+          "coverage_probe_filter": "TimeGenerated < '20260130120530.000000+000'",
           "max_records": 5000,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 300
@@ -1868,11 +2166,11 @@
             "SystemStabilityIndex",
             "TimeGenerated"
           ],
-          "filter": "TimeGenerated >= '20260130120417.000000+000' AND TimeGenerated <= '20260301120417.000000+000'",
+          "filter": "TimeGenerated >= '20260130120530.000000+000' AND TimeGenerated <= '20260301120530.000000+000'",
           "time_property": "TimeGenerated",
           "window_days": 30,
-          "window_start_utc": "2026-01-30T12:04:17.0000000Z",
-          "window_end_utc": "2026-03-01T12:04:17.0000000Z",
+          "window_start_utc": "2026-01-30T12:05:30.0000000Z",
+          "window_end_utc": "2026-03-01T12:05:30.0000000Z",
           "records_read": 2,
           "records_exported": 2,
           "truncated": false,
@@ -1887,26 +2185,26 @@
         {
           "path": "raw/reliability_stability_metrics/query.json",
           "bytes": 647,
-          "sha256": "aeee02f25ab34974c1bac222d5ea26fd41526bcbfe04adf0339e0b8a1f87c167",
+          "sha256": "1522d4b7107582916ed3d3f6dc41182984a400b2b8603580420b95a9ea081a32",
           "role": "config"
         },
         {
           "path": "raw/reliability_stability_metrics/records.json",
           "bytes": 463,
-          "sha256": "941e0bf38a03ddf0878614341110a1407bf76e9f9efb2a9b256a76fd1f3d39fe",
+          "sha256": "f44cf25c8dd865e1f3e45812196b72a3d8a434a97a2beeab49fbde0ba5c2737e",
           "role": "primary"
         }
       ],
       "raw_time_range": {
-        "start": "2026-01-30T12:04:17.0000000Z",
-        "end": "2026-03-01T12:04:17.0000000Z",
+        "start": "2026-01-30T12:05:30.0000000Z",
+        "end": "2026-03-01T12:05:30.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
         "declared": "every instance inside the window is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when a record at or before the window start proves the range was covered",
         "met": true,
-        "detail": "2 instances inside the window; coverage probe found 1 record at or before the window start; covered range starts 2026-01-30T12:04:17.0000000Z"
+        "detail": "2 instances inside the window; coverage probe found 1 record at or before the window start; covered range starts 2026-01-30T12:05:30.0000000Z"
       },
       "target_process": null
     },
@@ -1918,7 +2216,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:04:37.0000000Z",
+        "at_utc": "2026-03-01T12:05:50.0000000Z",
         "checks": [
           {
             "name": "class_readable",
@@ -1938,8 +2236,8 @@
         "-OperationTimeoutSec",
         "300"
       ],
-      "started_utc": "2026-03-01T12:04:31.0000000Z",
-      "stopped_utc": "2026-03-01T12:04:38.0000000Z",
+      "started_utc": "2026-03-01T12:05:44.0000000Z",
+      "stopped_utc": "2026-03-01T12:05:51.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -2047,8 +2345,8 @@
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:04:37.0000000Z",
-        "end": "2026-03-01T12:04:37.0000000Z",
+        "start": "2026-03-01T12:05:50.0000000Z",
+        "end": "2026-03-01T12:05:50.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -2067,7 +2365,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:04:44.0000000Z",
+        "at_utc": "2026-03-01T12:05:57.0000000Z",
         "checks": [
           {
             "name": "class_readable",
@@ -2087,8 +2385,8 @@
         "-OperationTimeoutSec",
         "300"
       ],
-      "started_utc": "2026-03-01T12:04:39.0000000Z",
-      "stopped_utc": "2026-03-01T12:04:45.0000000Z",
+      "started_utc": "2026-03-01T12:05:52.0000000Z",
+      "stopped_utc": "2026-03-01T12:05:58.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -2182,8 +2480,8 @@
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:04:44.0000000Z",
-        "end": "2026-03-01T12:04:44.0000000Z",
+        "start": "2026-03-01T12:05:57.0000000Z",
+        "end": "2026-03-01T12:05:57.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -2199,7 +2497,7 @@
     "status": "observed",
     "method": "one thread reads Stopwatch.GetTimestamp (QueryPerformanceCounter), [DateTime]::UtcNow.ToFileTimeUtc() (the system time at the resolution of the system timer), Stopwatch.GetTimestamp, at the session start, every 5 s strictly inside the session, and at the stop. Each pair is taken at the instant the system clock changes value: the clock is read in a loop until it changes, and the counter read before the last unchanged reading and the one after the changed reading bracket the moment the clock took its new value; the size of that change (the clock increment) is recorded with the pair. The frequency is Stopwatch.Frequency (QueryPerformanceFrequency). GetSystemTimePreciseAsFileTime and GetSystemTimeAdjustment are not called: neither is reachable from Windows PowerShell 5.1 without compiling code, so both members of time_adjustment are null. See docs/clock-calibration.md.",
     "qpc_frequency_hz": 10000000,
-    "expected_pairs": 61,
+    "expected_pairs": 91,
     "pairs": [
       {
         "seq": 0,
@@ -2623,10 +2921,220 @@
       },
       {
         "seq": 60,
-        "phase": "stop",
+        "phase": "interval",
         "qpc_before": 27348678921134,
         "qpc_after": 27348678921384,
         "filetime_utc_100ns": 134168403050170000
+      },
+      {
+        "seq": 61,
+        "phase": "interval",
+        "qpc_before": 27348728918534,
+        "qpc_after": 27348728918784,
+        "filetime_utc_100ns": 134168403100170000
+      },
+      {
+        "seq": 62,
+        "phase": "interval",
+        "qpc_before": 27348778926084,
+        "qpc_after": 27348778926334,
+        "filetime_utc_100ns": 134168403150180000
+      },
+      {
+        "seq": 63,
+        "phase": "interval",
+        "qpc_before": 27348828923634,
+        "qpc_after": 27348828923884,
+        "filetime_utc_100ns": 134168403200180000
+      },
+      {
+        "seq": 64,
+        "phase": "interval",
+        "qpc_before": 27348878921034,
+        "qpc_after": 27348878921284,
+        "filetime_utc_100ns": 134168403250180000
+      },
+      {
+        "seq": 65,
+        "phase": "interval",
+        "qpc_before": 27348928918584,
+        "qpc_after": 27348928918834,
+        "filetime_utc_100ns": 134168403300180000
+      },
+      {
+        "seq": 66,
+        "phase": "interval",
+        "qpc_before": 27348978926134,
+        "qpc_after": 27348978926384,
+        "filetime_utc_100ns": 134168403350190000
+      },
+      {
+        "seq": 67,
+        "phase": "interval",
+        "qpc_before": 27349028923534,
+        "qpc_after": 27349028923784,
+        "filetime_utc_100ns": 134168403400190000
+      },
+      {
+        "seq": 68,
+        "phase": "interval",
+        "qpc_before": 27349078921084,
+        "qpc_after": 27349078921334,
+        "filetime_utc_100ns": 134168403450190000
+      },
+      {
+        "seq": 69,
+        "phase": "interval",
+        "qpc_before": 27349128918634,
+        "qpc_after": 27349128918884,
+        "filetime_utc_100ns": 134168403500190000
+      },
+      {
+        "seq": 70,
+        "phase": "interval",
+        "qpc_before": 27349178926034,
+        "qpc_after": 27349178926284,
+        "filetime_utc_100ns": 134168403550200000
+      },
+      {
+        "seq": 71,
+        "phase": "interval",
+        "qpc_before": 27349228923584,
+        "qpc_after": 27349228923834,
+        "filetime_utc_100ns": 134168403600200000
+      },
+      {
+        "seq": 72,
+        "phase": "interval",
+        "qpc_before": 27349278921134,
+        "qpc_after": 27349278921384,
+        "filetime_utc_100ns": 134168403650200000
+      },
+      {
+        "seq": 73,
+        "phase": "interval",
+        "qpc_before": 27349328918534,
+        "qpc_after": 27349328918784,
+        "filetime_utc_100ns": 134168403700200000
+      },
+      {
+        "seq": 74,
+        "phase": "interval",
+        "qpc_before": 27349378926084,
+        "qpc_after": 27349378926334,
+        "filetime_utc_100ns": 134168403750210000
+      },
+      {
+        "seq": 75,
+        "phase": "interval",
+        "qpc_before": 27349428923634,
+        "qpc_after": 27349428923884,
+        "filetime_utc_100ns": 134168403800210000
+      },
+      {
+        "seq": 76,
+        "phase": "interval",
+        "qpc_before": 27349478921034,
+        "qpc_after": 27349478921284,
+        "filetime_utc_100ns": 134168403850210000
+      },
+      {
+        "seq": 77,
+        "phase": "interval",
+        "qpc_before": 27349528918584,
+        "qpc_after": 27349528918834,
+        "filetime_utc_100ns": 134168403900210000
+      },
+      {
+        "seq": 78,
+        "phase": "interval",
+        "qpc_before": 27349578926134,
+        "qpc_after": 27349578926384,
+        "filetime_utc_100ns": 134168403950220000
+      },
+      {
+        "seq": 79,
+        "phase": "interval",
+        "qpc_before": 27349628923534,
+        "qpc_after": 27349628923784,
+        "filetime_utc_100ns": 134168404000220000
+      },
+      {
+        "seq": 80,
+        "phase": "interval",
+        "qpc_before": 27349678921084,
+        "qpc_after": 27349678921334,
+        "filetime_utc_100ns": 134168404050220000
+      },
+      {
+        "seq": 81,
+        "phase": "interval",
+        "qpc_before": 27349728918634,
+        "qpc_after": 27349728918884,
+        "filetime_utc_100ns": 134168404100220000
+      },
+      {
+        "seq": 82,
+        "phase": "interval",
+        "qpc_before": 27349778926034,
+        "qpc_after": 27349778926284,
+        "filetime_utc_100ns": 134168404150230000
+      },
+      {
+        "seq": 83,
+        "phase": "interval",
+        "qpc_before": 27349828923584,
+        "qpc_after": 27349828923834,
+        "filetime_utc_100ns": 134168404200230000
+      },
+      {
+        "seq": 84,
+        "phase": "interval",
+        "qpc_before": 27349878921134,
+        "qpc_after": 27349878921384,
+        "filetime_utc_100ns": 134168404250230000
+      },
+      {
+        "seq": 85,
+        "phase": "interval",
+        "qpc_before": 27349928918534,
+        "qpc_after": 27349928918784,
+        "filetime_utc_100ns": 134168404300230000
+      },
+      {
+        "seq": 86,
+        "phase": "interval",
+        "qpc_before": 27349978926084,
+        "qpc_after": 27349978926334,
+        "filetime_utc_100ns": 134168404350240000
+      },
+      {
+        "seq": 87,
+        "phase": "interval",
+        "qpc_before": 27350028923634,
+        "qpc_after": 27350028923884,
+        "filetime_utc_100ns": 134168404400240000
+      },
+      {
+        "seq": 88,
+        "phase": "interval",
+        "qpc_before": 27350078921034,
+        "qpc_after": 27350078921284,
+        "filetime_utc_100ns": 134168404450240000
+      },
+      {
+        "seq": 89,
+        "phase": "interval",
+        "qpc_before": 27350128918584,
+        "qpc_after": 27350128918834,
+        "filetime_utc_100ns": 134168404500240000
+      },
+      {
+        "seq": 90,
+        "phase": "stop",
+        "qpc_before": 27350178926134,
+        "qpc_after": 27350178926384,
+        "filetime_utc_100ns": 134168404550250000
       }
     ],
     "missing_pairs": 0,
@@ -2710,6 +3218,12 @@
       "sha256": "b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af"
     },
     {
+      "name": "collector:diskio-trace",
+      "version": "1.0.0",
+      "path": "<install directory>\\diskio-trace.ps1",
+      "sha256": null
+    },
+    {
       "name": "collector:bugcheck-history",
       "version": "1.0.0",
       "path": "<install directory>\\bugcheck-history.ps1",
@@ -2753,7 +3267,7 @@
   },
   "checksum_algorithm": "sha256",
   "notes": [
-    "Scenario runner 1.0.0, scenario s1 version 1.0.0: One bounded latency session on the gaming PC: the state before, the DPC and interrupt trace and the frame recording inside one clock calibration session, the history collectors, and the state after.",
+    "Scenario runner 1.0.0, scenario s1 version 1.0.0: One bounded latency session on the gaming PC: the state before, the DPC and interrupt trace, the frame recording and the disk activity trace one after another inside one clock calibration session, the history collectors, and the state after.",
     "Ran as the collector account (its name is not recorded); elevated: True; member of Event Log Readers (S-1-5-32-573): True; member of Performance Log Users (S-1-5-32-559): False.",
     "Each collector ran as its own Windows PowerShell process, one after another, except the clock session, which ran in the background across the live captures. Each collector's own manifest, summary and log are kept under logs/steps/<step>/ with the profile folder written as <profile>, the account as <account> and this directory as <bundle>; raw/ holds every source the runner merged, under its own id or with the step's prefix (state_before_, state_after_).",
     "In this scenario the history steps are optional: their sources are listed with required false whatever the collector marked.",
@@ -2761,6 +3275,7 @@
     "Step clock (clock-calibration): completed",
     "Step dpcisr (dpcisr-trace): completed",
     "Step frames (presentmon-frames): completed",
+    "Step diskio (diskio-trace): completed",
     "Step bugchecks (bugcheck-history): completed",
     "Step whea (whea-errors): completed",
     "Step app_errors (application-errors): completed",
@@ -2827,6 +3342,16 @@
         "detail": "presentmon-frames needs an elevated token, or Performance Log Users membership (whether wpr.exe accepts that group is README verification item 41)"
       },
       {
+        "name": "script:diskio",
+        "ok": true,
+        "detail": "diskio-trace.ps1 beside the runner"
+      },
+      {
+        "name": "rights:diskio",
+        "ok": true,
+        "detail": "diskio-trace needs an elevated administrator token"
+      },
+      {
         "name": "script:bugchecks",
         "ok": true,
         "detail": "bugcheck-history.ps1 beside the runner"
@@ -2889,7 +3414,7 @@
       {
         "name": "free_space",
         "ok": true,
-        "detail": "500000000000 bytes free on C:\\; the scenario needs at least 3542089728"
+        "detail": "500000000000 bytes free on C:\\; the scenario needs at least 10118758400"
       },
       {
         "name": "tool:xperf",
@@ -2907,7 +3432,7 @@
     "runner_version": "1.0.0",
     "scenario": "s1",
     "scenario_version": "1.0.0",
-    "minimum_free_bytes": 3542089728,
+    "minimum_free_bytes": 10118758400,
     "clock_brackets_live": true,
     "steps": [
       {
@@ -2942,8 +3467,8 @@
         "exit_code": 0,
         "summary_status": "ok",
         "started_utc": "2026-03-01T12:00:04.0000000Z",
-        "stopped_utc": "2026-03-01T12:02:47.0000000Z",
-        "deadline_seconds": 780,
+        "stopped_utc": "2026-03-01T12:04:00.0000000Z",
+        "deadline_seconds": 930,
         "ready": true,
         "private_removed": null,
         "session_end": null,
@@ -2991,6 +3516,27 @@
         "detail": null
       },
       {
+        "step": "diskio",
+        "collector": "diskio-trace",
+        "phase": "live",
+        "background": false,
+        "required": false,
+        "sources": [
+          "diskio_wpr_trace",
+          "diskio_diskio_aggregate"
+        ],
+        "outcome": "completed",
+        "exit_code": 0,
+        "summary_status": "ok",
+        "started_utc": "2026-03-01T12:02:48.0000000Z",
+        "stopped_utc": "2026-03-01T12:03:59.0000000Z",
+        "deadline_seconds": 1110,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
         "step": "bugchecks",
         "collector": "bugcheck-history",
         "phase": "history",
@@ -3002,8 +3548,8 @@
         "outcome": "completed",
         "exit_code": 0,
         "summary_status": "ok",
-        "started_utc": "2026-03-01T12:02:49.0000000Z",
-        "stopped_utc": "2026-03-01T12:03:06.0000000Z",
+        "started_utc": "2026-03-01T12:04:02.0000000Z",
+        "stopped_utc": "2026-03-01T12:04:19.0000000Z",
         "deadline_seconds": 720,
         "ready": null,
         "private_removed": null,
@@ -3022,8 +3568,8 @@
         "outcome": "completed",
         "exit_code": 0,
         "summary_status": "ok",
-        "started_utc": "2026-03-01T12:03:08.0000000Z",
-        "stopped_utc": "2026-03-01T12:03:21.0000000Z",
+        "started_utc": "2026-03-01T12:04:21.0000000Z",
+        "stopped_utc": "2026-03-01T12:04:34.0000000Z",
         "deadline_seconds": 720,
         "ready": null,
         "private_removed": null,
@@ -3042,8 +3588,8 @@
         "outcome": "completed",
         "exit_code": 0,
         "summary_status": "ok",
-        "started_utc": "2026-03-01T12:03:23.0000000Z",
-        "stopped_utc": "2026-03-01T12:03:38.0000000Z",
+        "started_utc": "2026-03-01T12:04:36.0000000Z",
+        "stopped_utc": "2026-03-01T12:04:51.0000000Z",
         "deadline_seconds": 720,
         "ready": null,
         "private_removed": null,
@@ -3063,8 +3609,8 @@
         "outcome": "completed",
         "exit_code": 0,
         "summary_status": "partial",
-        "started_utc": "2026-03-01T12:03:40.0000000Z",
-        "stopped_utc": "2026-03-01T12:04:02.0000000Z",
+        "started_utc": "2026-03-01T12:04:53.0000000Z",
+        "stopped_utc": "2026-03-01T12:05:15.0000000Z",
         "deadline_seconds": 1020,
         "ready": null,
         "private_removed": null,
@@ -3084,8 +3630,8 @@
         "outcome": "completed",
         "exit_code": 0,
         "summary_status": "ok",
-        "started_utc": "2026-03-01T12:04:04.0000000Z",
-        "stopped_utc": "2026-03-01T12:04:26.0000000Z",
+        "started_utc": "2026-03-01T12:05:17.0000000Z",
+        "stopped_utc": "2026-03-01T12:05:39.0000000Z",
         "deadline_seconds": 1020,
         "ready": null,
         "private_removed": null,
@@ -3105,8 +3651,8 @@
         "outcome": "completed",
         "exit_code": 0,
         "summary_status": "ok",
-        "started_utc": "2026-03-01T12:04:28.0000000Z",
-        "stopped_utc": "2026-03-01T12:04:47.0000000Z",
+        "started_utc": "2026-03-01T12:05:41.0000000Z",
+        "stopped_utc": "2026-03-01T12:06:00.0000000Z",
         "deadline_seconds": 1020,
         "ready": null,
         "private_removed": null,

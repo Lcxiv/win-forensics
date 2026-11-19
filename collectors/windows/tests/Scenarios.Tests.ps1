@@ -215,27 +215,36 @@ Describe 'the scenario runner' {
         $summary = ConvertFrom-WfJson -Text $run.Stdout[0]
         $summary['collector'] | Should -BeExactly 'scenario-runner'
         $summary['status'] | Should -BeExactly 'partial'
-        $run.Children | Should -Be @('clock-calibration', 'dpcisr-trace', 'presentmon-frames', 'bugcheck-history', 'whea-errors', 'application-errors', 'tdr-events', 'reliability-records', 'driver-inventory')
+        $run.Children | Should -Be @('clock-calibration', 'dpcisr-trace', 'presentmon-frames', 'diskio-trace', 'bugcheck-history', 'whea-errors', 'application-errors', 'tdr-events', 'reliability-records', 'driver-inventory')
         $m = $run.Manifest
         $m['manifest_version'] | Should -BeExactly '1.2.0'
         $m['capture']['orchestrator'] | Should -BeExactly 'wf-runner:s1'
         $m['preflight']['ok'] | Should -BeTrue
-        @($m['run']['steps'] | ForEach-Object { $_['step'] }) | Should -Be @('state_before', 'clock', 'dpcisr', 'frames', 'bugchecks', 'whea', 'app_errors', 'tdr', 'reliability', 'drivers', 'state_after')
+        @($m['run']['steps'] | ForEach-Object { $_['step'] }) | Should -Be @('state_before', 'clock', 'dpcisr', 'frames', 'diskio', 'bugchecks', 'whea', 'app_errors', 'tdr', 'reliability', 'drivers', 'state_after')
         (Get-TestStep $m 'state_before')['outcome'] | Should -BeExactly 'absent'
         (Get-TestStep $m 'clock')['ready'] | Should -BeTrue
         $m['run']['clock_brackets_live'] | Should -BeTrue
         (Get-TestEntry $m 'presentmon_frames')['status'] | Should -BeExactly 'observed'
         (Get-TestEntry $m 'wpr_trace')['required'] | Should -BeTrue
         (Get-TestEntry $m 'system_restart_events')['required'] | Should -BeFalse
+        # The disk trace runs alone after the frames, its ids prefixed apart
+        # from dpcisr-trace's wpr_trace, and optional in S1.
+        (Get-TestEntry $m 'diskio_wpr_trace')['status'] | Should -BeExactly 'observed'
+        (Get-TestEntry $m 'diskio_wpr_trace')['required'] | Should -BeFalse
+        (Get-TestEntry $m 'diskio_diskio_aggregate')['status'] | Should -BeExactly 'observed'
+        @((Get-TestEntry $m 'diskio_diskio_aggregate')['artifacts'] | Where-Object { -not $_['path'].StartsWith('raw/diskio_diskio_aggregate/') }).Count | Should -Be 0
+        (Get-TestStep $m 'diskio')['started_utc'] | Should -Not -BeNullOrEmpty
+        ([datetime](Get-TestStep $m 'diskio')['started_utc']) -ge ([datetime](Get-TestStep $m 'frames')['stopped_utc']) | Should -BeTrue
+        ([datetime](Get-TestStep $m 'frames')['started_utc']) -ge ([datetime](Get-TestStep $m 'dpcisr')['stopped_utc']) | Should -BeTrue
         @($m['calibration']['pairs']).Count | Should -BeGreaterThan 2
         @($m['scenario']['marks']).Count | Should -Be 2
         @($m['machine']['drivers']).Count | Should -BeGreaterThan 0
-        # The clock runs across both captures; each capture gets the runner's window.
+        # The clock runs across the three captures; each capture gets the runner's window.
         $clock = $global:WfSynthetic.ChildRuns[0]
         $clockArguments = @($clock['Arguments'])
         $at = -1
         for ($i = 0; $i -lt $clockArguments.Count; $i++) { if ($clockArguments[$i] -eq '-DurationSeconds') { $at = $i } }
-        $clockArguments[$at + 1] | Should -BeExactly '300'
+        $clockArguments[$at + 1] | Should -BeExactly '450'
         foreach ($child in $global:WfSynthetic.ChildRuns) {
             $child['Arguments'][1] | Should -BeExactly (Join-WfBundlePath -BundleRoot (Resolve-WfBundleRoot -OutputDirectory $script:out) -RelativePath ('logs/steps/' + @($m['run']['steps'] | Where-Object { $_['collector'] -eq $child['Name'] })[0]['step']))
         }
@@ -272,7 +281,7 @@ Describe 'the scenario runner' {
             $entry['status_reason'] | Should -Match 'refused to start'
             @($entry['artifacts']).Count | Should -Be 0
         }
-        @($m['collectors']).Count | Should -Be 14
+        @($m['collectors']).Count | Should -Be 16
         @($m['run']['steps'] | Where-Object { $_['outcome'] -ne 'absent' } | ForEach-Object { $_['outcome'] } | Select-Object -Unique) | Should -Be @('not_started')
         $m['calibration']['status'] | Should -BeExactly 'not_collected'
         @(Get-ChildItem -LiteralPath (Join-Path $script:out 'raw')).Count | Should -Be 0
@@ -441,7 +450,7 @@ Describe 'the scenario runner' {
         $extra = & (Get-WfRegistryEntry -Name 'presentmon-frames')['DiskExtra'] ([int64]67108864)
         (2 * [int64]67108864 + $extra) | Should -Be (Get-WfPresentMonPeakBytesBound -MaxArtifactBytes 67108864)
         $run = Invoke-TestRun -OutputDirectory $script:out
-        $run.Manifest['run']['minimum_free_bytes'] | Should -Be 3542089728
+        $run.Manifest['run']['minimum_free_bytes'] | Should -Be 10118758400
     }
 
     It 'fails the run when a required capture lost events, and keeps what the collector said' {

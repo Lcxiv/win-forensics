@@ -1,5 +1,5 @@
 <QueryList>
   <Query Id="0" Path="System">
-    <Select Path="System">*[System[Provider[@Name='Microsoft-Windows-WHEA-Logger'] and TimeCreated[@SystemTime &gt;= '2026-01-30T12:03:12.000Z' and @SystemTime &lt;= '2026-03-01T12:03:12.000Z']]]</Select>
+    <Select Path="System">*[System[Provider[@Name='Microsoft-Windows-WHEA-Logger'] and TimeCreated[@SystemTime &gt;= '2026-01-30T12:04:25.000Z' and @SystemTime &lt;= '2026-03-01T12:04:25.000Z']]]</Select>
   </Query>
 </QueryList>

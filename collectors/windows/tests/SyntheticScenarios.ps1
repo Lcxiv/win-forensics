@@ -348,6 +348,44 @@ function Get-WfSyntheticCases {
             Setup = { New-WfSyntheticTraceMachine -EventsLost 0 -Xperf 'pinned'; $global:WfSynthetic.Elevated = $false }
         })
 
+    # The disk activity capture. The machine is elevated, the recorder lists
+    # the four keywords diskio-trace asks for, the saved trace has a readable
+    # header on the performance counter clock, and tracerpt dumps an invented
+    # XML rendering of kernel events (New-WfSyntheticDiskIoDump). Every
+    # process, path and number in it is invented.
+
+    # A clean 10 s capture: both sources observed, status ok, exit 0. The
+    # aggregate keeps the fixed roots and one level below them, pseudonyms
+    # for everything deeper, <profile> for the user folder, and no file name.
+    $cases.Add(@{
+            Case = 'diskio-trace'; Collector = 'diskio-trace'; ExitCode = 0; Arguments = @{ DurationSeconds = 10 }
+            Setup = { New-WfSyntheticDiskIoMachine }
+        })
+
+    # The saved trace lost events (the final tracerpt summary says so, the
+    # live status did not): the trace source is capture_failed, no aggregate
+    # is made, nothing is observed, exit 1.
+    $cases.Add(@{
+            Case = 'diskio-trace-events-lost'; Collector = 'diskio-trace'; ExitCode = 1; Arguments = @{ DurationSeconds = 10 }
+            Setup = { New-WfSyntheticDiskIoMachine -EventsLost 544 }
+        })
+
+    # The account is not elevated: no session is started, both sources are
+    # not_collected with the reason, exit 1.
+    $cases.Add(@{
+            Case = 'diskio-trace-not-elevated'; Collector = 'diskio-trace'; ExitCode = 1; Arguments = @{ DurationSeconds = 10 }
+            Setup = { New-WfSyntheticDiskIoMachine; $global:WfSynthetic.Elevated = $false }
+        })
+
+    # The dump renders the disk events without HighResResponseTime, which is
+    # what a tracerpt that does not render the kernel classes as the reader
+    # expects would look like: the trace is observed, the aggregate is
+    # capture_failed and writes nothing, status partial, exit 0.
+    $cases.Add(@{
+            Case = 'diskio-trace-dump-unrendered'; Collector = 'diskio-trace'; ExitCode = 0; Arguments = @{ DurationSeconds = 10 }
+            Setup = { New-WfSyntheticDiskIoMachine -DropField 'HighResResponseTime' }
+        })
+
     # The clock calibration session. Each Setup takes the output directory so
     # the synthetic clock can fire operator marks into the running session
     # (Invoke-WfSyntheticMark runs the collector's own mark mode). Every
@@ -1897,6 +1935,7 @@ function Set-WfSyntheticScenarioMachine {
         'clock-calibration'   = @{ Case = 'clock-calibration'; Concurrent = $true }
         'dpcisr-trace'        = @{ Case = 'dpcisr-trace' }
         'presentmon-frames'   = @{ Case = 'presentmon-frames' }
+        'diskio-trace'        = @{ Case = 'diskio-trace' }
         'bugcheck-history'    = @{ Case = 'bugcheck-history' }
         'whea-errors'         = @{ Case = 'whea-errors-quiet' }
         'application-errors'  = @{ Case = 'application-errors' }
@@ -1919,4 +1958,152 @@ function Get-WfSyntheticRunCases {
         # not_collected with the reason. Exit 1.
         @{ Case = 's1-preflight-refused'; ExitCode = 1; Setup = { $global:WfSynthetic.Elevated = $false } }
     )
+}
+
+function New-WfSyntheticDiskIoMachine {
+    # The machine behind the diskio-trace cases. The live status right after
+    # the start shows no loss; a loss, when the case has one, is in the saved
+    # trace's summary. -CollectorRoot adds disk requests on a file inside the
+    # bundle (the Pester suite passes its own directory; the fixtures do not,
+    # so the dump does not depend on where the repository is checked out).
+    param([int64]$EventsLost = 0, [string]$DropField = '', [string]$CollectorRoot = '', [switch]$NoDiskEvents, [int]$ExtraProcessed = 0, [switch]$PidReuse)
+    $global:WfSynthetic.Elevated = $true
+    $wpr = $global:WfSynthetic.Wpr
+    $wpr.Keywords = @('DiskIO', 'Filename', 'HardFaults', 'ProcessThread')
+    $wpr.ProfileName = 'WfDiskIoTrace'
+    $wpr.EventsLost = 0
+    $wpr.DroppedEvents = 0
+    $wpr.EtlContent = New-WfSyntheticEtlBytes -DurationSeconds 10
+    $dump = New-WfSyntheticDiskIoDump -DropField $DropField -CollectorRoot $CollectorRoot -NoDiskEvents:$NoDiskEvents -PidReuse:$PidReuse
+    $global:WfSynthetic.Tracerpt.EventsLost = $EventsLost
+    $global:WfSynthetic.Tracerpt.BuffersLost = 0
+    $global:WfSynthetic.Tracerpt.DumpXml = $dump.Xml
+    $global:WfSynthetic.Tracerpt.EventsProcessed = $dump.Count + $ExtraProcessed
+}
+
+function New-WfSyntheticDiskIoDump {
+    # An invented tracerpt XML dump in the documented event schema: kernel
+    # events carry the kernel logger's control GUID as provider and their
+    # class GUID in ExtendedTracingInfo/EventGuid, the event type in Opcode,
+    # TimeCreated/@SystemTime, and one Data element per MOF property. Times
+    # are offsets from the header StartTime New-WfSyntheticEtlBytes writes
+    # (Now plus 7 s). The Process events carry a command line and a user id
+    # and a system configuration event carries a hardware address, so the
+    # suite can show that none of them reaches the bundle. -PidReuse adds two
+    # process ids that change hands inside the window: 5120 (an updater that
+    # writes and exits, then another process started under the same id) and
+    # 6000 (a process the trace first names by its end event, then a new
+    # process under the same id); and a thread id, 7001, that writes before
+    # its first Thread event, ends, and is given to another process; and a
+    # file object, ...9000, written before its first name event (its delete),
+    # whose address then names another file.
+    param([string]$DropField = '', [string]$CollectorRoot = '', [switch]$NoDiskEvents, [switch]$PidReuse)
+    $start = $global:WfSynthetic.Now.AddSeconds(7)
+    $kernel = '{9e814aad-3204-11d2-9a82-006008a86939}'
+    $classes = @{
+        DiskIo    = '{3d6fa8d4-fe05-11d0-9dda-00c04fd7ba7c}'
+        FileIo    = '{90cbdc39-4a3e-11d1-84f4-0000f80464e3}'
+        PageFault = '{3d6fa8d3-fe05-11d0-9dda-00c04fd7ba7c}'
+        Thread    = '{3d6fa8d1-fe05-11d0-9dda-00c04fd7ba7c}'
+        Process   = '{3d6fa8d0-fe05-11d0-9dda-00c04fd7ba7c}'
+        Config    = '{01853a65-418f-4f36-aefc-dc0f1d2fd235}'
+    }
+    $events = New-Object 'System.Collections.Generic.List[string]'
+    $add = {
+        param([string]$Class, [int]$Opcode, [double]$Offset, [object[]]$Data)
+        $time = $start.AddTicks([int64][math]::Round($Offset * 10000000))
+        $text = $time.ToString('yyyy-MM-ddTHH:mm:ss.fffffffZ', [System.Globalization.CultureInfo]::InvariantCulture)
+        $body = New-Object System.Text.StringBuilder
+        for ($i = 0; $i -lt $Data.Count; $i += 2) {
+            if ([string]$Data[$i] -eq $DropField) { continue }
+            $value = [System.Security.SecurityElement]::Escape([string]$Data[$i + 1])
+            $null = $body.Append(('<Data Name="{0}">{1}</Data>' -f $Data[$i], $value))
+        }
+        $events.Add(('<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event"><System><Provider Guid="{0}" /><EventID>0</EventID><Version>2</Version><Level>0</Level><Task>0</Task><Opcode>{1}</Opcode><Keywords>0x0</Keywords><TimeCreated SystemTime="{2}" /><Correlation ActivityID="{{00000000-0000-0000-0000-000000000000}}" /><Execution ProcessID="4" ThreadID="100" ProcessorID="0" KernelTime="0" UserTime="0" /><Channel /><Computer /></System><EventData>{3}</EventData><ExtendedTracingInfo xmlns="http://schemas.microsoft.com/win/2004/08/events/trace"><EventGuid>{4}</EventGuid></ExtendedTracingInfo></Event>' -f $kernel, $Opcode, $text, $body.ToString(), $classes[$Class]))
+    }
+    $volume = '\Device\HarddiskVolume3'
+    # System configuration and the rundown of what was running at the start.
+    & $add 'Config' 11 0.0001 @('NicDescription', 'Synthetic Network Adapter', 'PhysicalAddr', '02-00-5E-10-20-30', 'Ipv4Index', '7')
+    & $add 'Process' 3 0.001 @('UniqueProcessKey', '0xffffc00000000040', 'ProcessId', '4', 'ParentId', '0', 'SessionId', '4294967295', 'ExitStatus', '259', 'UserSID', 'S-1-5-18', 'ImageFileName', 'System', 'CommandLine', '')
+    & $add 'Process' 3 0.002 @('UniqueProcessKey', '0xffffc00000000080', 'ProcessId', '1200', 'ParentId', '900', 'SessionId', '1', 'ExitStatus', '259', 'UserSID', 'S-1-5-21-1000000001-1000000002-1000000003-1001', 'ImageFileName', 'SyntheticGame.exe', 'CommandLine', '"C:\Program Files\SyntheticGame\SyntheticGame.exe" -profile C:\Users\SyntheticOwner\secret-token')
+    & $add 'Process' 3 0.003 @('UniqueProcessKey', '0xffffc000000000c0', 'ProcessId', '2300', 'ParentId', '900', 'SessionId', '1', 'ExitStatus', '259', 'UserSID', 'S-1-5-21-1000000001-1000000002-1000000003-1001', 'ImageFileName', 'SyntheticLauncher.exe', 'CommandLine', 'SyntheticLauncher.exe --silent')
+    & $add 'Process' 3 0.004 @('UniqueProcessKey', '0xffffc00000000100', 'ProcessId', '3400', 'ParentId', '900', 'SessionId', '1', 'ExitStatus', '259', 'UserSID', 'S-1-5-21-1000000001-1000000002-1000000003-1001', 'ImageFileName', 'SyntheticOwner [helper].exe', 'CommandLine', 'helper')
+    foreach ($pair in @(@(100, 4), @(1201, 1200), @(1202, 1200), @(2301, 2300), @(3401, 3400))) {
+        & $add 'Thread' 3 0.005 @('ProcessId', [string]$pair[1], 'TThreadId', [string]$pair[0], 'StackBase', '0xfffff00000010000', 'StackLimit', '0xfffff0000000a000')
+    }
+    # File objects named at the start (name events) or only at the end (rundown).
+    $files = [ordered]@{
+        '0xffffa00000001000' = $volume + '\Users\SyntheticOwner\AppData\Local\SyntheticGame\ShaderCache\Pipeline\cache01.bin'
+        '0xffffa00000002000' = $volume + '\Program Files\SyntheticGame\Content\Paks\world.pak'
+        '0xffffa00000003000' = $volume + '\Windows\System32\winevt\Logs\Synthetic-Operational.evtx'
+        '0xffffa00000004000' = $volume + '\$Mft'
+    }
+    foreach ($key in $files.Keys) { & $add 'FileIo' 0 0.006 @('FileObject', $key, 'FileName', $files[$key]) }
+    $disk = {
+        param([int]$Opcode, [double]$Offset, [string]$Thread, [string]$FileObject, [int]$Size, [string]$Flags, [int]$Ticks, [int]$DiskNumber = 0)
+        & $add 'DiskIo' $Opcode $Offset @('DiskNumber', [string]$DiskNumber, 'IrpFlags', $Flags, 'TransferSize', [string]$Size, 'Reserved', '0', 'ByteOffset', '1048576', 'FileObject', $FileObject, 'Irp', '0xffffd00000000010', 'HighResResponseTime', [string]$Ticks, 'IssuingThreadId', $Thread)
+    }
+    if (-not $NoDiskEvents) {
+        # Second 0: the game reads its pack file and its shader cache.
+        & $disk 10 0.10 '1201' '0xffffa00000002000' 65536 '0x60043' 1500
+        & $disk 10 0.20 '1201' '0xffffa00000002000' 131072 '0x60043' 2500
+        & $disk 10 0.30 '1202' '0xffffa00000001000' 4096 '0x60043' 800
+        # Second 1: the game writes its shader cache, a save written by a
+        # thread only named by its end event, a log write by the system.
+        & $disk 11 1.10 '1202' '0xffffa00000001000' 16384 '0x60a01' 4200
+        & $disk 11 1.20 '1202' '0xffffa00000001000' 16384 '0x60a01' 3800
+        & $disk 11 1.40 '2399' '0xffffa00000005000' 8192 '0x60a01' 9000
+        & $disk 11 1.50 '100' '0xffffa00000003000' 4096 '0x60a03' 1200
+        & $disk 10 1.60 '100' '0xffffa00000004000' 1024 '0x60a43' 300 1
+        # Second 2: the launcher reads its own files; a thread the trace never
+        # names; a file object the trace never names; the helper process.
+        & $disk 10 2.10 '2301' '0xffffa00000006000' 32768 '0x60043' 2100
+        & $disk 10 2.20 '9999' '0xffffa00000002000' 4096 '0x60043' 700
+        & $disk 10 2.30 '1201' '0xffffa00000007000' 4096 '0x60043' 600
+        & $disk 11 2.40 '3401' '0xffffa00000001000' 4096 '0x60a01' 1100
+        if ($CollectorRoot) {
+            $own = $volume + ($CollectorRoot -replace '^[A-Za-z]:', '').Replace('/', '\') + '\private\temp\synthetic.etl'
+            & $add 'FileIo' 32 2.50 @('FileObject', '0xffffa00000008000', 'FileName', $own)
+            & $disk 11 2.60 '100' '0xffffa00000008000' 65536 '0x60a01' 1800
+        }
+    }
+    if ($PidReuse) {
+        $process = {
+            param([int]$Opcode, [double]$Offset, [string]$ProcessId, [string]$Image)
+            & $add 'Process' $Opcode $Offset @('UniqueProcessKey', '0xffffc00000000140', 'ProcessId', $ProcessId, 'ParentId', '900', 'SessionId', '1', 'ExitStatus', '0', 'UserSID', 'S-1-5-21-1000000001-1000000002-1000000003-1001', 'ImageFileName', $Image, 'CommandLine', $Image)
+        }
+        $thread = {
+            param([int]$Opcode, [double]$Offset, [string]$ProcessId, [string]$ThreadId)
+            & $add 'Thread' $Opcode $Offset @('ProcessId', $ProcessId, 'TThreadId', $ThreadId, 'StackBase', '0xfffff00000030000', 'StackLimit', '0xfffff0000002a000')
+        }
+        & $thread 3 0.007 '6000' '6001'
+        & $process 1 3.00 '5120' 'SyntheticUpdater.exe'
+        & $thread 1 3.01 '5120' '5121'
+        & $disk 11 3.10 '5121' '0xffffa00000001000' 1048576 '0x60a01' 5000
+        & $disk 11 3.20 '6001' '0xffffa00000001000' 2048 '0x60a01' 900
+        & $thread 2 3.90 '5120' '5121'
+        & $process 2 4.00 '5120' 'SyntheticUpdater.exe'
+        & $process 2 4.50 '6000' 'SyntheticEarly.exe'
+        & $process 1 5.00 '5120' 'SyntheticOther.exe'
+        & $thread 1 5.01 '5120' '5122'
+        & $disk 11 5.10 '5122' '0xffffa00000001000' 512 '0x60a01' 400
+        & $process 1 6.00 '6000' 'SyntheticLate.exe'
+        & $disk 11 3.30 '7001' '0xffffa00000001000' 3072 '0x60a01' 700
+        & $thread 3 3.31 '1200' '7001'
+        & $thread 2 3.50 '1200' '7001'
+        & $thread 1 5.50 '2300' '7001'
+        & $disk 11 3.40 '1201' '0xffffa00000009000' 5120 '0x60a01' 600
+        & $add 'FileIo' 35 3.60 @('FileObject', '0xffffa00000009000', 'FileName', ($volume + '\ProgramData\SyntheticGame\Journal\Pending\entry.log'))
+        & $add 'FileIo' 32 5.60 @('FileObject', '0xffffa00000009000', 'FileName', ($volume + '\Windows\Temp\Scratch\other.tmp'))
+    }
+    # Hard faults: the game pages in code from its pack file.
+    & $add 'PageFault' 32 0.40 @('InitialTime', '1000', 'ReadOffset', '4096', 'VirtualAddress', '0x00007ff600001000', 'FileObject', '0xffffa00000002000', 'TThreadId', '1201', 'ByteCount', '32768')
+    & $add 'PageFault' 32 0.45 @('InitialTime', '1100', 'ReadOffset', '36864', 'VirtualAddress', '0x00007ff600009000', 'FileObject', '0xffffa00000002000', 'TThreadId', '1201', 'ByteCount', '16384')
+    # The end of the session: a thread end, and the rundown that names the
+    # file objects not named earlier.
+    & $add 'Thread' 2 9.0 @('ProcessId', '2300', 'TThreadId', '2399', 'StackBase', '0xfffff00000020000', 'StackLimit', '0xfffff0000001a000')
+    & $add 'FileIo' 36 10.5 @('FileObject', '0xffffa00000005000', 'FileName', ($volume + '\Users\SyntheticOwner\Saved Games\SyntheticGame\slot1.sav'))
+    & $add 'FileIo' 36 10.5 @('FileObject', '0xffffa00000006000', 'FileName', ($volume + '\ProgramData\SyntheticLauncher\Manifests\Catalog\index.dat'))
+    $xml = '<?xml version="1.0" encoding="UTF-8"?>' + "`r`n" + '<Events>' + "`r`n" + ($events.ToArray() -join "`r`n") + "`r`n" + '</Events>' + "`r`n"
+    return @{ Xml = $xml; Count = $events.Count }
 }

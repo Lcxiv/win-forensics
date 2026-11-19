@@ -5,7 +5,7 @@
   "scenario": {
     "id": "s1",
     "version": "1.0.0",
-    "requested_duration_s": 300,
+    "requested_duration_s": 450,
     "target_process": null,
     "marks": []
   },
@@ -208,6 +208,78 @@
       "id": "presentmon_frames",
       "kind": "presentmon",
       "required": true,
+      "status": "not_collected",
+      "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+      "preflight": null,
+      "command": null,
+      "started_utc": null,
+      "stopped_utc": null,
+      "exit_code": null,
+      "config_hash": null,
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {}
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [],
+      "raw_time_range": null,
+      "expectation": null,
+      "target_process": null
+    },
+    {
+      "id": "diskio_wpr_trace",
+      "kind": "wpr",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+      "preflight": null,
+      "command": null,
+      "started_utc": null,
+      "stopped_utc": null,
+      "exit_code": null,
+      "config_hash": null,
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {}
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [],
+      "raw_time_range": null,
+      "expectation": null,
+      "target_process": null
+    },
+    {
+      "id": "diskio_diskio_aggregate",
+      "kind": "other",
+      "required": false,
       "status": "not_collected",
       "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
       "preflight": null,
@@ -617,7 +689,7 @@
   },
   "checksum_algorithm": "sha256",
   "notes": [
-    "Scenario runner 1.0.0, scenario s1 version 1.0.0: One bounded latency session on the gaming PC: the state before, the DPC and interrupt trace and the frame recording inside one clock calibration session, the history collectors, and the state after.",
+    "Scenario runner 1.0.0, scenario s1 version 1.0.0: One bounded latency session on the gaming PC: the state before, the DPC and interrupt trace, the frame recording and the disk activity trace one after another inside one clock calibration session, the history collectors, and the state after.",
     "Ran as the collector account (its name is not recorded); elevated: False; member of Event Log Readers (S-1-5-32-573): True; member of Performance Log Users (S-1-5-32-559): False.",
     "Each collector ran as its own Windows PowerShell process, one after another, except the clock session, which ran in the background across the live captures. Each collector's own manifest, summary and log are kept under logs/steps/<step>/ with the profile folder written as <profile>, the account as <account> and this directory as <bundle>; raw/ holds every source the runner merged, under its own id or with the step's prefix (state_before_, state_after_).",
     "In this scenario the history steps are optional: their sources are listed with required false whatever the collector marked.",
@@ -626,6 +698,7 @@
     "Step clock (clock-calibration): not_started",
     "Step dpcisr (dpcisr-trace): not_started",
     "Step frames (presentmon-frames): not_started",
+    "Step diskio (diskio-trace): not_started",
     "Step bugchecks (bugcheck-history): not_started",
     "Step whea (whea-errors): not_started",
     "Step app_errors (application-errors): not_started",
@@ -692,6 +765,16 @@
         "detail": "presentmon-frames needs an elevated token, or Performance Log Users membership (whether wpr.exe accepts that group is README verification item 41)"
       },
       {
+        "name": "script:diskio",
+        "ok": true,
+        "detail": "diskio-trace.ps1 beside the runner"
+      },
+      {
+        "name": "rights:diskio",
+        "ok": false,
+        "detail": "diskio-trace needs an elevated administrator token"
+      },
+      {
         "name": "script:bugchecks",
         "ok": true,
         "detail": "bugcheck-history.ps1 beside the runner"
@@ -754,7 +837,7 @@
       {
         "name": "free_space",
         "ok": true,
-        "detail": "500000000000 bytes free on C:\\; the scenario needs at least 3542089728"
+        "detail": "500000000000 bytes free on C:\\; the scenario needs at least 10118758400"
       },
       {
         "name": "tool:xperf",
@@ -772,7 +855,7 @@
     "runner_version": "1.0.0",
     "scenario": "s1",
     "scenario_version": "1.0.0",
-    "minimum_free_bytes": 3542089728,
+    "minimum_free_bytes": 10118758400,
     "clock_brackets_live": null,
     "steps": [
       {
@@ -808,7 +891,7 @@
         "summary_status": null,
         "started_utc": null,
         "stopped_utc": null,
-        "deadline_seconds": 780,
+        "deadline_seconds": 930,
         "ready": null,
         "private_removed": null,
         "session_end": null,
@@ -850,6 +933,27 @@
         "started_utc": null,
         "stopped_utc": null,
         "deadline_seconds": 1260,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "diskio",
+        "collector": "diskio-trace",
+        "phase": "live",
+        "background": false,
+        "required": false,
+        "sources": [
+          "diskio_wpr_trace",
+          "diskio_diskio_aggregate"
+        ],
+        "outcome": "not_started",
+        "exit_code": null,
+        "summary_status": null,
+        "started_utc": null,
+        "stopped_utc": null,
+        "deadline_seconds": 1110,
         "ready": null,
         "private_removed": null,
         "session_end": null,

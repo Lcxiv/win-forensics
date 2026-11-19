@@ -1,4 +1,4 @@
-2026-03-01T12:02:51.0000000Z collector bugcheck-history version 1.0.0, helper version 1.2.0, window 30 days, 300 s per source
+2026-03-01T12:04:04.0000000Z collector bugcheck-history version 1.0.0, helper version 1.2.0, window 30 days, 300 s per source
 source system_restart_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record
 source system_restart_events: status observed, 3 artifacts
-2026-03-01T12:03:05.0000000Z manifest written: bundle 20260301T120251Z_bugcheck_history_ae3a76a9, status ok, 3 artifacts
+2026-03-01T12:04:18.0000000Z manifest written: bundle 20260301T120404Z_bugcheck_history_ae3a76a9, status ok, 3 artifacts

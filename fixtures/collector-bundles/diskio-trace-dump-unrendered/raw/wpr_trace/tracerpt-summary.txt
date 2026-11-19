@@ -1,0 +1,9 @@
+Files Processed:
+	<bundle>/private/trace.etl
+Total Buffers Processed 69
+Total Events  Processed 31
+Total Events  Lost      0
+Total Buffers Lost      0
+Start Time              2026-03-01 12:00:04
+End Time                2026-03-01 12:00:16
+Elapsed Time            10 sec

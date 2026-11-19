@@ -1,28 +1,30 @@
 2026-03-01T12:00:01.0000000Z scenario-runner 1.0.0 started: scenario s1
 2026-03-01T12:00:02.0000000Z preflight: ok
-2026-03-01T12:00:03.0000000Z step clock: clock-calibration starts, deadline 780 s
+2026-03-01T12:00:03.0000000Z step clock: clock-calibration starts, deadline 930 s
 step clock: ready True
 2026-03-01T12:00:06.0000000Z step dpcisr: dpcisr-trace starts, deadline 1110 s
 2026-03-01T12:01:18.0000000Z step dpcisr: completed, exit code 0, status ok
 2026-03-01T12:01:19.0000000Z step frames: presentmon-frames starts, deadline 1260 s
 2026-03-01T12:02:46.0000000Z step frames: completed, exit code 0, status ok
-2026-03-01T12:02:47.0000000Z step clock: completed, exit code 0, status ok
-2026-03-01T12:02:48.0000000Z step bugchecks: bugcheck-history starts, deadline 720 s
+2026-03-01T12:02:47.0000000Z step diskio: diskio-trace starts, deadline 1110 s
+2026-03-01T12:03:59.0000000Z step diskio: completed, exit code 0, status ok
+2026-03-01T12:04:00.0000000Z step clock: completed, exit code 0, status ok
+2026-03-01T12:04:01.0000000Z step bugchecks: bugcheck-history starts, deadline 720 s
 step bugchecks stderr: source system_restart_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record
-2026-03-01T12:03:06.0000000Z step bugchecks: completed, exit code 0, status ok
-2026-03-01T12:03:07.0000000Z step whea: whea-errors starts, deadline 720 s
+2026-03-01T12:04:19.0000000Z step bugchecks: completed, exit code 0, status ok
+2026-03-01T12:04:20.0000000Z step whea: whea-errors starts, deadline 720 s
 step whea stderr: source system_whea_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record
-2026-03-01T12:03:21.0000000Z step whea: completed, exit code 0, status ok
-2026-03-01T12:03:22.0000000Z step app_errors: application-errors starts, deadline 720 s
+2026-03-01T12:04:34.0000000Z step whea: completed, exit code 0, status ok
+2026-03-01T12:04:35.0000000Z step app_errors: application-errors starts, deadline 720 s
 step app_errors stderr: source application_error_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record
-source application_error_events: channel Application only holds records from 2026-02-20T12:03:24.0000000Z, later than the requested window start; nothing is claimed before that time
-2026-03-01T12:03:38.0000000Z step app_errors: completed, exit code 0, status ok
-2026-03-01T12:03:39.0000000Z step tdr: tdr-events starts, deadline 1020 s
+source application_error_events: channel Application only holds records from 2026-02-20T12:04:37.0000000Z, later than the requested window start; nothing is claimed before that time
+2026-03-01T12:04:51.0000000Z step app_errors: completed, exit code 0, status ok
+2026-03-01T12:04:52.0000000Z step tdr: tdr-events starts, deadline 1020 s
 step tdr stderr: source system_display_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record
 source system_bugcheck_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record
-2026-03-01T12:04:02.0000000Z step tdr: completed, exit code 0, status partial
-2026-03-01T12:04:03.0000000Z step reliability: reliability-records starts, deadline 1020 s
-2026-03-01T12:04:26.0000000Z step reliability: completed, exit code 0, status ok
-2026-03-01T12:04:27.0000000Z step drivers: driver-inventory starts, deadline 1020 s
-2026-03-01T12:04:47.0000000Z step drivers: completed, exit code 0, status ok
-2026-03-01T12:04:48.0000000Z manifest written: bundle 20260301T120001Z_s1_ae3a76a9, status partial, 41 artifacts
+2026-03-01T12:05:15.0000000Z step tdr: completed, exit code 0, status partial
+2026-03-01T12:05:16.0000000Z step reliability: reliability-records starts, deadline 1020 s
+2026-03-01T12:05:39.0000000Z step reliability: completed, exit code 0, status ok
+2026-03-01T12:05:40.0000000Z step drivers: driver-inventory starts, deadline 1020 s
+2026-03-01T12:06:00.0000000Z step drivers: completed, exit code 0, status ok
+2026-03-01T12:06:01.0000000Z manifest written: bundle 20260301T120001Z_s1_ae3a76a9, status partial, 48 artifacts

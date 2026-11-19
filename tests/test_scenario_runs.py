@@ -26,7 +26,7 @@ from test_collectors_pwsh import find_pwsh
 RUNS = REPO_ROOT / "fixtures" / "scenario-runs"
 BUNDLES = REPO_ROOT / "fixtures" / "collector-bundles"
 CASES = ["s1", "s1-preflight-refused"]
-S1_ORDER = ["state_before", "clock", "dpcisr", "frames", "bugchecks", "whea", "app_errors", "tdr", "reliability", "drivers", "state_after"]
+S1_ORDER = ["state_before", "clock", "dpcisr", "frames", "diskio", "bugchecks", "whea", "app_errors", "tdr", "reliability", "drivers", "state_after"]
 OBSERVED = ("observed", "observed_zero")
 
 
@@ -76,6 +76,9 @@ def test_s1_merges_each_collector_and_keeps_status_apart_from_evidence():
     status = {c["id"]: c for c in manifest["collectors"]}
     for source in ("clock_calibration", "wpr_trace", "presentmon_frames"):
         assert status[source]["status"] == "observed" and status[source]["required"] is True
+    # The disk trace is optional in S1 and its ids carry the step prefix, apart from dpcisr-trace's wpr_trace.
+    for source in ("diskio_wpr_trace", "diskio_diskio_aggregate"):
+        assert status[source]["status"] == "observed" and status[source]["required"] is False
     for step in manifest["run"]["steps"]:
         if step["phase"] == "history":
             assert all(status[s]["required"] is False for s in step["sources"]), "history is optional in S1"
@@ -103,7 +106,7 @@ def test_a_refused_run_starts_nothing_and_lists_every_declared_source():
     assert "rights:dpcisr" in failed and "rights:dpcisr" in manifest["preflight"]["required"]
     assert {s["outcome"] for s in manifest["run"]["steps"]} == {"not_started", "absent"}
     assert all(c["status"] == "not_collected" and "refused to start" in c["status_reason"] and c["artifacts"] == [] for c in manifest["collectors"])
-    assert len(manifest["collectors"]) == 14
+    assert len(manifest["collectors"]) == 16
     assert list((RUNS / "s1-preflight-refused" / "raw").iterdir()) == [] if (RUNS / "s1-preflight-refused" / "raw").exists() else True
     assert not (RUNS / "s1-preflight-refused" / "logs" / "steps").exists()
     assert manifest["calibration"]["status"] == "not_collected" and manifest["calibration"]["pairs"] == []
@@ -157,7 +160,7 @@ def test_the_registry_declares_what_each_collector_writes():
     registry = json.loads(result.stdout)
     names = [entry["name"] for entry in registry]
     assert len(names) == len(set(names))
-    assert {"config-snapshot", "clock-calibration", "dpcisr-trace", "presentmon-frames"} <= set(names)
+    assert {"config-snapshot", "clock-calibration", "dpcisr-trace", "presentmon-frames", "diskio-trace"} <= set(names)
     for entry in registry:
         if entry["name"] == "config-snapshot":
             continue

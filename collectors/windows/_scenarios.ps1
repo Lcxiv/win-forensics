@@ -83,6 +83,20 @@ function Get-WfCollectorRegistry {
             WorstCase = { param($A) return (4 * (Get-WfPresentMonStatusDeadline) + 3 * (Get-WfPresentMonCancelDeadline) + (Get-WfPresentMonStartDeadline) + [int]$A['DurationSeconds'] + (Get-WfPresentMonStopDeadline) + (Get-WfPresentMonDecodeDeadline)) }
         },
         [ordered]@{
+            Name = 'diskio-trace'; Rights = 'administrator'; DiskCaps = 2
+            # The trace and the XML dump tracerpt makes of it are both held in the
+            # private folder while the aggregate is read: the two caps at their
+            # defaults (-MaxTraceBytes 2 GiB, -MaxDumpBytes 4 GiB).
+            DiskExtra = { return ([int64]2147483648 + [int64]4294967296) }
+            Tools = @()
+            Sources = @([ordered]@{ Id = 'wpr_trace'; Kind = 'wpr'; Required = $true }, [ordered]@{ Id = 'diskio_aggregate'; Kind = 'other'; Required = $true })
+            ReadyFile = $null
+            # Like dpcisr-trace, the instance name carries the start time.
+            Session = [ordered]@{ Instance = $null; InstancePrefix = 'WfDiskIoTrace-' }
+            # Get-DiskIoWorstCaseSeconds with the default -TimeoutSeconds 120.
+            WorstCase = { param($A) $d = [int]$A['DurationSeconds']; return ($d + [math]::Max(0, 30 - $d) + 4 * 120 + 5 * 30) }
+        },
+        [ordered]@{
             Name = 'bugcheck-history'; Rights = 'event_log_readers'; DiskCaps = 2; DiskExtra = { return [int64]0 }; Tools = @(); ReadyFile = $null; Session = $null
             Sources = @([ordered]@{ Id = 'system_restart_events'; Kind = 'eventlog'; Required = $true })
             WorstCase = { return 300 }
@@ -143,22 +157,30 @@ function Get-WfScenarioDefinition {
     if ($Id -ne 's1') { throw ('unknown scenario: ' + $Id + '; known: ' + ((Get-WfScenarioIds) -join ', ')) }
     $frames = [ordered]@{ DurationSeconds = $DurationSeconds }
     if ($ProcessName) { $frames['ProcessName'] = $ProcessName }
-    # The clock session must cover both captures: their windows plus a
+    # The clock session must cover the three captures: their windows plus a
     # planning allowance for each collector's start, stop and save (90 s for
-    # the kernel trace with its tracerpt summary, 60 s for the frame
-    # recording; the offline PresentMon read happens after its stop and needs
-    # no cover), plus 30 s. These are planning figures, not measured ones;
+    # each kernel trace with its tracerpt read, 60 s for the frame recording;
+    # the offline PresentMon read happens after its stop and needs no cover),
+    # plus 30 s. These are planning figures, not measured ones;
     # run.clock_brackets_live says whether the pairs did cover the captures.
-    $clockSeconds = [math]::Min(840, 30 + ($DurationSeconds + 90) + ($DurationSeconds + 60))
+    $clockSeconds = [math]::Min(840, 30 + ($DurationSeconds + 90) + ($DurationSeconds + 60) + ($DurationSeconds + 90))
     return [ordered]@{
         Id       = 's1'
         Version  = '1.0.0'
-        Question = 'One bounded latency session on the gaming PC: the state before, the DPC and interrupt trace and the frame recording inside one clock calibration session, the history collectors, and the state after.'
+        Question = 'One bounded latency session on the gaming PC: the state before, the DPC and interrupt trace, the frame recording and the disk activity trace one after another inside one clock calibration session, the history collectors, and the state after.'
         Steps    = @(
             [ordered]@{ Step = 'state_before'; Collector = 'config-snapshot'; Phase = 'state'; Required = $false; Background = $false; Prefix = 'state_before_'; Arguments = [ordered]@{ Snapshot = 'start' } },
             [ordered]@{ Step = 'clock'; Collector = 'clock-calibration'; Phase = 'live'; Required = $true; Background = $true; Prefix = ''; Arguments = [ordered]@{ DurationSeconds = [int]$clockSeconds } },
             [ordered]@{ Step = 'dpcisr'; Collector = 'dpcisr-trace'; Phase = 'live'; Required = $true; Background = $false; Prefix = ''; Arguments = [ordered]@{ DurationSeconds = $DurationSeconds } },
             [ordered]@{ Step = 'frames'; Collector = 'presentmon-frames'; Phase = 'live'; Required = $true; Background = $false; Prefix = ''; Arguments = $frames },
+            # The disk activity trace runs alone, after the frame recording and
+            # never beside dpcisr-trace: two NT Kernel Logger sessions at once is
+            # README item 68 (run sheet V-D1). Its source ids get a prefix,
+            # because dpcisr-trace also names its trace source wpr_trace. It is
+            # optional in S1: its aggregate rests on facts not yet verified on
+            # the PC (README items 69 to 78), and S1's question is answered by
+            # the DPC trace and the frames.
+            [ordered]@{ Step = 'diskio'; Collector = 'diskio-trace'; Phase = 'live'; Required = $false; Background = $false; Prefix = 'diskio_'; Arguments = [ordered]@{ DurationSeconds = $DurationSeconds } },
             [ordered]@{ Step = 'bugchecks'; Collector = 'bugcheck-history'; Phase = 'history'; Required = $false; Background = $false; Prefix = ''; Arguments = [ordered]@{} },
             [ordered]@{ Step = 'whea'; Collector = 'whea-errors'; Phase = 'history'; Required = $false; Background = $false; Prefix = ''; Arguments = [ordered]@{} },
             [ordered]@{ Step = 'app_errors'; Collector = 'application-errors'; Phase = 'history'; Required = $false; Background = $false; Prefix = ''; Arguments = [ordered]@{} },

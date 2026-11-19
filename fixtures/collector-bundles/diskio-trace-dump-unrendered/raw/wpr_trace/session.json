@@ -1,0 +1,201 @@
+{
+  "tool": "C:\\Windows\\System32\\wpr.exe",
+  "tracerpt": "C:\\Windows\\System32\\tracerpt.exe",
+  "instance_name": "WfDiskIoTrace-20260301T120002Z",
+  "profile_file": "raw/wpr_trace/diskio-trace.wprp",
+  "profile_name": "WfDiskIoTrace",
+  "profile_id": "WfDiskIoTrace.Verbose.File",
+  "requested_keywords": [
+    "DiskIO",
+    "Filename",
+    "HardFaults",
+    "ProcessThread"
+  ],
+  "buffer_size_kb": 1024,
+  "buffer_count": 64,
+  "logging_mode": "file",
+  "duration_seconds": 10,
+  "max_trace_bytes": 2147483648,
+  "tool_timeout_seconds": 120,
+  "short_timeout_seconds": 30,
+  "worst_case_seconds": 660,
+  "events_lost_bound": 0,
+  "buffers_lost_bound": 0,
+  "concurrent_kernel_session_check": "not_checked",
+  "start_arguments": [
+    "<bundle>/raw/wpr_trace/diskio-trace.wprp!WfDiskIoTrace.Verbose",
+    "-filemode",
+    "-recordtempto",
+    "<bundle>/private/temp"
+  ],
+  "stop_arguments": [
+    "<bundle>/private/trace.etl",
+    "win-forensics diskio-trace 20260301T120002Z",
+    "-skipPdbGen"
+  ],
+  "tracerpt_arguments": [
+    "<bundle>/private/trace.etl",
+    "-o",
+    "<bundle>/private/dump.xml",
+    "-of",
+    "XML",
+    "-summary",
+    "<bundle>/raw/wpr_trace/tracerpt-summary.txt",
+    "-y"
+  ],
+  "session_started_utc": "2026-03-01T12:00:04.0000000Z",
+  "session_stop_issued_utc": "2026-03-01T12:00:14.0000000Z",
+  "recording_seconds": 10,
+  "stopped_early_at_cap": false,
+  "temp_bytes_seen": 4096,
+  "trace_bytes": 4096,
+  "trace_sha256": "53e27a449710f975a7c15321395dca8f467d760a3b73fc3e69892d771f8edde9",
+  "trace_kept_in_bundle": false,
+  "trace_removed_reason": "the trace holds full file paths, process command lines and user ids, and system configuration events with hardware and network addresses; it is read on the machine and never leaves it (collectors/windows/README.md, The diskio-trace sources)",
+  "header": {
+    "found": true,
+    "pointer_size": 8,
+    "number_of_processors": 16,
+    "events_lost": 0,
+    "buffers_lost": 0,
+    "perf_freq_hz": 10000000,
+    "start_time_utc": "2026-03-01T12:00:07.0000000Z",
+    "start_filetime": 134168400070000000,
+    "end_time_utc": "2026-03-01T12:00:28.0000000Z",
+    "reserved_flags": 1,
+    "clock_type": "qpc",
+    "error": null
+  },
+  "status_after_start": {
+    "dropped_events": 0,
+    "dropped_events_text": "0",
+    "logging_mode": "File",
+    "buffers_lost_listed": false,
+    "collectors": [
+      {
+        "name": "NT Kernel Logger",
+        "buffer_size_kb": 1024,
+        "events_lost": 0,
+        "events_lost_text": "0",
+        "keywords": [
+          "DiskIO",
+          "Filename",
+          "HardFaults",
+          "ProcessThread"
+        ],
+        "stacks": []
+      }
+    ],
+    "mac_addresses_replaced": 0
+  },
+  "settings_verified": true,
+  "final": {
+    "events_lost": 0,
+    "buffers_lost": 0,
+    "events_processed": 31,
+    "source": "the summary written by the one tracerpt read of the saved trace",
+    "events_lost_lines": 1,
+    "buffers_lost_lines": 1,
+    "events_processed_lines": 1,
+    "labelled_lines": 5,
+    "protection": {
+      "mac_addresses_replaced": 0
+    }
+  },
+  "session_state_after_stop": "idle",
+  "session_state_final": "idle",
+  "session_confirmed_stopped": true,
+  "runs": [
+    {
+      "tool": "wpr.exe",
+      "verb": "status",
+      "arguments": "-status",
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": 11,
+      "error": null,
+      "stdout_head": "WPR is not recording\r\n",
+      "stderr_head": ""
+    },
+    {
+      "tool": "wpr.exe",
+      "verb": "profiles",
+      "arguments": "-profiles <bundle>/raw/wpr_trace/diskio-trace.wprp",
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": 11,
+      "error": null,
+      "stdout_head": "Profile                 : WfDiskIoTrace.Verbose.File\r\nProfile                 : WfDiskIoTrace.Verbose.Memory\r\n",
+      "stderr_head": ""
+    },
+    {
+      "tool": "wpr.exe",
+      "verb": "start",
+      "arguments": "-start <bundle>/raw/wpr_trace/diskio-trace.wprp!WfDiskIoTrace.Verbose -filemode -recordtempto <bundle>/private/temp -instancename WfDiskIoTrace-20260301T120002Z",
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": 11,
+      "error": null,
+      "stdout_head": "synthetic wpr: recording started\r\n",
+      "stderr_head": ""
+    },
+    {
+      "tool": "wpr.exe",
+      "verb": "status",
+      "arguments": "-status profiles collectors -details -instancename WfDiskIoTrace-20260301T120002Z",
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": 11,
+      "error": null,
+      "stdout_head": "WPR recording is in progress...\r\n\r\nTime since start        : 00:00:01\r\n\r\nDropped event           : 0\r\n\r\nLogging mode            : File\r\n\r\nRecording system activity using the following set of profiles:\r\nProfile                 : WfDiskIoTrace.Verbose.File\r\n\r\nActively recording collectors:\r\nCollector Name          : NT Kernel Logger\r\nBuffer Size (KB)        : 1024\r\nEvents Lost             : 0\r\nSystem Keywords\r\nDiskIO\r\nFilename\r\nHardFaults\r\nProcessThread\r\nSystem Stacks\r\n",
+      "stderr_head": ""
+    },
+    {
+      "tool": "wpr.exe",
+      "verb": "stop",
+      "arguments": "-stop <bundle>/private/trace.etl \"win-forensics diskio-trace 20260301T120002Z\" -skipPdbGen -instancename WfDiskIoTrace-20260301T120002Z",
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": 11,
+      "error": null,
+      "stdout_head": "synthetic wpr: trace saved\r\n",
+      "stderr_head": ""
+    },
+    {
+      "tool": "wpr.exe",
+      "verb": "status",
+      "arguments": "-status -instancename WfDiskIoTrace-20260301T120002Z",
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": 11,
+      "error": null,
+      "stdout_head": "WPR is not recording\r\n",
+      "stderr_head": ""
+    },
+    {
+      "tool": "tracerpt.exe",
+      "verb": null,
+      "arguments": "<bundle>/private/trace.etl -o <bundle>/private/dump.xml -of XML -summary <bundle>/raw/wpr_trace/tracerpt-summary.txt -y",
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": 17,
+      "error": null,
+      "stdout_head": "",
+      "stderr_head": ""
+    }
+  ]
+}
