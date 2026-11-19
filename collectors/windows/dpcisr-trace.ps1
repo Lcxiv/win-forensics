@@ -243,17 +243,10 @@ function ConvertTo-DpcIsrInteger {
 }
 
 function Get-DpcIsrStatusState {
-    # active, idle or unknown, from one "wpr -status" run. Only a run that
-    # exited 0 with a recognised text counts; an error, an empty or capped
-    # output or a text in words the reader does not know is unknown, which
-    # fails preflight and never confirms a stop.
+    # active, idle or unknown, from one "wpr -status" run (Get-WfWprStatusState
+    # in the helper, which the scenario runner's end check uses too).
     param($Run)
-    if (-not [bool]$Run['Started'] -or [bool]$Run['TimedOut'] -or [bool]$Run['Oversized']) { return 'unknown' }
-    if ($null -eq $Run['ExitCode'] -or [int]$Run['ExitCode'] -ne 0) { return 'unknown' }
-    $text = ([string]$Run['StdOut'] + "`n" + [string]$Run['StdErr'])
-    if ($text -match '(?i)recording is in progress') { return 'active' }
-    if ($text -match '(?i)\bnot recording\b') { return 'idle' }
-    return 'unknown'
+    return (Get-WfWprStatusState -Run $Run)
 }
 
 function Read-DpcIsrWprStatus {
@@ -531,23 +524,21 @@ $invokeWprTrace = {
     }
     $sessionStarted = $false
     $stopIssued = $false
+    $cancelIssued = $false
     $stateAfterStop = $null
     $finalState = $null
     $readErrorKind = ''
     $readErrorMessage = ''
-    $statusText = $null
     $parsedStatus = $null
     $enabledKeywords = $null
     $enabledStacks = $null
     $enabledProviders = $null
     $statusBufferKb = $null
     $earlyEventsLost = $null
-    $settingsReason = $null
     $summary = $null
     $summaryRun = $null
     $traceBytes = $null
     $traceSha = $null
-    $monotonicStart = $null
     try {
         $null = New-Item -ItemType Directory -Force -Path $dir
         Write-WfTextFile -Path $profilePath -Text (Get-DpcIsrProfileXml)
@@ -607,122 +598,162 @@ $invokeWprTrace = {
         }
 
         if (-not $readErrorKind) {
-            $null = New-Item -ItemType Directory -Force -Path $tempDir
-            $start = Invoke-DpcIsrTool -Tool $tool -Verb 'start' -Arguments $startArguments -Instance $instance -TimeoutSeconds $TimeoutSeconds -Runs $runs -Log $Log -BundleRoot $BundleRoot
-            $monotonicStart = Get-WfMonotonicSeconds
-            if (Test-DpcIsrRunOk -Run $start) {
-                $sessionStarted = $true
-                $session.session_started_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
-                $Log.Add(('session {0} started, recording for {1} s' -f $instance, $duration))
-            } else {
-                # A start that failed may still have left a session behind:
-                # the finally block below checks the instance and cancels it.
-                $sessionStarted = $true
-                $readErrorKind = 'preflight'
-                $readErrorMessage = 'wpr -start was refused: ' + (& $recorded (Get-DpcIsrRunFailure -Run $start -Tool $tool))
+            # The session runs through the helper's one live session path,
+            # Invoke-WfLiveSession: start, verify, the bound on the monotonic
+            # clock, stop, and on every exit path the end check (the
+            # collector's own instance is read; anything but a confirmed idle
+            # state, or a stop that did not complete, is cancelled and read
+            # again). The hooks are what is particular to WPR and the kernel
+            # collector; they write their results into $live, never into
+            # variables.
+            $live = @{
+                ReadErrorKind = ''; ReadErrorMessage = ''; StatusText = $null; ParsedStatus = $null; EnabledKeywords = $null; EnabledStacks = $null
+                EnabledProviders = $null; StatusBufferKb = $null; EarlyEventsLost = $null; SettingsReason = $null
             }
-        }
-
-        if ($sessionStarted -and -not $readErrorKind) {
-            # Requested versus enabled, from the tool's own status right after
-            # the start: the kernel collector must be listed with every
-            # requested keyword, and its loss figure must be readable. A
-            # session whose settings cannot be verified is cancelled, not
-            # recorded.
-            $statusRun = Invoke-DpcIsrTool -Tool $tool -Verb 'status' -Arguments @('profiles', 'collectors', '-details') -Instance $instance -TimeoutSeconds $short -Runs $runs -Log $Log -BundleRoot $BundleRoot
-            $statusState = Get-DpcIsrStatusState -Run $statusRun
-            if ($statusState -eq 'active') {
-                $statusText = [string]$statusRun['StdOut']
-                if ([string]$statusRun['StdErr']) { $statusText = $statusText + "`n" + [string]$statusRun['StdErr'] }
-                $protected = Protect-WfMacAddresses -Text ($statusText -replace "`r`n", "`n") -Salt ([string]$Context['Salt'])
-                Write-WfTextFile -Path (Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/status.txt')) -Text (([string]$protected.Text).TrimEnd() + "`n")
-                $parsedStatus = Read-DpcIsrWprStatus -Text $statusText
-                $session.status_after_start = [ordered]@{
-                    dropped_events = $parsedStatus.dropped_events; dropped_events_text = $parsedStatus.dropped_events_text; logging_mode = $parsedStatus.logging_mode
-                    time_since_start = $parsedStatus.time_since_start; buffers_lost_listed = $parsedStatus.buffers_lost_listed
-                    collectors = @($parsedStatus.collectors); mac_addresses_replaced = $protected.Count
-                }
-                $kernel = @($parsedStatus.collectors | Where-Object { [string]$_.name -eq (Get-DpcIsrKernelCollectorName) })
-                $enabledProviders = @($parsedStatus.collectors | ForEach-Object { [string]$_.name })
-                if ($kernel.Count -ne 1) {
-                    $settingsReason = ('wpr -status lists {0} collector(s) named "{1}"; exactly one is expected' -f $kernel.Count, (Get-DpcIsrKernelCollectorName))
-                } else {
-                    $enabledKeywords = @($kernel[0].keywords)
-                    $enabledStacks = @($kernel[0].stacks)
-                    $statusBufferKb = $kernel[0].buffer_size_kb
-                    $earlyEventsLost = $kernel[0].events_lost
-                    $missing = @((Get-DpcIsrRequestedKeywords) | Where-Object { $enabledKeywords -notcontains $_ })
-                    if ($enabledKeywords.Count -eq 0) {
-                        $settingsReason = 'wpr -status lists no System Keywords for the kernel collector, so the requested settings are not verified from tool output'
-                    } elseif ($missing.Count -gt 0) {
-                        $settingsReason = ('requested settings were not enabled: wpr -status lists no {0} keyword for the kernel collector' -f ($missing -join ', '))
-                    } elseif ($null -eq $earlyEventsLost) {
-                        $settingsReason = ('the kernel collector''s "Events Lost" figure is missing or not a number ({0})' -f $(if ($null -eq $kernel[0].events_lost_text) { 'no line' } else { '"' + [string]$kernel[0].events_lost_text + '"' }))
-                    } elseif ($parsedStatus.buffers_lost_listed) {
-                        $settingsReason = 'wpr -status lists lost buffers for the session'
-                    } elseif ($earlyEventsLost -gt 0) {
-                        $settingsReason = ('wpr -status already reports {0} events lost right after the start' -f $earlyEventsLost)
+            $liveHooks = @{
+                Start   = {
+                    param($S)
+                    $null = New-Item -ItemType Directory -Force -Path $tempDir
+                    $startRun = Invoke-DpcIsrTool -Tool $tool -Verb 'start' -Arguments $startArguments -Instance $instance -TimeoutSeconds $TimeoutSeconds -Runs $runs -Log $Log -BundleRoot $BundleRoot
+                    $startOk = Test-DpcIsrRunOk -Run $startRun
+                    if (-not $startOk) {
+                        # A start that failed may still have left a session
+                        # behind: the end check reads the instance and cancels it.
+                        $S.ReadErrorKind = 'preflight'
+                        $S.ReadErrorMessage = 'wpr -start was refused: ' + (& $recorded (Get-DpcIsrRunFailure -Run $startRun -Tool $tool))
                     }
+                    return @{ Ok = $startOk; MayRemain = $true }
                 }
-            } else {
-                $settingsReason = ('wpr -status on the collector''s own instance read as {0} right after the start, so the session and its settings could not be verified: {1}' -f $statusState, (& $recorded (Get-DpcIsrRunFailure -Run $statusRun -Tool $tool)))
-            }
-            $session.settings_verified = ($null -eq $settingsReason)
-            if ($null -ne $settingsReason) {
-                $readErrorKind = 'other'
-                $readErrorMessage = 'the session was cancelled without saving a trace because ' + $settingsReason
-            }
-        }
-
-        if ($sessionStarted -and -not $readErrorKind) {
-            # Record until the monotonic deadline or the cap, one second at a
-            # time, then issue the stop at once. Nothing else runs between the
-            # deadline and the stop.
-            $deadline = $monotonicStart + $duration
-            while ((Get-WfMonotonicSeconds) -lt $deadline) {
-                Start-WfSleep -Seconds 1
-                $bytes = Get-DpcIsrDirectoryBytes -Path $tempDir
-                if ($bytes -gt $session.temp_bytes_seen) { $session.temp_bytes_seen = $bytes }
-                if ($bytes -gt $maxTraceBytes) {
-                    $session.stopped_early_at_cap = $true
-                    $Log.Add(('the temporary recording reached {0} bytes, above the cap of {1}; stopping early' -f $bytes, $maxTraceBytes))
-                    break
+                Started = {
+                    param($S)
+                    $null = $S
+                    $session.session_started_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
+                    $Log.Add(('session {0} started, recording for {1} s' -f $instance, $duration))
+                }
+                Verify  = {
+                    # Requested versus enabled, from the tool's own status right
+                    # after the start: the kernel collector must be listed with
+                    # every requested keyword, and its loss figure must be
+                    # readable. A session whose settings cannot be verified is
+                    # cancelled, not recorded.
+                    param($S)
+                    $reason = $null
+                    $statusRun = Invoke-DpcIsrTool -Tool $tool -Verb 'status' -Arguments @('profiles', 'collectors', '-details') -Instance $instance -TimeoutSeconds $short -Runs $runs -Log $Log -BundleRoot $BundleRoot
+                    $statusState = Get-DpcIsrStatusState -Run $statusRun
+                    if ($statusState -eq 'active') {
+                        $text = [string]$statusRun['StdOut']
+                        if ([string]$statusRun['StdErr']) { $text = $text + "`n" + [string]$statusRun['StdErr'] }
+                        $S.StatusText = $text
+                        $protected = Protect-WfMacAddresses -Text ($text -replace "`r`n", "`n") -Salt ([string]$Context['Salt'])
+                        Write-WfTextFile -Path (Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/status.txt')) -Text (([string]$protected.Text).TrimEnd() + "`n")
+                        $parsed = Read-DpcIsrWprStatus -Text $text
+                        $S.ParsedStatus = $parsed
+                        $session.status_after_start = [ordered]@{
+                            dropped_events = $parsed.dropped_events; dropped_events_text = $parsed.dropped_events_text; logging_mode = $parsed.logging_mode
+                            time_since_start = $parsed.time_since_start; buffers_lost_listed = $parsed.buffers_lost_listed
+                            collectors = @($parsed.collectors); mac_addresses_replaced = $protected.Count
+                        }
+                        $kernel = @($parsed.collectors | Where-Object { [string]$_.name -eq (Get-DpcIsrKernelCollectorName) })
+                        $S.EnabledProviders = @($parsed.collectors | ForEach-Object { [string]$_.name })
+                        if ($kernel.Count -ne 1) {
+                            $reason = ('wpr -status lists {0} collector(s) named "{1}"; exactly one is expected' -f $kernel.Count, (Get-DpcIsrKernelCollectorName))
+                        } else {
+                            $keywords = @($kernel[0].keywords)
+                            $S.EnabledKeywords = $keywords
+                            $S.EnabledStacks = @($kernel[0].stacks)
+                            $S.StatusBufferKb = $kernel[0].buffer_size_kb
+                            $early = $kernel[0].events_lost
+                            $S.EarlyEventsLost = $early
+                            $missing = @((Get-DpcIsrRequestedKeywords) | Where-Object { $keywords -notcontains $_ })
+                            if ($keywords.Count -eq 0) {
+                                $reason = 'wpr -status lists no System Keywords for the kernel collector, so the requested settings are not verified from tool output'
+                            } elseif ($missing.Count -gt 0) {
+                                $reason = ('requested settings were not enabled: wpr -status lists no {0} keyword for the kernel collector' -f ($missing -join ', '))
+                            } elseif ($null -eq $early) {
+                                $reason = ('the kernel collector''s "Events Lost" figure is missing or not a number ({0})' -f $(if ($null -eq $kernel[0].events_lost_text) { 'no line' } else { '"' + [string]$kernel[0].events_lost_text + '"' }))
+                            } elseif ($parsed.buffers_lost_listed) {
+                                $reason = 'wpr -status lists lost buffers for the session'
+                            } elseif ($early -gt 0) {
+                                $reason = ('wpr -status already reports {0} events lost right after the start' -f $early)
+                            }
+                        }
+                    } else {
+                        $reason = ('wpr -status on the collector''s own instance read as {0} right after the start, so the session and its settings could not be verified: {1}' -f $statusState, (& $recorded (Get-DpcIsrRunFailure -Run $statusRun -Tool $tool)))
+                    }
+                    $S.SettingsReason = $reason
+                    $session.settings_verified = ($null -eq $reason)
+                    if ($null -ne $reason) {
+                        $S.ReadErrorKind = 'other'
+                        $S.ReadErrorMessage = 'the session was cancelled without saving a trace because ' + $reason
+                    }
+                    return $reason
+                }
+                Watch   = {
+                    # After each second of the bound: the cap on the temporary
+                    # recording. Nothing else runs between the deadline and the stop.
+                    param($S)
+                    $null = $S
+                    $bytes = Get-DpcIsrDirectoryBytes -Path $tempDir
+                    if ($bytes -gt $session.temp_bytes_seen) { $session.temp_bytes_seen = $bytes }
+                    if ($bytes -gt $maxTraceBytes) {
+                        $session.stopped_early_at_cap = $true
+                        $Log.Add(('the temporary recording reached {0} bytes, above the cap of {1}; stopping early' -f $bytes, $maxTraceBytes))
+                        return $true
+                    }
+                    return $false
+                }
+                Stop    = {
+                    param($S)
+                    $session.recording_seconds = $S.Session.bound_seconds
+                    $session.session_stop_issued_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
+                    $stopRun = Invoke-DpcIsrTool -Tool $tool -Verb 'stop' -Arguments $stopArguments -Instance $instance -TimeoutSeconds $TimeoutSeconds -Runs $runs -Log $Log -BundleRoot $BundleRoot
+                    $stopOk = Test-DpcIsrRunOk -Run $stopRun
+                    if (-not $stopOk) {
+                        $S.ReadErrorKind = 'other'
+                        $S.ReadErrorMessage = 'wpr -stop failed, so no trace was saved: ' + (& $recorded (Get-DpcIsrRunFailure -Run $stopRun -Tool $tool))
+                    }
+                    return $stopOk
+                }
+                Fail    = {
+                    param($S, [string]$Message)
+                    $S.ReadErrorKind = 'other'
+                    $S.ReadErrorMessage = 'the collector raised while running the trace session: ' + $Message
+                    $Log.Add('source ' + $id + ' raised: ' + $Message)
+                }
+                Confirm = {
+                    param($S, [string]$Moment)
+                    $null = $S, $Moment
+                    $statusRun = Invoke-DpcIsrTool -Tool $tool -Verb 'status' -Arguments @() -Instance $instance -TimeoutSeconds $short -Runs $runs -Log $Log -BundleRoot $BundleRoot
+                    return (Get-DpcIsrStatusState -Run $statusRun)
+                }
+                Cancel  = {
+                    param($S, [string]$Read)
+                    $null = $S
+                    $cancelRun = Invoke-DpcIsrTool -Tool $tool -Verb 'cancel' -Arguments @() -Instance $instance -TimeoutSeconds $short -Runs $runs -Log $Log -BundleRoot $BundleRoot
+                    $Log.Add(('session {0} read as {1}; cancelled: exit code {2}' -f $instance, $Read, [string]$cancelRun['ExitCode']))
+                    return (Test-DpcIsrRunOk -Run $cancelRun)
                 }
             }
-            $session.recording_seconds = [math]::Round((Get-WfMonotonicSeconds) - $monotonicStart, 3)
-            $session.session_stop_issued_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
-            $stopIssued = $true
-            $stop = Invoke-DpcIsrTool -Tool $tool -Verb 'stop' -Arguments $stopArguments -Instance $instance -TimeoutSeconds $TimeoutSeconds -Runs $runs -Log $Log -BundleRoot $BundleRoot
-            if (-not (Test-DpcIsrRunOk -Run $stop)) {
-                $readErrorKind = 'other'
-                $readErrorMessage = 'wpr -stop failed, so no trace was saved: ' + (& $recorded (Get-DpcIsrRunFailure -Run $stop -Tool $tool))
-            }
+            $liveRecord = Invoke-WfLiveSession -LiveHooks $liveHooks -LiveState $live -LiveSeconds $duration
+            $readErrorKind = [string]$live.ReadErrorKind
+            $readErrorMessage = [string]$live.ReadErrorMessage
+            $parsedStatus = $live.ParsedStatus
+            $enabledKeywords = $live.EnabledKeywords
+            $enabledStacks = $live.EnabledStacks
+            $enabledProviders = $live.EnabledProviders
+            $statusBufferKb = $live.StatusBufferKb
+            $earlyEventsLost = $live.EarlyEventsLost
+            $sessionStarted = [bool]$liveRecord.may_remain
+            $stopIssued = [bool]$liveRecord.stop_issued
+            $cancelIssued = [bool]$liveRecord.cancel_issued
+            $stateAfterStop = $liveRecord.state_after_stop
+            $finalState = $liveRecord.state_final
+            if ($null -ne $liveRecord.end_error) { $Log.Add('the session state could not be confirmed: ' + [string]$liveRecord.end_error) }
         }
     } catch {
         $readErrorKind = 'other'
         $readErrorMessage = 'the collector raised while running the trace session: ' + $_.Exception.Message
         $Log.Add('source ' + $id + ' raised: ' + $_.Exception.Message)
-    } finally {
-        # Every exit path ends here. The collector's own instance is checked;
-        # anything but a confirmed idle state is cancelled and checked again.
-        # The outcome is recorded whatever it is; an unconfirmed state is a
-        # failure, never a quiet success.
-        try {
-            if ($sessionStarted) {
-                $after = Invoke-DpcIsrTool -Tool $tool -Verb 'status' -Arguments @() -Instance $instance -TimeoutSeconds $short -Runs $runs -Log $Log -BundleRoot $BundleRoot
-                $stateAfterStop = Get-DpcIsrStatusState -Run $after
-                $finalState = $stateAfterStop
-                if ($stateAfterStop -ne 'idle') {
-                    $cancel = Invoke-DpcIsrTool -Tool $tool -Verb 'cancel' -Arguments @() -Instance $instance -TimeoutSeconds $short -Runs $runs -Log $Log -BundleRoot $BundleRoot
-                    $Log.Add(('session {0} read as {1}; cancelled: exit code {2}' -f $instance, $stateAfterStop, [string]$cancel['ExitCode']))
-                    $again = Invoke-DpcIsrTool -Tool $tool -Verb 'status' -Arguments @() -Instance $instance -TimeoutSeconds $short -Runs $runs -Log $Log -BundleRoot $BundleRoot
-                    $finalState = Get-DpcIsrStatusState -Run $again
-                }
-            }
-        } catch {
-            $finalState = 'unknown'
-            $Log.Add('the session state could not be confirmed: ' + $_.Exception.Message)
-        }
     }
     $confirmed = $null
     if ($sessionStarted) { $confirmed = ($finalState -eq 'idle') }
@@ -793,7 +824,7 @@ $invokeWprTrace = {
     $stopped = Get-WfUtcNow
     if ($sessionStarted -and -not $confirmed) {
         $entry.status = 'capture_failed'
-        $entry.status_reason = ('the collector''s instance reads as {0} after {1}{2}, so the session may still be recording; a session whose end is not confirmed is not a complete record{3}' -f $finalState, $(if ($stopIssued) { 'the stop' } else { 'the session was given up' }), $(if ($stateAfterStop -ne 'idle') { ' and the cancel' } else { '' }), $(if ($readErrorMessage) { '. Before that: ' + $readErrorMessage } else { '' }))
+        $entry.status_reason = ('the collector''s instance reads as {0} after {1}{2}, so the session may still be recording; a session whose end is not confirmed is not a complete record{3}' -f $finalState, $(if ($stopIssued) { 'the stop' } else { 'the session was given up' }), $(if ($cancelIssued) { ' and the cancel' } else { '' }), $(if ($readErrorMessage) { '. Before that: ' + $readErrorMessage } else { '' }))
     } elseif ($readErrorKind) {
         $resolved = Resolve-WfSourceStatus -ReadErrorKind $readErrorKind -ReadErrorMessage $readErrorMessage -WindowStartUtc $started
         $entry.status = $resolved['Status']

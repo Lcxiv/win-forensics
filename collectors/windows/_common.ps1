@@ -272,6 +272,121 @@ function ConvertTo-WfJson {
     return (ConvertTo-WfJsonString -Text ([string]$Value))
 }
 
+function Read-WfJsonValue {
+    # One JSON value at $State.Pos (see ConvertFrom-WfJson).
+    param([hashtable]$State)
+    $text = [string]$State.Text
+    # Regex.Match(string, int) anchors \G at the start position.
+    $space = ([regex]'\G\s*').Match($text, $State.Pos)
+    $State.Pos = $State.Pos + $space.Length
+    if ($State.Pos -ge $text.Length) { throw 'JSON text ended where a value was expected' }
+    $char = $text[$State.Pos]
+    if ($char -eq '{') {
+        $map = [ordered]@{}
+        $State.Pos = $State.Pos + 1
+        $space = ([regex]'\G\s*').Match($text, $State.Pos); $State.Pos = $State.Pos + $space.Length
+        if ($text[$State.Pos] -eq '}') { $State.Pos = $State.Pos + 1; return $map }
+        while ($true) {
+            $space = ([regex]'\G\s*').Match($text, $State.Pos); $State.Pos = $State.Pos + $space.Length
+            if ($text[$State.Pos] -ne '"') { throw ('JSON object key expected at offset ' + $State.Pos) }
+            $key = Read-WfJsonValue -State $State
+            $space = ([regex]'\G\s*').Match($text, $State.Pos); $State.Pos = $State.Pos + $space.Length
+            if ($text[$State.Pos] -ne ':') { throw ('JSON colon expected at offset ' + $State.Pos) }
+            $State.Pos = $State.Pos + 1
+            $member = Read-WfJsonValue -State $State
+            $map[[string]$key] = $member
+            $space = ([regex]'\G\s*').Match($text, $State.Pos); $State.Pos = $State.Pos + $space.Length
+            if ($State.Pos -ge $text.Length) { throw 'JSON text ended inside an object' }
+            if ($text[$State.Pos] -eq ',') { $State.Pos = $State.Pos + 1; continue }
+            if ($text[$State.Pos] -eq '}') { $State.Pos = $State.Pos + 1; return $map }
+            throw ('JSON comma or closing brace expected at offset ' + $State.Pos)
+        }
+    }
+    if ($char -eq '[') {
+        $items = New-Object 'System.Collections.Generic.List[object]'
+        $State.Pos = $State.Pos + 1
+        $space = ([regex]'\G\s*').Match($text, $State.Pos); $State.Pos = $State.Pos + $space.Length
+        if ($text[$State.Pos] -eq ']') { $State.Pos = $State.Pos + 1; return , $items.ToArray() }
+        while ($true) {
+            $item = Read-WfJsonValue -State $State
+            $items.Add($item)
+            $space = ([regex]'\G\s*').Match($text, $State.Pos); $State.Pos = $State.Pos + $space.Length
+            if ($State.Pos -ge $text.Length) { throw 'JSON text ended inside an array' }
+            if ($text[$State.Pos] -eq ',') { $State.Pos = $State.Pos + 1; continue }
+            if ($text[$State.Pos] -eq ']') { $State.Pos = $State.Pos + 1; return , $items.ToArray() }
+            throw ('JSON comma or closing bracket expected at offset ' + $State.Pos)
+        }
+    }
+    if ($char -eq '"') {
+        $match = ([regex]'\G"((?:[^"\\]|\\.)*)"').Match($text, $State.Pos)
+        if (-not $match.Success) { throw ('JSON string not closed at offset ' + $State.Pos) }
+        $State.Pos = $State.Pos + $match.Length
+        $body = $match.Groups[1].Value
+        if ($body.IndexOf('\') -lt 0) { return $body }
+        $builder = New-Object System.Text.StringBuilder
+        $i = 0
+        while ($i -lt $body.Length) {
+            $c = $body[$i]
+            if ($c -ne '\') { $null = $builder.Append($c); $i++; continue }
+            $e = $body[$i + 1]
+            switch -CaseSensitive ([string]$e) {
+                '"' { $null = $builder.Append('"') }
+                '\' { $null = $builder.Append('\') }
+                '/' { $null = $builder.Append('/') }
+                'b' { $null = $builder.Append([char]8) }
+                'f' { $null = $builder.Append([char]12) }
+                'n' { $null = $builder.Append("`n") }
+                'r' { $null = $builder.Append("`r") }
+                't' { $null = $builder.Append("`t") }
+                'u' {
+                    $null = $builder.Append([char][System.Convert]::ToInt32($body.Substring($i + 2, 4), 16))
+                    $i += 4
+                }
+                default { throw ('JSON escape not known: \' + $e) }
+            }
+            $i += 2
+        }
+        return $builder.ToString()
+    }
+    $literal = ([regex]'\G(true|false|null)').Match($text, $State.Pos)
+    if ($literal.Success) {
+        $State.Pos = $State.Pos + $literal.Length
+        if ($literal.Value -eq 'true') { return $true }
+        if ($literal.Value -eq 'false') { return $false }
+        return $null
+    }
+    $number = ([regex]'\G-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?').Match($text, $State.Pos)
+    if ($number.Success) {
+        $State.Pos = $State.Pos + $number.Length
+        $invariant = [System.Globalization.CultureInfo]::InvariantCulture
+        if (-not $number.Groups[2].Success -and -not $number.Groups[3].Success) {
+            $whole = [int64]0
+            if ([int64]::TryParse($number.Value, [System.Globalization.NumberStyles]::AllowLeadingSign, $invariant, [ref]$whole)) { return $whole }
+        }
+        return [double]::Parse($number.Value, $invariant)
+    }
+    throw ('JSON value expected at offset ' + $State.Pos)
+}
+
+function ConvertFrom-WfJson {
+    # Reads JSON into ordered maps, arrays, strings, int64 or double numbers,
+    # booleans and null, with the same result on Windows PowerShell 5.1 and
+    # PowerShell 7. ConvertFrom-Json is not used: PowerShell 7 turns ISO 8601
+    # text into DateTime values and 5.1 does not, and its objects lose the
+    # key order the bundle files are written in.
+    param([string]$Text)
+    $state = @{ Text = $Text; Pos = 0 }
+    $value = Read-WfJsonValue -State $state
+    $rest = ([regex]'\G\s*').Match($Text, $state.Pos)
+    if ($state.Pos + $rest.Length -ne $Text.Length) { throw ('JSON text continues after the value at offset ' + $state.Pos) }
+    return , $value
+}
+
+function Read-WfJsonFile {
+    param([string]$Path)
+    return , (ConvertFrom-WfJson -Text ([System.IO.File]::ReadAllText($Path, (New-Object System.Text.UTF8Encoding($false)))))
+}
+
 function Write-WfJsonFile {
     param([string]$Path, $Object)
     Write-WfTextFile -Path $Path -Text ((ConvertTo-WfJson -Value $Object -Indent 0) + "`n")
@@ -3887,7 +4002,9 @@ function Invoke-WfCollector {
 
     $allNotes = New-Object 'System.Collections.Generic.List[string]'
     $allNotes.Add(('Read only collector {0} version {1}: {2}' -f $name, [string]$Definition['Version'], [string]$Definition['Question']))
-    $allNotes.Add(('Ran as {0}; elevated: {1}; member of Event Log Readers (S-1-5-32-573): {2}.' -f $account['name'], $account['elevated'], $account['event_log_readers']))
+    # The account name is never written: it names a person (the brief's
+    # privacy rule), and the two booleans are what the statuses depend on.
+    $allNotes.Add(('Ran as the collector account (its name is not recorded); elevated: {0}; member of Event Log Readers (S-1-5-32-573): {1}.' -f $account['elevated'], $account['event_log_readers']))
     $allNotes.Add('The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.')
     if ($readsEventLog) {
         $allNotes.Add('Each event log query selects a fixed interval, window_end_utc minus the window to window_end_utc, so records raised while the query ran are not part of the result.')
@@ -3992,6 +4109,242 @@ function Invoke-WfCollectorScript {
     }
     Write-WfStdoutLine -Text $line
     return $exitCode
+}
+
+# ---------------------------------------------------------------------------
+# PresentMon pin: what presentmon-frames runs and the scenario runner's
+# preflight checks before any capture.
+# ---------------------------------------------------------------------------
+# GitHub release v2.6.0 of GameTechDev/PresentMon, published 2026-09-21, asset
+# PresentMon-2.6.0-x64.exe. The digest is the one GitHub records for the
+# release asset (the release API's digest field, read 2026-11-18); the size is
+# the asset size from the same record. Only these exact bytes are run.
+function Get-WfPresentMonPinnedVersion { return '2.6.0' }
+function Get-WfPresentMonPinnedFileName { return 'PresentMon-2.6.0-x64.exe' }
+function Get-WfPresentMonPinnedSha256 { return 'b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af' }
+function Get-WfPresentMonPinnedLength { return [int64]980320 }
+function Get-WfPresentMonReleaseUrl { return 'https://github.com/GameTechDev/PresentMon/releases/tag/v2.6.0' }
+function Get-WfPresentMonAssetUrl { return 'https://github.com/GameTechDev/PresentMon/releases/download/v2.6.0/PresentMon-2.6.0-x64.exe' }
+function Get-WfPresentMonDocumentationUrl { return 'https://github.com/GameTechDev/PresentMon/blob/v2.6.0/README-ConsoleApplication.md' }
+function Get-WfPresentMonSourceUrl { return 'https://github.com/GameTechDev/PresentMon/tree/v2.6.0' }
+# The WPR recording: the instance name every wpr call carries (WPR
+# Command-Line Options: -instancename "specifies a name to uniquely identify
+# the tracing instance" and "must be the last parameter"), which is also the
+# event collector's name in the profile, and the profile name inside the .wprp.
+function Get-WfPresentMonInstanceName { return 'wf-presentmon-frames' }
+function Get-WfPresentMonProfileName { return 'WfPresentMonFrames' }
+# Deadlines in seconds for the phases that are not the recording window.
+function Get-WfPresentMonStartDeadline { return 60 }
+function Get-WfPresentMonStatusDeadline { return 30 }
+function Get-WfPresentMonStopDeadline { return 180 }
+function Get-WfPresentMonDecodeDeadline { return 240 }
+function Get-WfPresentMonCancelDeadline { return 60 }
+# Cap on what a program may print on a console stream that is not the CSV.
+function Get-WfPresentMonConsoleCapBytes { return [int64]1048576 }
+function Get-WfPresentMonSessionCapMb {
+    # The profile's MaximumFileSize: three quarters of the artifact cap in
+    # whole megabytes, at least 1, so that the merged file (the session file
+    # plus what WPR's -stop adds) has room to stay under the artifact cap.
+    param([int64]$MaxArtifactBytes)
+    return [int][math]::Max(1, [math]::Floor($MaxArtifactBytes * 0.75 / 1048576.0))
+}
+function Get-WfPresentMonPeakBytesBound {
+    # The most the collector can hold on disk at once: the session file, the
+    # merged file, the CSV and two console streams. The scenario runner's
+    # free space minimum uses the same figure.
+    param([int64]$MaxArtifactBytes)
+    return ([int64](Get-WfPresentMonSessionCapMb -MaxArtifactBytes $MaxArtifactBytes) * 1048576 + 2 * $MaxArtifactBytes + 2 * (Get-WfPresentMonConsoleCapBytes))
+}
+# A process name: letters, digits, dot, underscore and hyphen, not starting
+# with a hyphen, so it can never read as an option.
+function Get-WfPresentMonProcessNamePattern { return '^[A-Za-z0-9._][A-Za-z0-9._-]{0,119}$' }
+# How far the session's own end time may precede the stop request before the
+# session counts as closed early (it reached its file cap or died).
+function Get-WfPresentMonEndToleranceSeconds { return 5 }
+
+function Get-WfPresentMonDefaultPath {
+    # <install root>\tools\<pinned file name>: the collectors live two levels
+    # below the install root (remote\collectors on the PC; collectors\windows
+    # in the repository, where tools\ is ignored by git).
+    param([string]$ScriptRoot)
+    $installRoot = Split-Path -Parent (Split-Path -Parent $ScriptRoot)
+    return [System.IO.Path]::Combine($installRoot, 'tools', (Get-WfPresentMonPinnedFileName))
+}
+
+# ---------------------------------------------------------------------------
+# Live sessions: the one start, bound, stop and end path.
+# ---------------------------------------------------------------------------
+
+function Get-WfLastOutput {
+    # The last object a hook wrote, so a stray object it wrote by accident
+    # never stands in for its result.
+    param([object[]]$Items)
+    if ($null -eq $Items -or $Items.Count -eq 0) { return $null }
+    return $Items[$Items.Count - 1]
+}
+
+function New-WfLiveSessionRecord {
+    # What Invoke-WfLiveSession reports about one session. Every member is a
+    # fact about the session control, never about the evidence it recorded.
+    return [ordered]@{
+        start_attempted  = $false
+        start_ok         = $false
+        may_remain       = $false
+        verify_reason    = $null
+        bound_seconds    = $null
+        stopped_early    = $false
+        stop_issued      = $false
+        stop_ok          = $null
+        state_after_stop = $null
+        cancel_issued    = $false
+        cancel_ok        = $null
+        state_final      = $null
+        confirmed        = $null
+        error            = $null
+        end_error        = $null
+    }
+}
+
+function Get-WfWprStatusState {
+    # active, idle or unknown, from one "wpr -status" run. Only a run that
+    # exited 0 with a recognised text counts; an error, an empty or capped
+    # output or a text in words the reader does not know is unknown, which
+    # fails preflight and never confirms a stop. Microsoft documents the in
+    # progress text and "WPR is not recording"; the exact idle text and the
+    # exit codes are README verification item 24.
+    param($Run)
+    if (-not [bool]$Run['Started'] -or [bool]$Run['TimedOut'] -or [bool]$Run['Oversized']) { return 'unknown' }
+    if ($null -eq $Run['ExitCode'] -or [int]$Run['ExitCode'] -ne 0) { return 'unknown' }
+    $text = ([string]$Run['StdOut'] + "`n" + [string]$Run['StdErr'])
+    if ($text -match '(?i)recording is in progress') { return 'active' }
+    if ($text -match '(?i)\bnot recording\b') { return 'idle' }
+    return 'unknown'
+}
+
+function Complete-WfLiveSession {
+    # The end check of Invoke-WfLiveSession, on its own so that a caller who
+    # lost a session's process (the scenario runner after it stopped a
+    # collector at its deadline) ends that session by the same policy: read
+    # the state, cancel anything that did not end cleanly, read it again, and
+    # report the last read. It fills LiveRecord (New-WfLiveSessionRecord) and
+    # raises nothing.
+    param(
+        [System.Collections.IDictionary]$LiveHooks,
+        [System.Collections.IDictionary]$LiveState,
+        [System.Collections.IDictionary]$LiveRecord
+    )
+    if (-not $LiveRecord.may_remain) { return }
+    $wfLsFinal = 'unknown'
+    try {
+        $wfLsFinal = [string](Get-WfLastOutput -Items @(& $LiveHooks['Confirm'] $LiveState 'after_stop'))
+        $LiveRecord.state_after_stop = $wfLsFinal
+        if ($wfLsFinal -ne 'idle' -or -not $LiveRecord.start_ok -or ($LiveRecord.stop_issued -and -not $LiveRecord.stop_ok)) {
+            $LiveRecord.cancel_issued = $true
+            $LiveRecord.cancel_ok = [bool](Get-WfLastOutput -Items @(& $LiveHooks['Cancel'] $LiveState $wfLsFinal))
+            $wfLsFinal = [string](Get-WfLastOutput -Items @(& $LiveHooks['Confirm'] $LiveState 'after_cancel'))
+        }
+    } catch {
+        $wfLsFinal = 'unknown'
+        $LiveRecord.end_error = $_.Exception.Message
+    }
+    if (@('idle', 'active', 'unknown') -notcontains $wfLsFinal) { $wfLsFinal = 'unknown' }
+    $LiveRecord.state_final = $wfLsFinal
+    $LiveRecord.confirmed = ($wfLsFinal -eq 'idle')
+}
+
+function Invoke-WfLiveSession {
+    # Runs one live session through the fixed order every live collector
+    # shares: start, verify, bound, stop, and on every exit path the end
+    # check. The collector supplies what is particular to its tool as hooks
+    # (scriptblocks, each called with the state map as its first argument);
+    # this function owns the order, the bound and the end policy, so no
+    # collector carries a session control of its own.
+    #
+    #   Start   (required) issues the start. Returns a map with Ok (the
+    #           session is running) and MayRemain (a start that did not
+    #           succeed may still have left a session behind). A start that
+    #           raises is treated as one that may have left a session.
+    #   Started (optional) runs right after the monotonic reading the bound
+    #           counts from, only after a start that succeeded (a collector
+    #           stamps its system clock start time here).
+    #   Verify  (optional) runs only after a start that succeeded. Returns
+    #           $null when the session's settings are proven, otherwise the
+    #           reason; the session is then not bounded nor stopped, only
+    #           ended (and cancelled) by the end check.
+    #   Watch   (optional) runs after each second of the default bound;
+    #           returns $true to stop early.
+    #   Bound   (optional) replaces the default bound (one second at a time
+    #           on the monotonic clock until LiveSeconds have passed since
+    #           the start returned). Returns $true when it stopped early.
+    #   Stop    (required) issues the stop. Returns $true when it completed.
+    #   Fail    (optional) gets the message of anything that raised between
+    #           the start and the stop, before the end check runs.
+    #   Confirm (required) reads the session's state: 'idle', 'active' or
+    #           'unknown'. The second argument names the moment
+    #           ('after_stop' or 'after_cancel').
+    #   Cancel  (required) cancels the session without saving it. The
+    #           second argument is the state Confirm read. Returns $true when
+    #           the cancel completed.
+    #
+    # The end policy, the same for every collector and every exit path: when
+    # a session may remain, its state is read; anything but idle, a start
+    # that did not complete, or a stop that did not complete, is cancelled
+    # and the state read again. The
+    # session is confirmed ended only when the last read is idle; anything
+    # else is reported, never assumed (a collector that cannot confirm the
+    # end is capture_failed and says so in the manifest notes).
+    #
+    # The function adds no log lines and takes no clock reading but the
+    # monotonic one, so a collector's log and timestamps are its own. Its
+    # variables carry a wfLs prefix because hooks see the caller's variables
+    # through the dynamic scope, and a hook must never find one of these in
+    # place of its own collector's. Hooks write results into the state map,
+    # never into variables (an assignment in a hook is local to the hook).
+    param(
+        [System.Collections.IDictionary]$LiveHooks,
+        [System.Collections.IDictionary]$LiveState,
+        [double]$LiveSeconds
+    )
+    $wfLsRecord = New-WfLiveSessionRecord
+    $LiveState['Session'] = $wfLsRecord
+    try {
+        $wfLsRecord.start_attempted = $true
+        $wfLsRecord.may_remain = $true
+        $wfLsStart = Get-WfLastOutput -Items @(& $LiveHooks['Start'] $LiveState)
+        $LiveState['MonotonicStart'] = Get-WfMonotonicSeconds
+        $wfLsRecord.start_ok = [bool]$wfLsStart['Ok']
+        $wfLsRecord.may_remain = ($wfLsRecord.start_ok -or [bool]$wfLsStart['MayRemain'])
+        if ($wfLsRecord.start_ok -and $LiveHooks.Contains('Started')) { $null = & $LiveHooks['Started'] $LiveState }
+        if ($wfLsRecord.start_ok -and $LiveHooks.Contains('Verify')) {
+            $wfLsReason = Get-WfLastOutput -Items @(& $LiveHooks['Verify'] $LiveState)
+            if ($null -ne $wfLsReason -and [string]$wfLsReason) { $wfLsRecord.verify_reason = [string]$wfLsReason }
+        }
+        if ($wfLsRecord.start_ok -and $null -eq $wfLsRecord.verify_reason) {
+            if ($LiveHooks.Contains('Bound')) {
+                $wfLsRecord.stopped_early = [bool](Get-WfLastOutput -Items @(& $LiveHooks['Bound'] $LiveState))
+            } else {
+                $wfLsDeadline = [double]$LiveState['MonotonicStart'] + $LiveSeconds
+                while ((Get-WfMonotonicSeconds) -lt $wfLsDeadline) {
+                    Start-WfSleep -Seconds 1
+                    if ($LiveHooks.Contains('Watch') -and [bool](Get-WfLastOutput -Items @(& $LiveHooks['Watch'] $LiveState))) {
+                        $wfLsRecord.stopped_early = $true
+                        break
+                    }
+                }
+            }
+            $wfLsRecord.bound_seconds = [math]::Round((Get-WfMonotonicSeconds) - [double]$LiveState['MonotonicStart'], 3)
+            $wfLsRecord.stop_issued = $true
+            $wfLsRecord.stop_ok = [bool](Get-WfLastOutput -Items @(& $LiveHooks['Stop'] $LiveState))
+        }
+    } catch {
+        $wfLsRecord.error = $_.Exception.Message
+        if ($LiveHooks.Contains('Fail')) {
+            try { $null = & $LiveHooks['Fail'] $LiveState $wfLsRecord.error } catch { $wfLsRecord.error = $wfLsRecord.error + '; the failure hook raised: ' + $_.Exception.Message }
+        }
+    } finally {
+        Complete-WfLiveSession -LiveHooks $LiveHooks -LiveState $LiveState -LiveRecord $wfLsRecord
+    }
+    return $wfLsRecord
 }
 
 # ---------------------------------------------------------------------------
@@ -4451,32 +4804,18 @@ function Export-WfEvtx {
     return $result
 }
 
-function Invoke-WfProcess {
-    # Starts one executable directly, with no shell, drains both output
-    # streams as they arrive so the process cannot block on a full pipe, and
-    # stops it when the deadline passes or when a stream has delivered more
-    # than MaxBytes (UTF-8 bytes) of text. Nothing above the cap is retained:
-    # an oversized run keeps only the first 4096 characters of each stream as
-    # a diagnostic. MaxBytes 0 means the caller enforces its own cap on what
-    # it writes (wevtutil prints a line or two). The only executables started
-    # through this are wevtutil (export verb), netsh (wlan show queries), the
-    # inbox wpr.exe (status, profiles, start, stop and cancel of the one
-    # session dpcisr-trace owns), the inbox tracerpt.exe (the summary of that
-    # trace), a pinned xperf.exe (the dpcisr report of that trace), the same
-    # wpr.exe for the one named recording presentmon-frames owns, the pinned
-    # PresentMon console binary reading that recording offline (presentmon-frames.ps1),
-    # and the same wpr.exe and tracerpt.exe (summary and XML dump) for the one
-    # session diskio-trace owns (diskio-trace.ps1).
-    param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null, [int64]$MaxBytes = 0)
-    $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Oversized = $false; Error = $null; DurationMs = $null; StdOutBytes = [int64]0; StdErrBytes = [int64]0; Diagnostic = $null }
-    if ($TimeoutSeconds -lt 1) {
-        $result.Error = 'not started: the deadline had passed'
-        return $result
-    }
-    $process = $null
-    $watch = [System.Diagnostics.Stopwatch]::StartNew()
-    $utf8 = New-Object System.Text.UTF8Encoding($false)
-    $diagnosticChars = 4096
+function Start-WfChildProcess {
+    # Starts one executable directly, with no shell (UseShellExecute false),
+    # and begins reading both output streams at once. Returns a handle for
+    # Wait-WfChildProcess, which drains them, enforces the deadline and the
+    # cap, and reads the exit code. WorkingDirectory, when given, is the
+    # child's current directory ("When UseShellExecute is false, gets or
+    # sets the working directory for the process to be started",
+    # https://learn.microsoft.com/dotnet/api/system.diagnostics.processstartinfo.workingdirectory).
+    # This is the helper's one process builder: every process a collector or
+    # the scenario runner starts comes through here.
+    param([string]$FilePath, [string]$Arguments, $OutputEncoding = $null, [string]$WorkingDirectory = '')
+    $handle = @{ Process = $null; Streams = $null; Started = $false; Error = $null; Watch = [System.Diagnostics.Stopwatch]::StartNew() }
     try {
         $startInfo = New-Object System.Diagnostics.ProcessStartInfo
         $startInfo.FileName = $FilePath
@@ -4485,20 +4824,58 @@ function Invoke-WfProcess {
         $startInfo.CreateNoWindow = $true
         $startInfo.RedirectStandardOutput = $true
         $startInfo.RedirectStandardError = $true
+        if ($WorkingDirectory) { $startInfo.WorkingDirectory = $WorkingDirectory }
         if ($null -ne $OutputEncoding) {
             $startInfo.StandardOutputEncoding = $OutputEncoding
             $startInfo.StandardErrorEncoding = $OutputEncoding
         }
         $process = New-Object System.Diagnostics.Process
         $process.StartInfo = $startInfo
+        $handle.Process = $process
         $null = $process.Start()
-        $result.Started = $true
-        $deadline = [datetime]::UtcNow.AddSeconds($TimeoutSeconds)
-        $streams = @(
+        $handle.Started = $true
+        $handle.Streams = @(
             @{ Name = 'StdOut'; Reader = $process.StandardOutput; Buffer = (New-Object char[] 4096); Text = (New-Object System.Text.StringBuilder); Bytes = [int64]0; Done = $false; Task = $null },
             @{ Name = 'StdErr'; Reader = $process.StandardError; Buffer = (New-Object char[] 4096); Text = (New-Object System.Text.StringBuilder); Bytes = [int64]0; Done = $false; Task = $null }
         )
-        foreach ($stream in $streams) { $stream.Task = $stream.Reader.ReadAsync($stream.Buffer, 0, $stream.Buffer.Length) }
+        foreach ($stream in $handle.Streams) { $stream.Task = $stream.Reader.ReadAsync($stream.Buffer, 0, $stream.Buffer.Length) }
+    } catch {
+        $handle.Error = $_.Exception.Message
+    }
+    return $handle
+}
+
+function Test-WfChildExited {
+    # True once the child started by Start-WfChildProcess has exited
+    # (Process.HasExited).
+    param($Handle)
+    if (-not $Handle.Started) { return $true }
+    try { return [bool]$Handle.Process.HasExited } catch { return $true }
+}
+
+function Wait-WfChildProcess {
+    # Drains both output streams of a child from Start-WfChildProcess as they
+    # arrive, so it cannot block on a full pipe, and stops it (Process.Kill)
+    # when the deadline passes or when a stream has delivered more than
+    # MaxBytes (UTF-8 bytes) of text. Nothing above the cap is retained: an
+    # oversized run keeps only the first 4096 characters of each stream as a
+    # diagnostic. MaxBytes 0 means the caller enforces its own cap.
+    # Process.Kill: https://learn.microsoft.com/dotnet/api/system.diagnostics.process.kill
+    param($Handle, [int]$TimeoutSeconds, [int64]$MaxBytes = 0)
+    $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Oversized = $false; Error = $null; DurationMs = $null; StdOutBytes = [int64]0; StdErrBytes = [int64]0; Diagnostic = $null }
+    if (-not $Handle.Started) {
+        $result.Error = $Handle.Error
+        $result.DurationMs = [int64]$Handle.Watch.ElapsedMilliseconds
+        if ($null -ne $Handle.Process) { $Handle.Process.Dispose() }
+        return $result
+    }
+    $result.Started = $true
+    $process = $Handle.Process
+    $streams = $Handle.Streams
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    $diagnosticChars = 4096
+    try {
+        $deadline = [datetime]::UtcNow.AddSeconds([math]::Max(0, $TimeoutSeconds))
         while (-not ($streams[0].Done -and $streams[1].Done)) {
             $pending = New-Object 'System.Collections.Generic.List[System.Threading.Tasks.Task]'
             foreach ($stream in $streams) { if (-not $stream.Done) { $pending.Add($stream.Task) } }
@@ -4549,10 +4926,33 @@ function Invoke-WfProcess {
     } catch {
         $result.Error = $_.Exception.Message
     } finally {
-        $result.DurationMs = [int64]$watch.ElapsedMilliseconds
-        if ($null -ne $process) { $process.Dispose() }
+        $result.DurationMs = [int64]$Handle.Watch.ElapsedMilliseconds
+        $process.Dispose()
     }
     return $result
+}
+
+function Invoke-WfProcess {
+    # Starts one executable and waits for it within the deadline and the cap
+    # (Start-WfChildProcess and Wait-WfChildProcess). The only executables
+    # started through this are wevtutil (export verb), netsh (wlan show
+    # queries), the inbox wpr.exe (status, profiles, start, stop and cancel of
+    # the one session dpcisr-trace owns), the inbox tracerpt.exe (the summary
+    # of that trace), a pinned xperf.exe (the dpcisr report of that trace),
+    # the same wpr.exe for the one named recording presentmon-frames owns,
+    # the pinned PresentMon console binary reading that recording offline
+    # (presentmon-frames.ps1), and the same wpr.exe and tracerpt.exe (summary
+    # and XML dump) for the one session diskio-trace owns (diskio-trace.ps1).
+    # The scenario runner starts the
+    # collectors themselves (Start-WfCollectorChild) and, after it stopped
+    # presentmon-frames at its deadline, the same wpr.exe status and cancel
+    # of that collector's named recording.
+    param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null, [int64]$MaxBytes = 0)
+    if ($TimeoutSeconds -lt 1) {
+        return [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Oversized = $false; Error = 'not started: the deadline had passed'; DurationMs = $null; StdOutBytes = [int64]0; StdErrBytes = [int64]0; Diagnostic = $null }
+    }
+    $handle = Start-WfChildProcess -FilePath $FilePath -Arguments $Arguments -OutputEncoding $OutputEncoding
+    return (Wait-WfChildProcess -Handle $handle -TimeoutSeconds $TimeoutSeconds -MaxBytes $MaxBytes)
 }
 
 function New-WfPseudonymSalt {
@@ -4568,12 +4968,6 @@ function Get-WfNetshPath {
     return (Get-WfToolPath -Name 'netsh')
 }
 
-function Wait-WfSeconds {
-    # The recording window of a live capture. Replaced by the synthetic
-    # backend, which advances its clock instead of sleeping.
-    param([int]$Seconds)
-    if ($Seconds -gt 0) { Start-Sleep -Seconds $Seconds }
-}
 
 function Test-WfToolPresent {
     param([string]$Path)
@@ -4629,6 +5023,102 @@ function Get-WfKnownFolderPath {
     # described.
     if (-not $path -or $path -notmatch '^[A-Za-z]:\\') { throw ('the known folder ' + $Name + ' resolved to "' + [string]$path + '", not a Windows drive path; this collector reads Windows folders only') }
     return $path
+}
+
+function Get-WfScriptToolRecord {
+    # A manifest.tools entry for one more script that ran (the scenario
+    # runner's library), with the SHA-256 of its bytes on disk.
+    param([string]$Name, [string]$Version, [string]$Path)
+    return (Get-WfToolRecord -Name $Name -Version $Version -Path $Path)
+}
+
+function Get-WfUserProfilePath {
+    # The running account's profile folder (Environment.SpecialFolder.UserProfile,
+    # https://learn.microsoft.com/dotnet/api/system.environment.specialfolder),
+    # so the scenario runner can refuse an operator path under it and write
+    # <profile> wherever the path would otherwise reach a bundle.
+    try { return [string][System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::UserProfile) } catch { return '' }
+}
+
+function Get-WfPowerShellHost {
+    # The interpreter: $PSVersionTable.PSEdition is Desktop for Windows
+    # PowerShell 5.1 and Core for PowerShell 6 and later
+    # (https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_powershell_editions).
+    $edition = $null
+    if ($PSVersionTable.ContainsKey('PSEdition')) { $edition = [string]$PSVersionTable['PSEdition'] }
+    return [ordered]@{ edition = $edition; version = $PSVersionTable.PSVersion.ToString() }
+}
+
+function Get-WfPowerShellExePath {
+    # Windows PowerShell 5.1 is powershell.exe under
+    # %windir%\System32\WindowsPowerShell\v1.0
+    # (https://learn.microsoft.com/powershell/scripting/whats-new/migrating-from-windows-powershell-51-to-powershell-7);
+    # the scenario runner starts each collector with it, as the dispatcher does.
+    return [System.IO.Path]::Combine([System.Environment]::SystemDirectory, 'WindowsPowerShell\v1.0\powershell.exe')
+}
+
+function Get-WfVolumeFreeSpace {
+    # Free space on the volume that holds Path, as the running account can
+    # use it: DriveInfo.AvailableFreeSpace "takes into account disk quotas"
+    # (https://learn.microsoft.com/dotnet/api/system.io.driveinfo.availablefreespace).
+    # Only the volume root is returned, never the path.
+    param([string]$Path)
+    $result = [ordered]@{ root = $null; free_bytes = $null; error = $null }
+    try {
+        $root = [System.IO.Path]::GetPathRoot($Path)
+        $result.root = $root
+        $drive = New-Object System.IO.DriveInfo($root)
+        $result.free_bytes = [int64]$drive.AvailableFreeSpace
+    } catch {
+        $result.error = $_.Exception.Message
+    }
+    return $result
+}
+
+function Format-WfProcessArgument {
+    # One argument for a Windows command line, quoted by the rules the
+    # Microsoft C runtime parses (a quote is escaped with a backslash, and
+    # backslashes before a quote are doubled):
+    # https://learn.microsoft.com/cpp/c-language/parsing-c-command-line-arguments
+    param([string]$Value)
+    if ($Value.Length -gt 0 -and $Value -notmatch '[\s"]') { return $Value }
+    $escaped = [regex]::Replace($Value, '(\\*)"', '$1$1\"')
+    $escaped = [regex]::Replace($escaped, '(\\+)$', '$1$1')
+    return ('"' + $escaped + '"')
+}
+
+function Start-WfCollectorChild {
+    # Starts one collector script as its own Windows PowerShell process, the
+    # way the dispatcher does (-NoProfile -NonInteractive, the execution
+    # policy for that one process only, -File so the script's exit code is
+    # the process exit code), in WorkingDirectory, and returns at once. The
+    # caller waits with Wait-WfCollectorChild.
+    # https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_powershell_exe?view=powershell-5.1
+    # https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-5.1
+    param([string]$ScriptPath, [string[]]$Arguments, [string]$WorkingDirectory)
+    $parts = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'RemoteSigned', '-File', $ScriptPath) + @($Arguments)
+    $text = (@($parts | ForEach-Object { Format-WfProcessArgument -Value ([string]$_) }) -join ' ')
+    return (Start-WfChildProcess -FilePath (Get-WfPowerShellExePath) -Arguments $text -WorkingDirectory $WorkingDirectory)
+}
+
+function Wait-WfCollectorChild {
+    # Waits for a collector started by Start-WfCollectorChild until the
+    # deadline, stops it then (Process.Kill), and caps what it prints.
+    param($Handle, [int]$TimeoutSeconds)
+    return (Wait-WfChildProcess -Handle $Handle -TimeoutSeconds $TimeoutSeconds -MaxBytes 1048576)
+}
+
+function Test-WfCollectorChildExited {
+    param($Handle)
+    return (Test-WfChildExited -Handle $Handle)
+}
+
+function Test-WfCollectorChildReady {
+    # Whether a collector running in the background has reached the point
+    # the scenario runner waits for: the file it names exists.
+    param($Handle, [string]$ReadyPath)
+    $null = $Handle
+    return [bool](Test-Path -LiteralPath $ReadyPath)
 }
 
 function Read-WfFileBytes {

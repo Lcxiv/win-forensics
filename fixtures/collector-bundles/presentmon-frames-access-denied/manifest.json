@@ -544,7 +544,7 @@
   "checksum_algorithm": "sha256",
   "notes": [
     "Read only collector presentmon-frames version 2.1.0: What did the frame pipeline do, frame by frame, during a bounded window: present cadence, time in Present, CPU and GPU busy and wait, display latency, every frame stamped in the ETW performance counter domain?",
-    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "Ran as the collector account (its name is not recorded); elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
     "source presentmon_frames: the account is neither elevated nor a member of Performance Log Users (S-1-5-32-559), the two groups Microsoft documents as able to control event tracing sessions; expect the recording to be refused"
