@@ -52,10 +52,12 @@
 # same QueryProcessName() opens a PROCESS_QUERY_LIMITED_INFORMATION handle to
 # every presenting process, the game included, and keeps it for the capture
 # (OutputThread.cpp lines 294 to 319 and 212 to 231), and MainThread.cpp
-# enables SeDebugPrivilege when it can. tests/test_collectors_static.py checks
-# that no realtime option (--timed, --session_name, --process_id,
-# --terminate_after_timed, --terminate_existing_session, --stop_existing_session,
-# --restart_as_admin, --hotkey, --delay) appears in this script. Whether
+# enables SeDebugPrivilege when it can. That no realtime option (--timed,
+# --session_name, --process_id, --terminate_after_timed,
+# --terminate_existing_session, --stop_existing_session, --restart_as_admin,
+# --hotkey, --delay) is passed is checked on the recorded runs in
+# tests/test_collector_bundles.py and on every process the Pester suite's
+# runs start. Whether
 # wpr.exe opens a handle to a presenting process is not documented by
 # Microsoft and is a verification item in the README, not a claim here.
 #
@@ -1252,9 +1254,9 @@ function Invoke-WfPresentMonFramesSource {
     if ($dataLeft) {
         $entry.artifacts = Get-WfPresentMonOwnArtifactRecords -BundleRoot $BundleRoot -RelativeDir $relativeDir -Roles $roles
     } else {
-        if ($Context.Contains('Tools')) { foreach ($tool in @($tools)) { $Context['Tools'].Add($tool) } }
-    $entry.artifacts = Get-WfArtifactRecords -BundleRoot $BundleRoot -SourceId $id -Roles $roles
+        $entry.artifacts = Get-WfArtifactRecords -BundleRoot $BundleRoot -SourceId $id -Roles $roles
     }
+    if ($Context.Contains('Tools')) { foreach ($tool in @($tools)) { $Context['Tools'].Add($tool) } }
     $Log.Add(('source {0}: status {1}, {2} artifacts' -f $id, $entry.status, @($entry.artifacts).Count))
     return [ordered]@{ Entry = $entry; Rows = @() }
 }

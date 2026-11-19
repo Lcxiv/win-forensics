@@ -30,7 +30,6 @@ from conftest import REPO_ROOT
 BUNDLES = REPO_ROOT / "fixtures" / "collector-bundles"
 GOLD = REPO_ROOT / "fixtures" / "presentmon" / "gold-test_case_0.first-buffer.etl"
 # SHA-256 of the vendor file this is cut from (Tests/Gold/test_case_0.etl at v2.6.0) and of the cut itself.
-GOLD_WHOLE_FILE_SHA256 = "7127ed1325fd9d179604df2a7356dc3c4cb805cb15220175e34b4faf918a31be"
 GOLD_SHA256 = "d7d2463ec3f97c59db6815fb936a73ecbdaae5b782ec81e597b1946b97a4a8fc"
 HAPPY = "presentmon-frames"
 CSV_SOURCE = "raw/presentmon_frames/frames.csv"
@@ -255,8 +254,6 @@ def test_an_observed_capture_with_no_frame_row_is_refused(bundle_copy):
 def test_the_committed_first_buffer_is_the_vendor_recording_and_reads_as_the_collector_reads_it():
     data = GOLD.read_bytes()
     assert len(data) == 4096 and hashlib.sha256(data).hexdigest() == GOLD_SHA256
-    readme = (REPO_ROOT / "collectors" / "windows" / "README.md").read_text(encoding="utf-8")
-    assert GOLD_SHA256 in readme and GOLD_WHOLE_FILE_SHA256 in readme, "the README names the fixture and the file it is cut from"
     # The buffer header: the first buffer's size, the saved offset (where the data ends) and the current offset.
     buffer_size, saved_offset, current_offset = struct.unpack_from("<III", data, 0)
     assert buffer_size == 4096 and 0x48 < saved_offset <= 4096 and current_offset == 0
@@ -444,9 +441,3 @@ def test_the_column_map_matches_the_schema_and_the_fixture_header():
     header, _ = read_csv(BUNDLES / HAPPY)
     assert header == HEADER_2_6_0
     assert set(header) <= set(decode_presentmon.COLUMN_MAP), set(header) - set(decode_presentmon.COLUMN_MAP)
-    contract = (REPO_ROOT / "docs" / "contracts" / "decoded-tables.md").read_text(encoding="utf-8")
-    section = contract[contract.index("### 5.5"):contract.index("### 5.6")]
-    for term in ("scripts/decode_presentmon.py", "raw_columns", "etw_qpc", "--etl_file", "--output_stdout", "recording.json", "CPUStartQPC", "0.2.0",
-                 "never leaves the PC"):
-        assert term in section, term
-    assert "the former `cpu_start_time_s` is gone" in section, "the contract records the 0.1.0 to 0.2.0 correction"

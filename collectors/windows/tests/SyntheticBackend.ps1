@@ -512,9 +512,9 @@ function Invoke-WfProcess {
         & $entry['OnCall']
     }
     if ($entry.Contains('OutputFileArgument')) {
-        # wpr writes its ETL to the -stop path and PresentMon its CSV to the
-        # --output_file path; the synthetic program does the same before it
-        # "exits", so the collector reads a file it did not write itself.
+        # wpr writes its ETL to the -stop path; the synthetic program does
+        # the same before it "exits", so the collector reads a file it did
+        # not write itself.
         $m = [regex]::Match($Arguments, [string]$entry['OutputFileArgument'])
         if ($m.Success) {
             $target = $m.Groups[1].Value

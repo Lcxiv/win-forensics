@@ -2018,6 +2018,8 @@ Describe 'presentmon-frames against the synthetic backend' {
         @($run.Manifest.notes | Where-Object { $_ -match 'run "wpr -cancel -instancename wf-presentmon-frames" as an administrator' }).Count | Should -Be 1
         @($run.Manifest.notes | Where-Object { $_ -match 'recorded data could not be deleted and is still in the bundle.*wpr-temp' }).Count | Should -Be 1
         @($run.Manifest.notes | Where-Object { $_ -match 'raw/presentmon_frames/wpr-temp/session\.etl \(16 bytes\)' }).Count | Should -Be 1
+        @($run.Manifest.tools | ForEach-Object { $_.name }) | Should -Contain 'presentmon' -Because 'the tools that ran are recorded whether or not recorded data was left behind'
+        @($run.Manifest.tools | ForEach-Object { $_.name }) | Should -Contain 'wpr'
         # The held file is named by path and size and never opened: it is not an artifact and has no hash.
         @($source.artifacts | Where-Object { $_.path -match 'wpr-temp' }).Count | Should -Be 0
         @($source.artifacts | ForEach-Object { $_.role + ':' + (Split-Path -Leaf $_.path) } | Sort-Object) | Should -Be @('config:command.json', 'config:profile.wprp', 'log:console.txt', 'report:recording.json', 'report:result.json')
