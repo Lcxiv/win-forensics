@@ -233,19 +233,19 @@ def session(bundle_id: str, start: str, created: str, written: str, size: int, n
             "created_text": created, "written_text": written}
 
 
-def test_a_tunnelled_creation_time_leaves_the_later_log_without_a_start():
+def test_no_log_of_a_shared_creation_time_keeps_a_start():
     # File name tunnelling: a log created under the name of one just renamed inherits its creation time
-    # (https://learn.microsoft.com/openspecs/windows_protocols/ms-fsa/69f1cc34-20d8-4889-8108-e871065cf9f9).
+    # (https://learn.microsoft.com/openspecs/windows_protocols/ms-fsa/69f1cc34-20d8-4889-8108-e871065cf9f9), and the
+    # earlier log may itself have inherited it, so neither creation time is vouched for.
     created = "2026-02-27T10:00:00.0000000Z"
     out = ledger.build_sessions([
         session("b1", "2026-03-01T12:00:00", created, "2026-02-27T13:00:00.0000000Z", 100, "FortniteGame-backup-2026.02.27-10.00.00.log"),
         session("b1", "2026-03-01T12:00:00", created, "2026-02-28T20:00:00.0000000Z", 100),
     ])
-    by_name = {r["file_name"]: r for r in out}
-    assert by_name["FortniteGame-backup-2026.02.27-10.00.00.log"]["session_check"] == "ok"
-    later = by_name["FortniteGame.log"]
-    assert later["session_check"] == "creation_shared" and later["start_utc"] is None and later["duration_s"] is None
-    assert later["start_inferred"] is False and later["end_inferred"] is True
+    assert len(out) == 2
+    for row in out:
+        assert row["session_check"] == "creation_shared" and row["start_utc"] is None and row["duration_s"] is None
+        assert row["start_basis"] is None and row["start_inferred"] is False and row["end_inferred"] is True
 
 
 def test_a_log_seen_twice_is_one_session_and_a_replaced_one_loses_its_start():
@@ -271,11 +271,11 @@ def test_a_log_renamed_to_a_backup_between_runs_is_still_one_session():
         session("b2", "2026-03-01T12:00:00", created, written, 300, backup),
         session("b2", "2026-03-01T12:00:00", created, "2026-02-28T20:00:00.0000000Z", 100),
     ])
-    first = [r for r in out if r["start_utc"] == created]
-    assert len(first) == 1, out
+    first = [r for r in out if r["end_utc"] == written]
+    assert len(first) == 1 and len(out) == 2, out
     assert first[0]["observations"] == 2 and first[0]["file_name"] == backup and first[0]["source_bundle_id"] == "b2"
-    assert first[0]["session_check"] == "ok" and first[0]["duration_s"] == 3 * 3600
-    assert [r["session_check"] for r in out if r is not first[0]] == ["creation_shared"]
+    assert [r["session_check"] for r in out] == ["creation_shared", "creation_shared"]
+    assert all(r["start_utc"] is None and r["duration_s"] is None for r in out)
 
 
 def test_a_purged_backup_never_hands_its_start_to_the_next_log():
@@ -288,13 +288,63 @@ def test_a_purged_backup_never_hands_its_start_to_the_next_log():
     out = ledger.build_sessions(run1 + run2)
     by_end = {r["end_utc"]: r for r in out}
     assert sorted(by_end) == [w1, w2, w3] and len(out) == 3
-    assert by_end[w1]["session_check"] == "ok" and by_end[w1]["duration_s"] == 2 * 3600
-    assert by_end[w2]["session_check"] == "creation_shared" and by_end[w2]["observations"] == 2
-    assert by_end[w3]["session_check"] == "creation_shared"
-    assert [r["end_utc"] for r in out if r["start_utc"] is not None] == [w1]
-    assert sum(r["duration_s"] for r in out if r["duration_s"] is not None) == 2 * 3600
+    assert by_end[w1]["observations"] == 1 and by_end[w2]["observations"] == 2 and by_end[w3]["observations"] == 1
+    assert all(r["session_check"] == "creation_shared" and r["start_utc"] is None and r["duration_s"] is None for r in out)
     again = ledger.build_sessions(list(reversed(run2 + run1)))
     assert sorted(ledger.entry_id(r["_identity"]) for r in out) == sorted(ledger.entry_id(r["_identity"]) for r in again)
+
+
+def test_a_chain_of_tunnelled_logs_whose_original_was_purged_gives_no_start_and_no_rate(tmp_path):
+    # Every launch renames the log to a backup and creates a new one inside the tunnel window, so every log carries the
+    # creation time of the first one, which the game purged before the collector ever ran. The oldest retained backup
+    # must not become a session of weeks from that inherited time, and no period publishes a rate.
+    bundle = copy_bundle(tmp_path, "session-ledger")
+    inherited = "2026-02-01T10:00:00.0000000Z"
+    writes = ["2026-02-25T22:00:00.0000000Z", "2026-02-26T22:00:00.0000000Z", "2026-02-27T13:00:00.0000000Z"]
+    names = ["FortniteGame-backup-2026.02.25-20.00.00.log", "FortniteGame-backup-2026.02.26-20.00.00.log", "FortniteGame.log"]
+    listing_path = bundle / "raw" / "fortnite_logs" / "listing.json"
+    listing = [{"type": "file", "folder": None, "name": n, "name_kept": True, "name_prefix": None, "extension": ".log",
+                "bytes": 1048576, "creation_time_utc": inherited, "last_write_time_utc": w, "entered": None} for n, w in zip(names, writes)]
+    listing_path.write_text(json.dumps(listing), encoding="utf-8")
+    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+    for collector in manifest["collectors"]:
+        for artifact in collector["artifacts"]:
+            if artifact["path"] == "raw/fortnite_logs/listing.json":
+                artifact["bytes"], artifact["sha256"] = listing_path.stat().st_size, wf_schema.sha256_of(listing_path)
+    (bundle / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    result, out = build(tmp_path, [bundle] + INPUTS[1:])
+    assert result["status"] == "observed", result
+    fortnite = [r for r in rows(out, ledger.LEDGER) if r["title"] == "fortnite"]
+    assert sorted(r["end_utc"] for r in fortnite) == writes
+    assert all(r["session_check"] == "creation_shared" and r["start_utc"] is None and r["duration_s"] is None for r in fortnite)
+    summary = {r["period_id"]: r for r in rows(out, ledger.PERIODS)}
+    for period in summary.values():
+        assert next(p for p in period["play"] if p["title"] == "fortnite")["hours_played"] == 0.0
+        assert all(i["per_hour"] is None and i["withheld_reason"] for i in period["incidents"])
+    before = next(p for p in summary["tdr-level-0"]["play"] if p["title"] == "fortnite")
+    assert before["coverage_status"] == "none", "coverage never starts at the inherited creation time"
+    after = summary["tdr-level-3-wer-on"]
+    assert after["hours_played_complete"] is False
+    assert next(p for p in after["play"] if p["title"] == "fortnite")["sessions_without_duration"] == 3
+    power = next(i for i in after["incidents"] if i["incident_type"] == "kernel_power_41")
+    assert power["count"] == 1 and power["hours_played"] == after["hours_played"]
+
+
+def test_a_log_whose_start_is_unknown_withholds_the_rate_of_every_period_it_reaches():
+    t0 = "2026-02-01T10:00:00.0000000Z"
+    sessions = ledger.build_sessions([
+        session("b1", "2026-03-10T12:00:00", t0, "2026-02-20T22:00:00.0000000Z", 100, "FortniteGame-backup-2026.02.20-20.00.00.log"),
+        session("b1", "2026-03-10T12:00:00", t0, "2026-03-05T22:00:00.0000000Z", 100),
+    ])
+    periods = [{"index": 0, "id": "p1", "label": "one", "start": ledger.parse_utc("2026-02-21T00:00:00Z"), "end": ledger.parse_utc("2026-03-01T00:00:00Z")},
+               {"index": 1, "id": "p2", "label": "two", "start": ledger.parse_utc("2026-03-01T00:00:00Z"), "end": None}]
+    as_of = ledger.parse_utc("2026-03-10T12:00:00Z")
+    ledger.assign_periods(sessions, periods, as_of)
+    cover = {"play": {"fortnite": [(ledger.parse_utc("2026-02-20T22:00:00Z"), as_of)]}, "sources": {}, "seen": {}}
+    summary = {r["period_id"]: r for r in ledger.summarise(periods, ["fortnite"], sessions, cover, as_of, "1.0.0")}
+    # The current log ran after the backup's last write, so its unknown start may lie in p1 as well as p2.
+    assert summary["p1"]["sessions"] == 0 and summary["p1"]["sessions_without_duration"] == 1
+    assert summary["p1"]["hours_played_complete"] is False and summary["p2"]["sessions_without_duration"] == 1
 
 
 def test_a_log_written_before_it_was_created_has_no_start():

@@ -352,9 +352,6 @@ def collect(bundles: list[dict[str, Any]], reader: Reader) -> tuple[list[dict[st
                 if sid in TITLES:
                     title, role = TITLES[sid]
                     logs = [(i, e) for i, e in enumerate(listing) if e["type"] == "file" and e["folder"] is None and e["extension"] == ".log"]
-                    if logs:
-                        oldest = min(parse_utc(e["creation_time_utc"]) for _, e in logs)
-                        play_cover[title].append((oldest, bundle["capture_start"]))
                     for index, entry in logs:
                         observations.append({
                             "kind": "session", "bundle": bundle, "source_id": sid, "path": path, "offset": f"index:{index}",
@@ -382,6 +379,19 @@ def collect(bundles: list[dict[str, Any]], reader: Reader) -> tuple[list[dict[st
                         "start": parse_utc(entry["creation_time_utc"]), "start_text": entry["creation_time_utc"], "identity": identity,
                         "fields": {"start_basis": "file_creation_time", **fields},
                     })
+    # Play coverage runs from the oldest moment a retained log vouches for: its creation time, or its last write when the
+    # creation time is shared and so may be inherited from a log that is gone.
+    shared = shared_creations(observations)
+    oldest: dict[tuple[str, str], tuple[datetime, datetime]] = {}
+    for o in observations:
+        if o["kind"] != "session":
+            continue
+        vouched = o["written"] if (o["title"], o["created"]) in shared else o["created"]
+        key = (o["bundle"]["bundle_id"], o["title"])
+        if key not in oldest or vouched < oldest[key][0]:
+            oldest[key] = (vouched, o["bundle"]["capture_start"])
+    for (_, title), interval in oldest.items():
+        play_cover[title].append(interval)
     return observations, {"play": play_cover, "sources": source_cover, "seen": sources_seen}
 
 
@@ -391,25 +401,31 @@ def entry_id(identity: tuple[Any, ...]) -> str:
     return "e-" + hashlib.sha256(json.dumps(identity, default=str).encode("utf-8")).hexdigest()[:16]
 
 
+def shared_creations(observations: list[dict[str, Any]]) -> set[tuple[str, datetime]]:
+    """(title, creation time) pairs that two logs of one bundle share: file name tunnelling gives a file created under a
+    name that was just renamed or deleted the old file's creation time, so no log of such a pair has a creation time of
+    its own that the ledger can vouch for."""
+    written: dict[tuple[str, str, datetime], set[datetime]] = {}
+    for o in observations:
+        if o["kind"] == "session":
+            written.setdefault((o["bundle"]["bundle_id"], o["title"], o["created"]), set()).add(o["written"])
+    return {(title, created) for (_, title, created), times in written.items() if len(times) > 1}
+
+
 def build_sessions(observations: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """One row per log file, merged across bundles. See docs/session-ledger.md, "Play sessions"."""
     sessions = [o for o in observations if o["kind"] == "session"]
-    # Logs of one title that share a creation time in any bundle: file name tunnelling gives a file created under a name
-    # that was just renamed or deleted the old file's creation time. Such a log is identified across bundles by its last
-    # write time too, and over all bundles only the first written keeps the start.
-    written: dict[tuple[str, str, datetime], set[datetime]] = {}
+    shared = shared_creations(sessions)
+    # A log of a shared creation time is identified across bundles by its last write time too; it ran after the log of
+    # that group last written before it, which bounds how far back its unknown start can reach.
+    group_writes: dict[tuple[str, datetime], list[datetime]] = {}
     for o in sessions:
-        written.setdefault((o["bundle"]["bundle_id"], o["title"], o["created"]), set()).add(o["written"])
-    tunnelled = {(title, created) for (_, title, created), times in written.items() if len(times) > 1}
-    first_written: dict[tuple[str, datetime], datetime] = {}
-    for o in sessions:
-        key = (o["title"], o["created"])
-        if key in tunnelled and (key not in first_written or o["written"] < first_written[key]):
-            first_written[key] = o["written"]
+        if (o["title"], o["created"]) in shared:
+            group_writes.setdefault((o["title"], o["created"]), []).append(o["written"])
     merged: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
     for o in sessions:
         identity = ("session", o["title"], o["created_text"])
-        if (o["title"], o["created"]) in tunnelled:
+        if (o["title"], o["created"]) in shared:
             identity += (o["written_text"],)
         merged.setdefault(identity, []).append(o)
     rows = []
@@ -424,8 +440,11 @@ def build_sessions(observations: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 check = "replaced_in_place"
         start = latest["created"]
         end = latest["written"]
-        if first_written.get((latest["title"], latest["created"]), latest["written"]) < latest["written"]:
+        reach = None
+        writes = group_writes.get((latest["title"], latest["created"]))
+        if writes is not None:
             check, start = "creation_shared", None
+            reach = max((w for w in writes if w < end), default=end)
         if check == "replaced_in_place":
             start = None
         if start is not None and end < start:
@@ -439,7 +458,7 @@ def build_sessions(observations: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "session_check": check, "file_name": latest["name"], "file_bytes": latest["bytes"],
             "source_bundle_id": latest["bundle"]["bundle_id"], "source_collector": latest["bundle"]["collector"],
             "source_id": latest["source_id"], "observations": len(group),
-            "_path": latest["path"], "_offset": latest["offset"], "_identity": identity,
+            "_path": latest["path"], "_offset": latest["offset"], "_identity": identity, "_reach": reach,
         })
         rows.append(row)
     return rows
@@ -497,7 +516,8 @@ def summarise(periods: list[dict[str, Any]], tracked: list[str], rows: list[dict
                 lo, hi = max(a, start), min(b, end)
                 if hi > lo:
                     seconds += (hi - lo).total_seconds()
-            missing = sum(1 for s in mine if s["duration_s"] is None)
+            missing = sum(1 for s in sessions if s["title"] == title and s["duration_s"] is None and (
+                s["period_id"] == period["id"] or (s.get("_reach") is not None and s["_reach"] < end and parse_utc(s["end_utc"]) >= start)))
             covered = covered_seconds(cover["play"].get(title, []), start, end)
             status = "none" if covered <= 0 else ("full" if covered >= span - 1.0 else "partial")
             if status != "full":
@@ -603,13 +623,14 @@ def build(bundle_paths: list[Path], periods_path: Path, out: Path, decoded_at: s
     tracked = [t for t in document["tracked_titles"]]
     rows = build_sessions(observations) + build_incidents(observations)
     assign_periods(rows, periods, as_of)
+    summary = summarise(periods, tracked, rows, cover, as_of, periods_version)
     for row in rows:
+        row.pop("_reach", None)
         row["entry_id"] = entry_id(row.pop("_identity"))
         path, offset = row.pop("_path"), row.pop("_offset")
         row["provenance"] = {"source_file": f"raw/inputs/{row['source_bundle_id']}/{path}", "row_id_or_offset": offset,
                              "decoded_table": LEDGER, "decoder_version": DECODER_VERSION, "schema_version": ledger_version}
     rows.sort(key=lambda r: (r["start_utc"] or r["end_utc"] or "", r["entry_kind"], r["entry_id"]))
-    summary = summarise(periods, tracked, rows, cover, as_of, periods_version)
 
     checks = [{"name": "bundles_verified", "ok": True, "detail": f"{len(bundles)} bundles match their manifests"},
               {"name": "one_machine", "ok": True, "detail": None},

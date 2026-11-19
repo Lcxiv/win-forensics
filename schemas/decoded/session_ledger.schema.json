@@ -166,7 +166,7 @@
         "end_before_start",
         null
       ],
-      "description": "creation_shared: another log of the title shares this creation time in some input bundle (file name tunnelling) and was written earlier, so the start is unknown; replaced_in_place: a later snapshot shows the file smaller or written earlier, so the start is unknown; end_before_start: the times disagree."
+      "description": "creation_shared: two logs of the title share this creation time in some input bundle (file name tunnelling), so it may be inherited from a log that is gone and the start is unknown; replaced_in_place: a later snapshot shows the file smaller or written earlier, so the start is unknown; end_before_start: the times disagree."
     },
     "event_log": {
       "type": [
