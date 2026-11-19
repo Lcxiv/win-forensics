@@ -47,6 +47,8 @@ ALLOWED_TRACERPT = {
 }
 # Collectors whose cases run elevated (the live capture needs it) and carry a QPC trace.
 LIVE_CAPTURE = {"dpcisr-trace", "diskio-trace"}
+# The connection-quality sources and the target labels each one probes.
+NET_QUALITY = {"gateway_probes": ["gateway"], "public_probes": ["cloudflare", "google"], "link_state": None}
 # What each kernel trace collector asks of WPR: its profile, its instance prefix, its keywords and why.
 KERNEL_TRACES = {
     "dpcisr-trace": ("dpcisr-trace.wprp", "WfDpcIsrTrace", ["Interrupt", "DPC", "Loader"], "DPC and interrupt attribution only: no process, thread or scheduling events"),
@@ -75,6 +77,10 @@ EXPECTED = {
     "clock-calibration-clock-step": ("ok", {"clock_calibration": "observed", "operator_marks": "observed"}),
     "clock-calibration-missed-slot": ("ok", {"clock_calibration": "observed", "operator_marks": "observed_zero"}),
     "clock-calibration-read-failed": ("ok", {"clock_calibration": "observed", "operator_marks": "observed_zero"}),
+    "connection-quality": ("ok", {"gateway_probes": "observed", "public_probes": "observed", "link_state": "observed"}),
+    "connection-quality-link-drop": ("ok", {"gateway_probes": "observed", "public_probes": "observed", "link_state": "observed"}),
+    "connection-quality-no-gateway": ("partial", {"gateway_probes": "not_collected", "public_probes": "observed", "link_state": "not_collected"}),
+    "connection-quality-session-failed": ("failed", {"gateway_probes": "capture_failed", "public_probes": "capture_failed", "link_state": "capture_failed"}),
     "driver-inventory": ("ok", {"pnp_signed_drivers": "observed", "system_drivers": "observed"}),
     "reliability-records": ("ok", {"reliability_records": "observed", "reliability_stability_metrics": "observed"}),
     "rf-survey": ("ok", {"net_adapters": "observed", "default_routes": "observed", "wlan_interfaces": "observed", "wlan_drivers": "observed",
@@ -281,6 +287,20 @@ def test_status_and_evidence_stay_separate(case):
                     assert literal[:-1] + "0000Z" == recorded, (literal, recorded)
             if collector["raw_time_range"] is not None:
                 assert collector["raw_time_range"]["end"] == options["window_end_utc"]
+        elif collector["id"] in NET_QUALITY:
+            # connection-quality: probes by label only, the timeout below the one second slot, the link read by its fixed properties.
+            options = collector["requested"]["options"]
+            config = json.loads((BUNDLES / case / "raw" / collector["id"] / "command.json").read_text(encoding="utf-8"))
+            assert config["session"]["interval_seconds"] == 1 and options["timeout_seconds"] == options["duration_seconds"] + 60
+            if collector["id"] == "link_state":
+                assert collector["command"][:5] == ["Get-CimInstance", "-Namespace", "root/StandardCimv2", "-ClassName", "MSFT_NetAdapter"]
+                assert options["properties"] == ["InterfaceIndex", "MediaConnectState", "InterfaceOperationalStatus", "ReceiveLinkSpeed", "TransmitLinkSpeed", "NdisPhysicalMedium"]
+            else:
+                assert options["targets"] == NET_QUALITY[collector["id"]]
+                assert options["ping_timeout_milliseconds"] < 1000 and options["dns_every_slots"] == 10
+                assert collector["command"][0] == "System.Net.NetworkInformation.Ping.SendPingAsync" and "-DnsOnly" in collector["command"]
+            if collector["status"] in OBSERVED:
+                assert primary[0]["path"].endswith("/samples.jsonl") and collector["enabled"]["options"]["failure"] is None
         elif collector["command"][0] == "Get-CimInstance" and "Win32_PnPEntity" not in collector["command"]:
             assert "-OperationTimeoutSec" in collector["command"] and "-Property" in collector["command"]
             if collector["requested"]["options"]["time_property"]:

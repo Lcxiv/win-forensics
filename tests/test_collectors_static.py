@@ -12,7 +12,7 @@ COLLECTOR_NAME = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 HELPER = "_common.ps1"
 SHIPPED = sorted(COLLECTOR_DIR.glob("*.ps1"))
 COLLECTORS = [p for p in SHIPPED if p.name != HELPER]
-EXPECTED_COLLECTORS = ["application-errors", "bugcheck-history", "clock-calibration", "config-snapshot", "diskio-trace", "dpcisr-trace", "driver-inventory", "presentmon-frames", "reliability-records", "rf-survey", "tdr-events", "whea-errors"]
+EXPECTED_COLLECTORS = ["application-errors", "bugcheck-history", "clock-calibration", "config-snapshot", "connection-quality", "diskio-trace", "dpcisr-trace", "driver-inventory", "presentmon-frames", "reliability-records", "rf-survey", "tdr-events", "whea-errors"]
 
 # Commands that change the machine, reach the network, prompt, handle credentials, or run text
 # as code. A read only collector has no use for any of them.
@@ -313,3 +313,17 @@ def test_diskio_trace_sources_and_privacy_rules_are_documented_and_kept():
     readme = (COLLECTOR_DIR / "README.md").read_text(encoding="utf-8")
     for term in ("`wpr_trace`", "`diskio_aggregate`", "`diskio_activity`", "`<profile>`", "dir-", "image-", "The diskio-trace sources"):
         assert term in readme, term
+
+
+def test_connection_quality_sources_and_privacy_rule_are_documented():
+    """The three connection-quality source ids, its tables, its labels and the during play rule appear in the README; the script
+    writes no address but the two public constants."""
+    readme = (COLLECTOR_DIR / "README.md").read_text(encoding="utf-8")
+    for term in ("`gateway_probes`", "`public_probes`", "`link_state`", "`net_quality`", "`net_quality_bursts`", "`gateway`", "`cloudflare`",
+                 "`google`", "The connection-quality sources", "during play"):
+        assert term in readme, term
+    script = (COLLECTOR_DIR / "connection-quality.ps1").read_text(encoding="ascii")
+    code = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+    assert sorted(set(re.findall(r"\b\d{1,3}(?:\.\d{1,3}){3}\b", code))) == ["1.1.1.1", "8.8.8.8"]
+    for token in ("Test-Connection", "Set-Dns", "Clear-DnsClientCache", "Set-Net", "New-Net", "Remove-Net", "Restart-NetAdapter", "ipconfig", "netsh"):
+        assert token not in code, token

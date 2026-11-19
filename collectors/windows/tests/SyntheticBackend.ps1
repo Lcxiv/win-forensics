@@ -71,6 +71,13 @@
 #              elapsed time that every read and every wait advances, a QPC
 #              derived from it, and a system time with a quantisation step,
 #              a drift and optional steps; marks fire during a wait
+#   Net        the invented network behind connection-quality (New-WfSyntheticNet lists the
+#              knobs): the route table and interface metrics (a change at a given second),
+#              the adapters by interface index (link down windows, a read that throws), the
+#              round trip time per target label and the seconds at which an echo is lost,
+#              faults or makes the batch throw, the DNS answer time per server and the seconds
+#              at which a query fails; every probe advances the synthetic clock by the time it
+#              takes, and Sent records every address an echo or a query went to
 #   Stdout     list that receives what a collector prints on stdout
 #   Stderr     list that receives what a collector prints on stderr
 
@@ -109,10 +116,73 @@ function Reset-WfSynthetic {
         PinnedTools  = @{}
         Xperf        = @{ ExitCode = 0; StdOut = ''; StdErr = ''; Stuck = $false }
         Clock        = $null
+        Net          = $null
         Stdout       = New-Object 'System.Collections.Generic.List[string]'
         Stderr       = New-Object 'System.Collections.Generic.List[string]'
     }
     $global:WfSynthetic.Clock = New-WfSyntheticClock
+    $global:WfSynthetic.Net = New-WfSyntheticNet
+}
+
+function New-WfSyntheticNet {
+    # The invented network. Seconds are true seconds of the synthetic clock
+    # (floor of Elapsed100ns / 1e7), so slot k of a session runs in second k.
+    # Every address below is invented; the gateway address and the adapter's
+    # hardware address are canaries the tests look for in every bundle file.
+    #   Routes / InterfaceMetrics   MSFT_NetRoute rows and IPv4 interface metrics
+    #   RouteChangeAtSecond / RoutesAfterChange   from that second on, the route read returns these rows
+    #   RouteError        a route read throws this message (all reads)
+    #   RouteErrorFromSecond  route reads at or after this second throw (0: never)
+    #   Adapters          interface index (text) -> adapter values; LinkDown: @(@{ From; To }) seconds
+    #                     during which the adapter reads disconnected and down at zero speed
+    #   LinkError         an adapter read throws this message
+    #   RttMs             label -> round trip in ms; Lost: label -> seconds whose echo times out
+    #   Faulted           label -> seconds whose send faults (an exception inside the task)
+    #   PingThrowAtSecond the whole batch throws in this second (0: never)
+    #   DnsAvailable      whether Resolve-DnsName is there
+    #   DnsMs             label -> answer time in ms; DnsFail: label -> seconds whose query fails
+    #   DnsTimeoutMs      how long a failed query takes; DnsErrorId: the FullyQualifiedErrorId it carries
+    return @{
+        Routes               = @(
+            @{ NextHop = '0.0.0.0'; InterfaceIndex = 3; RouteMetric = 0; Store = 1; AddressFamily = 2 },
+            @{ NextHop = '10.213.47.1'; InterfaceIndex = 7; RouteMetric = 0; Store = 1; AddressFamily = 2 },
+            @{ NextHop = '10.213.47.1'; InterfaceIndex = 7; RouteMetric = 0; Store = 0; AddressFamily = 2 },
+            @{ NextHop = '10.99.0.1'; InterfaceIndex = 12; RouteMetric = 0; Store = 1; AddressFamily = 2 }
+        )
+        InterfaceMetrics     = @{ '3' = 5; '7' = 25; '12' = 35 }
+        RouteChangeAtSecond  = $null
+        RoutesAfterChange    = @()
+        RouteError           = $null
+        RouteErrorFromSecond = 0
+        Adapters             = @{
+            '7'  = @{ MediaConnectState = [uint32]1; InterfaceOperationalStatus = [uint32]1; ReceiveLinkSpeed = [uint64]1000000000; TransmitLinkSpeed = [uint64]1000000000; NdisPhysicalMedium = [uint32]14; MacAddress = '02-5E-AA-13-47-01' }
+            '12' = @{ MediaConnectState = [uint32]1; InterfaceOperationalStatus = [uint32]1; ReceiveLinkSpeed = [uint64]866700000; TransmitLinkSpeed = [uint64]866700000; NdisPhysicalMedium = [uint32]9; MacAddress = '02-5E-AA-13-47-02' }
+        }
+        LinkDown             = @()
+        LinkError            = $null
+        Addresses            = @{ '10.213.47.1' = 'gateway'; '10.99.0.1' = 'gateway'; '1.1.1.1' = 'cloudflare'; '8.8.8.8' = 'google' }
+        RttMs                = @{ gateway = 1; cloudflare = 12; google = 15 }
+        Lost                 = @{ gateway = @(); cloudflare = @(); google = @() }
+        Faulted              = @{ gateway = @(); cloudflare = @(); google = @() }
+        PingThrowAtSecond    = 0
+        DnsAvailable         = $true
+        DnsMs                = @{ gateway = 9; cloudflare = 14 }
+        DnsFail              = @{ gateway = @(); cloudflare = @() }
+        DnsTimeoutMs         = 1200
+        DnsErrorId           = 'ERROR_TIMEOUT,Microsoft.DnsClient.Commands.ResolveDnsName'
+        Sent                 = New-Object 'System.Collections.Generic.List[string]'
+        RouteReads           = 0
+        LinkReads            = 0
+    }
+}
+
+function Get-WfSyntheticSecond {
+    return [int64][math]::Floor([double]$global:WfSynthetic.Clock.Elapsed100ns / 10000000.0)
+}
+
+function Add-WfSyntheticElapsedMs {
+    param([int64]$Milliseconds)
+    $global:WfSynthetic.Clock.Elapsed100ns += $Milliseconds * 10000
 }
 
 function New-WfSyntheticClock {
@@ -1324,4 +1394,94 @@ function Get-WfPinnedToolBuilds {
 function Start-WfSleep {
     param([int]$Seconds)
     $global:WfSynthetic.Ticks += [math]::Max(0, $Seconds)
+}
+
+# --- connection-quality adapters ------------------------------------------
+
+function Get-WfDefaultRouteHop {
+    # The real adapter's selection over the invented route table, so the
+    # ranking runs here as it will on Windows.
+    param([int]$TimeoutSeconds = 30)
+    $net = $global:WfSynthetic.Net
+    $net.RouteReads += 1
+    Add-WfSyntheticElapsedMs -Milliseconds 3
+    $second = Get-WfSyntheticSecond
+    if ($net.RouteError) { throw [System.InvalidOperationException]::new([string]$net.RouteError) }
+    if ($net.RouteErrorFromSecond -gt 0 -and $second -ge $net.RouteErrorFromSecond) { throw [System.InvalidOperationException]::new('synthetic backend: the route table could not be read at 10.213.47.1') }
+    $routes = $net.Routes
+    if ($null -ne $net.RouteChangeAtSecond -and $second -ge $net.RouteChangeAtSecond) { $routes = $net.RoutesAfterChange }
+    return (Select-WfDefaultRouteHop -Routes @($routes) -InterfaceMetrics $net.InterfaceMetrics)
+}
+
+function Get-WfNetLinkState {
+    param([int]$InterfaceIndex, [int]$TimeoutSeconds = 30)
+    $net = $global:WfSynthetic.Net
+    $net.LinkReads += 1
+    Add-WfSyntheticElapsedMs -Milliseconds 4
+    if ($net.LinkError) { throw [System.UnauthorizedAccessException]::new([string]$net.LinkError) }
+    $key = [string]$InterfaceIndex
+    if (-not $net.Adapters.ContainsKey($key)) { return $null }
+    $adapter = $net.Adapters[$key]
+    $second = Get-WfSyntheticSecond
+    foreach ($window in @($net.LinkDown)) {
+        if ($second -ge [int64]$window['From'] -and $second -le [int64]$window['To']) {
+            return @{ MediaConnectState = [uint32]2; InterfaceOperationalStatus = [uint32]7; ReceiveLinkSpeed = [uint64]0; TransmitLinkSpeed = [uint64]0; NdisPhysicalMedium = $adapter['NdisPhysicalMedium'] }
+        }
+    }
+    # Only the requested properties: the invented hardware address stays in the model.
+    return @{
+        MediaConnectState          = $adapter['MediaConnectState']
+        InterfaceOperationalStatus = $adapter['InterfaceOperationalStatus']
+        ReceiveLinkSpeed           = $adapter['ReceiveLinkSpeed']
+        TransmitLinkSpeed          = $adapter['TransmitLinkSpeed']
+        NdisPhysicalMedium         = $adapter['NdisPhysicalMedium']
+    }
+}
+
+function Invoke-WfPingBatch {
+    # All targets at once: the batch takes as long as its slowest echo (a
+    # lost echo takes the whole timeout).
+    param($Targets, [int]$TimeoutMilliseconds, [System.Collections.Generic.List[object]]$Into)
+    $net = $global:WfSynthetic.Net
+    $second = Get-WfSyntheticSecond
+    if ($net.PingThrowAtSecond -gt 0 -and $second -eq $net.PingThrowAtSecond) { throw [System.InvalidOperationException]::new('synthetic backend: the echo batch failed for 10.213.47.1') }
+    $longest = 1
+    foreach ($target in @($Targets)) {
+        $address = [string]$target['Address']
+        $net.Sent.Add('ping ' + $address)
+        if (-not $net.Addresses.ContainsKey($address)) { throw ('synthetic backend: an echo went to an address the scenario does not know') }
+        $label = [string]$net.Addresses[$address]
+        if ($label -ne [string]$target['Label']) { throw ('synthetic backend: target ' + $target['Label'] + ' carries the address of ' + $label) }
+        $outcome = @{ Label = $label; Status = 'Success'; RttMs = [int64]$net.RttMs[$label]; ErrorType = $null }
+        $takes = [int64]$net.RttMs[$label]
+        if (@($net.Faulted[$label]) -contains $second) {
+            $outcome = @{ Label = $label; Status = 'error'; RttMs = $null; ErrorType = 'System.ComponentModel.Win32Exception' }
+            $takes = 2
+        } elseif (@($net.Lost[$label]) -contains $second) {
+            $outcome = @{ Label = $label; Status = 'TimedOut'; RttMs = $null; ErrorType = $null }
+            $takes = $TimeoutMilliseconds
+        }
+        if ($takes -gt $longest) { $longest = $takes }
+        $Into.Add($outcome)
+    }
+    Add-WfSyntheticElapsedMs -Milliseconds $longest
+}
+
+function Test-WfDnsClientAvailable {
+    return [bool]$global:WfSynthetic.Net.DnsAvailable
+}
+
+function Invoke-WfDnsProbe {
+    param([string]$Server, [string]$Name)
+    $net = $global:WfSynthetic.Net
+    $net.Sent.Add('dns ' + $Server + ' ' + $Name)
+    if (-not $net.Addresses.ContainsKey($Server)) { throw ('synthetic backend: a query went to a server the scenario does not know') }
+    $label = [string]$net.Addresses[$Server]
+    $second = Get-WfSyntheticSecond
+    if (@($net.DnsFail[$label]) -contains $second) {
+        Add-WfSyntheticElapsedMs -Milliseconds ([int64]$net.DnsTimeoutMs)
+        return @{ Ok = $false; Records = $null; ErrorType = 'System.ComponentModel.Win32Exception'; ErrorId = $net.DnsErrorId; ErrorCode = 1460 }
+    }
+    Add-WfSyntheticElapsedMs -Milliseconds ([int64]$net.DnsMs[$label])
+    return @{ Ok = $true; Records = 2; ErrorType = $null; ErrorId = $null; ErrorCode = $null }
 }

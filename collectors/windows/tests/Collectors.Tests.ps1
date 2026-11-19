@@ -4476,3 +4476,270 @@ Describe 'diskio-trace against the synthetic backend' {
         (Read-DiskIoEtlHeader -Path $filler).found | Should -BeFalse
     }
 }
+
+Describe 'connection-quality against the synthetic backend' {
+    BeforeAll {
+        # The collector's pure functions, loaded from the script without
+        # running its body, so the rules can be checked one by one.
+        $parsed = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $script:CollectorRoot 'connection-quality.ps1'), [ref]$null, [ref]$null)
+        foreach ($fn in $parsed.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $false)) {
+            if ($fn.Name -like '*-WfNet*') { . ([scriptblock]::Create($fn.Extent.Text)) }
+        }
+        # What the invented network holds that must never reach a bundle: both
+        # gateway addresses and both hardware addresses.
+        $script:NetCanaries = @('10.213.47.1', '10.99.0.1', '02-5E-AA-13-47-01', '02-5E-AA-13-47-02', '02-5E-AA')
+
+        function Start-NetCase {
+            param([string]$Case = 'connection-quality', [scriptblock]$Change = $null)
+            Reset-WfSynthetic
+            $selected = @(Get-WfSyntheticCases | Where-Object { $_['Case'] -eq $Case })[0]
+            & $selected['Setup']
+            if ($null -ne $Change) { & $Change }
+            return $selected['Arguments']
+        }
+        function Invoke-NetCase {
+            param([string]$Name, [hashtable]$Arguments)
+            return (Invoke-TestCollector -Collector 'connection-quality' -OutputDirectory (Join-Path $TestDrive $Name) -Arguments $Arguments)
+        }
+        function Get-NetSource {
+            param($Run, [string]$Id)
+            return @($Run.Manifest.collectors | Where-Object { $_.id -eq $Id })[0]
+        }
+        function Get-NetLines {
+            param([string]$Name, [string]$Id)
+            $path = Join-Path $TestDrive ($Name + '/raw/' + $Id + '/samples.jsonl')
+            return @((Get-Content -LiteralPath $path) | Where-Object { $_ } | ForEach-Object { $_ | ConvertFrom-Json })
+        }
+        function Assert-NoNetCanary {
+            # Every file of the bundle, byte for byte as text.
+            param([string]$Name)
+            foreach ($file in @(Get-ChildItem -LiteralPath (Join-Path $TestDrive $Name) -Recurse -File)) {
+                $text = [System.IO.File]::ReadAllText($file.FullName)
+                foreach ($canary in $script:NetCanaries) { $text.Contains($canary) | Should -BeFalse -Because ($file.Name + ' must not carry ' + $canary) }
+            }
+        }
+    }
+
+    It 'probes the gateway and both public targets every slot, queries DNS every 10 slots and reads the link, all by label' {
+        $arguments = Start-NetCase
+        $run = Invoke-NetCase -Name 'net-ok' -Arguments $arguments
+        $run.ExitCode | Should -Be 0
+        $run.Stdout.Count | Should -Be 1
+        ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'ok'
+        $run.Manifest.scenario.id | Should -BeExactly 'connection_quality'
+        $run.Manifest.scenario.requested_duration_s | Should -Be 30
+        $run.Manifest.calibration.status | Should -BeExactly 'not_applicable'
+        foreach ($id in @('gateway_probes', 'public_probes', 'link_state')) {
+            $source = Get-NetSource -Run $run -Id $id
+            $source.status | Should -BeExactly 'observed'
+            $source.preflight.ok | Should -BeTrue
+            $source.expectation.met | Should -BeTrue
+            @($source.artifacts | ForEach-Object { $_.role } | Sort-Object) | Should -Be @('config', 'primary', 'report')
+        }
+        $gateway = Get-NetLines -Name 'net-ok' -Id 'gateway_probes'
+        @($gateway | Where-Object { $_.kind -eq 'ping' }).Count | Should -Be 30
+        @($gateway | Where-Object { $_.kind -eq 'dns' } | ForEach-Object { $_.seq }) | Should -Be @(0, 10, 20)
+        @($gateway | ForEach-Object { $_.target } | Sort-Object -Unique) | Should -Be @('gateway')
+        $public = Get-NetLines -Name 'net-ok' -Id 'public_probes'
+        @($public | Where-Object { $_.kind -eq 'ping' -and $_.target -eq 'cloudflare' }).Count | Should -Be 30
+        @($public | Where-Object { $_.kind -eq 'ping' -and $_.target -eq 'google' }).Count | Should -Be 30
+        @($public | Where-Object { $_.kind -eq 'dns' } | ForEach-Object { $_.target } | Sort-Object -Unique) | Should -Be @('cloudflare')
+        @($public | Where-Object { $_.target -eq 'cloudflare' -and $_.kind -eq 'ping' -and $_.status -eq 'TimedOut' } | ForEach-Object { $_.seq }) | Should -Be @(12, 13, 14)
+        @($public | Where-Object { $_.status -eq 'TimedOut' } | Where-Object { $null -ne $_.rtt_ms }).Count | Should -Be 0
+        @($gateway | Where-Object { $_.kind -eq 'dns' -and $_.status -eq 'failed' } | ForEach-Object { $_.seq }) | Should -Be @(20)
+        foreach ($line in @($gateway) + @($public)) {
+            $line.qpc_before | Should -BeGreaterOrEqual $line.slot_qpc
+            $line.qpc_after | Should -BeGreaterThan $line.qpc_before
+            $line.qpc_done | Should -BeGreaterOrEqual $line.qpc_after
+        }
+        # The pings of one slot share their stamps: they are sent together.
+        $slot5 = @($gateway + $public | Where-Object { $_.seq -eq 5 -and $_.kind -eq 'ping' })
+        @($slot5 | ForEach-Object { $_.qpc_before } | Sort-Object -Unique).Count | Should -Be 1
+        $link = Get-NetLines -Name 'net-ok' -Id 'link_state'
+        @($link | ForEach-Object { $_.seq }) | Should -Be @(0, 10, 20, 30)
+        @($link | ForEach-Object { $_.route_same } | Sort-Object -Unique) | Should -Be @($true)
+        $link[0].receive_link_speed_bps | Should -Be 1000000000
+        $link[0].physical_medium | Should -Be 14
+        # The probes went to the gateway the route table names, by address, and DNS never went to google.
+        @($global:WfSynthetic.Net.Sent | Where-Object { $_ -eq 'ping 10.213.47.1' }).Count | Should -Be 30
+        @($global:WfSynthetic.Net.Sent | Where-Object { $_ -like 'dns 8.8.8.8*' }).Count | Should -Be 0
+        @($global:WfSynthetic.Net.Sent | Where-Object { $_ -eq 'dns 1.1.1.1 www.microsoft.com' }).Count | Should -Be 3
+        Assert-NoNetCanary -Name 'net-ok'
+        $config = Get-Content -LiteralPath (Join-Path $TestDrive 'net-ok/raw/gateway_probes/command.json') -Raw | ConvertFrom-Json
+        $config.targets[0].label | Should -BeExactly 'gateway'
+        (Get-NetSource -Run $run -Id 'public_probes').requested.options.targets | Should -Be @('cloudflare', 'google')
+    }
+
+    It 'prefers the default route with the lowest route plus interface metric, ignoring on link, persistent and unknown interface rows' {
+        $metrics = @{ '3' = 5; '7' = 25; '12' = 35 }
+        $routes = @(
+            @{ NextHop = '0.0.0.0'; InterfaceIndex = 3; RouteMetric = 0; Store = 1; AddressFamily = 2 },
+            @{ NextHop = '192.0.2.1'; InterfaceIndex = 7; RouteMetric = 10; Store = 1; AddressFamily = 2 },
+            @{ NextHop = '192.0.2.9'; InterfaceIndex = 7; RouteMetric = 0; Store = 0; AddressFamily = 2 },
+            @{ NextHop = '198.51.100.1'; InterfaceIndex = 12; RouteMetric = 0; Store = 1; AddressFamily = 2 },
+            @{ NextHop = '203.0.113.1'; InterfaceIndex = 40; RouteMetric = 0; Store = 1; AddressFamily = 2 }
+        )
+        $hop = Select-WfDefaultRouteHop -Routes $routes -InterfaceMetrics $metrics
+        $hop.InterfaceIndex | Should -Be 7
+        $hop.NextHop | Should -BeExactly '192.0.2.1'
+        $hop.Candidates | Should -Be 2
+        # A tie goes to the lower interface index.
+        $tie = Select-WfDefaultRouteHop -Routes @(@{ NextHop = '198.51.100.1'; InterfaceIndex = 12; RouteMetric = 0; Store = 1; AddressFamily = 2 }, @{ NextHop = '192.0.2.1'; InterfaceIndex = 7; RouteMetric = 10; Store = 1; AddressFamily = 2 }) -InterfaceMetrics @{ '7' = 25; '12' = 35 }
+        $tie.InterfaceIndex | Should -Be 7
+        Select-WfDefaultRouteHop -Routes @($routes[0], $routes[2]) -InterfaceMetrics $metrics | Should -BeNullOrEmpty
+        Select-WfDefaultRouteHop -Routes @(@{ NextHop = 'fe80::1'; InterfaceIndex = 7; RouteMetric = 0; Store = 1; AddressFamily = 2 }) -InterfaceMetrics $metrics | Should -BeNullOrEmpty
+    }
+
+    It 'records a cable drop, missed slots and a route change as data and stays observed' {
+        $arguments = Start-NetCase -Case 'connection-quality-link-drop'
+        $run = Invoke-NetCase -Name 'net-drop' -Arguments $arguments
+        $run.ExitCode | Should -Be 0
+        foreach ($id in @('gateway_probes', 'public_probes', 'link_state')) { (Get-NetSource -Run $run -Id $id).status | Should -BeExactly 'observed' }
+        $link = Get-NetLines -Name 'net-drop' -Id 'link_state'
+        $down = @($link | Where-Object { $_.seq -eq 10 })[0]
+        $down.media_connect_state | Should -Be 2
+        $down.operational_status | Should -Be 7
+        $down.receive_link_speed_bps | Should -Be 0
+        @($link | Where-Object { $_.kind -eq 'missed' } | ForEach-Object { $_.seq }) | Should -Be @(20)
+        @($link | Where-Object { $_.seq -eq 30 })[0].route_same | Should -BeFalse
+        $public = Get-NetLines -Name 'net-drop' -Id 'public_probes'
+        $missed = @($public | Where-Object { $_.kind -eq 'missed' } | ForEach-Object { $_.seq })
+        $missed.Count | Should -Be 5
+        foreach ($line in @($public | Where-Object { $_.kind -eq 'missed' })) { ($line.seen_qpc - $line.slot_qpc) | Should -BeGreaterThan 10000000 }
+        # Every slot is accounted for: taken (one cloudflare echo) or written as missed.
+        (@($public | Where-Object { $_.kind -eq 'ping' -and $_.target -eq 'cloudflare' }).Count + $missed.Count) | Should -Be 30
+        $result = Get-Content -LiteralPath (Join-Path $TestDrive 'net-drop/raw/public_probes/result.json') -Raw | ConvertFrom-Json
+        @($result.missed_seqs) | Should -Be $missed
+        $run.Manifest.notes -join ' ' | Should -Match 'sampling gaps, not losses'
+        Assert-NoNetCanary -Name 'net-drop'
+    }
+
+    It 'leaves the gateway and the link uncollected without a gateway, and still probes the public targets' {
+        $arguments = Start-NetCase -Case 'connection-quality-no-gateway'
+        $run = Invoke-NetCase -Name 'net-nogw' -Arguments $arguments
+        $run.ExitCode | Should -Be 0
+        ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'partial'
+        foreach ($id in @('gateway_probes', 'link_state')) {
+            $source = Get-NetSource -Run $run -Id $id
+            $source.status | Should -BeExactly 'not_collected'
+            $source.preflight.ok | Should -BeFalse
+            $source.status_reason | Should -Match 'no active IPv4 default route'
+            Test-Path -LiteralPath (Join-Path $TestDrive ('net-nogw/raw/' + $id + '/samples.jsonl')) | Should -BeFalse
+        }
+        (Get-NetSource -Run $run -Id 'public_probes').status | Should -BeExactly 'observed'
+    }
+
+    It 'names only the exception type when the route table or the adapter cannot be read' {
+        $arguments = Start-NetCase -Change { $global:WfSynthetic.Net.RouteError = 'route read failed near 10.213.47.1' }
+        $run = Invoke-NetCase -Name 'net-route-error' -Arguments $arguments
+        $gateway = Get-NetSource -Run $run -Id 'gateway_probes'
+        $gateway.status | Should -BeExactly 'not_collected'
+        $gateway.status_reason | Should -Match 'System.InvalidOperationException'
+        (Get-NetSource -Run $run -Id 'link_state').status | Should -BeExactly 'not_collected'
+        (Get-NetSource -Run $run -Id 'public_probes').status | Should -BeExactly 'observed'
+        Assert-NoNetCanary -Name 'net-route-error'
+
+        $arguments = Start-NetCase -Change { $global:WfSynthetic.Net.LinkError = 'adapter 02-5E-AA-13-47-01 unreadable' }
+        $run = Invoke-NetCase -Name 'net-link-error' -Arguments $arguments
+        $link = Get-NetSource -Run $run -Id 'link_state'
+        $link.status | Should -BeExactly 'not_collected'
+        $link.status_reason | Should -Match 'System.UnauthorizedAccessException'
+        (Get-NetSource -Run $run -Id 'gateway_probes').status | Should -BeExactly 'observed'
+        Assert-NoNetCanary -Name 'net-link-error'
+
+        $arguments = Start-NetCase -Change { $global:WfSynthetic.Net.Adapters.Remove('7') }
+        $run = Invoke-NetCase -Name 'net-no-adapter' -Arguments $arguments
+        (Get-NetSource -Run $run -Id 'link_state').status_reason | Should -Match 'no MSFT_NetAdapter row'
+    }
+
+    It 'records a route read that fails mid session as unknown, not as a change' {
+        $arguments = Start-NetCase -Change { $global:WfSynthetic.Net.RouteErrorFromSecond = 15 }
+        $run = Invoke-NetCase -Name 'net-route-late' -Arguments $arguments
+        (Get-NetSource -Run $run -Id 'link_state').status | Should -BeExactly 'observed'
+        $link = Get-NetLines -Name 'net-route-late' -Id 'link_state'
+        @($link | ForEach-Object { $_.route_same }) | Should -Be @($true, $true, $null, $null)
+        Assert-NoNetCanary -Name 'net-route-late'
+    }
+
+    It 'keeps a faulted echo as error with its type, and withholds a DNS error id that is not the documented shape' {
+        $arguments = Start-NetCase -Change {
+            $global:WfSynthetic.Net.Faulted = @{ gateway = @(3); cloudflare = @(); google = @() }
+            $global:WfSynthetic.Net.DnsFail = @{ gateway = @(10); cloudflare = @() }
+            $global:WfSynthetic.Net.DnsErrorId = 'server 10.213.47.1 did not answer'
+        }
+        $run = Invoke-NetCase -Name 'net-faults' -Arguments $arguments
+        (Get-NetSource -Run $run -Id 'gateway_probes').status | Should -BeExactly 'observed'
+        $gateway = Get-NetLines -Name 'net-faults' -Id 'gateway_probes'
+        $faulted = @($gateway | Where-Object { $_.seq -eq 3 -and $_.kind -eq 'ping' })[0]
+        $faulted.status | Should -BeExactly 'error'
+        $faulted.error_type | Should -BeExactly 'System.ComponentModel.Win32Exception'
+        $faulted.rtt_ms | Should -BeNullOrEmpty
+        $failed = @($gateway | Where-Object { $_.seq -eq 10 -and $_.kind -eq 'dns' })[0]
+        $failed.error_id | Should -BeExactly 'withheld'
+        $failed.error_code | Should -Be 1460
+        $result = Get-Content -LiteralPath (Join-Path $TestDrive 'net-faults/raw/gateway_probes/result.json') -Raw | ConvertFrom-Json
+        $result.tallies.ping_gateway.unknown | Should -Be 1
+        $result.tallies.dns_gateway.failed | Should -Be 1
+        Assert-NoNetCanary -Name 'net-faults'
+    }
+
+    It 'fails closed when the session does not reach its stop, keeps no samples and never writes the failing message' {
+        $arguments = Start-NetCase -Case 'connection-quality-session-failed'
+        $run = Invoke-NetCase -Name 'net-failed' -Arguments $arguments
+        $run.ExitCode | Should -Be 1
+        foreach ($id in @('gateway_probes', 'public_probes', 'link_state')) {
+            $source = Get-NetSource -Run $run -Id $id
+            $source.status | Should -BeExactly 'capture_failed'
+            $source.status_reason | Should -Match 'System.InvalidOperationException'
+            $source.expectation.met | Should -BeFalse
+            @($source.artifacts | Where-Object { $_.role -eq 'primary' }).Count | Should -Be 0
+        }
+        Assert-NoNetCanary -Name 'net-failed'
+
+        # A session that overruns its deadline (the process starved for longer than the margin).
+        $arguments = Start-NetCase -Change { $global:WfSynthetic.Clock = New-WfSyntheticClock -OvershootMs @{ 3 = 80000 } }
+        $run = Invoke-NetCase -Name 'net-deadline' -Arguments @{ DurationSeconds = 10 }
+        $run.ExitCode | Should -Be 1
+        (Get-NetSource -Run $run -Id 'public_probes').status_reason | Should -Match 'passed its deadline of 70 s'
+    }
+
+    It 'leaves the probes uncollected without Resolve-DnsName and reports every source unsupported without the high resolution counter' {
+        $arguments = Start-NetCase -Change { $global:WfSynthetic.Net.DnsAvailable = $false }
+        $run = Invoke-NetCase -Name 'net-no-dns' -Arguments $arguments
+        foreach ($id in @('gateway_probes', 'public_probes')) {
+            (Get-NetSource -Run $run -Id $id).status | Should -BeExactly 'not_collected'
+            (Get-NetSource -Run $run -Id $id).status_reason | Should -Match 'Resolve-DnsName'
+        }
+        (Get-NetSource -Run $run -Id 'link_state').status | Should -BeExactly 'observed'
+        @($global:WfSynthetic.Net.Sent).Count | Should -Be 0
+
+        $arguments = Start-NetCase -Change { $global:WfSynthetic.Clock = New-WfSyntheticClock -HighResolution $false }
+        $run = Invoke-NetCase -Name 'net-lowres' -Arguments $arguments
+        $run.ExitCode | Should -Be 1
+        foreach ($id in @('gateway_probes', 'public_probes', 'link_state')) { (Get-NetSource -Run $run -Id $id).status | Should -BeExactly 'unsupported' }
+        @($global:WfSynthetic.Net.Sent).Count | Should -Be 0
+    }
+
+    It 'turns an unknown link speed into null and keeps the error id shape' {
+        ConvertTo-WfNetCount -Value ([uint64]::MaxValue) | Should -BeNullOrEmpty
+        ConvertTo-WfNetCount -Value ([uint64]1000000000) | Should -Be 1000000000
+        ConvertTo-WfNetCount -Value $null | Should -BeNullOrEmpty
+        ConvertTo-WfNetErrorId -Text 'DNS_ERROR_RCODE_NAME_ERROR,Microsoft.DnsClient.Commands.ResolveDnsName' | Should -BeExactly 'DNS_ERROR_RCODE_NAME_ERROR,Microsoft.DnsClient.Commands.ResolveDnsName'
+        ConvertTo-WfNetErrorId -Text 'x,Microsoft.DnsClient.Commands.ResolveDnsName extra' | Should -BeExactly 'withheld'
+        Test-WfNetPingOk -Status 'Success' | Should -BeTrue
+        Test-WfNetPingOk -Status 'TimedOut' | Should -BeFalse
+        Test-WfNetPingOk -Status 'not_completed' | Should -BeNullOrEmpty
+    }
+
+    It 'rejects a duration outside its range with a failed summary and no bundle' {
+        Reset-WfSynthetic
+        foreach ($arguments in @(@{ DurationSeconds = 9 }, @{ DurationSeconds = 841 })) {
+            $out = Join-Path $TestDrive ('net-range-' + [guid]::NewGuid().ToString('N').Substring(0, 6))
+            $run = Invoke-TestCollector -Collector 'connection-quality' -OutputDirectory $out -Arguments $arguments
+            $run.ExitCode | Should -Be 1
+            $run.Stdout.Count | Should -Be 1
+            ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'failed'
+            Test-Path -LiteralPath $out | Should -BeFalse
+        }
+    }
+}

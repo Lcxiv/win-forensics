@@ -1,0 +1,30 @@
+{
+  "started_utc": "2026-03-01T12:00:02.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:06.0000000Z",
+  "status": "not_collected",
+  "slots": 10,
+  "slots_taken": 10,
+  "slots_missed": 0,
+  "missed_seqs": [],
+  "lines": 0,
+  "probes": 0,
+  "session_start_qpc": 27345678931284,
+  "session_stop_qpc": 27345778934584,
+  "qpc_frequency_hz": 10000000,
+  "samples_kept": false,
+  "failure": null,
+  "tallies": {
+    "ping_gateway": {
+      "sent": 0,
+      "ok": 0,
+      "failed": 0,
+      "unknown": 0
+    },
+    "dns_gateway": {
+      "sent": 0,
+      "ok": 0,
+      "failed": 0,
+      "unknown": 0
+    }
+  }
+}

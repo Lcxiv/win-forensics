@@ -1,0 +1,27 @@
+{
+  "started_utc": "2026-03-01T12:00:02.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:06.0000000Z",
+  "status": "observed",
+  "slots": 30,
+  "slots_taken": 25,
+  "slots_missed": 5,
+  "missed_seqs": [
+    20
+  ],
+  "lines": 4,
+  "probes": 3,
+  "session_start_qpc": 27345678971284,
+  "session_stop_qpc": 27345979050484,
+  "qpc_frequency_hz": 10000000,
+  "samples_kept": true,
+  "failure": null,
+  "link": {
+    "readings": 3,
+    "read": 3,
+    "not_found": 0,
+    "errors": 0,
+    "down": 1,
+    "route_changed": 1,
+    "route_unknown": 0
+  }
+}
