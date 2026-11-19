@@ -32,7 +32,7 @@
 # (a function the collector script itself defines, named in the definition;
 # it receives the bundle root and returns its manifest entries, and may fill
 # the manifest's calibration section and the scenario marks;
-# clock-calibration uses it).
+# clock-calibration and connection-quality use it).
 #
 # Target: Windows PowerShell 5.1 as a standard account in Event Log Readers.
 # Contracts: docs/contracts/bundle.md, docs/contracts/measurement-status.md,
@@ -4112,6 +4112,72 @@ function Invoke-WfCollectorScript {
 }
 
 # ---------------------------------------------------------------------------
+# Network probe helpers (connection-quality). Portable: the adapters at the
+# bottom of this file read Windows and hand their raw values to these.
+# ---------------------------------------------------------------------------
+
+function Get-WfNetLinkProperties {
+    # The MSFT_NetAdapter properties the link reading requests; no name,
+    # description, address or identifier of the adapter is among them.
+    return @('InterfaceIndex', 'MediaConnectState', 'InterfaceOperationalStatus', 'ReceiveLinkSpeed', 'TransmitLinkSpeed', 'NdisPhysicalMedium')
+}
+
+function Get-WfInnermostExceptionType {
+    # The full type name of the innermost exception (an AggregateException
+    # from a task wraps the one that matters). The message is never read.
+    param($Exception)
+    $current = $Exception
+    while ($null -ne $current -and $null -ne $current.InnerException) { $current = $current.InnerException }
+    if ($null -eq $current) { return $null }
+    return $current.GetType().FullName
+}
+
+function Test-WfIPv4Unicast {
+    # True for a dotted IPv4 address other than 0.0.0.0 (the on link next
+    # hop MSFT_NetRoute reports for a route without a gateway).
+    param([string]$Text)
+    $address = $null
+    if (-not [System.Net.IPAddress]::TryParse($Text, [ref]$address)) { return $false }
+    if ($address.AddressFamily -ne [System.Net.Sockets.AddressFamily]::InterNetwork) { return $false }
+    return ($address.ToString() -ne '0.0.0.0' -and $Text -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$')
+}
+
+function Select-WfDefaultRouteHop {
+    # Picks the default route Windows prefers among MSFT_NetRoute rows for
+    # 0.0.0.0/0: active store (Store 1), IPv4 (AddressFamily 2), a next hop
+    # that is a unicast IPv4 address, and an IPv4 interface whose metric is
+    # known; the lowest route metric plus interface metric wins, ties to the
+    # lowest interface index. Returns $null when no row qualifies.
+    # -Routes: maps with NextHop, InterfaceIndex, RouteMetric, Store,
+    # AddressFamily. -InterfaceMetrics: interface index (as text) -> metric.
+    param($Routes, [hashtable]$InterfaceMetrics)
+    $best = $null
+    $eligible = 0
+    foreach ($route in @($Routes)) {
+        if ($null -eq $route) { continue }
+        if ($null -eq $route['Store'] -or [int]$route['Store'] -ne 1) { continue }
+        if ($null -ne $route['AddressFamily'] -and [int]$route['AddressFamily'] -ne 2) { continue }
+        if (-not (Test-WfIPv4Unicast -Text ([string]$route['NextHop']))) { continue }
+        if ($null -eq $route['InterfaceIndex'] -or $null -eq $route['RouteMetric']) { continue }
+        $key = [string]$route['InterfaceIndex']
+        if (-not $InterfaceMetrics.ContainsKey($key) -or $null -eq $InterfaceMetrics[$key]) { continue }
+        $eligible += 1
+        $total = [int64]$route['RouteMetric'] + [int64]$InterfaceMetrics[$key]
+        $candidate = @{
+            NextHop         = [string]$route['NextHop']
+            InterfaceIndex  = [int]$route['InterfaceIndex']
+            RouteMetric     = [int64]$route['RouteMetric']
+            InterfaceMetric = [int64]$InterfaceMetrics[$key]
+            Total           = $total
+        }
+        if ($null -eq $best -or $total -lt $best.Total -or ($total -eq $best.Total -and $candidate.InterfaceIndex -lt $best.InterfaceIndex)) { $best = $candidate }
+    }
+    if ($null -eq $best) { return $null }
+    $best['Candidates'] = $eligible
+    return $best
+}
+
+# ---------------------------------------------------------------------------
 # PresentMon pin: what presentmon-frames runs and the scenario runner's
 # preflight checks before any capture.
 # ---------------------------------------------------------------------------
@@ -4392,6 +4458,155 @@ function Wait-WfMilliseconds {
     # https://learn.microsoft.com/powershell/module/microsoft.powershell.utility/start-sleep?view=powershell-5.1
     param([int]$Milliseconds)
     if ($Milliseconds -gt 0) { Start-Sleep -Milliseconds $Milliseconds }
+}
+
+# Network reads and probes for the connection-quality collector. Every
+# address these functions handle (the gateway, the public resolvers) stays in
+# memory: they return labels' outcomes, status names, counts and numbers, and
+# the collector writes only those. Nothing here changes a setting.
+
+function Get-WfDefaultRouteHop {
+    # The IPv4 default route Windows prefers: MSFT_NetRoute rows for
+    # 0.0.0.0/0 in the active store (Store 1) whose NextHop is an address
+    # other than 0.0.0.0, ranked by the route metric plus the interface
+    # metric of their IPv4 interface (MSFT_NetIPInterface, AddressFamily 2),
+    # lowest first, ties to the lowest interface index. Microsoft: "the
+    # overall metric that is used to determine the interface preference is
+    # the sum of the route metric and the interface metric".
+    # https://learn.microsoft.com/windows/win32/fwp/wmi/nettcpipprov/msft-netroute
+    # https://learn.microsoft.com/windows/win32/fwp/wmi/nettcpipprov/msft-netipinterface
+    # https://learn.microsoft.com/windows-server/networking/technologies/network-subsystem/net-sub-interface-metric
+    # https://learn.microsoft.com/powershell/module/cimcmdlets/get-ciminstance?view=powershell-5.1
+    # Returns $null when there is no such route and throws when either class
+    # cannot be read. NextHop is returned to the caller, which keeps it in
+    # memory and never writes it.
+    param([int]$TimeoutSeconds = 30)
+    $routes = @(Get-CimInstance -Namespace 'root/StandardCimv2' -ClassName 'MSFT_NetRoute' -Filter "DestinationPrefix = '0.0.0.0/0'" `
+            -Property @('DestinationPrefix', 'NextHop', 'InterfaceIndex', 'RouteMetric', 'Store', 'AddressFamily') -OperationTimeoutSec $TimeoutSeconds -ErrorAction Stop)
+    $interfaces = @(Get-CimInstance -Namespace 'root/StandardCimv2' -ClassName 'MSFT_NetIPInterface' -Filter 'AddressFamily = 2' `
+            -Property @('InterfaceIndex', 'InterfaceMetric', 'AddressFamily') -OperationTimeoutSec $TimeoutSeconds -ErrorAction Stop)
+    $candidates = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($route in $routes) {
+        $candidates.Add(@{
+                NextHop        = [string]$route.NextHop
+                InterfaceIndex = $route.InterfaceIndex
+                RouteMetric    = $route.RouteMetric
+                Store          = $route.Store
+                AddressFamily  = $route.AddressFamily
+            })
+    }
+    $metrics = @{}
+    foreach ($interface in $interfaces) { $metrics[[string]$interface.InterfaceIndex] = $interface.InterfaceMetric }
+    return (Select-WfDefaultRouteHop -Routes @($candidates.ToArray()) -InterfaceMetrics $metrics)
+}
+
+function Get-WfNetLinkState {
+    # The adapter behind one interface index, from MSFT_NetAdapter: its media
+    # connect state, operational status, receive and transmit link speeds
+    # (bits per second) and physical medium. No name, description or address
+    # is requested. Returns $null when no adapter has that index (a virtual
+    # interface may have none) and throws when the class cannot be read.
+    # https://learn.microsoft.com/windows/win32/fwp/wmi/netadaptercimprov/msft-netadapter
+    param([int]$InterfaceIndex, [int]$TimeoutSeconds = 30)
+    $rows = @(Get-CimInstance -Namespace 'root/StandardCimv2' -ClassName 'MSFT_NetAdapter' -Filter ('InterfaceIndex = ' + $InterfaceIndex) `
+            -Property (Get-WfNetLinkProperties) -OperationTimeoutSec $TimeoutSeconds -ErrorAction Stop)
+    if ($rows.Count -eq 0) { return $null }
+    $adapter = $rows[0]
+    return @{
+        MediaConnectState          = $adapter.MediaConnectState
+        InterfaceOperationalStatus = $adapter.InterfaceOperationalStatus
+        ReceiveLinkSpeed           = $adapter.ReceiveLinkSpeed
+        TransmitLinkSpeed          = $adapter.TransmitLinkSpeed
+        NdisPhysicalMedium         = $adapter.NdisPhysicalMedium
+    }
+}
+
+function Invoke-WfPingBatch {
+    # One ICMP echo request per target, all sent before any is awaited, so
+    # the targets are probed at the same moment. One Ping object per target,
+    # because a Ping "throws InvalidOperationException if a call to
+    # SendAsync is in progress"; each is disposed after the batch. The
+    # buffer is 32 zero bytes. A reply's Status is kept by name and its
+    # RoundtripTime (milliseconds) only when the Status is Success, because
+    # Microsoft documents RoundtripTime as 0 otherwise. The reply's Address
+    # and any exception message are never read: an exception is kept as its
+    # innermost type name. Appends one map per target to -Into, in target
+    # order: Label, Status (an IPStatus name, 'error' or 'not_completed'),
+    # RttMs, ErrorType.
+    # https://learn.microsoft.com/dotnet/api/system.net.networkinformation.ping.sendpingasync?view=netframework-4.8
+    # https://learn.microsoft.com/dotnet/api/system.net.networkinformation.pingreply.roundtriptime
+    # https://learn.microsoft.com/dotnet/api/system.net.networkinformation.ipstatus
+    # https://learn.microsoft.com/dotnet/api/system.threading.tasks.task.waitall
+    param($Targets, [int]$TimeoutMilliseconds, [System.Collections.Generic.List[object]]$Into)
+    $pings = New-Object 'System.Collections.Generic.List[object]'
+    $tasks = New-Object 'System.Collections.Generic.List[object]'
+    try {
+        foreach ($target in @($Targets)) {
+            $ping = New-Object System.Net.NetworkInformation.Ping
+            $pings.Add($ping)
+            $buffer = New-Object byte[] 32
+            $task = $null
+            try { $task = $ping.SendPingAsync([System.Net.IPAddress]::Parse([string]$target['Address']), $TimeoutMilliseconds, $buffer) } catch { $task = $_.Exception }
+            $tasks.Add($task)
+        }
+        $waitable = New-Object 'System.Collections.Generic.List[System.Threading.Tasks.Task]'
+        foreach ($task in $tasks) { if ($task -is [System.Threading.Tasks.Task]) { $waitable.Add($task) } }
+        if ($waitable.Count -gt 0) {
+            try { $null = [System.Threading.Tasks.Task]::WaitAll($waitable.ToArray(), ($TimeoutMilliseconds + 1000)) } catch { $null = $_ }
+        }
+        $i = 0
+        foreach ($target in @($Targets)) {
+            $task = $tasks[$i]
+            $i += 1
+            $outcome = @{ Label = [string]$target['Label']; Status = 'not_completed'; RttMs = $null; ErrorType = $null }
+            if ($task -is [System.Exception]) {
+                $outcome.Status = 'error'
+                $outcome.ErrorType = Get-WfInnermostExceptionType -Exception $task
+            } elseif ($task.IsFaulted) {
+                $outcome.Status = 'error'
+                $outcome.ErrorType = Get-WfInnermostExceptionType -Exception $task.Exception
+            } elseif ($task.Status -eq [System.Threading.Tasks.TaskStatus]::RanToCompletion) {
+                $reply = $task.Result
+                $outcome.Status = [string]$reply.Status
+                if ($reply.Status -eq [System.Net.NetworkInformation.IPStatus]::Success) { $outcome.RttMs = [int64]$reply.RoundtripTime }
+            }
+            $Into.Add($outcome)
+        }
+    } finally {
+        foreach ($ping in $pings) { $ping.Dispose() }
+    }
+}
+
+function Test-WfDnsClientAvailable {
+    # Resolve-DnsName is in the inbox DnsClient module (Windows 8 and later).
+    # Loading it here keeps the module load out of the first timed query.
+    # https://learn.microsoft.com/powershell/module/dnsclient/resolve-dnsname
+    try {
+        $null = Get-Command -Name 'Resolve-DnsName' -CommandType Cmdlet -ErrorAction Stop
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Invoke-WfDnsProbe {
+    # One A query for -Name sent to one server with the DNS protocol only
+    # (-DnsOnly), the shorter timeouts (-QuickTimeout) and without the hosts
+    # file (-NoHostsFile). Keeps whether it answered and how many records
+    # came back; the records themselves (addresses) are never read. A
+    # failure keeps its exception type, its FullyQualifiedErrorId and, when
+    # the exception has one, its NativeErrorCode; never its message.
+    # https://learn.microsoft.com/powershell/module/dnsclient/resolve-dnsname
+    param([string]$Server, [string]$Name)
+    try {
+        $records = @(Resolve-DnsName -Name $Name -Type A -Server $Server -DnsOnly -QuickTimeout -NoHostsFile -ErrorAction Stop)
+        return @{ Ok = $true; Records = $records.Count; ErrorType = $null; ErrorId = $null; ErrorCode = $null }
+    } catch {
+        $exception = $_.Exception
+        $code = $null
+        if ($null -ne $exception.PSObject.Properties['NativeErrorCode']) { $code = $exception.NativeErrorCode }
+        return @{ Ok = $false; Records = $null; ErrorType = $exception.GetType().FullName; ErrorId = [string]$_.FullyQualifiedErrorId; ErrorCode = $code }
+    }
 }
 
 function Get-WfProcessId {

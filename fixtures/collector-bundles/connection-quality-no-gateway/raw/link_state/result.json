@@ -1,0 +1,26 @@
+{
+  "started_utc": "2026-03-01T12:00:02.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:06.0000000Z",
+  "status": "not_collected",
+  "slots": 10,
+  "slots_taken": 10,
+  "slots_missed": 0,
+  "missed_seqs": [],
+  "lines": 0,
+  "probes": 0,
+  "session_start_qpc": 27345678931284,
+  "session_stop_qpc": 27345778934584,
+  "qpc_frequency_hz": 10000000,
+  "boot_time_utc": "2026-02-27T12:00:00.0000000Z",
+  "samples_kept": false,
+  "failure": null,
+  "link": {
+    "readings": 0,
+    "read": 0,
+    "not_found": 0,
+    "errors": 0,
+    "down": 0,
+    "route_changed": 0,
+    "route_unknown": 0
+  }
+}
