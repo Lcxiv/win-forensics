@@ -420,6 +420,9 @@ def decode(bundle: Path, source: str, decoded_at: str | None = None, inventory: 
                                                               "end": max(r["interval_end_ms"] for r in interval_rows),
                                                               "domain": "etw_qpc_relative", "unit": "ms"}),
                              ("dpcisr_class_cpu", summary_rows, span)):
+        if table == "dpcisr_class_cpu" and status != "observed":
+            # A summary of module rows that failed is not written as if it stood alone.
+            rows = []
         errors = wf_schema.validate_rows(rows, f"decoded/{table}.schema.json")
         if errors:
             status, reason = "decode_failed", "; ".join(errors[:3])

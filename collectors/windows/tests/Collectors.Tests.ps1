@@ -894,6 +894,47 @@ Describe 'collectors, end to end against the synthetic backend' {
         @($run.Manifest.collectors | Where-Object { $_.id -eq 'system_drivers' })[0].status | Should -BeExactly 'observed'
     }
 
+    It 'reads only the service and setup class of present devices, nothing that identifies a device' {
+        Reset-WfSynthetic
+        $case = @(Get-WfSyntheticCases | Where-Object { $_['Case'] -eq 'driver-inventory' })[0]
+        & $case['Setup']
+        $out = Join-Path $TestDrive 'device-services'
+        $run = Invoke-TestCollector -Collector 'driver-inventory' -OutputDirectory $out
+        $entry = @($run.Manifest.collectors | Where-Object { $_.id -eq 'pnp_device_services' })[0]
+        $entry.status | Should -BeExactly 'observed'
+        $entry.command | Should -Contain 'Win32_PnPEntity'
+        $entry.command | Should -Contain 'Present = TRUE'
+        @($entry.requested.options.properties) | Should -Be @('Service', 'ClassGuid')
+        $text = Get-Content -LiteralPath (Join-Path $out 'raw/pnp_device_services/records.json') -Raw
+        $rows = $text | ConvertFrom-Json
+        @($rows).Count | Should -Be 10
+        foreach ($row in @($rows)) { @($row.PSObject.Properties.Name) | Should -Be @('Service', 'ClassGuid') }
+        # The device that is not present is filtered out by WMI, not by the collector.
+        @($rows | Where-Object { $_.Service -eq 'synthgfx' }).Count | Should -Be 1
+        foreach ($secret in @('SN0123456789', '5C4D3E2F1A0B', 'VEN_FFFF', 'Synthetic Ethernet Adapter')) { $text.Contains($secret) | Should -BeFalse }
+    }
+
+    It 'keeps the driver lists when the device read is refused or comes back empty' {
+        foreach ($variant in @(
+                @{ Cim = @{ ErrorKind = 'access_denied'; ErrorMessage = 'Access denied' }; Status = 'not_collected' },
+                @{ Cim = @{ Rows = @() }; Status = 'capture_failed' }
+            )) {
+            Reset-WfSynthetic
+            $case = @(Get-WfSyntheticCases | Where-Object { $_['Case'] -eq 'driver-inventory' })[0]
+            & $case['Setup']
+            $global:WfSynthetic.Cim['Win32_PnPEntity'] = $variant['Cim']
+            $out = Join-Path $TestDrive ('device-services-' + $variant['Status'])
+            $run = Invoke-TestCollector -Collector 'driver-inventory' -OutputDirectory $out
+            $run.ExitCode | Should -Be 0
+            ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'partial'
+            $entry = @($run.Manifest.collectors | Where-Object { $_.id -eq 'pnp_device_services' })[0]
+            $entry.status | Should -BeExactly $variant['Status']
+            $entry.status_reason | Should -Not -BeNullOrEmpty
+            Test-Path -LiteralPath (Join-Path $out 'raw/pnp_device_services/records.json') | Should -BeFalse
+            @($run.Manifest.collectors | Where-Object { $_.id -eq 'system_drivers' })[0].status | Should -BeExactly 'observed'
+        }
+    }
+
     It 'fills machine.drivers from the driver snapshot and skips rows without a device name' {
         Reset-WfSynthetic
         $case = @(Get-WfSyntheticCases | Where-Object { $_['Case'] -eq 'driver-inventory' })[0]

@@ -122,9 +122,9 @@ function Get-WfCollectorRegistry {
             WorstCase = { return 600 }
         },
         [ordered]@{
-            Name = 'driver-inventory'; Rights = 'none'; DiskCaps = 2; DiskExtra = { return [int64]0 }; Tools = @(); ReadyFile = $null; Session = $null
-            Sources = @([ordered]@{ Id = 'pnp_signed_drivers'; Kind = 'config_snapshot'; Required = $true }, [ordered]@{ Id = 'system_drivers'; Kind = 'config_snapshot'; Required = $true })
-            WorstCase = { return 600 }
+            Name = 'driver-inventory'; Rights = 'none'; DiskCaps = 3; DiskExtra = { return [int64]0 }; Tools = @(); ReadyFile = $null; Session = $null
+            Sources = @([ordered]@{ Id = 'pnp_signed_drivers'; Kind = 'config_snapshot'; Required = $true }, [ordered]@{ Id = 'system_drivers'; Kind = 'config_snapshot'; Required = $true }, [ordered]@{ Id = 'pnp_device_services'; Kind = 'config_snapshot'; Required = $true })
+            WorstCase = { return 900 }
         },
         # The state snapshot. The slot is reserved in S1 before and after;
         # until this entry declares its sources the step is recorded as

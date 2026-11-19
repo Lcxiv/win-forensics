@@ -3529,7 +3529,7 @@
       {
         "name": "free_space",
         "ok": true,
-        "detail": "500000000000 bytes free on C:\\; the scenario needs at least 10118758400"
+        "detail": "500000000000 bytes free on C:\\; the scenario needs at least 10185867264"
       },
       {
         "name": "tool:xperf",
@@ -3547,7 +3547,7 @@
     "runner_version": "1.0.0",
     "scenario": "s1",
     "scenario_version": "1.0.0",
-    "minimum_free_bytes": 10118758400,
+    "minimum_free_bytes": 10185867264,
     "clock_brackets_live": true,
     "steps": [
       {
@@ -3761,14 +3761,15 @@
         "required": false,
         "sources": [
           "pnp_signed_drivers",
-          "system_drivers"
+          "system_drivers",
+          "pnp_device_services"
         ],
         "outcome": "completed",
         "exit_code": 0,
         "summary_status": "ok",
         "started_utc": "2026-03-01T12:05:41.0000000Z",
         "stopped_utc": "2026-03-01T12:06:21.0000000Z",
-        "deadline_seconds": 1020,
+        "deadline_seconds": 1320,
         "ready": null,
         "private_removed": null,
         "session_end": null,

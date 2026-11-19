@@ -340,3 +340,13 @@ def test_a_bundle_that_is_not_an_inventory_is_refused(bundles):
     other = dpc.parent / "other"
     shutil.copytree(BUNDLES / "diskio-trace", other)
     refuse(dpc, other, "not driver_inventory")
+
+
+def test_a_summary_of_failed_module_rows_is_never_written(bundles, monkeypatch):
+    _, dpc = bundles
+    monkeypatch.setattr(driver_classes, "classify_module", lambda module, index: {
+        "driver_class": "printer", "classification_source": "none", "classification_reason": "broken", "classification_reference": None})
+    result = decode_dpcisr.decode(dpc, REPORT, DECODED_AT)
+    assert result["status"] == "decode_failed"
+    for table in ("dpcisr_module_cpu", "dpcisr_class_cpu"):
+        assert rows_of(dpc, table) == [] and meta_of(dpc, table)["status"] == "decode_failed"

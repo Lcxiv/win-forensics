@@ -281,7 +281,7 @@ Describe 'the scenario runner' {
             $entry['status_reason'] | Should -Match 'refused to start'
             @($entry['artifacts']).Count | Should -Be 0
         }
-        @($m['collectors']).Count | Should -Be 16
+        @($m['collectors']).Count | Should -Be 17
         @($m['run']['steps'] | Where-Object { $_['outcome'] -ne 'absent' } | ForEach-Object { $_['outcome'] } | Select-Object -Unique) | Should -Be @('not_started')
         $m['calibration']['status'] | Should -BeExactly 'not_collected'
         @(Get-ChildItem -LiteralPath (Join-Path $script:out 'raw')).Count | Should -Be 0
@@ -450,7 +450,7 @@ Describe 'the scenario runner' {
         $extra = & (Get-WfRegistryEntry -Name 'presentmon-frames')['DiskExtra'] ([int64]67108864)
         (2 * [int64]67108864 + $extra) | Should -Be (Get-WfPresentMonPeakBytesBound -MaxArtifactBytes 67108864)
         $run = Invoke-TestRun -OutputDirectory $script:out
-        $run.Manifest['run']['minimum_free_bytes'] | Should -Be 10118758400
+        $run.Manifest['run']['minimum_free_bytes'] | Should -Be 10185867264
     }
 
     It 'fails the run when a required capture lost events, and keeps what the collector said' {
