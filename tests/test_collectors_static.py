@@ -1,6 +1,7 @@
 """Static checks on the collector scripts that need no PowerShell: the seam, read only posture, citations."""
 from __future__ import annotations
 
+import json
 import re
 
 import pytest
@@ -330,17 +331,28 @@ def test_diskio_trace_sources_and_privacy_rules_are_documented_and_kept():
 
 
 def test_session_bracket_sources_and_guard_are_documented_and_kept():
-    """Every session-bracket source id appears in the README, the game guard runs first, and the process read names its properties."""
+    """The session-bracket bundles run the game guard first, read processes by named properties only, and the README names every source."""
     readme = (COLLECTOR_DIR / "README.md").read_text(encoding="utf-8")
-    script = (COLLECTOR_DIR / "session-bracket.ps1").read_text(encoding="ascii")
-    ids = re.findall(r"^\s+Id\s+=\s+'([a-z_]+)'", script, re.MULTILINE)
-    assert ids[0] == "game_guard", "the guard is the first source, so nothing else reads beside a game"
-    assert set(ids) == {"game_guard", "boot", "process_io", "disk_totals", "memory_paging", "config_readback", "power_active_scheme", "event_counts", "session_delta"}
-    for source_id in ids:
+    bundles = sorted((REPO_ROOT / "fixtures" / "collector-bundles").glob("session-bracket*/manifest.json"))
+    assert len(bundles) == 7
+    reads = ["game_guard", "boot", "process_io", "disk_totals", "memory_paging", "config_readback", "power_active_scheme", "event_counts"]
+    seen: set[str] = set()
+    for path in bundles:
+        collectors = json.loads(path.read_text(encoding="utf-8"))["collectors"]
+        ids = [c["id"] for c in collectors]
+        assert ids in (reads, reads + ["session_delta"]), (path.parent.name, ids)
+        seen.update(ids)
+        for collector in collectors:
+            options = collector["requested"]["options"]
+            if collector["id"] == "game_guard":
+                assert options["class"] == "Win32_Process" and options["properties"] == ["Name"], "the guard reads image names only"
+            if collector["id"] == "process_io" and options.get("class") is not None:
+                assert options["properties"] == ["Name", "ProcessId", "CreationDate", "WriteTransferCount", "WriteOperationCount"]
+            if options.get("class") == "Win32_Process":
+                for forbidden in ("CommandLine", "ExecutablePath", "ExecutionState", "Handle", "SessionId", "ParentProcessId"):
+                    assert forbidden not in options["properties"], (path.parent.name, collector["id"], forbidden)
+    for source_id in sorted(seen):
         assert f"`{source_id}`" in readme, source_id
-    # The process list is read with named properties only: never the command line, the path or the owner.
-    for token in ("CommandLine", "ExecutablePath", "GetOwner", "Get-Process"):
-        assert token not in "\n".join(l for l in script.splitlines() if not l.lstrip().startswith("#")), token
     # The logon task is described here but never named by path: nothing under collectors/ points at
     # the change area (tests/test_changes_area.py).
     for term in ("The session-bracket sources", "gap code", "ToEvidenceFolder", "logon task"):

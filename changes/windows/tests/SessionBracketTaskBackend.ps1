@@ -14,6 +14,7 @@
 #   RegisterPartial a field map the register call leaves behind before it throws
 #   RegisterDrift  a hashtable of fields Task Scheduler reports differently from what was asked
 #   UnregisterError text: Unregister-ScheduledTask throws
+#   ExportError    text: Export-ScheduledTask throws
 #   FailWritesUnder a path prefix under which every file write throws
 #   Policies       scope -> policy name, or 'throw'
 #   Zone           path -> $true / $false / 'throw'
@@ -34,6 +35,7 @@ function Reset-SbtSynthetic {
         RegisterPartial = $null
         RegisterDrift   = @{}
         UnregisterError = $null
+        ExportError     = $null
         FailWritesUnder = $null
         Policies        = @{ MachinePolicy = 'Undefined'; UserPolicy = 'Undefined' }
         Zone            = @{}
@@ -82,6 +84,7 @@ function Get-SbtTaskInfo {
 }
 
 function Export-SbtTaskXml {
+    if ($global:SbtSynthetic.ExportError) { throw $global:SbtSynthetic.ExportError }
     $task = $global:SbtSynthetic.Task
     return ("<?xml version=`"1.0`" encoding=`"UTF-16`"?>`r`n<Task><Principals><Principal><UserId>{0}</UserId></Principal></Principals><Actions><Exec><Command>{1}</Command><Arguments>{2}</Arguments></Exec></Actions><Sid>{3}</Sid></Task>`r`n" -f
         $task['principal_user'], $task['execute'], [System.Security.SecurityElement]::Escape([string]$task['arguments']), $global:SbtSynthetic.Identity.Sid)

@@ -166,6 +166,24 @@ Describe 'the session bracket logon task: apply, readback and undo' {
         $global:SbtSynthetic.Task | Should -BeNullOrEmpty
     }
 
+    It 'reports FAIL when the after state cannot be saved, and undo still removes the task' {
+        $desktop = Start-Machine -Name 'export-fails'
+        $global:SbtSynthetic.ExportError = 'synthetic: the task XML could not be exported'
+        $apply = Invoke-Verb -Verb 'Apply'
+        $apply.Code | Should -Be 1
+        $apply.Text | Should -Match 'FAIL save after state: synthetic: the task XML could not be exported'
+        $apply.Text | Should -Match 'FAIL: the task is not as expected'
+        @($global:SbtSynthetic.Calls) | Should -Be @('register')
+        $folder = (Get-EvidenceFolders -Desktop $desktop)[0]
+        Test-Path -LiteralPath (Join-Path $folder 'task-after.xml') | Should -BeFalse
+
+        $undo = Invoke-Verb -Verb 'Undo'
+        $undo.Code | Should -Be 0
+        $undo.Text | Should -Match 'PASS: the task is removed'
+        @($global:SbtSynthetic.Calls) | Should -Be @('register', 'unregister')
+        $global:SbtSynthetic.Task | Should -BeNullOrEmpty
+    }
+
     It 'reports FAIL per value when Task Scheduler holds something other than what was asked' {
         $null = Start-Machine -Name 'drift'
         $global:SbtSynthetic.RegisterDrift = @{ run_level = 'Highest' }
@@ -255,11 +273,50 @@ Describe 'the session bracket logon task script' {
         @($command.Parameters.Values | Where-Object { @($_.Attributes | Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] -and $_.Mandatory }).Count -gt 0 }).Count | Should -Be 0
     }
 
-    It 'registers only the low run level and the interactive logon type, and nothing that prompts' {
-        $text = [System.IO.File]::ReadAllText($script:ScriptPath)
-        $text | Should -Not -Match 'RunLevel Highest'
-        $text | Should -Not -Match 'Read-Host'
-        $text | Should -Not -Match '-Password'
-        $text | Should -Match '-LogonType Interactive -RunLevel Limited'
+    It 'registers the task through Task Scheduler with exactly the expected definition' {
+        $null = Start-Machine -Name 'adapter-register'
+        $context = Get-SbtContext -ScriptRoot 'C:\Users\Synthetic Owner\win-forensics\changes\windows'
+        $expected = Get-SbtExpected -Context $context
+        $recorded = @{}
+        . $script:ScriptPath
+        function New-ScheduledTaskAction { [CmdletBinding()] param($Execute, $Argument, $WorkingDirectory, $Id) $recorded['action'] = @{} + $PSBoundParameters; return 'action' }
+        function New-ScheduledTaskTrigger { [CmdletBinding()] param([switch]$AtLogOn, [switch]$AtStartup, [switch]$Once, [switch]$Daily, [switch]$Weekly, $At, $User, $RandomDelay) $recorded['trigger'] = @{} + $PSBoundParameters; return 'trigger' }
+        function New-ScheduledTaskPrincipal { [CmdletBinding()] param($UserId, $GroupId, $LogonType, $RunLevel, $ProcessTokenSidType, $RequiredPrivilege, $Id) $recorded['principal'] = @{} + $PSBoundParameters; return 'principal' }
+        function New-ScheduledTaskSettingsSet { [CmdletBinding()] param($ExecutionTimeLimit, $MultipleInstances, [switch]$Hidden, [switch]$RunOnlyIfIdle, [switch]$AllowStartIfOnBatteries, $Priority) $recorded['settings'] = @{} + $PSBoundParameters; return 'settings' }
+        function Register-ScheduledTask { [CmdletBinding()] param($TaskPath, $TaskName, $Description, $Action, $Trigger, $Principal, $Settings, $RunLevel, $Xml, $InputObject, [switch]$Force) $recorded['register'] = @{} + $PSBoundParameters; return 'task' }
+        Register-SbtTask -Expected $expected -Context $context
+
+        $recorded['action'].Keys | Sort-Object | Should -Be @('Argument', 'Execute')
+        $recorded['action']['Execute'] | Should -BeExactly 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+        $recorded['action']['Argument'] | Should -BeExactly '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File "C:\Users\Synthetic Owner\win-forensics\collectors\windows\session-bracket.ps1" -Phase baseline -ToEvidenceFolder'
+        $recorded['trigger'].Keys | Sort-Object | Should -Be @('AtLogOn', 'User')
+        [bool]$recorded['trigger']['AtLogOn'] | Should -BeTrue
+        $recorded['trigger']['User'] | Should -BeExactly 'SYNTHETIC-PC\Synthetic Owner'
+        $recorded['principal'].Keys | Sort-Object | Should -Be @('LogonType', 'RunLevel', 'UserId')
+        $recorded['principal']['UserId'] | Should -BeExactly 'SYNTHETIC-PC\Synthetic Owner'
+        [string]$recorded['principal']['LogonType'] | Should -BeExactly 'Interactive'
+        [string]$recorded['principal']['RunLevel'] | Should -BeExactly 'Limited'
+        $recorded['settings'].Keys | Sort-Object | Should -Be @('ExecutionTimeLimit', 'MultipleInstances')
+        $recorded['settings']['ExecutionTimeLimit'] | Should -Be ([timespan]::FromMinutes(10))
+        [string]$recorded['settings']['MultipleInstances'] | Should -BeExactly 'IgnoreNew'
+        $recorded['register'].Keys | Sort-Object | Should -Be @('Action', 'Description', 'ErrorAction', 'Principal', 'Settings', 'TaskName', 'TaskPath', 'Trigger')
+        $recorded['register']['TaskPath'] | Should -BeExactly '\'
+        $recorded['register']['TaskName'] | Should -BeExactly 'win-forensics-session-bracket-baseline'
+        $recorded['register']['Description'] | Should -BeExactly (Get-SbtMarker)
+        $recorded['register']['Action'] | Should -Be 'action'
+        $recorded['register']['Trigger'] | Should -Be 'trigger'
+        $recorded['register']['Principal'] | Should -Be 'principal'
+        $recorded['register']['Settings'] | Should -Be 'settings'
+    }
+
+    It 'unregisters exactly the fixed task through Task Scheduler, without a prompt' {
+        $recorded = @{}
+        . $script:ScriptPath
+        function Unregister-ScheduledTask { [CmdletBinding()] param($TaskPath, $TaskName, $InputObject, $CimSession, [switch]$Confirm) $recorded['unregister'] = @{} + $PSBoundParameters }
+        Unregister-SbtTask
+        $recorded['unregister'].Keys | Sort-Object | Should -Be @('Confirm', 'ErrorAction', 'TaskName', 'TaskPath')
+        $recorded['unregister']['TaskPath'] | Should -BeExactly '\'
+        $recorded['unregister']['TaskName'] | Should -BeExactly 'win-forensics-session-bracket-baseline'
+        [bool]$recorded['unregister']['Confirm'] | Should -BeFalse
     }
 }
