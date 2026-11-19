@@ -9,7 +9,9 @@
 # pseudonyms that keep other people's network names out of a bundle) and is
 # what the Pester suite exercises off Windows. The second half is a small set
 # of adapter functions that touch Windows (event log, WMI, wevtutil, netsh,
-# one file under ProgramData, Plug and Play device properties, identity).
+# one file under ProgramData, Plug and Play device properties, identity, the
+# inbox wpr.exe path, the hash and version of an operator supplied tool, and
+# the clock and sleep a live capture waits on).
 # The test suite replaces the adapters with synthetic ones; nothing else in
 # this file calls a Windows only API.
 #
@@ -21,7 +23,9 @@
 # device key API), topology (the logical processor map through the documented
 # API), pnp (present Plug and Play devices with their parent chain),
 # unavailable (a question the collector cannot answer with a documented read
-# only path, recorded as a status with its reason).
+# only path, recorded as a status with its reason), and script (a source the
+# collector implements itself with a scriptblock, used by the live capture
+# collector dpcisr-trace, which keeps its session control local).
 #
 # Target: Windows PowerShell 5.1 as a standard account in Event Log Readers.
 # Contracts: docs/contracts/bundle.md, docs/contracts/measurement-status.md,
@@ -41,7 +45,7 @@ if (Get-Command -Name 'Invoke-WfCollectorScript' -CommandType Function -ErrorAct
 # called from another script file would look a script variable up in that
 # file's scope and not find it.
 function Get-WfCollectorsVersion { return '1.2.0' }
-function Get-WfManifestVersion { return '1.0.0' }
+function Get-WfManifestVersion { return '1.1.0' }
 function Get-WfCollectorNamePattern { return '^[a-z][a-z0-9-]{1,40}$' }
 
 function Test-WfObservedStatus {
@@ -328,26 +332,75 @@ function Add-WfRow {
     return $true
 }
 
+function ConvertTo-WfMillisecondFloor {
+    # The same instant cut to whole milliseconds. The query literal carries
+    # three fractional digits, so the window end is cut once, here, before it
+    # is written anywhere, and the manifest and the query name the same instant.
+    param([datetime]$Value)
+    $utc = $Value.ToUniversalTime()
+    return $utc.AddTicks(-1 * ($utc.Ticks % 10000))
+}
+
+function ConvertTo-WfXPathDateTime {
+    # The xs:dateTime literal the event query compares TimeCreated/@SystemTime
+    # with: UTC, three fractional digits, a Z suffix. This is the text
+    # Get-WinEvent writes for its StartTime and EndTime keys (format "s", the
+    # millisecond as three digits, "Z"; GetEventCommand.cs in the PowerShell
+    # repository, SystemTimePeriodTemplate), and the PC session read records
+    # with it on 2026-11-18 (README, verification item 35). Seven digits are
+    # not used because nothing has shown the query engine accepts them.
+    param([datetime]$Value)
+    return $Value.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ', [System.Globalization.CultureInfo]::InvariantCulture)
+}
+
+function ConvertTo-WfXmlText {
+    # Element content: the three characters XML 1.0 requires escaped in text
+    # (https://www.w3.org/TR/xml/#syntax), quotes left alone.
+    param([string]$Text)
+    return $Text.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;')
+}
+
 function Build-WfEventQueryXml {
     # A structured XML query with one Select per predicate. Each predicate is
     # the inside of a System[...] test. The time bound is a fixed interval
-    # ending at -EndUtc: timediff(@SystemTime, <FILETIME literal>) is the
-    # documented form with a literal second argument, positive when the
-    # literal is the later time, so 0 <= timediff <= window selects exactly
-    # [end - window, end] and a record raised after the query started cannot
-    # join the result:
-    # https://learn.microsoft.com/en-us/windows/win32/wes/consuming-events
+    # [end - window, end], both ends inclusive, written as two comparisons of
+    # TimeCreated/@SystemTime with xs:dateTime literals:
+    #   TimeCreated[@SystemTime >= '<start>' and @SystemTime <= '<end>']
+    # @SystemTime is declared xs:dateTime in the event schema
+    # (https://learn.microsoft.com/en-us/windows/win32/wes/eventschema-timecreated-systempropertiestype-element)
+    # and =, <=, >= are in the XPath subset the event log accepts
+    # (https://learn.microsoft.com/en-us/windows/win32/wes/consuming-events).
+    # The upper bound matters: the same page says a result set also receives
+    # matching events raised while it is enumerated.
+    # The documented alternative, timediff(@SystemTime, <FILETIME number>), is
+    # not used: on the gaming PC (Windows 11 Pro 25H2 build 26200, Windows
+    # PowerShell 5.1.26100) EventLogQuery accepted it and the first ReadEvent threw
+    # EventLogInvalidDataException, "The data is invalid", on every channel,
+    # while this form read the same records (README, verification item 35).
+    # The one argument form, timediff(@SystemTime) <= <ms>, works there too but
+    # its window ends at evaluation time, not at a fixed instant.
+    # -EndUtc must already be cut to the millisecond (ConvertTo-WfMillisecondFloor),
+    # so that the literal and the recorded window agree exactly.
+    # The Select text escapes only the characters XML requires in element
+    # content (&, <, >), so the quotes around literals stay as written. That
+    # matches the query text Get-WinEvent builds (GetEventCommand.cs writes
+    # &gt;= and &lt;= around plain quotes) and is equivalent under the XML 1.0
+    # predefined entities (https://www.w3.org/TR/xml/#sec-predefined-ent) to
+    # the &apos; form SecurityElement.Escape would write.
     # The same text is given to EventLogQuery and, as a file, to
     # wevtutil epl /sq:true, so both exports come from one query.
     param([string]$Channel, [string[]]$Predicates, [datetime]$EndUtc, [int64]$WindowMilliseconds)
     $channelText = [System.Security.SecurityElement]::Escape($Channel)
-    $endFileTime = $EndUtc.ToUniversalTime().ToFileTimeUtc()
+    $endUtc = $EndUtc.ToUniversalTime()
+    if (($endUtc.Ticks % 10000) -ne 0) { throw 'Build-WfEventQueryXml: the window end must be cut to the millisecond' }
+    $startText = ConvertTo-WfXPathDateTime -Value ($endUtc.AddMilliseconds(-1 * [double]$WindowMilliseconds))
+    $endText = ConvertTo-WfXPathDateTime -Value $endUtc
     $lines = New-Object 'System.Collections.Generic.List[string]'
     $lines.Add('<QueryList>')
     $lines.Add(('  <Query Id="0" Path="{0}">' -f $channelText))
     foreach ($predicate in $Predicates) {
-        $xpath = '*[System[{0} and TimeCreated[timediff(@SystemTime, {1}) >= 0 and timediff(@SystemTime, {1}) <= {2}]]]' -f $predicate, $endFileTime, $WindowMilliseconds
-        $lines.Add(('    <Select Path="{0}">{1}</Select>' -f $channelText, [System.Security.SecurityElement]::Escape($xpath)))
+        $xpath = "*[System[{0} and TimeCreated[@SystemTime >= '{1}' and @SystemTime <= '{2}']]]" -f $predicate, $startText, $endText
+        $lines.Add(('    <Select Path="{0}">{1}</Select>' -f $channelText, (ConvertTo-WfXmlText -Text $xpath)))
     }
     $lines.Add('  </Query>')
     $lines.Add('</QueryList>')
@@ -750,6 +803,7 @@ function New-WfCollectorEntry {
         requested      = [ordered]@{ providers = @(); keywords = @(); stack_walk = @(); counters = @(); options = [ordered]@{} }
         enabled        = [ordered]@{ providers = $null; keywords = $null; stack_walk = $null; counters = $null; options = $null; verified_by = $null }
         events_lost    = $null
+        buffers_lost   = $null
         buffers        = $null
         artifacts      = @()
         raw_time_range = $null
@@ -824,8 +878,9 @@ function Invoke-WfEventSource {
     try {
         $null = New-Item -ItemType Directory -Force -Path $dir
         $windowMs = [int64]$WindowDays * 86400000
-        # The interval is fixed here, immediately before the query is built.
-        $windowEnd = Get-WfUtcNow
+        # The interval is fixed here, immediately before the query is built,
+        # at the precision of the query literal (whole milliseconds).
+        $windowEnd = ConvertTo-WfMillisecondFloor -Value (Get-WfUtcNow)
         $windowStart = $windowEnd.AddMilliseconds(-1 * [double]$windowMs)
         $queryXml = Build-WfEventQueryXml -Channel $channel -Predicates (Get-WfList -Value $Source['Predicates']) -EndUtc $windowEnd -WindowMilliseconds $windowMs
         $queryPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/query.xml')
@@ -3681,9 +3736,19 @@ function Invoke-WfCollector {
     $driverResult = $null
     # Shared by the sources that pseudonymise names and addresses: one salt
     # for the run, and the network names learned so far, kept in memory only.
-    $context = @{ Salt = (New-WfPseudonymSalt); Ssids = (New-Object 'System.Collections.Generic.List[string]') }
+    # Tools receives the record of any executable a script source ran (a
+    # pinned external tool, the inbox wpr.exe) for the manifest tools list.
+    $context = @{ Salt = (New-WfPseudonymSalt); Ssids = (New-Object 'System.Collections.Generic.List[string]'); Tools = (New-Object 'System.Collections.Generic.List[object]') }
     $protects = $false
     $copies = $false
+    # A definition may name a Cleanup scriptblock that runs after the last
+    # source, and on the way out of a failure, before anything is listed or
+    # written: the live capture uses it to remove the kernel trace, which
+    # never leaves the machine (collectors/windows/README.md, privacy).
+    $cleanup = $Definition['Cleanup']
+    $State['Cleanup'] = $cleanup
+    $State['Log'] = $log
+    try {
     foreach ($source in $sources) {
         $type = [string]$source['Type']
         if ($type -eq 'eventlog') {
@@ -3719,10 +3784,28 @@ function Invoke-WfCollector {
                 -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes
         } elseif ($type -eq 'unavailable') {
             $result = Invoke-WfUnavailableSource -Source $source -BundleRoot $bundleRoot -Log $log
+        } elseif ($type -eq 'script') {
+            # The collector implements the source itself (a live capture, for
+            # one) and hands over a scriptblock that returns the same
+            # @{ Entry; Rows } shape as the built in types. The scriptblock is
+            # a literal in the collector script, so it sees the helper
+            # functions through the script's scope; it must not be a closure.
+            if (-not ($source['Invoke'] -is [scriptblock])) { throw ('source ' + [string]$source['Id'] + ' of type script has no Invoke scriptblock') }
+            $result = & $source['Invoke'] -Source $source -BundleRoot $bundleRoot -MaxArtifactBytes $MaxArtifactBytes `
+                -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes -Context $context
+            $last = @($result)[-1]
+            if (-not ($last -is [System.Collections.IDictionary]) -or -not $last.Contains('Entry')) { throw ('source ' + [string]$source['Id'] + ' returned no Entry') }
+            $result = $last
         } else {
             throw ('unknown source type: ' + $type)
         }
         $entries.Add($result['Entry'])
+    }
+    } finally {
+        if ($cleanup -is [scriptblock]) {
+            & $cleanup -BundleRoot $bundleRoot -Log $log
+            $State['CleanedUp'] = $true
+        }
     }
     $context['Ssids'].Clear()
     $stop = Get-WfUtcNow
@@ -3748,6 +3831,25 @@ function Invoke-WfCollector {
         $notes.Add($message)
         $log.Add($message)
     }
+    if ($context['Tools'].Count -gt 0) { $tools = @($tools) + @($context['Tools'].ToArray()) }
+
+    # A live capture collector states its own calibration section and the
+    # duration it was asked for; history collectors keep the defaults below.
+    $calibration = [ordered]@{
+        status           = 'not_applicable'
+        method           = 'none: this collector reads historical records that carry their own UTC system time, so there is no QPC session to calibrate'
+        qpc_frequency_hz = $machineInfo['qpc_frequency_hz']
+        expected_pairs   = 0
+        pairs            = @()
+        missing_pairs    = 0
+        time_adjustment  = [ordered]@{ start = $null; stop = $null }
+        boot_time_utc    = $machineInfo['boot_time_utc']
+    }
+    if ($Definition['Calibration']) {
+        foreach ($key in @('status', 'method')) { if ($Definition['Calibration'].Contains($key)) { $calibration[$key] = [string]$Definition['Calibration'][$key] } }
+    }
+    $requestedDuration = $(if ($windowed) { [int64]$WindowDays * 86400 } else { 0 })
+    if ($Definition['RequestedDurationSeconds']) { $requestedDuration = [int64]$Definition['RequestedDurationSeconds'] }
 
     $allNotes = New-Object 'System.Collections.Generic.List[string]'
     $allNotes.Add(('Read only collector {0} version {1}: {2}' -f $name, [string]$Definition['Version'], [string]$Definition['Question']))
@@ -3772,7 +3874,7 @@ function Invoke-WfCollector {
         scenario           = [ordered]@{
             id                   = $scenarioId
             version              = [string]$Definition['Version']
-            requested_duration_s = $(if ($windowed) { [int64]$WindowDays * 86400 } else { 0 })
+            requested_duration_s = $requestedDuration
             target_process       = $null
             marks                = @()
         }
@@ -3786,17 +3888,8 @@ function Invoke-WfCollector {
         }
         machine            = $machine
         collectors         = @($entries.ToArray())
-        calibration        = [ordered]@{
-            status           = 'not_applicable'
-            method           = 'none: this collector reads historical records that carry their own UTC system time, so there is no QPC session to calibrate'
-            qpc_frequency_hz = $machineInfo['qpc_frequency_hz']
-            expected_pairs   = 0
-            pairs            = @()
-            missing_pairs    = 0
-            time_adjustment  = [ordered]@{ start = $null; stop = $null }
-            boot_time_utc    = $machineInfo['boot_time_utc']
-        }
-        tools              = $tools
+        calibration        = $calibration
+        tools              = @($tools)
         symbols            = [ordered]@{ symbol_path = $null; cache_path = $null; dbghelp_version = $null }
         checksum_algorithm = 'sha256'
         notes              = @($allNotes.ToArray())
@@ -3845,6 +3938,9 @@ function Invoke-WfCollectorScript {
         Write-WfStderrLine -Text $message
         $line = ConvertTo-WfSummaryLine -Collector $name -Status 'failed' -Bundle $OutputDirectory -Artifacts 0
         $exitCode = 1
+        if ($state.ContainsKey('BundleRoot') -and $state.ContainsKey('Cleanup') -and ($state['Cleanup'] -is [scriptblock]) -and -not $state.ContainsKey('CleanedUp')) {
+            try { & $state['Cleanup'] -BundleRoot $state['BundleRoot'] -Log $state['Log'] } catch { Write-WfStderrLine -Text ('the cleanup failed: ' + $_.Exception.Message) }
+        }
         if ($state.ContainsKey('BundleRoot') -and -not $state.ContainsKey('Written')) {
             try {
                 $logs = Join-WfBundlePath -BundleRoot $state['BundleRoot'] -RelativePath 'logs'
@@ -4282,7 +4378,10 @@ function Invoke-WfProcess {
     # an oversized run keeps only the first 4096 characters of each stream as
     # a diagnostic. MaxBytes 0 means the caller enforces its own cap on what
     # it writes (wevtutil prints a line or two). The only executables started
-    # through this are wevtutil (export verb) and netsh (wlan show queries).
+    # through this are wevtutil (export verb), netsh (wlan show queries), the
+    # inbox wpr.exe (status, profiles, start, stop and cancel of the one
+    # session dpcisr-trace owns), the inbox tracerpt.exe (the summary of that
+    # trace) and a pinned xperf.exe (the dpcisr report of that trace).
     param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null, [int64]$MaxBytes = 0)
     $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Oversized = $false; Error = $null; DurationMs = $null; StdOutBytes = [int64]0; StdErrBytes = [int64]0; Diagnostic = $null }
     if ($TimeoutSeconds -lt 1) {
@@ -4835,4 +4934,69 @@ function New-WfDeviceKeyNative {
         $result.Error = 'the device key declaration could not be compiled or loaded: ' + $_.Exception.Message
     }
     return $result
+}
+
+function Get-WfWprPath {
+    # Windows Performance Recorder ships with Windows 8.1 and later and needs
+    # no installation (Microsoft: "WPR.exe ships together with the Windows
+    # operating system (Windows 8.1 or a later version) and doesn't require
+    # additional installation"):
+    # https://learn.microsoft.com/troubleshoot/windows-server/support-tools/support-tools-xperf-wpa-wpr
+    return [System.IO.Path]::Combine([string]$env:SystemRoot, 'System32', 'wpr.exe')
+}
+
+function Get-WfExternalToolInfo {
+    # What is known about an executable an operator pointed at: whether it
+    # exists, the SHA-256 of its bytes and the file version Windows records
+    # in it (System.Diagnostics.FileVersionInfo:
+    # https://learn.microsoft.com/dotnet/api/system.diagnostics.fileversioninfo).
+    # The caller compares both with a pinned build before running anything.
+    param([string]$Path)
+    $info = [ordered]@{ Exists = $false; Sha256 = $null; Version = $null; Error = $null }
+    try {
+        if (-not $Path -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $info }
+        $info.Exists = $true
+        $info.Sha256 = Get-WfSha256OfFile -Path $Path
+        $version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($Path)
+        if ($version.FileVersion) { $info.Version = ([string]$version.FileVersion).Trim() }
+    } catch {
+        $info.Error = $_.Exception.Message
+    }
+    return $info
+}
+
+function Get-WfPinnedToolBuilds {
+    # The builds of tools that are not inbox on Windows which a collector may
+    # run: one entry per accepted build with the file version and the SHA-256
+    # of the executable, and where that build comes from. A collector never
+    # downloads or installs a tool; it runs the file the operator names only
+    # when the file's hash and version are listed here, and records both in
+    # the manifest. No xperf build is pinned yet: which Windows Performance
+    # Toolkit (Windows ADK) release goes on the PC is an open decision, listed
+    # in collectors/windows/README.md. Until one is pinned the dpcisr report
+    # source of dpcisr-trace reports not_collected and says so.
+    param([string]$Name)
+    if ($Name -eq 'xperf') { return , @() }
+    return , @()
+}
+
+function Start-WfSleep {
+    # The wait of a live capture, in whole seconds, so the synthetic backend
+    # can advance its clock instead.
+    param([int]$Seconds)
+    if ($Seconds -gt 0) { Start-Sleep -Seconds $Seconds }
+}
+
+function Get-WfTracerptPath {
+    # tracerpt ships with Windows ("Tracerpt is included in Windows XP and
+    # later versions of Windows",
+    # https://learn.microsoft.com/windows-hardware/drivers/devtest/survey-of-software-tracing-tools).
+    return [System.IO.Path]::Combine([string]$env:SystemRoot, 'System32', 'tracerpt.exe')
+}
+
+function Get-WfMonotonicSeconds {
+    # Elapsed time that does not move with the system clock, for the bounds
+    # of a live capture (System.Diagnostics.Stopwatch.GetTimestamp, which reads
+    # the performance counter: https://learn.microsoft.com/dotnet/api/system.diagnostics.stopwatch.gettimestamp).
+    return ([double][System.Diagnostics.Stopwatch]::GetTimestamp() / [double][System.Diagnostics.Stopwatch]::Frequency)
 }

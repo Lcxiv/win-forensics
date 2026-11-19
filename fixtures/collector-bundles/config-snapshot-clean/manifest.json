@@ -1,5 +1,5 @@
 {
-  "manifest_version": "1.0.0",
+  "manifest_version": "1.1.0",
   "bundle_id": "20260301T120001Z_config_snapshot_ae3a76a9",
   "created_utc": "2026-03-01T12:01:49.0000000Z",
   "scenario": {
@@ -160,6 +160,7 @@
         "verified_by": "every element records the stage each device reached, the Win32 or registry code of a failure, whether its hardware key and each leaf exists (true, false, or null for unknown), and every value with its numeric type and bytes; the counts are in result.json"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -278,6 +279,7 @@
         "verified_by": "every element records whether its key exists, the error if it could not be opened, and each value with its registry type and bytes; the counts are in result.json"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -440,6 +442,7 @@
         "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -578,6 +581,7 @@
         "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -684,6 +688,7 @@
         "verified_by": "the call returned TRUE and the buffer parsed by the documented layouts; the buffer itself is in result.json as hex"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -787,6 +792,7 @@
         "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -890,6 +896,7 @@
         "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -993,6 +1000,7 @@
         "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -1096,6 +1104,7 @@
         "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -1199,6 +1208,7 @@
         "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -1282,6 +1292,7 @@
         "verified_by": null
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -1364,6 +1375,7 @@
         "verified_by": null
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -1491,6 +1503,7 @@
         "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -1643,6 +1656,7 @@
         "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -1743,6 +1757,7 @@
         "verified_by": "the listing completed without error; every file carries its size, time, SHA-256 and version resource"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -1858,6 +1873,7 @@
         "verified_by": "the source size, time and hash are in result.json next to the replacement counts; the primary is the protected copy"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -1957,6 +1973,7 @@
         "verified_by": "the source size, time and hash are in the summary artifact; the text itself is not in the bundle"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -2052,6 +2069,7 @@
         "verified_by": "the listing completed without error; every file carries its size, time, SHA-256 and version resource"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -2167,6 +2185,7 @@
         "verified_by": "the source size, time and hash are in result.json next to the replacement counts; the primary is the protected copy"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {

@@ -1,0 +1,27 @@
+{
+  "started_utc": "2026-03-01T12:00:16.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:18.0000000Z",
+  "tool_sha256": "7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b",
+  "tool_sha256_after_run": "7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b",
+  "tool_version": "10.0.26100.1 (synthetic)",
+  "pinned_build": {
+    "version": "10.0.26100.1 (synthetic)",
+    "sha256": "7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b",
+    "source": "synthetic Windows Performance Toolkit build for the test suite"
+  },
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_ms": 13,
+  "stdout_bytes": 13888,
+  "stderr": "",
+  "sections_found": [
+    "DPC Info",
+    "Interrupt Info"
+  ],
+  "trace_sha256": "d7726ba3832ddd6c5cc7ea0c52b3076b551fce5a84c0c6f1022f502c91ed4987",
+  "trace_events_lost": 0,
+  "trace_buffers_lost": 0,
+  "protection": {
+    "mac_addresses_replaced": 0
+  }
+}

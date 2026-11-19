@@ -1,0 +1,13 @@
+2026-03-01T12:00:01.0000000Z collector dpcisr-trace version 1.1.0, helper version 1.2.0, no time window (snapshot), 120 s per source
+wpr.exe -status: started True, exit code 0, timed out False, 11 ms
+wpr.exe -profiles: started True, exit code 0, timed out False, 11 ms
+wpr.exe -start: started True, exit code 0, timed out False, 11 ms
+session WfDpcIsrTrace-20260301T120002Z started, recording for 10 s
+wpr.exe -status: started True, exit code 0, timed out False, 11 ms
+wpr.exe -stop: started True, exit code 0, timed out False, 11 ms
+wpr.exe -status: started True, exit code 0, timed out False, 11 ms
+tracerpt.exe run: started True, exit code 0, timed out False, 17 ms
+source wpr_trace: status observed, 4 artifacts
+source dpcisr_report: status not_collected, 2 artifacts
+private directory removed (4096 bytes): the kernel trace stays on the machine
+2026-03-01T12:00:19.0000000Z manifest written: bundle 20260301T120001Z_dpcisr_trace_ae3a76a9, status partial, 6 artifacts
