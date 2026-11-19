@@ -1045,7 +1045,8 @@ function Invoke-Wf1aMain {
 
 # ---------------------------------------------------------------------------
 # Windows adapters. Everything below touches Windows and is replaced by
-# changes/windows/tests/SyntheticGpuAffinity1a.ps1 in the test suite. Only
+# changes/windows/tests/SyntheticGpuAffinity1a.ps1 in the test suite, except
+# Export-Wf1aRegistryKey, which runs there against a synthetic reg.exe. Only
 # Set-Wf1aRegistryValue and Remove-Wf1aRegistryValue change anything.
 # ---------------------------------------------------------------------------
 
@@ -1169,11 +1170,16 @@ function Remove-Wf1aRegistryValue {
     }
 }
 
+function Get-Wf1aRegExe {
+    # The inbox reg.exe; only Export-Wf1aRegistryKey runs it.
+    return (Join-Path -Path ([Environment]::GetFolderPath('System')) -ChildPath 'reg.exe')
+}
+
 function Export-Wf1aRegistryKey {
     # reg export <key> <file> /y; returns the exit code (0 success, 1 failure).
     # https://learn.microsoft.com/windows-server/administration/windows-commands/reg-export
     param([string]$Key, [string]$File)
-    $reg = Join-Path -Path ([Environment]::GetFolderPath('System')) -ChildPath 'reg.exe'
+    $reg = Get-Wf1aRegExe
     $null = & $reg export $Key $File /y 2>&1
     return [int]$LASTEXITCODE
 }

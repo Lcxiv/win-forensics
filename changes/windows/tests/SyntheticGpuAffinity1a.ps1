@@ -32,6 +32,7 @@ function New-Wf1aSyntheticMachine {
         WriteFailsOn   = @()
         WriteLies      = @()
         Writes         = New-Object System.Collections.Generic.List[string]
+        Calls          = New-Object System.Collections.Generic.List[object]
         Out            = New-Object System.Collections.Generic.List[string]
         NowUtc         = [datetime]::new(2026, 11, 20, 18, 0, 0, [System.DateTimeKind]::Utc)
         BootUtc        = [datetime]::new(2026, 11, 20, 9, 0, 0, [System.DateTimeKind]::Utc)
@@ -100,6 +101,18 @@ function Test-Wf1aSyntheticDenied {
     }
 }
 
+function Add-Wf1aSyntheticCall {
+    # Every registry write and every reg.exe call, kept for the whole test
+    # (tests clear Writes, never Calls), with the verb the entry script
+    # printed before it and the Affinity Policy keys of the display adapters
+    # present at that moment.
+    param([string]$Op, [string]$SubKey = '', [string]$Name = '', [string[]]$Arguments = @())
+    $verb = ''
+    foreach ($line in $global:Wf1aSynthetic.Out) { if ($line -match '^Verb: (\w+)$') { $verb = $Matches[1] } }
+    $affinity = @($global:Wf1aSynthetic.Adapters | ForEach-Object { 'SYSTEM\CurrentControlSet\Enum\' + $_ + '\Device Parameters\Interrupt Management\Affinity Policy' })
+    $global:Wf1aSynthetic.Calls.Add([pscustomobject]@{ Verb = $verb; Op = $Op; SubKey = $SubKey; Name = $Name; Arguments = $Arguments; AffinityKeys = $affinity })
+}
+
 # ---------------------------------------------------------------------------
 # The adapters.
 # ---------------------------------------------------------------------------
@@ -138,6 +151,7 @@ function Get-Wf1aRegistryKey {
 function Set-Wf1aRegistryValue {
     param([string]$SubKey, [string]$Name, $Value)
     $global:Wf1aSynthetic.Writes.Add('set:' + $Name)
+    Add-Wf1aSyntheticCall -Op 'set' -SubKey $SubKey -Name $Name
     Test-Wf1aSyntheticDenied -SubKey $SubKey
     if ($global:Wf1aSynthetic.WriteFailsOn -contains $Name) { throw [System.IO.IOException]::new('synthetic write failure') }
     if ($null -eq (Get-Wf1aSyntheticNode -SubKey $SubKey)) { throw [System.InvalidOperationException]::new('the key does not exist') }
@@ -148,6 +162,7 @@ function Set-Wf1aRegistryValue {
 function Remove-Wf1aRegistryValue {
     param([string]$SubKey, [string]$Name)
     $global:Wf1aSynthetic.Writes.Add('remove:' + $Name)
+    Add-Wf1aSyntheticCall -Op 'remove' -SubKey $SubKey -Name $Name
     Test-Wf1aSyntheticDenied -SubKey $SubKey
     if ($global:Wf1aSynthetic.WriteFailsOn -contains $Name) { throw [System.IO.IOException]::new('synthetic write failure') }
     if ($null -eq (Get-Wf1aSyntheticNode -SubKey $SubKey)) { throw [System.InvalidOperationException]::new('the key does not exist') }
@@ -158,18 +173,33 @@ function Remove-Wf1aRegistryValue {
     Set-Wf1aSyntheticValue -SubKey $SubKey -Name $Name -Value (New-WfAbsentValue)
 }
 
-function Export-Wf1aRegistryKey {
-    param([string]$Key, [string]$File)
-    $global:Wf1aSynthetic.Exports.Add($Key)
-    $leaf = Split-Path -Leaf $File
-    if ($global:Wf1aSynthetic.ExportFails -contains $leaf) { return 1 }
-    if ($global:Wf1aSynthetic.ExportEmpty -contains $leaf) {
-        [System.IO.File]::WriteAllBytes($File, (New-Object byte[] 0))
-        return 0
+function Get-Wf1aRegExe {
+    # A synthetic reg.exe: the real Export-Wf1aRegistryKey runs it. It records
+    # every call with its arguments and only knows the export verb.
+    return {
+        $call = @($args | ForEach-Object { [string]$_ })
+        Add-Wf1aSyntheticCall -Op 'reg' -Arguments $call
+        if ($call.Count -ne 4 -or $call[0] -ne 'export' -or $call[3] -ne '/y') {
+            $global:LASTEXITCODE = 1
+            return
+        }
+        $Key = $call[1]
+        $File = $call[2]
+        $global:Wf1aSynthetic.Exports.Add($Key)
+        $leaf = Split-Path -Leaf $File
+        if ($global:Wf1aSynthetic.ExportFails -contains $leaf) {
+            $global:LASTEXITCODE = 1
+            return
+        }
+        if ($global:Wf1aSynthetic.ExportEmpty -contains $leaf) {
+            [System.IO.File]::WriteAllBytes($File, (New-Object byte[] 0))
+            $global:LASTEXITCODE = 0
+            return
+        }
+        [System.IO.File]::WriteAllText($File, ("Windows Registry Editor Version 5.00`r`n`r`n[" + (Get-WfLongHiveForm -Path $Key) + "]`r`n"), (New-Object System.Text.UnicodeEncoding($false, $true)))
+        if ($null -ne $global:Wf1aSynthetic.AfterExport) { & $global:Wf1aSynthetic.AfterExport $leaf }
+        $global:LASTEXITCODE = 0
     }
-    [System.IO.File]::WriteAllText($File, ("Windows Registry Editor Version 5.00`r`n`r`n[" + (Get-WfLongHiveForm -Path $Key) + "]`r`n"), (New-Object System.Text.UnicodeEncoding($false, $true)))
-    if ($null -ne $global:Wf1aSynthetic.AfterExport) { & $global:Wf1aSynthetic.AfterExport $leaf }
-    return 0
 }
 
 function Get-Wf1aScheduledTasks {

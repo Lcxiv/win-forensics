@@ -46,6 +46,26 @@ Describe 'gpu-affinity-1a' {
         Initialize-Wf1aSyntheticStutterGuard -DataDirectory $script:SgDir
     }
 
+    AfterEach {
+        # Whatever the test did, on every path: Plan and Readback wrote
+        # nothing, a write only ever reached the two changed values of the
+        # display adapter's Affinity Policy key, and reg.exe only exported,
+        # during Apply.
+        foreach ($c in @($global:Wf1aSynthetic.Calls.ToArray())) {
+            if ($c.Op -eq 'reg') {
+                $c.Verb | Should -BeExactly 'Apply'
+                $c.Arguments.Count | Should -Be 4
+                $c.Arguments[0] | Should -BeExactly 'export'
+                $c.Arguments[3] | Should -BeExactly '/y'
+                continue
+            }
+            $c.Op | Should -BeIn @('set', 'remove')
+            $c.Verb | Should -BeIn @('Apply', 'Undo')
+            $c.Name | Should -BeIn @('DevicePolicy', 'AssignmentSetOverride')
+            $c.AffinityKeys | Should -Contain $c.SubKey
+        }
+    }
+
     Describe 'Stutter Guard journal reader' {
         It 'reads the Originals rows as data and hashes the file' {
             $j = Read-WfSgJournal -Path (Join-Path $script:SgDir 'journal.json')
@@ -537,6 +557,20 @@ Describe 'gpu-affinity-1a' {
     }
 
     Describe 'entry script' {
+        It 'records each write and reg.exe call with the verb it ran under' {
+            (Invoke-Test1a -Verb 'Plan').ExitCode | Should -Be 0
+            (Invoke-Test1a -Verb 'Apply').ExitCode | Should -Be 0
+            (Invoke-Test1a -Verb 'Readback').ExitCode | Should -Be 0
+            (Invoke-Test1a -Verb 'Undo').ExitCode | Should -Be 0
+            $calls = @($global:Wf1aSynthetic.Calls.ToArray())
+            @($calls | ForEach-Object { $_.Verb + ':' + $_.Op + ':' + $(if ($_.Op -eq 'reg') { $_.Arguments[0] } else { $_.Name }) }) | Should -Be @(
+                'Apply:reg:export', 'Apply:reg:export', 'Apply:reg:export',
+                'Apply:remove:DevicePolicy', 'Apply:remove:AssignmentSetOverride',
+                'Undo:set:AssignmentSetOverride', 'Undo:set:DevicePolicy'
+            )
+            @($calls | Where-Object { $_.Op -ne 'reg' } | ForEach-Object { $_.SubKey } | Select-Object -Unique) | Should -Be @(Get-TestAffinityKey)
+        }
+
         It 'refuses two verbs' {
             $r = Invoke-Test1a -Verb @('Apply', 'Undo')
             $r.ExitCode | Should -Be 2
