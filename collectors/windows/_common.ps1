@@ -20,7 +20,9 @@
 # Source types a collector definition may use: eventlog, cim, command (a
 # fixed netsh or powercfg query), file (one known file, summarised or copied
 # read only), directory (the files of one known folder, hashed and versioned,
-# never copied), registry (documented values under documented keys, read
+# never copied), metadata (the names, sizes and times of the files under one
+# known folder, to a fixed depth, never opened, hashed or copied; names
+# outside a plain pattern become pseudonyms), registry (documented values under documented keys, read
 # only, with their type and bytes; device hardware keys through the documented
 # device key API), topology (the logical processor map through the documented
 # API), pnp (present Plug and Play devices with their parent chain),
@@ -51,7 +53,7 @@ if (Get-Command -Name 'Invoke-WfCollectorScript' -CommandType Function -ErrorAct
 # Constants are functions, not script scoped variables: a function that is
 # called from another script file would look a script variable up in that
 # file's scope and not find it.
-function Get-WfCollectorsVersion { return '1.2.0' }
+function Get-WfCollectorsVersion { return '1.3.0' }
 function Get-WfManifestVersion { return '1.1.0' }
 function Get-WfCollectorNamePattern { return '^[a-z][a-z0-9-]{1,40}$' }
 
@@ -3246,6 +3248,297 @@ function Invoke-WfDirectorySource {
     return [ordered]@{ Entry = $entry; Rows = @() }
 }
 
+function Test-WfNameIncluded {
+    # Whether a file name matches one of the definition's wildcard patterns
+    # (PowerShell -like, case insensitive); no pattern includes every file.
+    param([string]$Name, [string[]]$Include)
+    $patterns = @($Include | Where-Object { $_ })
+    if ($patterns.Count -eq 0) { return $true }
+    foreach ($pattern in $patterns) { if ($Name -like $pattern) { return $true } }
+    return $false
+}
+
+function ConvertTo-WfMetadataName {
+    # A file or folder name as the bundle keeps it: verbatim when it matches
+    # the definition's plain name pattern, otherwise name-<12 hex> keyed with
+    # the run's salt. Returns the kept text and whether it is verbatim.
+    param([string]$Name, [string]$Pattern, [string]$Salt)
+    if ($null -eq $Name) { return [ordered]@{ Text = $null; Kept = $false } }
+    if ($Pattern -and $Name -cmatch $Pattern) { return [ordered]@{ Text = $Name; Kept = $true } }
+    return [ordered]@{ Text = (ConvertTo-WfPseudonym -Kind 'name' -Value $Name.ToLowerInvariant() -Salt $Salt); Kept = $false }
+}
+
+function Get-WfMetadataExtension {
+    # The extension of a file name, lower cased with its dot, when it is a
+    # plain one (letters and digits, at most eight); null otherwise.
+    param([string]$Name)
+    if (-not $Name) { return $null }
+    $extension = [System.IO.Path]::GetExtension($Name)
+    if (-not $extension) { return $null }
+    $extension = $extension.ToLowerInvariant()
+    if ($extension -cmatch '^\.[a-z0-9]{1,8}$') { return $extension }
+    return $null
+}
+
+function Invoke-WfMetadataSource {
+    # Lists the names, sizes and times of the files under one known folder,
+    # down to a fixed depth (0: the folder itself; 1: also the folders
+    # directly inside it), and never opens, hashes or copies a file. Writes,
+    # under raw/<id>/:
+    #   source.json   the folder as a known folder token and a fixed tail (the
+    #                 resolved path is never written: under the user profile
+    #                 it would carry the account name), the depth, the name
+    #                 patterns, the caps (role config)
+    #   result.json   whether the folder and its parent exist, whether it could
+    #                 be listed, the counts and the oldest and newest times
+    #                 (role report)
+    #   listing.json  a JSON array, one element per file or folder: type, the
+    #                 folder it sits in, the name (verbatim when it matches the
+    #                 definition's plain pattern, else name-<12 hex>), the
+    #                 extension, the byte count and the creation and last write
+    #                 times (role primary)
+    # Two readings of absence, chosen by the definition (Absence):
+    #   observation  the folder holds what Windows keeps now (crash dumps,
+    #                queued reports): a missing folder under an existing
+    #                parent, or an empty folder, is observed_zero, a reading of
+    #                the present state that says nothing about earlier files
+    #   unproven     the files are the history of a program (game and launcher
+    #                logs): a missing folder is not_collected (the program may
+    #                not be installed for this account, or the collector ran as
+    #                another account), and zero files is capture_failed,
+    #                because no retained log cannot show that nothing happened
+    # A folder the account may not list is not_collected. Error messages are
+    # never copied (an exception text can carry the resolved path); the
+    # reason names the error class only.
+    param(
+        [hashtable]$Source,
+        [string]$BundleRoot,
+        [int]$MaxEvents,
+        [int64]$MaxArtifactBytes,
+        [int]$TimeoutSeconds,
+        [System.Collections.Generic.List[string]]$Log,
+        [System.Collections.Generic.List[string]]$Notes,
+        [hashtable]$Context
+    )
+    $id = [string]$Source['Id']
+    $kind = 'other'
+    if ($Source['Kind']) { $kind = [string]$Source['Kind'] }
+    $entry = New-WfCollectorEntry -Id $id -Kind $kind -Required ([bool]$Source['Required'])
+    $roles = @{ 'source.json' = 'config'; 'result.json' = 'report'; 'listing.json' = 'primary' }
+    $relativeDir = 'raw/' + $id
+    $dir = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath $relativeDir
+    $started = Get-WfUtcNow
+    $deadline = $started.AddSeconds($TimeoutSeconds)
+    $entry.started_utc = ConvertTo-WfUtcString -Value $started
+    $listingPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/listing.json')
+    $absence = 'unproven'
+    if ($Source['Absence']) { $absence = [string]$Source['Absence'] }
+    if ($absence -ne 'observation' -and $absence -ne 'unproven') { throw ('source ' + $id + ': Absence must be observation or unproven') }
+    $depth = 0
+    if ($Source.ContainsKey('Depth')) { $depth = [int]$Source['Depth'] }
+    if ($depth -lt 0 -or $depth -gt 1) { throw ('source ' + $id + ': Depth must be 0 or 1') }
+    $include = Get-WfList -Value $Source['Include']
+    $namePattern = [string]$Source['NamePattern']
+    $folderPattern = $namePattern
+    if ($Source['FolderPattern']) { $folderPattern = [string]$Source['FolderPattern'] }
+    $prefixPattern = $null
+    if ($Source['PrefixPattern']) { $prefixPattern = [string]$Source['PrefixPattern'] }
+    $folderToken = [string]$Source['Folder']
+    $tail = [string]$Source['PathTail']
+    if ($tail -notmatch '^[A-Za-z0-9 ._-]+(\\[A-Za-z0-9 ._-]+)*$') { throw ('source ' + $id + ': PathTail must be a plain relative path') }
+    $display = '<' + $folderToken + '>\' + $tail
+    $salt = 'no-salt'
+    if ($Context -and $Context['Salt']) { $salt = [string]$Context['Salt'] }
+    try {
+        $null = New-Item -ItemType Directory -Force -Path $dir
+        $config = [ordered]@{
+            folder             = $folderToken
+            path_tail          = $tail
+            path_display       = $display
+            path_documented    = [string]$Source['PathDocumented']
+            depth              = $depth
+            include            = @($include)
+            name_pattern       = $namePattern
+            folder_pattern     = $folderPattern
+            prefix_pattern     = $prefixPattern
+            absence            = $absence
+            max_entries        = $MaxEvents
+            max_artifact_bytes = $MaxArtifactBytes
+            timeout_seconds    = $TimeoutSeconds
+            mode               = 'metadata'
+            content_read       = $false
+            why_no_content     = 'the question is when these files were written and how large they are; the names, sizes and times are read from the folder listing, and no file is opened, hashed or copied'
+            name_rule          = 'a name that matches name_pattern (folder_pattern for a folder) is kept verbatim; any other is name-<first 12 hex of SHA-256(salt, lower cased name)> with a random salt that is not stored'
+        }
+        $configPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/source.json')
+        Write-WfJsonFile -Path $configPath -Object $config
+        $entry.config_hash = [ordered]@{ algorithm = 'sha256'; value = (Get-WfSha256OfFile -Path $configPath) }
+        $entry.command = @('System.IO.DirectoryInfo.EnumerateFileSystemInfos', $display)
+        $entry.requested = [ordered]@{ providers = @(); keywords = @(); stack_walk = @(); counters = @(); options = $config }
+
+        $readErrorKind = ''
+        $readErrorMessage = ''
+        $listing = $null
+        $base = $null
+        try {
+            $base = Get-WfKnownFolderPath -Name $folderToken
+        } catch {
+            $readErrorKind = 'preflight'
+            $readErrorMessage = 'the known folder ' + $folderToken + ' did not resolve to a Windows drive path'
+        }
+        if (-not $readErrorKind) {
+            $listing = Get-WfFileMetadataListing -Path ($base + '\' + $tail) -Parent ([System.IO.Path]::GetDirectoryName($base + '\' + $tail)) -Depth $depth -Include $include -MaxEntries $MaxEvents -DeadlineUtc $deadline
+            if ($listing['ErrorKind']) {
+                $readErrorKind = [string]$listing['ErrorKind']
+                if ($readErrorKind -eq 'access_denied') { $readErrorMessage = 'the account may not list ' + $display }
+                elseif ($readErrorKind -eq 'timeout') { $readErrorMessage = 'the listing of ' + $display + ' did not finish before the deadline ' + (ConvertTo-WfUtcString -Value $deadline) }
+                else { $readErrorKind = 'other'; $readErrorMessage = 'the listing of ' + $display + ' failed with ' + [string]$listing['ErrorType'] + ' (the message is not kept: it can carry the resolved path)' }
+            } elseif ((Get-WfUtcNow) -ge $deadline) {
+                $readErrorKind = 'timeout'
+                $readErrorMessage = 'the listing of ' + $display + ' did not finish before the deadline ' + (ConvertTo-WfUtcString -Value $deadline)
+            } elseif (-not $listing['Exists'] -and -not $listing['ParentExists']) {
+                $readErrorKind = 'preflight'
+                $readErrorMessage = 'the folder that would hold ' + $display + ' does not exist either; absence cannot be told from a wrong path'
+            }
+        }
+        $exists = ($null -ne $listing -and [bool]$listing['Exists'])
+        $parentExists = ($null -ne $listing -and [bool]$listing['ParentExists'])
+        $entry.preflight = [ordered]@{
+            ok     = (-not $readErrorKind)
+            at_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
+            checks = @(
+                [ordered]@{ name = 'parent_folder_exists'; ok = $parentExists; detail = $null },
+                [ordered]@{ name = 'folder_exists'; ok = $exists; detail = $display },
+                [ordered]@{ name = 'folder_listed'; ok = (-not $readErrorKind); detail = $(if ($readErrorKind) { $readErrorMessage } else { $null }) }
+            )
+        }
+        $elements = New-Object 'System.Collections.Generic.List[object]'
+        $truncated = $false
+        $fileCount = 0
+        $folderCount = 0
+        $oldest = $null
+        $newest = $null
+        if (-not $readErrorKind) {
+            $truncated = [bool]$listing['Truncated']
+            foreach ($item in (Get-WfList -Value $listing['Entries'])) {
+                $type = [string]$item['Type']
+                $folder = $null
+                if ($item['Folder']) { $folder = (ConvertTo-WfMetadataName -Name ([string]$item['Folder']) -Pattern $folderPattern -Salt $salt)['Text'] }
+                $pattern = $namePattern
+                if ($type -eq 'folder') { $pattern = $folderPattern }
+                $named = ConvertTo-WfMetadataName -Name ([string]$item['Name']) -Pattern $pattern -Salt $salt
+                $created = $null
+                $written = $null
+                if ($null -ne $item['CreationTimeUtc']) { $created = ConvertTo-WfUtcString -Value ([datetime]$item['CreationTimeUtc']) }
+                if ($null -ne $item['LastWriteTimeUtc']) { $written = ConvertTo-WfUtcString -Value ([datetime]$item['LastWriteTimeUtc']) }
+                # A leading kind word the definition asks to keep from a name
+                # that is otherwise a pseudonym (a report folder's kind).
+                $prefix = $null
+                if ($prefixPattern) {
+                    $match = [regex]::Match([string]$item['Name'], $prefixPattern)
+                    if ($match.Success -and $match.Groups.Count -gt 1) { $prefix = $match.Groups[1].Value }
+                }
+                $element = [ordered]@{
+                    type                = $type
+                    folder              = $folder
+                    name                = $named['Text']
+                    name_kept           = [bool]$named['Kept']
+                    name_prefix         = $prefix
+                    extension           = $(if ($type -eq 'file') { Get-WfMetadataExtension -Name ([string]$item['Name']) } else { $null })
+                    bytes               = $(if ($type -eq 'file' -and $null -ne $item['Bytes']) { [int64]$item['Bytes'] } else { $null })
+                    creation_time_utc   = $created
+                    last_write_time_utc = $written
+                    entered             = $(if ($type -eq 'folder') { [bool]$item['Entered'] } else { $null })
+                }
+                $elements.Add($element)
+                if ($type -eq 'file') {
+                    $fileCount += 1
+                    foreach ($stamp in @($item['CreationTimeUtc'], $item['LastWriteTimeUtc'])) {
+                        if ($null -eq $stamp) { continue }
+                        if ($null -eq $oldest -or ([datetime]$stamp) -lt $oldest) { $oldest = [datetime]$stamp }
+                        if ($null -eq $newest -or ([datetime]$stamp) -gt $newest) { $newest = [datetime]$stamp }
+                    }
+                } else {
+                    $folderCount += 1
+                }
+            }
+            $lines = New-Object 'System.Collections.Generic.List[string]'
+            foreach ($element in $elements) { $lines.Add((ConvertTo-WfJson -Value $element)) }
+            Write-WfJsonLinesFile -Path $listingPath -Lines $lines.ToArray()
+            $size = (Get-Item -LiteralPath $listingPath).Length
+            if ($size -gt $MaxArtifactBytes) {
+                Remove-Item -LiteralPath $listingPath -Force
+                $readErrorKind = 'other'
+                $readErrorMessage = ('listing.json was ' + $size + ' bytes, above the cap of ' + $MaxArtifactBytes + ', and was removed')
+            }
+        }
+        $stopped = Get-WfUtcNow
+        $report = [ordered]@{
+            path_display        = $display
+            parent_exists       = $parentExists
+            exists              = $exists
+            listed              = (-not $readErrorKind)
+            listed_at_utc       = ConvertTo-WfUtcString -Value $stopped
+            error               = $(if ($readErrorKind) { $readErrorMessage } else { $null })
+            file_count          = $fileCount
+            folder_count        = $folderCount
+            truncated           = $truncated
+            oldest_time_utc     = $(if ($null -ne $oldest) { ConvertTo-WfUtcString -Value $oldest } else { $null })
+            newest_time_utc     = $(if ($null -ne $newest) { ConvertTo-WfUtcString -Value $newest } else { $null })
+        }
+        Write-WfJsonFile -Path (Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/result.json')) -Object $report
+        $met = $false
+        if ($readErrorKind -or $truncated) {
+            $resolved = Resolve-WfSourceStatus -ReadErrorKind $readErrorKind -ReadErrorMessage $readErrorMessage -RecordCount $elements.Count -Truncated $truncated `
+                -OldestRecordUtc $started -WindowStartUtc $started -TruncationDetail ('the cap of ' + $MaxEvents + ' entries was reached; the entries listed before the cap were kept')
+            $entry.status = $resolved['Status']
+            $entry.status_reason = $resolved['Reason']
+        } elseif (-not $exists) {
+            if ($absence -eq 'observation') {
+                $entry.status = 'observed_zero'
+                $entry.status_reason = $null
+                $met = $true
+                $Notes.Add('source ' + $id + ': ' + $display + ' does not exist, so it holds no file now; the listing says so and says nothing about files removed earlier')
+            } else {
+                $entry.status = 'not_collected'
+                $entry.status_reason = $display + ' does not exist for the account the collector ran as: ' + [string]$Source['AbsentReason']
+            }
+        } elseif ($fileCount -eq 0 -and $absence -eq 'unproven') {
+            $entry.status = 'capture_failed'
+            $entry.status_reason = 'zero records: ' + $display + ' exists and holds no matching file; ' + [string]$Source['ZeroReason']
+        } elseif ($elements.Count -eq 0) {
+            $entry.status = 'observed_zero'
+            $entry.status_reason = $null
+            $met = $true
+        } else {
+            $entry.status = 'observed'
+            $entry.status_reason = $null
+            $met = $true
+        }
+        Remove-WfPrimaryUnlessKept -Path $listingPath -Status $entry.status -Truncated $truncated -RecordCount $elements.Count -Log $Log -SourceId $id
+        if (Test-WfObservedStatus -Status $entry.status) { $entry.raw_time_range = New-WfTimeRange -StartUtc $started -EndUtc $stopped }
+        $entry.enabled = [ordered]@{
+            providers = @(); keywords = @(); stack_walk = @(); counters = @()
+            options   = [ordered]@{ path_display = $display; exists = $exists; file_count = $fileCount; folder_count = $folderCount; truncated = $truncated; content_read = $false }
+            verified_by = 'the folder listing completed without error; every entry carries only its name, size and times'
+        }
+        $entry.expectation = [ordered]@{
+            declared = [string]$Source['Expectation']
+            met      = $met
+            detail   = $(if ($met) { ('folder exists: {0}; {1} files and {2} folders listed' -f $exists, $fileCount, $folderCount) } elseif ($entry.status_reason) { [string]$entry.status_reason } else { $readErrorMessage })
+        }
+    } catch {
+        $entry.status = 'capture_failed'
+        $entry.status_reason = 'the collector raised while reading this source: ' + $_.Exception.GetType().FullName
+        $Log.Add('source ' + $id + ' raised: ' + $_.Exception.GetType().FullName)
+        if (Test-Path -LiteralPath $listingPath) { Remove-Item -LiteralPath $listingPath -Force }
+    }
+    $entry.stopped_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
+    $entry.artifacts = Get-WfArtifactRecords -BundleRoot $BundleRoot -SourceId $id -Roles $roles
+    $Log.Add(('source {0}: status {1}, {2} artifacts' -f $id, $entry.status, @($entry.artifacts).Count))
+    return [ordered]@{ Entry = $entry; Rows = @() }
+}
+
 function Invoke-WfUnavailableSource {
     # A question the scenario asks that this collector cannot answer through
     # a documented read only path reachable from Windows PowerShell 5.1
@@ -3748,7 +4041,14 @@ function Invoke-WfCollector {
     # for the run, and the network names learned so far, kept in memory only.
     # Tools receives the record of any executable a script source ran (a
     # pinned external tool, the inbox wpr.exe) for the manifest tools list.
-    $context = @{ Salt = (New-WfPseudonymSalt); Ssids = (New-Object 'System.Collections.Generic.List[string]'); Tools = (New-Object 'System.Collections.Generic.List[object]') }
+    # SourceRows keeps the rows a source handed back, by source id, so that a
+    # later script source can build on an earlier read (session-ledger names
+    # the display driver providers from the display adapters it read); the
+    # window and the record cap let such a source run an event query of its own.
+    $context = @{
+        Salt = (New-WfPseudonymSalt); Ssids = (New-Object 'System.Collections.Generic.List[string]'); Tools = (New-Object 'System.Collections.Generic.List[object]')
+        SourceRows = @{}; WindowDays = $WindowDays; MaxEvents = $MaxEvents
+    }
     $protects = $false
     $copies = $false
     # A custom source may hand back the calibration section, the operator
@@ -3803,6 +4103,9 @@ function Invoke-WfCollector {
         } elseif ($type -eq 'directory') {
             $result = Invoke-WfDirectorySource -Source $source -BundleRoot $bundleRoot -MaxEvents $MaxEvents `
                 -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes
+        } elseif ($type -eq 'metadata') {
+            $result = Invoke-WfMetadataSource -Source $source -BundleRoot $bundleRoot -MaxEvents $MaxEvents `
+                -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes -Context $context
         } elseif ($type -eq 'registry') {
             if ([string]$source['Mode'] -eq 'devices') { $protects = $true }
             $result = Invoke-WfRegistrySource -Source $source -BundleRoot $bundleRoot -MaxEvents $MaxEvents `
@@ -3827,6 +4130,7 @@ function Invoke-WfCollector {
         } else {
             throw ('unknown source type: ' + $type)
         }
+        if ($result.Contains('Rows')) { $context['SourceRows'][[string]$source['Id']] = $result['Rows'] }
         $entries.Add($result['Entry'])
     }
     } finally {
@@ -3887,7 +4191,12 @@ function Invoke-WfCollector {
 
     $allNotes = New-Object 'System.Collections.Generic.List[string]'
     $allNotes.Add(('Read only collector {0} version {1}: {2}' -f $name, [string]$Definition['Version'], [string]$Definition['Question']))
-    $allNotes.Add(('Ran as {0}; elevated: {1}; member of Event Log Readers (S-1-5-32-573): {2}.' -f $account['name'], $account['elevated'], $account['event_log_readers']))
+    # A collector meant to run as the owner's own account (session-ledger
+    # reads the owner's game logs) names that account by a pseudonym: the
+    # account name is a user name, which never reaches a bundle in clear.
+    $accountText = [string]$account['name']
+    if ($Definition['ProtectAccountName'] -and $accountText) { $accountText = ConvertTo-WfPseudonym -Kind 'account' -Value $accountText.ToLowerInvariant() -Salt ([string]$context['Salt']) }
+    $allNotes.Add(('Ran as {0}; elevated: {1}; member of Event Log Readers (S-1-5-32-573): {2}.' -f $accountText, $account['elevated'], $account['event_log_readers']))
     $allNotes.Add('The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.')
     if ($readsEventLog) {
         $allNotes.Add('Each event log query selects a fixed interval, window_end_utc minus the window to window_end_utc, so records raised while the query ran are not part of the result.')
@@ -4622,6 +4931,14 @@ function Get-WfKnownFolderPath {
     $path = $null
     if ($Name -eq 'ProgramData') { $path = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::CommonApplicationData) }
     elseif ($Name -eq 'ProgramFiles') { $path = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::ProgramFiles) }
+    # The three below are the session-ledger folders: the Windows directory
+    # (crash and live kernel dumps), and the running account's local
+    # application data and documents folders (game and launcher logs). The
+    # last two belong to the account the collector runs as, never another
+    # one: https://learn.microsoft.com/dotnet/api/system.environment.specialfolder
+    elseif ($Name -eq 'Windows') { $path = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Windows) }
+    elseif ($Name -eq 'LocalApplicationData') { $path = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::LocalApplicationData) }
+    elseif ($Name -eq 'MyDocuments') { $path = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::MyDocuments) }
     else { throw ('unknown folder name: ' + $Name) }
     # The collectors read Windows folders. A host that answers no path, or a
     # path that is not rooted at a drive (not Windows), makes a source built
@@ -4930,6 +5247,70 @@ function Get-WfDirectoryListing {
         if ($result.ErrorKind -eq 'not_found') { $result.ErrorKind = 'other' }
         if ($_.Exception.Message -like '*deadline*') { $result.ErrorKind = 'timeout' }
         $result.ErrorMessage = $_.Exception.Message
+    }
+    return $result
+}
+
+function Get-WfFileMetadataListing {
+    # The names, sizes and times of the files under one folder, and of the
+    # folders directly inside it when Depth is 1, from the directory listing
+    # alone: DirectoryInfo.EnumerateFileSystemInfos returns FileInfo and
+    # DirectoryInfo objects whose Length, CreationTimeUtc and LastWriteTimeUtc
+    # are read here and nothing else; no file is opened for its content.
+    # https://learn.microsoft.com/dotnet/api/system.io.directoryinfo.enumeratefilesysteminfos
+    # https://learn.microsoft.com/dotnet/api/system.io.filesysteminfo.creationtimeutc
+    # https://learn.microsoft.com/dotnet/api/system.io.filesysteminfo.lastwritetimeutc
+    # A folder that is a reparse point (a junction or link) is recorded and
+    # not entered. A folder that does not exist is Exists false with no
+    # error; one the account may not list is access_denied. The exception
+    # text is not returned (it can carry the resolved path), only its type.
+    param([string]$Path, [string]$Parent, [int]$Depth, [string[]]$Include, [int]$MaxEntries, [datetime]$DeadlineUtc)
+    $result = [ordered]@{ Exists = $false; ParentExists = $false; ErrorKind = $null; ErrorType = $null; Entries = @(); Truncated = $false }
+    try {
+        if ((Get-WfUtcNow) -ge $DeadlineUtc) { throw (New-Object System.TimeoutException) }
+        $result.ParentExists = [bool]($Parent -and [System.IO.Directory]::Exists($Parent))
+        if (-not [System.IO.Directory]::Exists($Path)) { return $result }
+        $result.Exists = $true
+        $entries = New-Object 'System.Collections.Generic.List[object]'
+        $root = New-Object System.IO.DirectoryInfo($Path)
+        $queue = New-Object 'System.Collections.Generic.List[object]'
+        $queue.Add(@{ Info = $root; Folder = $null; Level = 0 })
+        $index = 0
+        while ($index -lt $queue.Count) {
+            $current = $queue[$index]
+            $index += 1
+            $children = @($current['Info'].EnumerateFileSystemInfos() | Sort-Object -Property Name)
+            foreach ($child in $children) {
+                if ((Get-WfUtcNow) -ge $DeadlineUtc) { throw (New-Object System.TimeoutException) }
+                $isFolder = (($child.Attributes -band [System.IO.FileAttributes]::Directory) -ne 0)
+                if ($isFolder) {
+                    if ($current['Level'] -ge $Depth) { continue }
+                    if ($entries.Count -ge $MaxEntries) { $result.Truncated = $true; break }
+                    $isLink = (($child.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)
+                    $entries.Add([ordered]@{ Type = 'folder'; Folder = $current['Folder']; Name = [string]$child.Name; Bytes = $null; CreationTimeUtc = $child.CreationTimeUtc; LastWriteTimeUtc = $child.LastWriteTimeUtc; Entered = (-not $isLink) })
+                    if (-not $isLink) { $queue.Add(@{ Info = $child; Folder = [string]$child.Name; Level = $current['Level'] + 1 }) }
+                    continue
+                }
+                if (-not (Test-WfNameIncluded -Name ([string]$child.Name) -Include $Include)) { continue }
+                if ($entries.Count -ge $MaxEntries) { $result.Truncated = $true; break }
+                $entries.Add([ordered]@{ Type = 'file'; Folder = $current['Folder']; Name = [string]$child.Name; Bytes = [int64]$child.Length; CreationTimeUtc = $child.CreationTimeUtc; LastWriteTimeUtc = $child.LastWriteTimeUtc; Entered = $null })
+            }
+            if ($result.Truncated) { break }
+        }
+        if ((Get-WfUtcNow) -ge $DeadlineUtc) { throw (New-Object System.TimeoutException) }
+        $result.Entries = $entries.ToArray()
+    } catch {
+        $exception = $_.Exception
+        $kind = 'other'
+        $current = $exception
+        while ($null -ne $current) {
+            if ($current -is [System.UnauthorizedAccessException] -or $current -is [System.Security.SecurityException]) { $kind = 'access_denied'; break }
+            if ($current -is [System.TimeoutException]) { $kind = 'timeout'; break }
+            $current = $current.InnerException
+        }
+        $result.ErrorKind = $kind
+        $result.ErrorType = $exception.GetType().FullName
+        $result.Entries = @()
     }
     return $result
 }

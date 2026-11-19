@@ -454,6 +454,130 @@ function Get-WfSyntheticCases {
             }
         })
 
+    # The session ledger, run as the account that plays. Every time below is
+    # invented and placed relative to the synthetic clock (2026-03-01T12:00Z)
+    # so that the history cases after it share one timeline with it, and the
+    # example ledger (fixtures/session-ledger) joins them.
+    #   Overwatch: two logs with plain names and one whose name carries the
+    #     profile name (kept as a pseudonym), and an Errors folder.
+    #   Battle.net: one long launcher log.
+    #   Fortnite: a backup log and the current log.
+    #   Epic Games Launcher: one log.
+    #   The display driver (service synthdisp) wrote one record, WerKernel one,
+    #   a WATCHDOG live dump and a queued live kernel report exist, Minidump
+    #   and ReportArchive are empty.
+    $cases.Add(@{
+            Case = 'session-ledger'; Collector = 'session-ledger'; ExitCode = 0; Arguments = @{}
+            Setup = {
+                $global:WfSynthetic.AccountName = 'SYNTHETIC-PC\synthetic-player'
+                $global:WfSynthetic.Providers = @($global:WfSynthetic.Providers) + @('synthdisp', 'Microsoft-Windows-WerKernel')
+                $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90 -RecordCount 41200
+                $global:WfSynthetic.Channels['Microsoft-Windows-WerKernel/Operational'] = New-WfSyntheticChannelState -OldestDaysAgo 60 -RecordCount 40
+                $documents = 'C:\Users\synthetic-player\Documents'
+                $local = 'C:\Users\synthetic-player\AppData\Local'
+                $global:WfSynthetic.Metadata[$documents + '\Overwatch\Logs'] = @{ Entries = @(
+                        (New-WfSyntheticFileEntry -Name 'Overwatch-2026.02.20-06.00.00.log' -Bytes 48213 -CreatedDaysAgo 9.25 -WrittenDaysAgo 9.10),
+                        (New-WfSyntheticFileEntry -Name 'Overwatch-2026.02.25-12.00.00.log' -Bytes 51877 -CreatedDaysAgo 4.0 -WrittenDaysAgo 3.85),
+                        (New-WfSyntheticFileEntry -Name 'Overwatch log (synthetic-player).log' -Bytes 20480 -CreatedDaysAgo 1.5 -WrittenDaysAgo 1.4),
+                        (New-WfSyntheticFileEntry -Type 'folder' -Name 'Errors' -CreatedDaysAgo 30 -WrittenDaysAgo 3.86),
+                        (New-WfSyntheticFileEntry -Folder 'Errors' -Name 'crash_1.txt' -Bytes 2048 -CreatedDaysAgo 3.86 -WrittenDaysAgo 3.86),
+                        (New-WfSyntheticFileEntry -Name 'settings.ini' -Bytes 512 -CreatedDaysAgo 30 -WrittenDaysAgo 4.0)
+                    )
+                }
+                $global:WfSynthetic.Metadata[$local + '\Battle.net\Logs'] = @{ Entries = @(
+                        (New-WfSyntheticFileEntry -Name 'Battle.net-2026.02.25-11.55.00.log' -Bytes 90112 -CreatedDaysAgo 4.004 -WrittenDaysAgo 1.39)
+                    )
+                }
+                $global:WfSynthetic.Metadata[$local + '\FortniteGame\Saved\Logs'] = @{ Entries = @(
+                        (New-WfSyntheticFileEntry -Name 'FortniteGame-backup-2026.02.23-20.00.00.log' -Bytes 3145728 -CreatedDaysAgo 5.6666667 -WrittenDaysAgo 5.5833333),
+                        (New-WfSyntheticFileEntry -Name 'FortniteGame.log' -Bytes 2097152 -CreatedDaysAgo 2.0833333 -WrittenDaysAgo 1.9583333)
+                    )
+                }
+                $global:WfSynthetic.Metadata[$local + '\EpicGamesLauncher\Saved\Logs'] = @{ Entries = @(
+                        (New-WfSyntheticFileEntry -Name 'EpicGamesLauncher.log' -Bytes 1048576 -CreatedDaysAgo 2.09 -WrittenDaysAgo 1.95)
+                    )
+                }
+                $global:WfSynthetic.Metadata['C:\Windows\LiveKernelReports'] = @{ Entries = @(
+                        (New-WfSyntheticFileEntry -Type 'folder' -Name 'WATCHDOG' -CreatedDaysAgo 40 -WrittenDaysAgo 3.8694),
+                        (New-WfSyntheticFileEntry -Folder 'WATCHDOG' -Name 'WATCHDOG-20260225-1452.dmp' -Bytes 1258291 -CreatedDaysAgo 3.8694 -WrittenDaysAgo 3.8693)
+                    )
+                }
+                $global:WfSynthetic.Metadata['C:\Windows\Minidump'] = @{ Entries = @() }
+                $global:WfSynthetic.Metadata['C:\ProgramData\Microsoft\Windows\WER\ReportQueue'] = @{ Entries = @(
+                        (New-WfSyntheticFileEntry -Type 'folder' -Name 'LiveKernelEvent_141_synthdisp_0000000000000000_cab_00000001' -CreatedDaysAgo 3.8692 -WrittenDaysAgo 3.8692),
+                        (New-WfSyntheticFileEntry -Folder 'LiveKernelEvent_141_synthdisp_0000000000000000_cab_00000001' -Name 'Report.wer' -Bytes 4096 -CreatedDaysAgo 3.8692 -WrittenDaysAgo 3.8692)
+                    )
+                }
+                $global:WfSynthetic.Metadata['C:\ProgramData\Microsoft\Windows\WER\ReportArchive'] = @{ Entries = @() }
+                $global:WfSynthetic.Cim['Win32_PnPEntity'] = @{ Rows = @(
+                        [ordered]@{ ClassGuid = '{4d36e968-e325-11ce-bfc1-08002be10318}'; Name = 'Synthetic Display Adapter'; Service = 'synthdisp'; Status = 'OK'; ConfigManagerErrorCode = 0; Present = $true }
+                    )
+                }
+                Add-WfSyntheticQuery -Match "@Name='synthdisp'" -Events @(
+                    (New-WfSyntheticEvent -RecordId 40950 -Provider 'synthdisp' -EventId 13 -Level 2 -DaysAgo 3.8695 -Properties @('\Device\Video3', 'synthetic driver record') -Message 'Synthetic display driver record.')
+                )
+                Add-WfSyntheticQuery -Match 'WerKernel' -Events @(
+                    (New-WfSyntheticEvent -RecordId 31 -Channel 'Microsoft-Windows-WerKernel/Operational' -Provider 'Microsoft-Windows-WerKernel' -EventId 1 -Level 4 -LevelDisplay 'Information' -DaysAgo 3.8693 -Properties @('141') -Message 'Synthetic WerKernel record.')
+                )
+            }
+        })
+
+    # The same collector run as a standard account that does not play: the
+    # profile folders hold no game logs (not_collected), the live kernel dump
+    # folder refuses the listing (not_collected), the small dump folder does
+    # not exist (observed_zero, a present state), the report archive listing
+    # does not finish in time (capture_failed), no display adapter names a
+    # service (the driver query cannot be built: not_collected), and the
+    # WerKernel channel does not exist (unsupported).
+    $cases.Add(@{
+            Case = 'session-ledger-standard-account'; Collector = 'session-ledger'; ExitCode = 0; Arguments = @{}
+            Setup = {
+                $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90 -RecordCount 41200
+                $global:WfSynthetic.Metadata['C:\Windows\LiveKernelReports'] = @{ ErrorKind = 'access_denied'; ErrorType = 'System.UnauthorizedAccessException' }
+                $global:WfSynthetic.Metadata['C:\ProgramData\Microsoft\Windows\WER\ReportQueue'] = @{ Entries = @() }
+                $global:WfSynthetic.Metadata['C:\ProgramData\Microsoft\Windows\WER\ReportArchive'] = @{ Entries = @(); Stuck = $true }
+                $global:WfSynthetic.Cim['Win32_PnPEntity'] = @{ Rows = @(
+                        [ordered]@{ ClassGuid = '{4d36e968-e325-11ce-bfc1-08002be10318}'; Name = 'Microsoft Basic Display Adapter'; Service = $null; Status = 'OK'; ConfigManagerErrorCode = 0; Present = $true }
+                    )
+                }
+            }
+        })
+
+    # History bundles on the session-ledger timeline: two unclean restarts
+    # whose Kernel-Power 41 records name their BugcheckCode (zero: the
+    # machine was powered off, no bug check was written), each after a play
+    # session's last log write.
+    $cases.Add(@{
+            Case = 'bugcheck-history-ledger'; Collector = 'bugcheck-history'; ExitCode = 0; Arguments = @{}
+            Setup = {
+                $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90 -RecordCount 41200
+                $names = @('BugcheckCode', 'BugcheckParameter1', 'BugcheckParameter2', 'BugcheckParameter3', 'BugcheckParameter4', 'SleepInProgress', 'PowerButtonTimestamp')
+                Add-WfSyntheticQuery -Match 'EventID=6008' -Events @(
+                    (New-WfSyntheticEvent -RecordId 40301 -Provider 'Microsoft-Windows-Kernel-Power' -EventId 41 -Level 1 -LevelDisplay 'Critical' -DaysAgo 9.09 -Properties @(0, '0x0', '0x0', '0x0', '0x0', 0, 0) -DataNames $names -Message 'The system has rebooted without cleanly shutting down first. This error could be caused if the system stopped responding, crashed, or lost power unexpectedly.'),
+                    (New-WfSyntheticEvent -RecordId 40302 -Provider 'EventLog' -EventId 6008 -DaysAgo 9.0899 -Properties @('9:30:00 AM', '2/20/2026') -Message 'The previous system shutdown at 9:30:00 AM on 2/20/2026 was unexpected.'),
+                    (New-WfSyntheticEvent -RecordId 41012 -Provider 'Microsoft-Windows-Kernel-Power' -EventId 41 -Level 1 -LevelDisplay 'Critical' -DaysAgo 0.45 -Properties @(0, '0x0', '0x0', '0x0', '0x0', 0, 0) -DataNames $names -Message 'The system has rebooted without cleanly shutting down first. This error could be caused if the system stopped responding, crashed, or lost power unexpectedly.')
+                )
+            }
+        })
+
+    # A recovered display timeout (Display 4101) on the same timeline, and the
+    # same two Kernel-Power 41 records as bugcheck-history-ledger: the ledger
+    # keeps one row for each record read twice.
+    $cases.Add(@{
+            Case = 'tdr-events-ledger'; Collector = 'tdr-events'; ExitCode = 0; Arguments = @{}
+            Setup = {
+                $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo 90 -RecordCount 41200
+                $names = @('BugcheckCode', 'BugcheckParameter1', 'BugcheckParameter2', 'BugcheckParameter3', 'BugcheckParameter4', 'SleepInProgress', 'PowerButtonTimestamp')
+                Add-WfSyntheticQuery -Match "Provider[@Name='Display']" -Events @(
+                    (New-WfSyntheticEvent -RecordId 40960 -Provider 'Display' -EventId 4101 -Level 3 -LevelDisplay 'Warning' -DaysAgo 3.0 -Properties @('synthdisp', '') -Message 'Display driver synthdisp stopped responding and has successfully recovered.')
+                )
+                Add-WfSyntheticQuery -Match 'EventID=41' -Events @(
+                    (New-WfSyntheticEvent -RecordId 40301 -Provider 'Microsoft-Windows-Kernel-Power' -EventId 41 -Level 1 -LevelDisplay 'Critical' -DaysAgo 9.09 -Properties @(0, '0x0', '0x0', '0x0', '0x0', 0, 0) -DataNames $names -Message 'The system has rebooted without cleanly shutting down first. This error could be caused if the system stopped responding, crashed, or lost power unexpectedly.'),
+                    (New-WfSyntheticEvent -RecordId 41012 -Provider 'Microsoft-Windows-Kernel-Power' -EventId 41 -Level 1 -LevelDisplay 'Critical' -DaysAgo 0.45 -Properties @(0, '0x0', '0x0', '0x0', '0x0', 0, 0) -DataNames $names -Message 'The system has rebooted without cleanly shutting down first. This error could be caused if the system stopped responding, crashed, or lost power unexpectedly.')
+                )
+            }
+        })
+
     return $cases.ToArray()
 }
 
@@ -2069,4 +2193,15 @@ function New-WfSyntheticDiskIoDump {
     & $add 'FileIo' 36 10.5 @('FileObject', '0xffffa00000006000', 'FileName', ($volume + '\ProgramData\SyntheticLauncher\Manifests\Catalog\index.dat'))
     $xml = '<?xml version="1.0" encoding="UTF-8"?>' + "`r`n" + '<Events>' + "`r`n" + ($events.ToArray() -join "`r`n") + "`r`n" + '</Events>' + "`r`n"
     return @{ Xml = $xml; Count = $events.Count }
+}
+
+function New-WfSyntheticFileEntry {
+    # One entry of a synthetic folder listing (see Get-WfFileMetadataListing
+    # in SyntheticBackend.ps1), with times relative to the synthetic clock.
+    param([string]$Type = 'file', $Folder = $null, [string]$Name, $Bytes = $null, [double]$CreatedDaysAgo, [double]$WrittenDaysAgo)
+    $now = $global:WfSynthetic.Now
+    return [ordered]@{
+        Type = $Type; Folder = $Folder; Name = $Name; Bytes = $(if ($Type -eq 'file') { [int64]$Bytes } else { $null })
+        CreationTimeUtc = $now.AddSeconds([math]::Round(-86400 * $CreatedDaysAgo)); LastWriteTimeUtc = $now.AddSeconds([math]::Round(-86400 * $WrittenDaysAgo)); Entered = $(if ($Type -eq 'folder') { $true } else { $null })
+    }
 }

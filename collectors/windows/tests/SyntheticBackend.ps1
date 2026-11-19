@@ -96,6 +96,10 @@ function Reset-WfSynthetic {
         NativeMoreDataSeen = New-Object 'System.Collections.Generic.HashSet[string]'
         Topology     = $null
         Directories  = @{}
+        Metadata     = @{}
+        MissingParents = @()
+        ProfileName  = 'synthetic-player'
+        AccountName  = 'SYNTHETIC-PC\wf-collector'
         Files        = @{}
         Pnp          = @{ Devices = @() }
         Processes    = New-Object 'System.Collections.Generic.List[object]'
@@ -210,12 +214,22 @@ function New-WfSyntheticEvent {
     # One element of events.json, with event XML that agrees with the fields.
     param(
         [int64]$RecordId, [string]$Channel = 'System', [string]$Provider, [int]$EventId, [int]$Level = 2,
-        [double]$DaysAgo, [object[]]$Properties = @(), $Message = $null, [string]$LevelDisplay = 'Error'
+        [double]$DaysAgo, [object[]]$Properties = @(), $Message = $null, [string]$LevelDisplay = 'Error',
+        # Optional names for the event data items, written as Name attributes
+        # the way a manifest based provider renders them (Kernel-Power 41
+        # names its first item BugcheckCode). Without them the items are bare.
+        [string[]]$DataNames = @()
     )
     $when = $global:WfSynthetic.Now.AddDays(-1 * $DaysAgo)
     $time = ConvertTo-WfUtcString -Value $when
     $data = New-Object 'System.Collections.Generic.List[string]'
-    foreach ($value in $Properties) { $data.Add('<Data>' + [System.Security.SecurityElement]::Escape([string]$value) + '</Data>') }
+    $position = 0
+    foreach ($value in $Properties) {
+        $open = '<Data>'
+        if ($position -lt @($DataNames).Count -and $DataNames[$position]) { $open = "<Data Name='" + $DataNames[$position] + "'>" }
+        $data.Add($open + [System.Security.SecurityElement]::Escape([string]$value) + '</Data>')
+        $position += 1
+    }
     $xml = ("<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='{0}'/><EventID>{1}</EventID>" +
         "<Version>0</Version><Level>{2}</Level><Task>0</Task><Opcode>0</Opcode><Keywords>0x80000000000000</Keywords>" +
         "<TimeCreated SystemTime='{3}'/><EventRecordID>{4}</EventRecordID><Execution ProcessID='4' ThreadID='8'/>" +
@@ -373,7 +387,7 @@ function Get-WfMachineInfo {
 }
 
 function Get-WfAccountInfo {
-    return [ordered]@{ name = 'SYNTHETIC-PC\wf-collector'; elevated = [bool]$global:WfSynthetic.Elevated; event_log_readers = $true; performance_log_users = [bool]$global:WfSynthetic.PerformanceLogUsers }
+    return [ordered]@{ name = [string]$global:WfSynthetic.AccountName; elevated = [bool]$global:WfSynthetic.Elevated; event_log_readers = $true; performance_log_users = [bool]$global:WfSynthetic.PerformanceLogUsers }
 }
 
 function Get-WfToolInventory {
@@ -597,7 +611,56 @@ function Get-WfKnownFolderPath {
     param([string]$Name)
     if ($Name -eq 'ProgramData') { return 'C:\ProgramData' }
     if ($Name -eq 'ProgramFiles') { return 'C:\Program Files' }
+    if ($Name -eq 'Windows') { return 'C:\Windows' }
+    # The two profile folders carry the invented account name, which the
+    # tests check never reaches a bundle.
+    if ($Name -eq 'LocalApplicationData') { return ('C:\Users\' + $global:WfSynthetic.ProfileName + '\AppData\Local') }
+    if ($Name -eq 'MyDocuments') { return ('C:\Users\' + $global:WfSynthetic.ProfileName + '\Documents') }
     throw ('synthetic backend: unknown folder name ' + $Name)
+}
+
+function Get-WfFileMetadataListing {
+    # The model is $global:WfSynthetic.Metadata, folder path (case insensitive) ->
+    #   @{ Entries = <list of @{ Type = 'file'|'folder'; Folder; Name; Bytes; CreationTimeUtc; LastWriteTimeUtc; Entered }> }
+    #   @{ ErrorKind = 'access_denied'|'other'; ErrorType = <exception type name> }
+    #   @{ Entries; Stuck = $true } (the listing does not finish before the deadline)
+    # A folder not in the map does not exist; its parent exists unless the
+    # path is in $global:WfSynthetic.MissingParents. Entries below the depth
+    # and names outside Include are dropped as the real listing drops them.
+    param([string]$Path, [string]$Parent, [int]$Depth, [string[]]$Include, [int]$MaxEntries, [datetime]$DeadlineUtc)
+    $result = [ordered]@{ Exists = $false; ParentExists = $true; ErrorKind = $null; ErrorType = $null; Entries = @(); Truncated = $false }
+    foreach ($missing in @($global:WfSynthetic.MissingParents)) { if (([string]$missing).Equals($Path, [System.StringComparison]::OrdinalIgnoreCase)) { $result.ParentExists = $false } }
+    $model = $null
+    foreach ($key in $global:WfSynthetic.Metadata.Keys) {
+        if (([string]$key).Equals($Path, [System.StringComparison]::OrdinalIgnoreCase)) { $model = $global:WfSynthetic.Metadata[$key]; break }
+    }
+    if ($null -eq $model) { return $result }
+    $result.Exists = $true
+    if ($model['ErrorKind']) {
+        $result.ErrorKind = [string]$model['ErrorKind']
+        $result.ErrorType = [string]$model['ErrorType']
+        return $result
+    }
+    if ($model['Stuck']) {
+        $global:WfSynthetic.Now = $DeadlineUtc.AddSeconds(1)
+        $result.ErrorKind = 'timeout'
+        $result.ErrorType = 'System.TimeoutException'
+        return $result
+    }
+    $entries = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($item in (Get-WfList -Value $model['Entries'])) {
+        if ($item['Folder'] -and $Depth -lt 1) { continue }
+        if ([string]$item['Type'] -eq 'folder' -and $Depth -lt 1) { continue }
+        if ([string]$item['Type'] -eq 'file' -and -not (Test-WfNameIncluded -Name ([string]$item['Name']) -Include $Include)) { continue }
+        if ($entries.Count -ge $MaxEntries) { $result.Truncated = $true; break }
+        $entries.Add([ordered]@{
+                Type = [string]$item['Type']; Folder = $item['Folder']; Name = [string]$item['Name']; Bytes = $item['Bytes']
+                CreationTimeUtc = $item['CreationTimeUtc']; LastWriteTimeUtc = $item['LastWriteTimeUtc']
+                Entered = $(if ($item.Contains('Entered')) { $item['Entered'] } else { [string]$item['Type'] -eq 'folder' })
+            })
+    }
+    $result.Entries = $entries.ToArray()
+    return $result
 }
 
 function Invoke-WfProcess {

@@ -4476,3 +4476,115 @@ Describe 'diskio-trace against the synthetic backend' {
         (Read-DiskIoEtlHeader -Path $filler).found | Should -BeFalse
     }
 }
+
+Describe 'the session-ledger collector and the metadata source' {
+    BeforeAll {
+        function Start-LedgerScenario {
+            # The player scenario of the committed fixture, ready to be changed by one test.
+            Reset-WfSynthetic
+            $case = @(Get-WfSyntheticCases | Where-Object { $_['Case'] -eq 'session-ledger' })[0]
+            & $case['Setup'] 'unused'
+        }
+        function Get-LedgerSource {
+            param($Run, [string]$Id)
+            return @($Run.Manifest.collectors | Where-Object { $_.id -eq $Id })[0]
+        }
+        function Get-LedgerText {
+            # Every file the bundle holds, as one text, to search for what must never be written.
+            param([string]$Root)
+            $parts = foreach ($file in @(Get-ChildItem -LiteralPath $Root -Recurse -File)) { [System.IO.File]::ReadAllText($file.FullName) }
+            return ($parts -join "`n")
+        }
+    }
+
+    It 'reports a reached entry cap as capture_failed and keeps the capped listing' {
+        Start-LedgerScenario
+        $out = Join-Path $TestDrive 'ledger-cap'
+        $run = Invoke-TestCollector -Collector 'session-ledger' -OutputDirectory $out -Arguments @{ MaxEvents = 2 }
+        $source = Get-LedgerSource -Run $run -Id 'overwatch_logs'
+        $source.status | Should -Be 'capture_failed'
+        $source.status_reason | Should -Match 'cap of 2 entries'
+        @($source.artifacts | Where-Object { $_.role -eq 'primary' }).Count | Should -Be 1
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/overwatch_logs/result.json') -Raw | ConvertFrom-Json
+        $result.truncated | Should -BeTrue
+    }
+
+    It 'never reads an empty game log folder as a session free history' {
+        Start-LedgerScenario
+        $global:WfSynthetic.Metadata['C:\Users\synthetic-player\Documents\Overwatch\Logs'] = @{ Entries = @() }
+        $run = Invoke-TestCollector -Collector 'session-ledger' -OutputDirectory (Join-Path $TestDrive 'ledger-empty')
+        $source = Get-LedgerSource -Run $run -Id 'overwatch_logs'
+        $source.status | Should -Be 'capture_failed'
+        $source.status_reason | Should -Match '^zero records'
+        @($source.artifacts | Where-Object { $_.role -eq 'primary' }).Count | Should -Be 0
+    }
+
+    It 'reads a dump folder that is absent under an existing parent as observed_zero, and one without a parent as not_collected' {
+        Start-LedgerScenario
+        $global:WfSynthetic.Metadata.Remove('C:\Windows\Minidump')
+        $global:WfSynthetic.Metadata.Remove('C:\ProgramData\Microsoft\Windows\WER\ReportArchive')
+        $global:WfSynthetic.MissingParents = @('C:\ProgramData\Microsoft\Windows\WER\ReportArchive')
+        $run = Invoke-TestCollector -Collector 'session-ledger' -OutputDirectory (Join-Path $TestDrive 'ledger-absent')
+        (Get-LedgerSource -Run $run -Id 'minidumps').status | Should -Be 'observed_zero'
+        $archive = Get-LedgerSource -Run $run -Id 'wer_report_archive'
+        $archive.status | Should -Be 'not_collected'
+        $archive.status_reason | Should -Match 'absence cannot be told from a wrong path'
+    }
+
+    It 'records a listing that fails as capture_failed with the error class and never the error text' {
+        Start-LedgerScenario
+        $global:WfSynthetic.Metadata['C:\Windows\Minidump'] = @{ ErrorKind = 'other'; ErrorType = 'System.IO.IOException' }
+        $out = Join-Path $TestDrive 'ledger-ioerror'
+        $run = Invoke-TestCollector -Collector 'session-ledger' -OutputDirectory $out
+        $source = Get-LedgerSource -Run $run -Id 'minidumps'
+        $source.status | Should -Be 'capture_failed'
+        $source.status_reason | Should -Match 'System\.IO\.IOException'
+        $source.status_reason | Should -Match 'message is not kept'
+    }
+
+    It 'times out a listing that does not finish and keeps no listing' {
+        Start-LedgerScenario
+        $global:WfSynthetic.Metadata['C:\Windows\LiveKernelReports'] = @{ Entries = @(); Stuck = $true }
+        $run = Invoke-TestCollector -Collector 'session-ledger' -OutputDirectory (Join-Path $TestDrive 'ledger-timeout')
+        $source = Get-LedgerSource -Run $run -Id 'live_kernel_reports'
+        $source.status | Should -Be 'capture_failed'
+        $source.status_reason | Should -Match 'timed out'
+        @($source.artifacts | Where-Object { $_.role -eq 'primary' }).Count | Should -Be 0
+    }
+
+    It 'writes no profile path, profile name or account name, and keeps names outside the plain patterns as pseudonyms' {
+        Start-LedgerScenario
+        $out = Join-Path $TestDrive 'ledger-privacy'
+        $run = Invoke-TestCollector -Collector 'session-ledger' -OutputDirectory $out
+        $run.ExitCode | Should -Be 0
+        $text = Get-LedgerText -Root $out
+        $text | Should -Not -Match 'synthetic-player'
+        $text | Should -Not -Match 'C:\\\\Users'
+        $text | Should -Match '<MyDocuments>'
+        $queue = Get-Content -LiteralPath (Join-Path $out 'raw/wer_report_queue/listing.json') -Raw | ConvertFrom-Json
+        $queue[0].name | Should -Match '^name-[0-9a-f]{12}$'
+        $queue[0].name_prefix | Should -Be 'LiveKernelEvent'
+        $queue[1].folder | Should -Be $queue[0].name
+    }
+
+    It 'queries only plain service names, and records the driver source as not_collected when none is left' {
+        Start-LedgerScenario
+        $global:WfSynthetic.Cim['Win32_PnPEntity'] = @{ Rows = @(
+                [ordered]@{ ClassGuid = '{4d36e968-e325-11ce-bfc1-08002be10318}'; Name = 'Odd Adapter'; Service = "x' or @Name='y"; Status = 'OK'; ConfigManagerErrorCode = 0; Present = $true }
+            )
+        }
+        $out = Join-Path $TestDrive 'ledger-odd-service'
+        $run = Invoke-TestCollector -Collector 'session-ledger' -OutputDirectory $out
+        $source = Get-LedgerSource -Run $run -Id 'display_driver_events'
+        $source.status | Should -Be 'not_collected'
+        Test-Path -LiteralPath (Join-Path $out 'raw/display_driver_events/query.xml') | Should -BeFalse
+    }
+
+    It 'never reports the undocumented driver provider or the WerKernel channel as a quiet window' {
+        Start-LedgerScenario
+        $global:WfSynthetic.Queries.Clear()
+        $run = Invoke-TestCollector -Collector 'session-ledger' -OutputDirectory (Join-Path $TestDrive 'ledger-quiet')
+        (Get-LedgerSource -Run $run -Id 'display_driver_events').status | Should -Be 'capture_failed'
+        (Get-LedgerSource -Run $run -Id 'werkernel_events').status | Should -Be 'capture_failed'
+    }
+}

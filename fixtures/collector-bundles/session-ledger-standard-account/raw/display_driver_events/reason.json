@@ -1,0 +1,9 @@
+{
+  "question": "Which System log records did the display adapter driver write?",
+  "reason": "no display adapter service name was read (source display_adapters did not report one), so there is no provider name to query the System log for",
+  "documented_paths": [
+    "https://learn.microsoft.com/windows/win32/cimwin32prov/win32-pnpentity",
+    "https://learn.microsoft.com/windows/win32/eventlog/event-sources"
+  ],
+  "follow_up": ""
+}

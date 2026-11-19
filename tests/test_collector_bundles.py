@@ -32,7 +32,7 @@ ALLOWED_NETSH = re.compile(r"^wlan show (interfaces|drivers|networks mode=bssid|
 # page changes a setting, a scheme, or writes a report file outside the bundle.
 ALLOWED_POWERCFG = re.compile(r"^/(list|getactivescheme|aliases|query|qh)$")
 # The configuration snapshot's two questions without a documented read only path.
-UNAVAILABLE = {"power_mode", "timer_resolution"}
+UNAVAILABLE = {"power_mode", "timer_resolution", "display_driver_events"}
 # The only wpr verbs the live capture collector may use: read the status, enumerate the profile file,
 # start the one session it owns, stop it, cancel it. No boot trace, no marker, no configuration change.
 ALLOWED_WPR_VERBS = {"-status", "-profiles", "-start", "-stop", "-cancel"}
@@ -127,6 +127,17 @@ EXPECTED = {
     "presentmon-frames-lost-events": ("failed", {"presentmon_frames": "capture_failed"}),
     "presentmon-frames-overflow": ("failed", {"presentmon_frames": "capture_failed"}),
     "presentmon-frames-access-denied": ("failed", {"presentmon_frames": "not_collected"}),
+    "session-ledger": ("ok", {"overwatch_logs": "observed", "battlenet_logs": "observed", "fortnite_logs": "observed", "epic_launcher_logs": "observed",
+                              "display_adapters": "observed", "display_driver_events": "observed", "werkernel_events": "observed",
+                              "live_kernel_reports": "observed", "minidumps": "observed_zero", "wer_report_queue": "observed",
+                              "wer_report_archive": "observed_zero"}),
+    "session-ledger-standard-account": ("partial", {"overwatch_logs": "not_collected", "battlenet_logs": "not_collected", "fortnite_logs": "not_collected",
+                                                    "epic_launcher_logs": "not_collected", "display_adapters": "observed",
+                                                    "display_driver_events": "not_collected", "werkernel_events": "unsupported",
+                                                    "live_kernel_reports": "not_collected", "minidumps": "observed_zero",
+                                                    "wer_report_queue": "observed_zero", "wer_report_archive": "capture_failed"}),
+    "bugcheck-history-ledger": ("ok", {"system_restart_events": "observed"}),
+    "tdr-events-ledger": ("ok", {"system_display_events": "observed", "system_bugcheck_events": "observed"}),
 }
 
 
@@ -281,7 +292,7 @@ def test_status_and_evidence_stay_separate(case):
                     assert literal[:-1] + "0000Z" == recorded, (literal, recorded)
             if collector["raw_time_range"] is not None:
                 assert collector["raw_time_range"]["end"] == options["window_end_utc"]
-        elif collector["command"][0] == "Get-CimInstance" and "Win32_PnPEntity" not in collector["command"]:
+        elif collector["command"][0] == "Get-CimInstance" and "-Property" in collector["command"]:
             assert "-OperationTimeoutSec" in collector["command"] and "-Property" in collector["command"]
             if collector["requested"]["options"]["time_property"]:
                 assert "-Filter" in collector["command"] and collector["requested"]["options"]["filter"].startswith("TimeGenerated >= '")
@@ -330,6 +341,17 @@ def test_status_and_evidence_stay_separate(case):
             assert collector["requested"]["options"]["mode"] == "listing" and collector["requested"]["options"]["recursive"] is False
             if collector["status"] in OBSERVED:
                 assert primary[0]["path"].endswith("/listing.json") and collector["enabled"]["options"]["content_kept"] is False
+        elif collector["command"][0] == "System.IO.DirectoryInfo.EnumerateFileSystemInfos":
+            # The metadata source: names, sizes and times from the folder listing; no file is opened, and the folder is named by
+            # its known folder token, never by its resolved path (under the profile that path carries the account name).
+            options = collector["requested"]["options"]
+            assert options["mode"] == "metadata" and options["content_read"] is False and options["depth"] in (0, 1)
+            assert re.fullmatch(r"<(Windows|ProgramData|LocalApplicationData|MyDocuments)>\\[A-Za-z0-9 ._\\-]+", collector["command"][1]), collector["command"]
+            assert options["absence"] in ("observation", "unproven")
+            if collector["status"] in OBSERVED:
+                assert primary[0]["path"].endswith("/listing.json") and collector["enabled"]["options"]["content_read"] is False
+            if options["absence"] == "unproven":
+                assert collector["status"] != "observed_zero", "no retained log is never a quiet window"
         elif "SetupDiOpenDevRegKey" in collector["command"]:
             # The device key API path: global scope, the hardware key, read access, the two fixed relative subkeys.
             assert collector["command"][5:9] == ["SetupDiOpenDevRegKey", "DICS_FLAG_GLOBAL", "DIREG_DEV", "KEY_READ"]

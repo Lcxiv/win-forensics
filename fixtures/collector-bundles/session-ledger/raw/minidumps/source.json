@@ -1,0 +1,21 @@
+{
+  "folder": "Windows",
+  "path_tail": "Minidump",
+  "path_display": "<Windows>\\Minidump",
+  "path_documented": "https://learn.microsoft.com/windows-hardware/drivers/debugger/small-memory-dump",
+  "depth": 0,
+  "include": [
+    "*.dmp"
+  ],
+  "name_pattern": "^[A-Za-z0-9]{1,40}([-_][0-9]{1,20}){0,6}\\.dmp$",
+  "folder_pattern": "^[A-Za-z0-9]{1,40}([-_][0-9]{1,20}){0,6}\\.dmp$",
+  "prefix_pattern": null,
+  "absence": "observation",
+  "max_entries": 5000,
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 300,
+  "mode": "metadata",
+  "content_read": false,
+  "why_no_content": "the question is when these files were written and how large they are; the names, sizes and times are read from the folder listing, and no file is opened, hashed or copied",
+  "name_rule": "a name that matches name_pattern (folder_pattern for a folder) is kept verbatim; any other is name-<first 12 hex of SHA-256(salt, lower cased name)> with a random salt that is not stored"
+}

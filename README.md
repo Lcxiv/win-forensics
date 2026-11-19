@@ -30,6 +30,8 @@ The same directory holds `rf-survey`, a read only survey of the 2.4 GHz band aro
 
 It also holds `config-snapshot`, the first piece of the live latency capture: the machine configuration that confounds every run, read before and after a capture (`-Snapshot start`, `-Snapshot stop`). It records each PCI function's interrupt affinity policy and MSI mode as the registry holds them, read through the documented device key API (type and bytes, decoded alongside, never reconciled with the routing a trace shows), the GPU timeout detection values, the CPU counts and caches with the SMT sibling map from `GetLogicalProcessorInformationEx`, the active power scheme with the AC and DC processor and idle settings, and the state of two third party tuning tools (installed files with versions and hashes, running components by process name, protected copies of their configuration and journal, and a summary of the vendor log that carries none of its text). Two questions it cannot answer with a documented read only path (which power mode overlay is active, the current timer resolution) are recorded `not_collected` with their reasons rather than guessed. `scripts/decode_config_snapshot.py` decodes a bundle into `config_snapshot`, `powercfg` and `process_inventory`.
 
+It also holds `session-ledger`, the history behind the session and incident ledger: the names, sizes and times of the Overwatch, Fortnite, Battle.net and Epic Games Launcher log files, never their text, the display driver's System log records under the service name WMI reports, the WerKernel channel, and the names, sizes and times of the live kernel dumps, minidumps and Windows Error Reporting report folders, never their content. It runs between play sessions as the account that plays and never touches a game. On the Mac, `scripts/build_session_ledger.py` joins it with the `bugcheck-history`, `tdr-events`, `application-errors` and `whea-errors` bundles of the same machine and an operator's configuration periods file into the `session_ledger` and `session_ledger_periods` tables: every session and incident on one timeline, and per period the hours played, the sessions and the incidents by type, each count beside its hours and coverage and a rate only when every input is complete ([docs/session-ledger.md](docs/session-ledger.md)).
+
 ## The four contracts
 
 | Contract | Document | Schemas |
@@ -47,8 +49,9 @@ Process Monitor facts settled on the GitHub hosted Windows runner, with the fixt
 docs/contracts/          the contracts above plus procmon-facts.md
 docs/rf-survey.md        the RF survey: method, limits, citations, and the before and after test
 docs/clock-calibration.md  the clock calibration session and operator marks: how the clocks are read, the fit, the limits
+docs/session-ledger.md   the session and incident ledger: the split, the session and rate rules, the refusals, follow-up
 schemas/                 JSON Schema (draft 2020-12), one file per table, plus manifest, evidence, verdict, common,
-                         and analysis/ for an analyzer's structured result
+                         analysis/ for an analyzer's structured result, and input/ for operator written files
 collectors/windows/      read only PowerShell collectors for the PC, their shared helper _common.ps1, and README.md;
                          tests/ holds the Pester suite, the synthetic backend, and the fixture generator
 scripts/                 wf_schema.py (schema registry and validation), decode_dpcisr.py, decode_pdh.py, decode_eventlog.py,
@@ -58,10 +61,12 @@ scripts/                 wf_schema.py (schema registry and validation), decode_d
                          decode_rf_survey.py and analyze_rf_survey.py (the RF survey tables, evidence rows and report),
                          decode_config_snapshot.py (config_snapshot, powercfg and process_inventory from a config-snapshot bundle),
                          decode_clock.py (the clock calibration tables, the fitted model, alignment and join refusal),
+                         build_session_ledger.py (the session_ledger and session_ledger_periods tables from several bundles),
                          verify_bundle.py (manifest, checksums, no unlisted raw file), fetch_pwsh.sh (PowerShell 7 into tools/),
                          make_procmon_pmc.py, procmon_facts.ps1 and procmon_facts_summarize.py (runner harness)
 fixtures/example-bundle/ one bundle laid out to the contract from two win-opt format fixtures
 fixtures/collector-bundles/  synthetic bundles written by the collectors against the synthetic backend, one per case
+fixtures/session-ledger/ the example periods file and the ledger built from five synthetic collector bundles
 fixtures/procmon/        committed .pmc test configurations and the runner's facts and export heads
 fixtures/presentmon/     the first buffer of a PresentMon regression recording (the one .etl git keeps), with its
                          provenance and licence
@@ -140,6 +145,18 @@ python scripts/decode_clock.py --bundle <bundle directory> [--align 2026-03-01T1
 ```
 
 which writes the three clock tables and prints the master clock, and with `--align` places a UTC stamp on it with its bound or says why it cannot.
+
+The session ledger is built from several bundles of one machine and the operator's periods file; the committed example is rebuilt with:
+
+```
+rm -rf fixtures/session-ledger/example
+python scripts/build_session_ledger.py --bundle fixtures/collector-bundles/session-ledger \
+    --bundle fixtures/collector-bundles/bugcheck-history-ledger --bundle fixtures/collector-bundles/tdr-events-ledger \
+    --bundle fixtures/collector-bundles/application-errors --bundle fixtures/collector-bundles/whea-errors-quiet \
+    --periods fixtures/session-ledger/periods.json --out fixtures/session-ledger/example --decoded-at 2026-09-03T00:00:00Z
+```
+
+after a change to the builder, its schemas or those bundles, or `tests/test_session_ledger.py` fails on the stale comparison. It refuses, writing nothing, bundles that do not verify, bundles from two machines, and a periods file that fails its schema or overlaps.
 
 A `config-snapshot` bundle is decoded with:
 
