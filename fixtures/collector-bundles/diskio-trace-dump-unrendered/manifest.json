@@ -156,7 +156,7 @@
           ],
           "tool_timeout_seconds": 120,
           "short_timeout_seconds": 30,
-          "worst_case_seconds": 780,
+          "worst_case_seconds": 660,
           "concurrent_kernel_session_check": "not_checked",
           "run_alone": "until the PC verification of two WPR instances with system collectors recording at once has passed (README verification list), this collector is run alone and never next to dpcisr-trace"
         }
@@ -199,7 +199,7 @@
           "session_state_final": "idle",
           "session_confirmed_stopped": true
         },
-        "verified_by": "keywords and buffer size from \"wpr -status profiles collectors -details -instancename <name>\" right after the start (status.txt); clock, PerfFreq, start, end and the header loss counters from the saved trace's log file header (session.json header); final events lost and buffers lost from \"tracerpt <trace> -summary\" after the stop (tracerpt-summary.txt); the session end from \"wpr -status -instancename <name>\""
+        "verified_by": "keywords and buffer size from \"wpr -status profiles collectors -details -instancename <name>\" right after the start (status.txt); clock, PerfFreq, start, end and the header loss counters from the saved trace's log file header (session.json header); final events lost and buffers lost from the summary of \"tracerpt <trace> -o <private dump> -of XML -summary <file> -y\" after the stop (tracerpt-summary.txt); the session end from \"wpr -status -instancename <name>\""
       },
       "events_lost": 0,
       "buffers_lost": 0,
@@ -217,8 +217,8 @@
         },
         {
           "path": "raw/wpr_trace/session.json",
-          "bytes": 6231,
-          "sha256": "5aa509d01f6422c56dd74fe5718bc8c6872008a8022b8d003a7985bc6234712d",
+          "bytes": 6501,
+          "sha256": "72050892ca4984eb5e22fdcb3e2ce2676ccf6985ca62dc1bb076c7dc7f30dab7",
           "role": "report"
         },
         {
@@ -241,7 +241,7 @@
         "unit": "iso_utc"
       },
       "expectation": {
-        "declared": "wpr starts the profile under the collector's own instance name, lists the kernel collector with DiskIO, Filename, HardFaults and ProcessThread and a readable loss figure, records for the requested duration, saves a non empty trace within the cap whose header names the performance counter clock, an end time and no loss, reads as idle after the stop, and tracerpt reports zero events lost and zero buffers lost",
+        "declared": "wpr starts the profile under the collector's own instance name, lists the kernel collector with DiskIO, Filename, HardFaults and ProcessThread and a readable loss figure, records for the requested duration, saves a non empty trace within the cap whose header names the performance counter clock, an end time and no loss, reads as idle after the stop, and the one tracerpt call that writes the dump into the private folder and the summary reports zero events lost and zero buffers lost",
         "met": true,
         "detail": "final events lost 0; final buffers lost 0; trace 4096 bytes; clock qpc; recording 10 s of 10 requested; session idle"
       },
@@ -271,14 +271,16 @@
         "<bundle>/private/dump.xml",
         "-of",
         "XML",
+        "-summary",
+        "<bundle>/raw/wpr_trace/tracerpt-summary.txt",
         "-y"
       ],
       "started_utc": "2026-03-01T12:00:15.0000000Z",
       "stopped_utc": "2026-03-01T12:00:17.0000000Z",
-      "exit_code": 0,
+      "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "163086e1d731a5850088e0779d1e4a6d7589b4520fa9a57dee42f5cd14d586b8"
+        "value": "5d1730ca867f589afe863d22e2bb9c66c13c22384e6424306e503babff3aa928"
       },
       "filter_hash": null,
       "requested": {
@@ -326,20 +328,20 @@
       "artifacts": [
         {
           "path": "raw/diskio_aggregate/command.json",
-          "bytes": 5557,
-          "sha256": "163086e1d731a5850088e0779d1e4a6d7589b4520fa9a57dee42f5cd14d586b8",
+          "bytes": 5811,
+          "sha256": "5d1730ca867f589afe863d22e2bb9c66c13c22384e6424306e503babff3aa928",
           "role": "config"
         },
         {
           "path": "raw/diskio_aggregate/result.json",
-          "bytes": 1850,
-          "sha256": "5ebbc7fff2f92f1ed3df557e392721ecf75a4ecf36042a66490a9db0ee851397",
+          "bytes": 1490,
+          "sha256": "bba675e4a58189ec885d1da6039486590c4a08a0e8c148df2d6d13bc81cefd01",
           "role": "report"
         }
       ],
       "raw_time_range": null,
       "expectation": {
-        "declared": "tracerpt dumps the observed trace to XML within the cap, the dump holds exactly the events the summary says were processed, every disk, hard fault, file name, thread and process event reads whole, at least one disk request is recognised, the aggregate fits the cap, and the trace and the dump are deleted and seen gone (when they are not, both sources are capture_failed and the run is failed)",
+        "declared": "the XML dump tracerpt made of the observed trace is there and within the cap, the dump holds exactly the events the summary says were processed, every disk, hard fault, file name, thread and process event reads whole, at least one disk request is recognised, the aggregate fits the cap, and the trace and the dump are deleted and seen gone (when they are not, both sources are capture_failed and the run is failed)",
         "met": false,
         "detail": "31 events in the dump, 0 reads, 0 writes, 2 hard faults, 12 malformed, 0 rows; trace and dump removed: True"
       },

@@ -18,7 +18,7 @@
   "max_trace_bytes": 2147483648,
   "tool_timeout_seconds": 120,
   "short_timeout_seconds": 30,
-  "worst_case_seconds": 780,
+  "worst_case_seconds": 660,
   "events_lost_bound": 0,
   "buffers_lost_bound": 0,
   "concurrent_kernel_session_check": "not_checked",
@@ -32,6 +32,16 @@
     "<bundle>/private/trace.etl",
     "win-forensics diskio-trace 20260301T120002Z",
     "-skipPdbGen"
+  ],
+  "tracerpt_arguments": [
+    "<bundle>/private/trace.etl",
+    "-o",
+    "<bundle>/private/dump.xml",
+    "-of",
+    "XML",
+    "-summary",
+    "<bundle>/raw/wpr_trace/tracerpt-summary.txt",
+    "-y"
   ],
   "session_started_utc": "2026-03-01T12:00:03.0000000Z",
   "session_stop_issued_utc": "2026-03-01T12:00:13.0000000Z",
@@ -83,7 +93,7 @@
     "events_lost": 0,
     "buffers_lost": 0,
     "events_processed": 31,
-    "source": "tracerpt -summary of the saved trace",
+    "source": "the summary written by the one tracerpt read of the saved trace",
     "events_lost_lines": 1,
     "buffers_lost_lines": 1,
     "events_processed_lines": 1,
@@ -177,7 +187,7 @@
     {
       "tool": "tracerpt.exe",
       "verb": null,
-      "arguments": "<bundle>/private/trace.etl -summary <bundle>/raw/wpr_trace/tracerpt-summary.txt -y",
+      "arguments": "<bundle>/private/trace.etl -o <bundle>/private/dump.xml -of XML -summary <bundle>/raw/wpr_trace/tracerpt-summary.txt -y",
       "started": true,
       "exit_code": 0,
       "timed_out": false,

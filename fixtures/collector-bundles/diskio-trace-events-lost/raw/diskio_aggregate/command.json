@@ -1,6 +1,7 @@
 {
   "tool": "C:\\Windows\\System32\\tracerpt.exe",
   "arguments": [],
+  "dump_made_by": "the wpr_trace source, in its one tracerpt call (raw/wpr_trace/session.json, runs); this source starts no process and reads the dump only when that source is observed",
   "dump_format": "XML, the documented event schema (one Event element per event; ExtendedTracingInfo/EventGuid for the event class, System/Opcode, System/TimeCreated/@SystemTime, EventData/Data/@Name)",
   "event_classes": {
     "DiskIo": {

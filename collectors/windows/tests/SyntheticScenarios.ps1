@@ -1956,7 +1956,8 @@ function New-WfSyntheticDiskIoDump {
     # process ids that change hands inside the window: 5120 (an updater that
     # writes and exits, then another process started under the same id) and
     # 6000 (a process the trace first names by its end event, then a new
-    # process under the same id).
+    # process under the same id); and a thread id, 7001, that writes before
+    # its first Thread event, ends, and is given to another process.
     param([string]$DropField = '', [string]$CollectorRoot = '', [switch]$NoDiskEvents, [switch]$PidReuse)
     $start = $global:WfSynthetic.Now.AddSeconds(7)
     $kernel = '{9e814aad-3204-11d2-9a82-006008a86939}'
@@ -2048,6 +2049,10 @@ function New-WfSyntheticDiskIoDump {
         & $thread 1 5.01 '5120' '5122'
         & $disk 11 5.10 '5122' '0xffffa00000001000' 512 '0x60a01' 400
         & $process 1 6.00 '6000' 'SyntheticLate.exe'
+        & $disk 11 3.30 '7001' '0xffffa00000001000' 3072 '0x60a01' 700
+        & $thread 3 3.31 '1200' '7001'
+        & $thread 2 3.50 '1200' '7001'
+        & $thread 1 5.50 '2300' '7001'
     }
     # Hard faults: the game pages in code from its pack file.
     & $add 'PageFault' 32 0.40 @('InitialTime', '1000', 'ReadOffset', '4096', 'VirtualAddress', '0x00007ff600001000', 'FileObject', '0xffffa00000002000', 'TThreadId', '1201', 'ByteCount', '32768')

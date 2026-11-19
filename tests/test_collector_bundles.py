@@ -38,10 +38,13 @@ UNAVAILABLE = {"power_mode", "timer_resolution"}
 ALLOWED_WPR_VERBS = {"-status", "-profiles", "-start", "-stop", "-cancel"}
 # The only xperf action: the DPC and ISR report of the trace in the bundle, with -tle only after a loss.
 ALLOWED_XPERF = re.compile(r"^-i <bundle>/private/trace\.etl -a dpcisr( -tle)?$")
-# The only tracerpt action: the summary of the trace in the private folder, written into the bundle, never prompting.
-ALLOWED_TRACERPT = re.compile(r"^<bundle>/private/trace\.etl -summary <bundle>/raw/wpr_trace/tracerpt-summary\.txt -y$")
-# The only other tracerpt action (diskio-trace): the XML dump of the same trace into the private folder, read and deleted on the PC.
-ALLOWED_TRACERPT_DUMP = re.compile(r"^<bundle>/private/trace\.etl -o <bundle>/private/dump\.xml -of XML -y$")
+# The only tracerpt action of each kernel trace collector, never prompting. dpcisr-trace: the summary of the trace in the
+# private folder, written into the bundle. diskio-trace: one call that also names the XML dump, in the private folder, where
+# it is read and deleted on the PC.
+ALLOWED_TRACERPT = {
+    "dpcisr-trace": re.compile(r"^<bundle>/private/trace\.etl -summary <bundle>/raw/wpr_trace/tracerpt-summary\.txt -y$"),
+    "diskio-trace": re.compile(r"^<bundle>/private/trace\.etl -o <bundle>/private/dump\.xml -of XML -summary <bundle>/raw/wpr_trace/tracerpt-summary\.txt -y$"),
+}
 # Collectors whose cases run elevated (the live capture needs it) and carry a QPC trace.
 LIVE_CAPTURE = {"dpcisr-trace", "diskio-trace"}
 # What each kernel trace collector asks of WPR: its profile, its instance prefix, its keywords and why.
@@ -366,7 +369,7 @@ def test_status_and_evidence_stay_separate(case):
                     assert run["arguments"].endswith(f"-instancename {session['instance_name']}"), run
             for run in session["runs"]:
                 if run["tool"] == "tracerpt.exe":
-                    assert ALLOWED_TRACERPT.fullmatch(run["arguments"]), run["arguments"]
+                    assert ALLOWED_TRACERPT[load_summary(case)["collector"]].fullmatch(run["arguments"]), run["arguments"]
             assert collector["buffers"] == {"size_kb": 1024, "count": 64, "mode": "file"}
             assert collector["requested"]["keywords"] == keywords, why
             assert session["trace_kept_in_bundle"] is False and not any(a["path"].endswith(".etl") for a in collector["artifacts"]), "the kernel trace never leaves the machine"
@@ -378,13 +381,12 @@ def test_status_and_evidence_stay_separate(case):
             if collector["status_reason"] and "lost" in collector["status_reason"] and "events" in collector["status_reason"]:
                 assert (collector["events_lost"] or 0) + (collector["buffers_lost"] or 0) > 0
         elif collector["id"] == "diskio_aggregate":
-            # The aggregate made on the PC: the one tracerpt dump, nothing kept but the rows and the record.
+            # The aggregate made on the PC from the dump the trace source's one tracerpt call wrote: it starts no process itself.
             assert collector["kind"] == "other" and collector["command"][0].endswith("\\tracerpt.exe")
             arguments = " ".join(collector["command"][1:])
-            assert arguments == "" or ALLOWED_TRACERPT_DUMP.fullmatch(arguments), arguments
+            assert arguments == "" or ALLOWED_TRACERPT["diskio-trace"].fullmatch(arguments), arguments
             result = json.loads((BUNDLES / case / "raw" / collector["id"] / "result.json").read_text(encoding="utf-8"))
-            for run in result["runs"]:
-                assert run["tool"] == "tracerpt.exe" and ALLOWED_TRACERPT_DUMP.fullmatch(run["arguments"]), run
+            assert "runs" not in result
             assert result["recording_and_dump_removed"] is True, "the trace and its dump never leave the PC"
             assert collector["requested"]["options"]["recording_kept"] is False
             if collector["status"] in OBSERVED:

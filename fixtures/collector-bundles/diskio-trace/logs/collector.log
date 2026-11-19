@@ -8,6 +8,5 @@ wpr.exe -stop: started True, exit code 0, timed out False, 11 ms
 wpr.exe -status: started True, exit code 0, timed out False, 11 ms
 tracerpt.exe run: started True, exit code 0, timed out False, 17 ms
 source wpr_trace: status observed, 4 artifacts
-tracerpt.exe run: started True, exit code 0, timed out False, 17 ms
 source diskio_aggregate: status observed, 3 artifacts
 2026-03-01T12:00:18.0000000Z manifest written: bundle 20260301T120001Z_diskio_trace_ae3a76a9, status ok, 7 artifacts

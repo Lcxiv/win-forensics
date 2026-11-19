@@ -131,7 +131,8 @@ def test_a_lossy_trace_makes_no_aggregate():
     assert aggregate["status"] == "not_collected" and "capture_failed" in aggregate["status_reason"]
     assert not (BUNDLES / "diskio-trace-events-lost" / AGGREGATE).exists()
     result = json.loads((BUNDLES / "diskio-trace-events-lost" / RESULT).read_text(encoding="utf-8"))
-    assert result["runs"] == [], "no dump is made from a lossy trace"
+    assert result["dump_bytes"] is None and result["dump_events"] is None, "the dump of a lossy trace is never read"
+    assert result["recording_and_dump_removed"] is True
 
 
 def test_the_front_door_account_cannot_start_a_kernel_trace_and_nothing_runs():

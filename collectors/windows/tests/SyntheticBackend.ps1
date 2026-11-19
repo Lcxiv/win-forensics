@@ -58,8 +58,8 @@
 #              the saved trace, and whether a stop or cancel leaves the session running
 #   Tracerpt   the synthetic tracerpt: Present, ExitCode, Stuck, EventsLost and BuffersLost of
 #              the saved trace, Labels ('english', 'missing' or 'nonnumeric'), EventsProcessed
-#              (the summary's processed count), and for an XML dump ("-o <file> -of XML",
-#              diskio-trace) DumpXml (the text written, none when null), DumpExitCode, DumpStuck,
+#              (the summary's processed count), and for a call that also names an XML dump
+#              ("-o <file> -of XML", diskio-trace) DumpXml (the text written, none when null) and
 #              OnDump (a scriptblock run once the dump is written, for a case that changes
 #              the files under the collector's feet)
 #   Tools      full path of an operator supplied tool -> @{ Sha256; Version } (nothing is read
@@ -104,7 +104,7 @@ function Reset-WfSynthetic {
         Elevated     = $false
         PerformanceLogUsers = $false
         Wpr          = New-WfSyntheticWpr
-        Tracerpt     = @{ Present = $true; ExitCode = 0; Stuck = $false; EventsLost = 0; BuffersLost = 0; Labels = 'english'; EventsProcessed = 107340; DumpXml = $null; DumpExitCode = 0; DumpStuck = $false; OnDump = $null }
+        Tracerpt     = @{ Present = $true; ExitCode = 0; Stuck = $false; EventsLost = 0; BuffersLost = 0; Labels = 'english'; EventsProcessed = 107340; DumpXml = $null; OnDump = $null }
         Tools        = @{}
         PinnedTools  = @{}
         Xperf        = @{ ExitCode = 0; StdOut = ''; StdErr = ''; Stuck = $false }
@@ -1188,8 +1188,9 @@ function Invoke-WfSyntheticWpr {
 }
 
 function Invoke-WfSyntheticTracerpt {
-    # "tracerpt <trace> -summary <file> -y": writes an invented summary whose
-    # loss lines follow the Labels knob. The real tool's text is not
+    # "tracerpt <trace> [-o <file> -of XML] -summary <file> -y": writes an
+    # invented summary whose loss lines follow the Labels knob, and the dump
+    # when the call names one. The real tool's text is not
     # documented and is a verification item in the README.
     param([string]$Arguments, [int]$TimeoutSeconds, $Result)
     $tracerpt = $global:WfSynthetic.Tracerpt
@@ -1214,24 +1215,15 @@ function Invoke-WfSyntheticTracerpt {
         $Result.StdErr = 'synthetic tracerpt: the trace file does not exist'
         return $Result
     }
-    if ($dumpPath) {
-        # "tracerpt <trace> -o <file> -of XML -y": the dump diskio-trace reads.
-        if ($tracerpt['DumpStuck']) {
-            $global:WfSynthetic.Ticks += $TimeoutSeconds
-            $Result.TimedOut = $true
-            $Result.Error = ('the process did not finish within {0} seconds and was stopped' -f $TimeoutSeconds)
-            return $Result
-        }
-        $Result.ExitCode = [int]$tracerpt['DumpExitCode']
-        if ($Result.ExitCode -ne 0) { $Result.StdErr = 'synthetic tracerpt: the dump failed'; return $Result }
-        if ($null -ne $tracerpt['DumpXml']) { Write-WfTextFile -Path $dumpPath -Text ([string]$tracerpt['DumpXml']) }
-        if ($tracerpt['OnDump'] -is [scriptblock]) { & $tracerpt['OnDump'] }
-        return $Result
-    }
     $Result.ExitCode = [int]$tracerpt['ExitCode']
     if ($Result.ExitCode -ne 0) {
         $Result.StdErr = 'synthetic tracerpt: failed'
         return $Result
+    }
+    if ($dumpPath) {
+        # "-o <file> -of XML" in the same call: the dump diskio-trace reads.
+        if ($null -ne $tracerpt['DumpXml']) { Write-WfTextFile -Path $dumpPath -Text ([string]$tracerpt['DumpXml']) }
+        if ($tracerpt['OnDump'] -is [scriptblock]) { & $tracerpt['OnDump'] }
     }
     $nl = "`r`n"
     $lines = New-Object 'System.Collections.Generic.List[string]'

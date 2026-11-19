@@ -146,7 +146,7 @@
           ],
           "tool_timeout_seconds": 120,
           "short_timeout_seconds": 30,
-          "worst_case_seconds": 780,
+          "worst_case_seconds": 660,
           "concurrent_kernel_session_check": "not_checked",
           "run_alone": "until the PC verification of two WPR instances with system collectors recording at once has passed (README verification list), this collector is run alone and never next to dpcisr-trace"
         }
@@ -182,7 +182,7 @@
           "session_state_final": null,
           "session_confirmed_stopped": null
         },
-        "verified_by": "keywords and buffer size from \"wpr -status profiles collectors -details -instancename <name>\" right after the start (status.txt); clock, PerfFreq, start, end and the header loss counters from the saved trace's log file header (session.json header); final events lost and buffers lost from \"tracerpt <trace> -summary\" after the stop (tracerpt-summary.txt); the session end from \"wpr -status -instancename <name>\""
+        "verified_by": "keywords and buffer size from \"wpr -status profiles collectors -details -instancename <name>\" right after the start (status.txt); clock, PerfFreq, start, end and the header loss counters from the saved trace's log file header (session.json header); final events lost and buffers lost from the summary of \"tracerpt <trace> -o <private dump> -of XML -summary <file> -y\" after the stop (tracerpt-summary.txt); the session end from \"wpr -status -instancename <name>\""
       },
       "events_lost": null,
       "buffers_lost": null,
@@ -200,14 +200,14 @@
         },
         {
           "path": "raw/wpr_trace/session.json",
-          "bytes": 1997,
-          "sha256": "7efa9e48ec24a65ca5b61f5a3dd098394df818b78f55e981e30a7be91d1964ac",
+          "bytes": 2230,
+          "sha256": "2f549c85e58c4808e524b505c2afc0aafb9e3d88bfeec875116da087f25fd242",
           "role": "report"
         }
       ],
       "raw_time_range": null,
       "expectation": {
-        "declared": "wpr starts the profile under the collector's own instance name, lists the kernel collector with DiskIO, Filename, HardFaults and ProcessThread and a readable loss figure, records for the requested duration, saves a non empty trace within the cap whose header names the performance counter clock, an end time and no loss, reads as idle after the stop, and tracerpt reports zero events lost and zero buffers lost",
+        "declared": "wpr starts the profile under the collector's own instance name, lists the kernel collector with DiskIO, Filename, HardFaults and ProcessThread and a readable loss figure, records for the requested duration, saves a non empty trace within the cap whose header names the performance counter clock, an end time and no loss, reads as idle after the stop, and the one tracerpt call that writes the dump into the private folder and the summary reports zero events lost and zero buffers lost",
         "met": false,
         "detail": "final events lost unknown; final buffers lost unknown; trace absent bytes; clock unknown; recording none s of 10 requested; session not started"
       },
@@ -238,7 +238,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "c635c1539528ce0e9cdad5483ca9644b3ccdcac836d8584eef780817da8fcb7b"
+        "value": "e2ba6ace8246abf1d7940cc06b59ecf5f82b712ba877370409df7c048e28f40c"
       },
       "filter_hash": null,
       "requested": {
@@ -286,20 +286,20 @@
       "artifacts": [
         {
           "path": "raw/diskio_aggregate/command.json",
-          "bytes": 5446,
-          "sha256": "c635c1539528ce0e9cdad5483ca9644b3ccdcac836d8584eef780817da8fcb7b",
+          "bytes": 5633,
+          "sha256": "e2ba6ace8246abf1d7940cc06b59ecf5f82b712ba877370409df7c048e28f40c",
           "role": "config"
         },
         {
           "path": "raw/diskio_aggregate/result.json",
-          "bytes": 583,
-          "sha256": "0519f456449dc36bb24fe4c56d1599046b9033f4b7883332c40b9488ce4a1b95",
+          "bytes": 569,
+          "sha256": "f15db6f668fa93b9f315efc0d748f9708d03ae8ae453ffe81dc719eea35f5fdc",
           "role": "report"
         }
       ],
       "raw_time_range": null,
       "expectation": {
-        "declared": "tracerpt dumps the observed trace to XML within the cap, the dump holds exactly the events the summary says were processed, every disk, hard fault, file name, thread and process event reads whole, at least one disk request is recognised, the aggregate fits the cap, and the trace and the dump are deleted and seen gone (when they are not, both sources are capture_failed and the run is failed)",
+        "declared": "the XML dump tracerpt made of the observed trace is there and within the cap, the dump holds exactly the events the summary says were processed, every disk, hard fault, file name, thread and process event reads whole, at least one disk request is recognised, the aggregate fits the cap, and the trace and the dump are deleted and seen gone (when they are not, both sources are capture_failed and the run is failed)",
         "met": false,
         "detail": "no dump was read"
       },

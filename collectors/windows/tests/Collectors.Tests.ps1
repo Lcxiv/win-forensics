@@ -4032,10 +4032,9 @@ Describe 'diskio-trace against the synthetic backend' {
         @($calls | ForEach-Object { $_.Verb }) | Should -Be @('-status', '-profiles', '-start', '-status', '-stop', '-status')
         $calls[0].Instance | Should -BeExactly '' -Because 'the preflight looks at the default instance and never touches it'
         foreach ($call in $calls[2..5]) { $call.Arguments | Should -Match ' -instancename WfDiskIoTrace-[0-9]{8}T[0-9]{6}Z$' -Because 'the instance name is the last parameter' }
-        $tracerpt = Get-DiskTracerptRuns
-        $tracerpt.Count | Should -Be 2
-        $tracerpt[0].Arguments | Should -Match 'private[/\\]trace\.etl -summary .*tracerpt-summary\.txt -y$'
-        $tracerpt[1].Arguments | Should -Match 'private[/\\]trace\.etl -o .*private[/\\]dump\.xml -of XML -y$'
+        $tracerpt = @(Get-DiskTracerptRuns)
+        $tracerpt.Count | Should -Be 1 -Because 'one call writes the dump and the summary, each under a name the collector gave, so no file is written under a default name'
+        $tracerpt[0].Arguments | Should -Match 'private[/\\]trace\.etl -o .*private[/\\]dump\.xml -of XML -summary .*raw[/\\]wpr_trace[/\\]tracerpt-summary\.txt -y$'
         Assert-DiskNothingLeft -Out $out
         $trace = Get-DiskSource -Run $run -Id 'wpr_trace'
         $trace.status | Should -BeExactly 'observed'
@@ -4057,7 +4056,7 @@ Describe 'diskio-trace against the synthetic backend' {
         $aggregate = Get-DiskSource -Run $run -Id 'diskio_aggregate'
         $aggregate.status | Should -BeExactly 'observed'
         @($aggregate.artifacts | ForEach-Object { $_.path }) | Should -Be @('raw/diskio_aggregate/aggregate.jsonl', 'raw/diskio_aggregate/command.json', 'raw/diskio_aggregate/result.json')
-        @($aggregate.command) | Should -Be @('C:\Windows\System32\tracerpt.exe', '<bundle>/private/trace.etl', '-o', '<bundle>/private/dump.xml', '-of', 'XML', '-y')
+        @($aggregate.command) | Should -Be @('C:\Windows\System32\tracerpt.exe', '<bundle>/private/trace.etl', '-o', '<bundle>/private/dump.xml', '-of', 'XML', '-summary', '<bundle>/raw/wpr_trace/tracerpt-summary.txt', '-y')
         $aggregate.enabled.options.recording_and_dump_removed | Should -BeTrue
         $aggregate.enabled.options.trace_sha256 | Should -BeExactly $trace.enabled.options.trace_sha256
         $result = Get-Content -LiteralPath (Join-Path $out 'raw/diskio_aggregate/result.json') -Raw | ConvertFrom-Json
@@ -4135,6 +4134,10 @@ Describe 'diskio-trace against the synthetic backend' {
         $late = @($rows | Where-Object { $_.process_id -eq 6000 })
         $late.Count | Should -Be 1
         $late[0].process_image | Should -BeExactly 'SyntheticEarly.exe' -Because 'an id first named after the request takes the first image the trace gives it, not the last'
+        $early = @($rows | Where-Object { $_.transferred_bytes -eq 3072 })
+        $early.Count | Should -Be 1
+        $early[0].process_id | Should -Be 1200 -Because 'a request before its thread''s first Thread event belongs to the first process the trace gives that thread id, not to the one the id went to later'
+        $early[0].process_image | Should -BeExactly 'SyntheticGame.exe'
     }
 
     It 'fails the run and keeps no aggregate when the recording cannot be confirmed removed' {
@@ -4342,17 +4345,21 @@ Describe 'diskio-trace against the synthetic backend' {
         $aggregate.status_reason | Should -Match 'not accepted as a quiet window'
 
         $arguments = Start-DiskCase
-        $global:WfSynthetic.Tracerpt.DumpStuck = $true
-        $out = Join-Path $TestDrive 'dump-stuck'
+        $global:WfSynthetic.Tracerpt.Stuck = $true
+        $out = Join-Path $TestDrive 'read-stuck'
         $run = Invoke-TestCollector -Collector 'diskio-trace' -OutputDirectory $out -Arguments $arguments
-        (Get-DiskSource -Run $run -Id 'diskio_aggregate').status | Should -BeExactly 'capture_failed'
-        (Get-DiskSource -Run $run -Id 'diskio_aggregate').status_reason | Should -Match 'timed out'
+        $run.ExitCode | Should -Be 1
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status | Should -BeExactly 'capture_failed'
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status_reason | Should -Match 'final loss statistics could not be read.*did not finish within'
+        (Get-DiskSource -Run $run -Id 'diskio_aggregate').status | Should -BeExactly 'not_collected'
+        @(Get-DiskTracerptRuns).Count | Should -Be 1 -Because 'the aggregate starts no tracerpt of its own'
         Assert-DiskNothingLeft -Out $out
 
         $arguments = Start-DiskCase
-        $global:WfSynthetic.Tracerpt.DumpExitCode = 5
-        $run = Invoke-DiskCase -Name 'dump-failed' -Arguments $arguments
-        (Get-DiskSource -Run $run -Id 'diskio_aggregate').status_reason | Should -Match 'could not dump the trace'
+        $global:WfSynthetic.Tracerpt.ExitCode = 5
+        $run = Invoke-DiskCase -Name 'read-failed' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status_reason | Should -Match 'final loss statistics could not be read'
+        (Get-DiskSource -Run $run -Id 'diskio_aggregate').status | Should -BeExactly 'not_collected'
 
         $arguments = Start-DiskCase
         $global:WfSynthetic.Tracerpt.DumpXml = $null
@@ -4374,7 +4381,7 @@ Describe 'diskio-trace against the synthetic backend' {
         $global:WfSynthetic.Processes.Count | Should -Be 0
         $run = Invoke-DiskCase -Name 'small-dump-cap' -Arguments @{ MaxDumpBytes = 1024 }
         $run.ExitCode | Should -Be 1
-        (Get-DiskIoWorstCaseSeconds -DurationSeconds 60 -TimeoutSeconds 120) | Should -Be 810
+        (Get-DiskIoWorstCaseSeconds -DurationSeconds 60 -TimeoutSeconds 120) | Should -Be 690
     }
 
     It 'keeps fixed roots and one level below them, replaces the user folder, and pseudonymises everything deeper' {

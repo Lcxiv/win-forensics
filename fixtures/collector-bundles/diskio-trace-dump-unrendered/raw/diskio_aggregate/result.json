@@ -46,20 +46,5 @@
   "totals": null,
   "bin_range": null,
   "recording_and_dump_removed": true,
-  "removal_error": null,
-  "runs": [
-    {
-      "tool": "tracerpt.exe",
-      "verb": null,
-      "arguments": "<bundle>/private/trace.etl -o <bundle>/private/dump.xml -of XML -y",
-      "started": true,
-      "exit_code": 0,
-      "timed_out": false,
-      "oversized": false,
-      "duration_ms": 17,
-      "error": null,
-      "stdout_head": "",
-      "stderr_head": ""
-    }
-  ]
+  "removal_error": null
 }

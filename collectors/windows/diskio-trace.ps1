@@ -15,13 +15,16 @@
 #                     profile embedded below (NT Kernel Logger: DiskIO,
 #                     Filename, HardFaults, ProcessThread), file mode, under
 #                     its own WPR instance name, started and stopped by this
-#                     script within -DurationSeconds. The profile, the wpr
-#                     status text read right after the start, the tracerpt
-#                     summary of the saved trace (final events lost and
-#                     buffers lost) and a session record are the artifacts.
-#   diskio_aggregate  the saved trace read on the PC: the inbox tracerpt
-#                     dumps it to XML in the private folder, this script
-#                     aggregates the disk, hard fault, file name, process and
+#                     script within -DurationSeconds. One inbox tracerpt call
+#                     then reads the saved trace: it writes the summary
+#                     (final events lost and buffers lost) into the bundle
+#                     and the XML dump into the private folder, both named
+#                     on the command line, so tracerpt writes no file under
+#                     a default name anywhere else. The profile, the wpr
+#                     status text read right after the start, that summary
+#                     and a session record are the artifacts.
+#   diskio_aggregate  the dump of an observed trace read on the PC: this
+#                     script aggregates the disk, hard fault, file name, process and
 #                     thread events into rows per one second bin, process,
 #                     directory (fixed Windows roots and one level below them
 #                     readable, everything deeper a per run salted
@@ -124,7 +127,7 @@ param(
     # Cap on the aggregate and on the tracerpt summary, in bytes (1 MiB to 1 GiB).
     [long]$MaxArtifactBytes = 67108864,
     # Deadline for each long step (wpr -start, wpr -stop, the tracerpt
-    # summary, the tracerpt dump, reading the dump), in seconds (1 to 3600).
+    # read of the trace, reading the dump), in seconds (1 to 3600).
     # Status, profile enumeration and cancel calls have a fixed 30 second
     # deadline. The collector refuses to start when the worst case run time
     # exceeds the dispatcher's 900 second budget.
@@ -171,8 +174,8 @@ function Get-DiskIoShortTimeoutSeconds { return 30 }
 function Get-DiskIoDispatcherBudgetSeconds { return 900 }
 function Get-DiskIoKernelCollectorName { return 'NT Kernel Logger' }
 function Get-DiskIoWorstCaseSeconds {
-    # The longest a run can take: the recording, five long steps (wpr -start,
-    # wpr -stop, the tracerpt summary, the tracerpt dump, reading the dump),
+    # The longest a run can take: the recording, four long steps (wpr -start,
+    # wpr -stop, the tracerpt read of the trace, reading the dump),
     # five short calls outside the recording (the default instance status,
     # the profile enumeration, the status after the stop, the cancel and the
     # final status), and the time by which the status read after the start
@@ -180,7 +183,7 @@ function Get-DiskIoWorstCaseSeconds {
     param([int]$DurationSeconds, [int]$TimeoutSeconds)
     $short = Get-DiskIoShortTimeoutSeconds
     $statusOverrun = [math]::Max(0, $short - $DurationSeconds)
-    return ($DurationSeconds + $statusOverrun + 5 * $TimeoutSeconds + 5 * $short)
+    return ($DurationSeconds + $statusOverrun + 4 * $TimeoutSeconds + 5 * $short)
 }
 
 function Get-DiskIoProfileXml {
@@ -931,6 +934,7 @@ function Read-DiskIoDump {
     $counts = [ordered]@{ events = [int64]0; disk_read = [int64]0; disk_write = [int64]0; hard_fault = [int64]0; file_name = [int64]0; thread = [int64]0; process = [int64]0
         other = [int64]0; malformed = [int64]0; malformed_first = $null; before_start = [int64]0; unresolved_thread = [int64]0; unnamed_file = [int64]0; timed_out = $false }
     $threads = @{}
+    $firstThreads = @{}
     $processes = @{}
     $firstImages = @{}
     $names = @{}
@@ -971,6 +975,9 @@ function Read-DiskIoDump {
                 $tid = ConvertTo-DiskIoNumber -Text ([string]$data['TThreadId'])
                 $pidValue = ConvertTo-DiskIoNumber -Text ([string]$data['ProcessId'])
                 if ($null -eq $tid -or $null -eq $pidValue) { $counts.malformed += 1; if ($null -eq $counts.malformed_first) { $counts.malformed_first = ('event:{0} Thread event without TThreadId or ProcessId' -f $index) }; continue }
+                if (-not $firstThreads.ContainsKey([string]$tid)) {
+                    $firstThreads[[string]$tid] = @{ Pid = $pidValue; Image = $(if ($processes.ContainsKey([string]$pidValue)) { [string]$processes[[string]$pidValue] } else { $null }) }
+                }
                 $threads[[string]$tid] = $pidValue
                 $counts.thread += 1
                 continue
@@ -1031,21 +1038,22 @@ function Read-DiskIoDump {
     # FileRundown at the end of the session). A process id without a Process
     # event at the request's place takes the first image the trace gives
     # that id, which is the next one after the request; a thread without a
-    # Thread event takes the last process and image the trace gives it. Then
-    # build the rows.
+    # Thread event takes the first process the trace gives that thread id
+    # (an id cannot change hands before its End event) and the image that
+    # process had then. Then build the rows.
     $final = @{}
     $partsCache = @{}
     foreach ($group in $groups.Values) {
         $pidValue = $null
         $token = [string]$group['Process']
         if ($token.StartsWith('p:')) { $pidValue = [uint64]$token.Substring(2) }
-        elseif ($threads.ContainsKey($token.Substring(2))) { $pidValue = [uint64]$threads[$token.Substring(2)] }
+        elseif ($firstThreads.ContainsKey($token.Substring(2))) { $pidValue = [uint64]$firstThreads[$token.Substring(2)].Pid }
         else { $counts.unresolved_thread += [int64]$group['Operations'] }
         $rawImage = $null
         $imageToken = [string]$group['Image']
         if ($imageToken.StartsWith('i:')) { $rawImage = $imageToken.Substring(2) }
-        elseif ($null -ne $pidValue -and $token.StartsWith('p:') -and $firstImages.ContainsKey([string]$pidValue)) { $rawImage = [string]$firstImages[[string]$pidValue] }
-        elseif ($null -ne $pidValue -and $token.StartsWith('t:') -and $processes.ContainsKey([string]$pidValue)) { $rawImage = [string]$processes[[string]$pidValue] }
+        elseif ($null -ne $pidValue -and $token.StartsWith('t:') -and $null -ne $firstThreads[$token.Substring(2)].Image) { $rawImage = [string]$firstThreads[$token.Substring(2)].Image }
+        elseif ($null -ne $pidValue -and $firstImages.ContainsKey([string]$pidValue)) { $rawImage = [string]$firstImages[[string]$pidValue] }
         $image = $null
         if ($null -ne $rawImage) { $image = ConvertTo-DiskIoImageName -Image $rawImage -Salt $Salt }
         $fileToken = [string]$group['File']
@@ -1145,6 +1153,14 @@ $invokeWprTrace = {
     $etlPath = [System.IO.Path]::Combine($privateDir, 'trace.etl')
     $profilePath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/' + (Get-DiskIoProfileFileName))
     $summaryPath = Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/tracerpt-summary.txt')
+    # One tracerpt call writes the dump and the summary, as in Microsoft's
+    # example "tracerpt logfile.etl -o logdmp.xml -of XML -lr -summary
+    # logdmp.txt -report logrpt.xml"
+    # (https://learn.microsoft.com/windows-server/administration/windows-commands/tracerpt).
+    # The -o file is named and lies in the private folder: "-o [filename]
+    # ... The filename, if not specified, is dumpfile.xml" on that page, and
+    # a dump of this trace must never be written under a default name.
+    $readArguments = @($etlPath, '-o', [System.IO.Path]::Combine($privateDir, 'dump.xml'), '-of', 'XML', '-summary', $summaryPath, '-y')
     $started = Get-WfUtcNow
     $entry.started_utc = ConvertTo-WfUtcString -Value $started
     $instance = 'WfDiskIoTrace-' + (ConvertTo-WfCompactUtc -Value $started)
@@ -1175,6 +1191,7 @@ $invokeWprTrace = {
         concurrent_kernel_session_check = 'not_checked'
         start_arguments      = @($startArguments | ForEach-Object { & $recorded $_ })
         stop_arguments       = @($stopArguments | ForEach-Object { & $recorded $_ })
+        tracerpt_arguments   = @($readArguments | ForEach-Object { & $recorded $_ })
         session_started_utc  = $null
         session_stop_issued_utc = $null
         recording_seconds    = $null
@@ -1187,7 +1204,7 @@ $invokeWprTrace = {
         header               = $null
         status_after_start   = $null
         settings_verified    = $null
-        final                = [ordered]@{ events_lost = $null; buffers_lost = $null; events_processed = $null; source = 'tracerpt -summary of the saved trace'; events_lost_lines = 0; buffers_lost_lines = 0; events_processed_lines = 0; labelled_lines = 0; protection = $null }
+        final                = [ordered]@{ events_lost = $null; buffers_lost = $null; events_processed = $null; source = 'the summary written by the one tracerpt read of the saved trace'; events_lost_lines = 0; buffers_lost_lines = 0; events_processed_lines = 0; labelled_lines = 0; protection = $null }
         session_state_after_stop = $null
         session_state_final  = $null
         session_confirmed_stopped = $null
@@ -1270,7 +1287,7 @@ $invokeWprTrace = {
         $session.trace_sha256 = $traceSha
         $session.header = $header
         if ($traceOk -and $confirmed) {
-            $summaryRun = Invoke-DiskIoTool -Tool $session.tracerpt -Verb '' -Arguments @($etlPath, '-summary', $summaryPath, '-y') -TimeoutSeconds $TimeoutSeconds -Runs $runs -Log $Log -BundleRoot $BundleRoot -MaxBytes $MaxArtifactBytes
+            $summaryRun = Invoke-DiskIoTool -Tool $session.tracerpt -Verb '' -Arguments $readArguments -TimeoutSeconds $TimeoutSeconds -Runs $runs -Log $Log -BundleRoot $BundleRoot -MaxBytes $MaxArtifactBytes
             if ((Test-DiskIoRunOk -Run $summaryRun) -and (Test-Path -LiteralPath $summaryPath)) {
                 $summaryBytes = [int64](Get-Item -LiteralPath $summaryPath).Length
                 if ($summaryBytes -gt $MaxArtifactBytes) {
@@ -1385,7 +1402,7 @@ $invokeWprTrace = {
             session_state_final = $state.FinalState
             session_confirmed_stopped = $confirmed
         }
-        verified_by = 'keywords and buffer size from "wpr -status profiles collectors -details -instancename <name>" right after the start (status.txt); clock, PerfFreq, start, end and the header loss counters from the saved trace''s log file header (session.json header); final events lost and buffers lost from "tracerpt <trace> -summary" after the stop (tracerpt-summary.txt); the session end from "wpr -status -instancename <name>"'
+        verified_by = 'keywords and buffer size from "wpr -status profiles collectors -details -instancename <name>" right after the start (status.txt); clock, PerfFreq, start, end and the header loss counters from the saved trace''s log file header (session.json header); final events lost and buffers lost from the summary of "tracerpt <trace> -o <private dump> -of XML -summary <file> -y" after the stop (tracerpt-summary.txt); the session end from "wpr -status -instancename <name>"'
     }
     $entry.exit_code = $(if ($runs.Count -gt 0) { $runs[$runs.Count - 1].exit_code } else { $null })
     $entry.expectation = [ordered]@{
@@ -1401,6 +1418,7 @@ $invokeWprTrace = {
     $Context['TraceStatusReason'] = $entry.status_reason
     if ($traceOk -and $confirmed -and $entry.status -eq 'observed') {
         $Context['TraceEtl'] = $etlPath
+        $Context['TraceReadArguments'] = $readArguments
         $Context['TraceSha256'] = $traceSha
         $Context['TraceBytes'] = $traceBytes
         $Context['TraceHeader'] = $header
@@ -1438,15 +1456,13 @@ $invokeDiskIoAggregate = {
     $started = Get-WfUtcNow
     $entry.started_utc = ConvertTo-WfUtcString -Value $started
     $recorded = { param([string]$Text) return (ConvertTo-DiskIoRecordedText -Text $Text -BundleRoot $BundleRoot) }
-    $runs = New-Object 'System.Collections.Generic.List[object]'
     $readErrorKind = ''
     $readErrorMessage = ''
     $tracerpt = Get-WfTracerptPath
     $hasTrace = $Context.ContainsKey('TraceEtl') -and (Test-Path -LiteralPath ([string]$Context['TraceEtl']))
-    $etlPath = $(if ($hasTrace) { [string]$Context['TraceEtl'] } else { $null })
     $header = $(if ($Context.ContainsKey('TraceHeader')) { $Context['TraceHeader'] } else { $null })
     $dumpArguments = @()
-    if ($hasTrace) { $dumpArguments = @($etlPath, '-o', $dumpPath, '-of', 'XML', '-y') }
+    if ($hasTrace) { $dumpArguments = @($Context['TraceReadArguments']) }
     # The bundle's own directory without its drive letter, lower cased: a
     # file under it is the collector's own (the trace being written).
     $collectorPrefix = ($BundleRoot -replace '^[A-Za-z]:', '').TrimEnd('\', '/').Replace('/', '\').ToLowerInvariant()
@@ -1463,13 +1479,13 @@ $invokeDiskIoAggregate = {
         counts = $null; threads_named = $null; processes_named = $null; file_objects_named = $null
         rows = 0; totals = $null; bin_range = $null
         recording_and_dump_removed = $null; removal_error = $null
-        runs = $runs
     }
     try {
         $null = New-Item -ItemType Directory -Force -Path $dir
         $config = [ordered]@{
             tool                = $tracerpt
             arguments           = @($dumpArguments | ForEach-Object { & $recorded $_ })
+            dump_made_by        = 'the wpr_trace source, in its one tracerpt call (raw/wpr_trace/session.json, runs); this source starts no process and reads the dump only when that source is observed'
             dump_format         = 'XML, the documented event schema (one Event element per event; ExtendedTracingInfo/EventGuid for the event class, System/Opcode, System/TimeCreated/@SystemTime, EventData/Data/@Name)'
             event_classes       = [ordered]@{
                 DiskIo    = [ordered]@{ guid = (Get-DiskIoClassGuids).DiskIo; event_types = @(10, 11); fields = @('DiskNumber', 'IrpFlags', 'TransferSize', 'FileObject', 'HighResResponseTime', 'IssuingThreadId') }
@@ -1501,11 +1517,7 @@ $invokeDiskIoAggregate = {
             $readErrorMessage = 'no complete trace to aggregate: the wpr_trace source is ' + [string]$Context['TraceStatus'] + '; an aggregate is made only from a trace with zero loss whose end is confirmed, so none is presented as complete'
         }
         if (-not $readErrorKind) {
-            $dumpRun = Invoke-DiskIoTool -Tool $tracerpt -Verb '' -Arguments $dumpArguments -TimeoutSeconds $TimeoutSeconds -Runs $runs -Log $Log -BundleRoot $BundleRoot
-            if (-not (Test-DiskIoRunOk -Run $dumpRun)) {
-                $readErrorKind = $(if ([bool]$dumpRun['TimedOut']) { 'timeout' } else { 'other' })
-                $readErrorMessage = 'tracerpt could not dump the trace: ' + (& $recorded (Get-DiskIoRunFailure -Run $dumpRun -Tool $tracerpt))
-            } elseif (-not (Test-Path -LiteralPath $dumpPath)) {
+            if (-not (Test-Path -LiteralPath $dumpPath)) {
                 $readErrorKind = 'other'; $readErrorMessage = 'tracerpt exited 0 but wrote no dump'
             } else {
                 $dumpBytes = [int64](Get-Item -LiteralPath $dumpPath).Length
@@ -1606,7 +1618,7 @@ $invokeDiskIoAggregate = {
     }
     $result.stopped_utc = ConvertTo-WfUtcString -Value $stopped
     Write-WfJsonFile -Path (Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/result.json')) -Object $result
-    $entry.exit_code = $(if ($runs.Count -gt 0) { $runs[$runs.Count - 1].exit_code } else { $null })
+    $entry.exit_code = $null
     $entry.enabled = [ordered]@{
         providers = @(); keywords = @(); stack_walk = @(); counters = @()
         options   = [ordered]@{
@@ -1680,7 +1692,7 @@ $definition = @{
             Invoke          = $invokeWprTrace
             DurationSeconds = $DurationSeconds
             MaxTraceBytes   = $MaxTraceBytes
-            Expectation     = 'wpr starts the profile under the collector''s own instance name, lists the kernel collector with DiskIO, Filename, HardFaults and ProcessThread and a readable loss figure, records for the requested duration, saves a non empty trace within the cap whose header names the performance counter clock, an end time and no loss, reads as idle after the stop, and tracerpt reports zero events lost and zero buffers lost'
+            Expectation     = 'wpr starts the profile under the collector''s own instance name, lists the kernel collector with DiskIO, Filename, HardFaults and ProcessThread and a readable loss figure, records for the requested duration, saves a non empty trace within the cap whose header names the performance counter clock, an end time and no loss, reads as idle after the stop, and the one tracerpt call that writes the dump into the private folder and the summary reports zero events lost and zero buffers lost'
         },
         @{
             Id           = 'diskio_aggregate'
@@ -1688,7 +1700,7 @@ $definition = @{
             Required     = $true
             Invoke       = $invokeDiskIoAggregate
             MaxDumpBytes = $MaxDumpBytes
-            Expectation  = 'tracerpt dumps the observed trace to XML within the cap, the dump holds exactly the events the summary says were processed, every disk, hard fault, file name, thread and process event reads whole, at least one disk request is recognised, the aggregate fits the cap, and the trace and the dump are deleted and seen gone (when they are not, both sources are capture_failed and the run is failed)'
+            Expectation  = 'the XML dump tracerpt made of the observed trace is there and within the cap, the dump holds exactly the events the summary says were processed, every disk, hard fault, file name, thread and process event reads whole, at least one disk request is recognised, the aggregate fits the cap, and the trace and the dump are deleted and seen gone (when they are not, both sources are capture_failed and the run is failed)'
         }
     )
 }
