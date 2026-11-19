@@ -40,7 +40,8 @@ function Get-WfRunnerReadySeconds { return 60 }
 #   Rights      none | event_log_readers | administrator |
 #               administrator_or_performance_log_users
 #   DiskCaps    how many artifact caps (-MaxArtifactBytes) it can write
-#   DiskExtra   bytes it can hold beyond them while it runs (a temporary trace)
+#   DiskExtra   bytes it can hold beyond them while it runs (a temporary trace),
+#               given the artifact cap
 #   Tools       operator supplied tools: the runner parameter that names the
 #               path, the source that needs it, and the pin to check
 #   ReadyFile   for a collector that runs in the background, the file whose
@@ -53,14 +54,14 @@ function Get-WfRunnerReadySeconds { return 60 }
 function Get-WfCollectorRegistry {
     return @(
         [ordered]@{
-            Name = 'clock-calibration'; Rights = 'none'; DiskCaps = 2; DiskExtra = [int64]0; Tools = @()
+            Name = 'clock-calibration'; Rights = 'none'; DiskCaps = 2; DiskExtra = { return [int64]0 }; Tools = @()
             Sources = @([ordered]@{ Id = 'clock_calibration'; Kind = 'clock'; Required = $true }, [ordered]@{ Id = 'operator_marks'; Kind = 'other'; Required = $false })
             ReadyFile = 'raw/operator_marks/marks.open.jsonl'; Session = $null
             # clock-calibration.ps1 hands the helper a deadline of the duration plus 60 seconds.
             WorstCase = { param($A) return ([int]$A['DurationSeconds'] + 60) }
         },
         [ordered]@{
-            Name = 'dpcisr-trace'; Rights = 'administrator'; DiskCaps = 2; DiskExtra = [int64]2147483648
+            Name = 'dpcisr-trace'; Rights = 'administrator'; DiskCaps = 2; DiskExtra = { return [int64]2147483648 }
             Tools = @([ordered]@{ Tool = 'xperf'; Parameter = 'XperfPath'; Source = 'dpcisr_report' })
             Sources = @([ordered]@{ Id = 'wpr_trace'; Kind = 'wpr'; Required = $true }, [ordered]@{ Id = 'dpcisr_report'; Kind = 'xperf'; Required = $false })
             ReadyFile = $null
@@ -71,7 +72,9 @@ function Get-WfCollectorRegistry {
             WorstCase = { param($A) $d = [int]$A['DurationSeconds']; return ($d + [math]::Max(0, 30 - $d) + 4 * 120 + 5 * 30) }
         },
         [ordered]@{
-            Name = 'presentmon-frames'; Rights = 'administrator_or_performance_log_users'; DiskCaps = 2; DiskExtra = [int64]0
+            Name = 'presentmon-frames'; Rights = 'administrator_or_performance_log_users'; DiskCaps = 2
+            # The collector's own disk_budget.peak_bytes_bound, less the two caps counted above.
+            DiskExtra = { param($Max) return ((Get-WfPresentMonPeakBytesBound -MaxArtifactBytes $Max) - 2 * [int64]$Max) }
             Tools = @([ordered]@{ Tool = 'presentmon'; Parameter = 'PresentMonPath'; Source = 'presentmon_frames' })
             Sources = @([ordered]@{ Id = 'presentmon_frames'; Kind = 'presentmon'; Required = $true })
             ReadyFile = $null
@@ -80,32 +83,32 @@ function Get-WfCollectorRegistry {
             WorstCase = { param($A) return (4 * (Get-WfPresentMonStatusDeadline) + 3 * (Get-WfPresentMonCancelDeadline) + (Get-WfPresentMonStartDeadline) + [int]$A['DurationSeconds'] + (Get-WfPresentMonStopDeadline) + (Get-WfPresentMonDecodeDeadline)) }
         },
         [ordered]@{
-            Name = 'bugcheck-history'; Rights = 'event_log_readers'; DiskCaps = 2; DiskExtra = [int64]0; Tools = @(); ReadyFile = $null; Session = $null
+            Name = 'bugcheck-history'; Rights = 'event_log_readers'; DiskCaps = 2; DiskExtra = { return [int64]0 }; Tools = @(); ReadyFile = $null; Session = $null
             Sources = @([ordered]@{ Id = 'system_restart_events'; Kind = 'eventlog'; Required = $true })
             WorstCase = { return 300 }
         },
         [ordered]@{
-            Name = 'whea-errors'; Rights = 'event_log_readers'; DiskCaps = 2; DiskExtra = [int64]0; Tools = @(); ReadyFile = $null; Session = $null
+            Name = 'whea-errors'; Rights = 'event_log_readers'; DiskCaps = 2; DiskExtra = { return [int64]0 }; Tools = @(); ReadyFile = $null; Session = $null
             Sources = @([ordered]@{ Id = 'system_whea_events'; Kind = 'eventlog'; Required = $true })
             WorstCase = { return 300 }
         },
         [ordered]@{
-            Name = 'application-errors'; Rights = 'event_log_readers'; DiskCaps = 2; DiskExtra = [int64]0; Tools = @(); ReadyFile = $null; Session = $null
+            Name = 'application-errors'; Rights = 'event_log_readers'; DiskCaps = 2; DiskExtra = { return [int64]0 }; Tools = @(); ReadyFile = $null; Session = $null
             Sources = @([ordered]@{ Id = 'application_error_events'; Kind = 'eventlog'; Required = $true })
             WorstCase = { return 300 }
         },
         [ordered]@{
-            Name = 'tdr-events'; Rights = 'event_log_readers'; DiskCaps = 4; DiskExtra = [int64]0; Tools = @(); ReadyFile = $null; Session = $null
+            Name = 'tdr-events'; Rights = 'event_log_readers'; DiskCaps = 4; DiskExtra = { return [int64]0 }; Tools = @(); ReadyFile = $null; Session = $null
             Sources = @([ordered]@{ Id = 'system_display_events'; Kind = 'eventlog'; Required = $false }, [ordered]@{ Id = 'system_bugcheck_events'; Kind = 'eventlog'; Required = $true })
             WorstCase = { return 600 }
         },
         [ordered]@{
-            Name = 'reliability-records'; Rights = 'none'; DiskCaps = 2; DiskExtra = [int64]0; Tools = @(); ReadyFile = $null; Session = $null
+            Name = 'reliability-records'; Rights = 'none'; DiskCaps = 2; DiskExtra = { return [int64]0 }; Tools = @(); ReadyFile = $null; Session = $null
             Sources = @([ordered]@{ Id = 'reliability_records'; Kind = 'other'; Required = $true }, [ordered]@{ Id = 'reliability_stability_metrics'; Kind = 'other'; Required = $false })
             WorstCase = { return 600 }
         },
         [ordered]@{
-            Name = 'driver-inventory'; Rights = 'none'; DiskCaps = 2; DiskExtra = [int64]0; Tools = @(); ReadyFile = $null; Session = $null
+            Name = 'driver-inventory'; Rights = 'none'; DiskCaps = 2; DiskExtra = { return [int64]0 }; Tools = @(); ReadyFile = $null; Session = $null
             Sources = @([ordered]@{ Id = 'pnp_signed_drivers'; Kind = 'config_snapshot'; Required = $true }, [ordered]@{ Id = 'system_drivers'; Kind = 'config_snapshot'; Required = $true })
             WorstCase = { return 600 }
         },
@@ -114,7 +117,7 @@ function Get-WfCollectorRegistry {
         # the step is recorded as absent. Registering it is this entry: its
         # sources and rights once it lands.
         [ordered]@{
-            Name = 'config-snapshot'; Rights = 'none'; DiskCaps = 0; DiskExtra = [int64]0; Tools = @(); ReadyFile = $null; Session = $null
+            Name = 'config-snapshot'; Rights = 'none'; DiskCaps = 0; DiskExtra = { return [int64]0 }; Tools = @(); ReadyFile = $null; Session = $null
             Sources = @()
             WorstCase = { return 900 }
         }
@@ -260,7 +263,7 @@ function Invoke-WfScenarioPreflight {
     foreach ($step in @($Plan['Steps'])) {
         if ($step['Absent']) { continue }
         $entry = $step['Entry']
-        $minimum += [int64]$entry['DiskCaps'] * $MaxArtifactBytes + [int64]$entry['DiskExtra']
+        $minimum += [int64]$entry['DiskCaps'] * $MaxArtifactBytes + [int64](& $entry['DiskExtra'] $MaxArtifactBytes)
         $scriptOk = (Test-Path -LiteralPath $step['ScriptPath'] -PathType Leaf)
         & $add ('script:' + $step['Step']) $scriptOk ($step['Collector'] + '.ps1 beside the runner') ([bool]$step['Required'])
         $rightsOk = Test-WfRights -Rights $entry['Rights'] -Account $Account
@@ -321,8 +324,8 @@ function Invoke-WfScenarioPreflight {
 
 # ---------------------------------------------------------------------------
 # One step: start the collector as its own process, wait for it within the
-# runner's deadline, and after a stop at the deadline remove what it kept
-# privately and end its live session by the shared end check.
+# runner's deadline, and after a stop at the deadline end its live session
+# by the shared end check, then remove what it kept privately.
 # ---------------------------------------------------------------------------
 function New-WfStepRecord {
     param([System.Collections.IDictionary]$Step)
@@ -420,18 +423,24 @@ function Complete-WfScenarioStep {
     $Log.Add(('{0} step {1}: {2}, exit code {3}, status {4}' -f $Record.stopped_utc, $Step['Step'], $Record.outcome, $Record.exit_code, $Record.summary_status))
     if ($Record.outcome -ne 'completed') {
         # A collector that did not finish leaves nothing the runner can vouch
-        # for: its raw and private folders are removed (a partial recording
-        # or kernel trace can carry hardware and network addresses), and a
-        # live session it may have left is ended by the shared end check.
-        $Record.private_removed = $true
-        foreach ($relative in @('raw', 'private')) {
-            $leftover = Join-WfBundlePath -BundleRoot $Step['StepRoot'] -RelativePath $relative
-            if (Test-Path -LiteralPath $leftover) {
-                try { Remove-Item -LiteralPath $leftover -Recurse -Force -ErrorAction Stop } catch { $Record.private_removed = $false; $Log.Add(('step {0}: {1} could not be removed: {2}' -f $Step['Step'], $relative, $_.Exception.Message)) }
-            }
-        }
+        # for. A live session it may have left is ended first by the shared
+        # end check (Windows does not delete a file a recording still
+        # writes), then its raw and private folders are removed (a partial
+        # recording or kernel trace can carry hardware and network addresses).
         $session = $Step['Entry']['Session']
         if ($null -ne $session -and $Record.outcome -ne 'start_failed') { $Record.session_end = Invoke-WfScenarioSessionEnd -Session $session -Log $Log }
+        Remove-WfScenarioStepLeftovers -Step $Step -Record $Record -Log $Log
+    }
+}
+
+function Remove-WfScenarioStepLeftovers {
+    param([System.Collections.IDictionary]$Step, [System.Collections.IDictionary]$Record, [System.Collections.Generic.List[string]]$Log)
+    $Record.private_removed = $true
+    foreach ($relative in @('raw', 'private')) {
+        $leftover = Join-WfBundlePath -BundleRoot $Step['StepRoot'] -RelativePath $relative
+        if (Test-Path -LiteralPath $leftover) {
+            try { Remove-Item -LiteralPath $leftover -Recurse -Force -ErrorAction Stop } catch { $Record.private_removed = $false; $Log.Add(('step {0}: {1} could not be removed: {2}' -f $Step['Step'], $relative, $_.Exception.Message)) }
+        }
     }
 }
 
@@ -498,7 +507,11 @@ function Merge-WfScenarioStep {
     $manifest = $null
     if ($Record.outcome -eq 'completed') {
         try { $manifest = Read-WfJsonFile -Path (Join-WfBundlePath -BundleRoot $Step['StepRoot'] -RelativePath 'manifest.json') }
-        catch { $Record.outcome = 'no_manifest'; $Record.detail = 'the collector''s manifest could not be read: ' + $_.Exception.Message }
+        catch {
+            $Record.outcome = 'no_manifest'
+            $Record.detail = 'the collector''s manifest could not be read: ' + $_.Exception.Message
+            Remove-WfScenarioStepLeftovers -Step $Step -Record $Record -Log $Log
+        }
     }
     $Step['Manifest'] = $manifest
     if ($null -eq $manifest) {

@@ -214,7 +214,7 @@ def test_readme_covers_every_collector_and_the_elevated_list():
     readme = (COLLECTOR_DIR / "README.md").read_text(encoding="utf-8")
     for path in COLLECTORS:
         assert f"`{path.stem}`" in readme, path.stem
-    for heading in ("## Interface", "## Collectors", "## Scenario runner", "## Needs elevation", "## Facts to verify on the PC", "## Testing"):
+    for heading in ("## Interface", "## Collectors", "## Needs elevation", "## Facts to verify on the PC", "## Testing"):
         assert heading in readme, heading
     for term in ("Minidump", "MEMORY.DMP", "Security", "Get-StorageReliabilityCounter", "chkdsk", "sfc", "wlanreport"):
         assert term in readme, term

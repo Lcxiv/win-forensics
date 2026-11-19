@@ -4141,6 +4141,20 @@ function Get-WfPresentMonDecodeDeadline { return 240 }
 function Get-WfPresentMonCancelDeadline { return 60 }
 # Cap on what a program may print on a console stream that is not the CSV.
 function Get-WfPresentMonConsoleCapBytes { return [int64]1048576 }
+function Get-WfPresentMonSessionCapMb {
+    # The profile's MaximumFileSize: three quarters of the artifact cap in
+    # whole megabytes, at least 1, so that the merged file (the session file
+    # plus what WPR's -stop adds) has room to stay under the artifact cap.
+    param([int64]$MaxArtifactBytes)
+    return [int][math]::Max(1, [math]::Floor($MaxArtifactBytes * 0.75 / 1048576.0))
+}
+function Get-WfPresentMonPeakBytesBound {
+    # The most the collector can hold on disk at once: the session file, the
+    # merged file, the CSV and two console streams. The scenario runner's
+    # free space minimum uses the same figure.
+    param([int64]$MaxArtifactBytes)
+    return ([int64](Get-WfPresentMonSessionCapMb -MaxArtifactBytes $MaxArtifactBytes) * 1048576 + 2 * $MaxArtifactBytes + 2 * (Get-WfPresentMonConsoleCapBytes))
+}
 # A process name: letters, digits, dot, underscore and hyphen, not starting
 # with a hyphen, so it can never read as an option.
 function Get-WfPresentMonProcessNamePattern { return '^[A-Za-z0-9._][A-Za-z0-9._-]{0,119}$' }

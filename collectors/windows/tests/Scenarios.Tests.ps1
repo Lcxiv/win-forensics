@@ -345,10 +345,11 @@ Describe 'the scenario runner' {
         $run.Children | Should -Contain 'driver-inventory'
     }
 
-    It 'stops a frame recording collector at its deadline, removes what it left, and cancels its named recording' {
+    It 'stops a frame recording collector at its deadline, cancels its named recording, and only then removes what it left' {
         $global:WfSynthetic.Children['presentmon-frames'] = @{ Case = 'presentmon-frames'; Stuck = $true; Leftovers = @('raw/presentmon_frames/trace.etl', 'raw/presentmon_frames/wpr-temp/a.etl') }
         Set-WfSyntheticWprState -Instance (Get-WfPresentMonInstanceName) -State 'recording'
         $global:WfSynthetic.Processes.Clear()
+        $global:WfSynthetic.WatchPath = Join-Path $script:out 'logs/steps/frames/raw'
         $run = Invoke-TestRun -OutputDirectory $script:out
         $run.ExitCode | Should -Be 1
         $step = Get-TestStep $run.Manifest 'frames'
@@ -360,6 +361,8 @@ Describe 'the scenario runner' {
         Test-Path -LiteralPath (Join-Path $script:out 'logs/steps/frames/raw') | Should -BeFalse
         $calls = @($global:WfSynthetic.Processes | ForEach-Object { $_['Arguments'] })
         $calls | Should -Be @('-status -instancename wf-presentmon-frames', '-cancel -instancename wf-presentmon-frames', '-status -instancename wf-presentmon-frames')
+        # A recording still being written cannot be deleted, so the folder is still there at every wpr call.
+        @($global:WfSynthetic.Processes | ForEach-Object { $_['WatchedPathExists'] }) | Should -Be @($true, $true, $true)
         (Get-TestEntry $run.Manifest 'presentmon_frames')['status_reason'] | Should -Match 'timed_out'
     }
 
@@ -385,6 +388,36 @@ Describe 'the scenario runner' {
         $step['session_end']['checked'] | Should -BeFalse
         $step['session_end']['detail'] | Should -Match 'WfDpcIsrTrace-'
         @($global:WfSynthetic.Processes | Where-Object { $_['FilePath'] -like '*wpr.exe' }).Count | Should -Be 0
+    }
+
+    It 'removes the raw and private folders of a finished step whose manifest cannot be read' {
+        $stepRoot = Join-Path $TestDrive 'unreadable/logs/steps/frames'
+        foreach ($relative in @('raw/presentmon_frames/frames.csv', 'private/trace.etl')) {
+            $path = Join-Path $stepRoot $relative
+            $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path)
+            [System.IO.File]::WriteAllText($path, 'synthetic leftover')
+        }
+        [System.IO.File]::WriteAllText((Join-Path $stepRoot 'manifest.json'), '{ "collectors": [')
+        $step = @{ Step = 'frames'; Collector = 'presentmon-frames'; Prefix = ''; Required = $true; StepRoot = $stepRoot; Entry = (Get-WfRegistryEntry -Name 'presentmon-frames') }
+        $record = [ordered]@{ outcome = 'completed'; detail = $null; private_removed = $null }
+        $entries = New-Object 'System.Collections.Generic.List[object]'
+        $seen = New-Object 'System.Collections.Generic.HashSet[string]'
+        $log = New-Object 'System.Collections.Generic.List[string]'
+        Merge-WfScenarioStep -Step $step -Record $record -BundleRoot (Join-Path $TestDrive 'unreadable') -Entries $entries -Seen $seen -Log $log
+        $record.outcome | Should -BeExactly 'no_manifest'
+        $record.private_removed | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $stepRoot 'raw') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $stepRoot 'private') | Should -BeFalse
+        $entries.Count | Should -Be 1
+        $entries[0].status | Should -BeExactly 'not_collected'
+        $entries[0].status_reason | Should -Match 'manifest could not be read'
+    }
+
+    It 'holds the frame recording step to the peak the collector states for itself' {
+        $extra = & (Get-WfRegistryEntry -Name 'presentmon-frames')['DiskExtra'] ([int64]67108864)
+        (2 * [int64]67108864 + $extra) | Should -Be (Get-WfPresentMonPeakBytesBound -MaxArtifactBytes 67108864)
+        $run = Invoke-TestRun -OutputDirectory $script:out
+        $run.Manifest['run']['minimum_free_bytes'] | Should -Be 3542089728
     }
 
     It 'fails the run when a required capture lost events, and keeps what the collector said' {

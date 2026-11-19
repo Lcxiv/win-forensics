@@ -754,7 +754,7 @@
       {
         "name": "free_space",
         "ok": true,
-        "detail": "500000000000 bytes free on C:\\; the scenario needs at least 3489660928"
+        "detail": "500000000000 bytes free on C:\\; the scenario needs at least 3542089728"
       },
       {
         "name": "tool:xperf",
@@ -772,7 +772,7 @@
     "runner_version": "1.0.0",
     "scenario": "s1",
     "scenario_version": "1.0.0",
-    "minimum_free_bytes": 3489660928,
+    "minimum_free_bytes": 3542089728,
     "clock_brackets_live": null,
     "steps": [
       {

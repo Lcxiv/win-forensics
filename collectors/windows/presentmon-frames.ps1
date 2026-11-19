@@ -122,14 +122,6 @@ if (-not $OutputDirectory -or -not (Test-Path -LiteralPath $common)) {
 # PresentMon binary are in the helper (_common.ps1, "PresentMon pin"), where
 # the scenario runner's preflight reads them too.
 
-function Get-WfPresentMonSessionCapMb {
-    # The profile's MaximumFileSize: three quarters of the artifact cap in
-    # whole megabytes, at least 1, so that the merged file (the session file
-    # plus what WPR's -stop adds) has room to stay under the artifact cap.
-    param([int64]$MaxArtifactBytes)
-    return [int][math]::Max(1, [math]::Floor($MaxArtifactBytes * 0.75 / 1048576.0))
-}
-
 function Get-WfPresentMonProviders {
     # The providers PresentMon 2.6.0 enables for the console application's
     # default options, from PresentData/PresentMonTraceSession.cpp
@@ -728,7 +720,7 @@ function Invoke-WfPresentMonFramesSource {
                 merged_file_max_bytes       = $MaxArtifactBytes
                 csv_max_bytes               = $MaxArtifactBytes
                 console_max_bytes_per_stream = $consoleCap
-                peak_bytes_bound            = [int64]$sessionCapMb * 1048576 + 2 * $MaxArtifactBytes + 2 * $consoleCap
+                peak_bytes_bound            = Get-WfPresentMonPeakBytesBound -MaxArtifactBytes $MaxArtifactBytes
                 note                        = 'the session stops at session_file_max_bytes (MaximumFileSize, sequential); the merged file is checked against merged_file_max_bytes and deleted either way; the CSV is captured under csv_max_bytes by the process runner, which stops PresentMon at the cap; the merge temp folder is removed on every path. The peak is bounded by the session file plus the merged file plus the CSV plus two console streams (peak_bytes_bound), and ETW keeps 200 MB free on the system drive'
             }
             option_citations       = [ordered]@{

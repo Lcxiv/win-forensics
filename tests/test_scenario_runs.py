@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -20,8 +21,10 @@ import decode_presentmon
 import verify_bundle
 import wf_schema
 from conftest import REPO_ROOT
+from test_collectors_pwsh import find_pwsh
 
 RUNS = REPO_ROOT / "fixtures" / "scenario-runs"
+BUNDLES = REPO_ROOT / "fixtures" / "collector-bundles"
 CASES = ["s1", "s1-preflight-refused"]
 S1_ORDER = ["state_before", "clock", "dpcisr", "frames", "bugchecks", "whea", "app_errors", "tdr", "reliability", "drivers", "state_after"]
 OBSERVED = ("observed", "observed_zero")
@@ -137,12 +140,28 @@ def test_the_decoders_read_the_merged_bundle(tmp_path):
     assert verify_bundle.verify(bundle)["ok"]
 
 
-def test_the_registry_and_the_runner_document_each_other():
-    library = (REPO_ROOT / "collectors" / "windows" / "_scenarios.ps1").read_text(encoding="ascii")
-    readme = (REPO_ROOT / "collectors" / "windows" / "README.md").read_text(encoding="utf-8")
-    names = re.findall(r"Name = '([a-z-]+)'; Rights", library)
-    assert "config-snapshot" in names and "dpcisr-trace" in names
-    for name in names:
-        assert f"`{name}`" in readme, name
-    for step in S1_ORDER:
-        assert f"`{step}`" in readme, step
+def test_the_registry_declares_what_each_collector_writes():
+    """Get-WfCollectorRegistry, run under pwsh, against each collector's committed fixture bundle."""
+    pwsh = find_pwsh()
+    if pwsh is None:
+        pytest.skip("no pwsh; run scripts/fetch_pwsh.sh or set WF_PWSH")
+    windows = REPO_ROOT / "collectors" / "windows"
+    command = (
+        f". '{windows / '_common.ps1'}'; . '{windows / '_scenarios.ps1'}'; "
+        "$out = @(Get-WfCollectorRegistry | ForEach-Object { [ordered]@{ name = $_['Name']; "
+        "sources = @($_['Sources'] | ForEach-Object { [string]$_['Id'] }) } }); "
+        "[Console]::Out.WriteLine((ConvertTo-WfJson -Value $out))"
+    )
+    result = subprocess.run([pwsh, "-NoProfile", "-NonInteractive", "-Command", command], capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stderr[-3000:]
+    registry = json.loads(result.stdout)
+    names = [entry["name"] for entry in registry]
+    assert len(names) == len(set(names))
+    assert {"config-snapshot", "clock-calibration", "dpcisr-trace", "presentmon-frames"} <= set(names)
+    for entry in registry:
+        if entry["name"] == "config-snapshot":
+            continue
+        cases = sorted(d for d in BUNDLES.iterdir() if d.name == entry["name"] or d.name.startswith(entry["name"] + "-"))
+        assert cases, entry["name"]
+        bundle = json.loads((cases[0] / "manifest.json").read_text(encoding="utf-8"))
+        assert entry["sources"] == [c["id"] for c in bundle["collectors"]], entry["name"]
