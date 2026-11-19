@@ -10,6 +10,7 @@ import json
 import re
 import shutil
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 import pytest
 
@@ -187,7 +188,15 @@ def test_status_and_evidence_stay_separate(case):
             assert options["timeout_seconds"] == (80 if case.startswith("rf-survey") else 300)
             assert options["window_end_utc"] > options["window_start_utc"]
             query = (BUNDLES / case / "raw" / collector["id"] / "query.xml").read_text(encoding="utf-8")
-            assert "timediff(@SystemTime, " in query and "timediff(@SystemTime)" not in query, "the interval is fixed, not relative to now"
+            # The interval is fixed, not relative to now, and it is written as two @SystemTime comparisons:
+            # the gaming PC rejected timediff(@SystemTime, <FILETIME>) at the first read (collectors/windows/README.md, item 35).
+            assert "timediff" not in query, "the numeric timediff form fails on the PC at the first read"
+            for select in ET.fromstring(query).iter("Select"):
+                bound = re.search(r"TimeCreated\[@SystemTime >= '([^']+)' and @SystemTime <= '([^']+)'\]", select.text)
+                assert bound, select.text
+                for literal, recorded in zip(bound.groups(), (options["window_start_utc"], options["window_end_utc"])):
+                    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z", literal), literal
+                    assert literal[:-1] + "0000Z" == recorded, (literal, recorded)
             if collector["raw_time_range"] is not None:
                 assert collector["raw_time_range"]["end"] == options["window_end_utc"]
         elif collector["command"][0] == "Get-CimInstance" and "Win32_PnPEntity" not in collector["command"]:

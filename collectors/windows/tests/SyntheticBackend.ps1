@@ -18,6 +18,8 @@
 #              Throws = <message, the read fails after opening>;
 #              Stuck = $true (the reader never returns a record before the deadline);
 #              ConvertThrows = <message, every record fails to convert> }
+#              Only the events whose time_created_utc lies inside the query's
+#              TimeCreated bound are returned, as the real engine would.
 #   Cim        class name -> @{ Rows = <list> } or @{ ErrorKind; ErrorMessage }
 #              or @{ Rows; Stuck = $true } (the provider does not answer before the timeout)
 #              or @{ Rows; Infinite = $true } (the provider never stops producing)
@@ -155,6 +157,30 @@ function New-WfSyntheticPull {
     }.GetNewClosure()
 }
 
+function Test-WfSyntheticNumericTimediff {
+    # True when the query carries timediff(@SystemTime, <number>), the form the
+    # gaming PC rejected at the first read.
+    param([string]$QueryXml)
+    return [bool]([regex]::IsMatch($QueryXml, 'timediff\(\s*@SystemTime\s*,\s*\d'))
+}
+
+function Get-WfSyntheticQueryBound {
+    # The inclusive [start, end] a Select's TimeCreated test names, read from
+    # the escaped query text, or $null when the query has no such bound.
+    param([string]$QueryXml)
+    $m = [regex]::Match($QueryXml, "@SystemTime &gt;= '([^']+)' and @SystemTime &lt;= '([^']+)'")
+    if (-not $m.Success) { $m = [regex]::Match($QueryXml, '@SystemTime &gt;= &apos;([^&]+)&apos; and @SystemTime &lt;= &apos;([^&]+)&apos;') }
+    if (-not $m.Success) { return $null }
+    return @{ Start = (ConvertFrom-WfUtcString -Text $m.Groups[1].Value); End = (ConvertFrom-WfUtcString -Text $m.Groups[2].Value) }
+}
+
+function Test-WfSyntheticInsideBound {
+    param($Event, $Bound)
+    if ($null -eq $Bound) { return $true }
+    $when = ConvertFrom-WfUtcString -Text ([string]$Event['time_created_utc'])
+    return ($when -ge $Bound['Start'] -and $when -le $Bound['End'])
+}
+
 # --- adapter replacements ---------------------------------------------------
 
 function Get-WfUtcNow {
@@ -233,14 +259,35 @@ function Open-WfEventReader {
         $result.Ok = $true
         return $result
     }
+    if (Test-WfSyntheticNumericTimediff -QueryXml $QueryXml) {
+        # What the gaming PC did on 2026-11-18 (Windows 11 Pro 25H2 build 26200,
+        # Windows PowerShell 5.1.26100): EventLogQuery and EventLogReader accepted a query
+        # with timediff(@SystemTime, <FILETIME number>) and the first
+        # ReadEvent threw EventLogInvalidDataException, "The data is invalid",
+        # before any record, on every channel. Reported by the PC session, not
+        # reproduced here; collectors/windows/README.md, verification item 35.
+        # Modelled so that the suite fails if a query ever carries that form again.
+        $result.ReadNext = { param([timespan]$Remaining) throw 'Exception calling "ReadEvent" with "1" argument(s): "The data is invalid"' }
+        $result.Ok = $true
+        return $result
+    }
+    $bound = Get-WfSyntheticQueryBound -QueryXml $QueryXml
+    if ($null -eq $bound -and $QueryXml.Contains('TimeCreated[')) {
+        # A time test the stand-in cannot read must not become "every event":
+        # the stand-in fails closed, like the code under test.
+        $result.ReadNext = { param([timespan]$Remaining) throw 'synthetic backend: the query carries a TimeCreated test whose bound the stand-in cannot parse' }
+        $result.Ok = $true
+        return $result
+    }
     foreach ($query in $global:WfSynthetic.Queries) {
         if (-not $QueryXml.Contains([string]$query['Match'])) { continue }
         if ($query['Throws']) {
             $message = [string]$query['Throws']
             $result.ReadNext = { param([timespan]$Remaining) throw $message }.GetNewClosure()
         } else {
-            # Newest first, like the real reader in reverse direction.
-            $events = @(@($query['Events']) | Sort-Object -Property { $_['time_created_utc'] } -Descending)
+            # Only the records inside the query's time bound, newest first,
+            # like the real reader in reverse direction.
+            $events = @(@($query['Events']) | Where-Object { Test-WfSyntheticInsideBound -Event $_ -Bound $bound } | Sort-Object -Property { $_['time_created_utc'] } -Descending)
             $result.ReadNext = New-WfSyntheticPull -Items $events -Stuck ([bool]$query['Stuck'])
         }
         if ($query['ConvertThrows']) {

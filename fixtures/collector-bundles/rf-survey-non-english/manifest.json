@@ -895,7 +895,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "bf8b8b3902d0b48e954c0cbcfa4148574ba5e2a88c6ab0419bd9d97b0007bbab"
+        "value": "8507d5d63f28302fa88feb930c18e4a863ab2ca08713724ce7edf678bae4770e"
       },
       "filter_hash": null,
       "requested": {
@@ -914,7 +914,7 @@
           "max_events": 5000,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 80,
-          "query_sha256": "bf8b8b3902d0b48e954c0cbcfa4148574ba5e2a88c6ab0419bd9d97b0007bbab"
+          "query_sha256": "8507d5d63f28302fa88feb930c18e4a863ab2ca08713724ce7edf678bae4770e"
         }
       },
       "enabled": {
@@ -958,8 +958,8 @@
         },
         {
           "path": "raw/wlan_autoconfig_events/query.xml",
-          "bytes": 383,
-          "sha256": "bf8b8b3902d0b48e954c0cbcfa4148574ba5e2a88c6ab0419bd9d97b0007bbab",
+          "bytes": 354,
+          "sha256": "8507d5d63f28302fa88feb930c18e4a863ab2ca08713724ce7edf678bae4770e",
           "role": "config"
         }
       ],
