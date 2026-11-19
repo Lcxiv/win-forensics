@@ -99,6 +99,7 @@ function Get-KcdCrashControlPath { return 'SYSTEM\CurrentControlSet\Control\Cras
 function Get-KcdAlternateDump2Key { return 61 }
 function Get-KcdLearnUrl { return 'https://learn.microsoft.com/windows-hardware/drivers/debugger/forcing-a-system-crash-from-the-keyboard' }
 function Get-KcdFolderPattern { return '^\d{8}T\d{6}Z-(apply|undo)$' }
+function Get-KcdWritesBegunName { return 'writes-begun.txt' }
 
 function Get-KcdDump1KeysNames {
     # The documented first key bitmap.
@@ -381,7 +382,7 @@ function Get-KcdPreconditions {
         }
     }
     if ($Mode -eq 'alternate') {
-        $checks.Add((New-KcdCheck -Ok $true -Text ('-Dump1Keys 0x' + $Dump1Keys.ToString('x2') + ' is in Microsoft''s documented table')))
+        $checks.Add((New-KcdCheck -Ok $true -Text ('-Dump1Keys 0x' + $Dump1Keys.ToString('x2') + ' is a combination of Microsoft''s documented first keys')))
     }
     return , $checks.ToArray()
 }
@@ -573,14 +574,31 @@ function Get-KcdEvidenceFolders {
     return , $names
 }
 
+function Set-KcdWritesBegun {
+    # Marks an evidence folder as one whose run went on to write, so a refused
+    # run's folder is never taken for a change. Returns a reason on failure.
+    param([string]$Folder)
+    try {
+        Write-KcdTextFile -Path (Join-Path -Path $Folder -ChildPath (Get-KcdWritesBegunName)) -Text "writes began after this folder was saved`r`n"
+        return ''
+    } catch {
+        return ('marking ' + $Folder + ' before the writes failed: ' + [string]$_.Exception.Message)
+    }
+}
+
 function Show-KcdRestartStatus {
-    # Compares the last boot with the newest apply or undo folder under the root.
+    # Compares the last boot with the newest apply or undo folder under the
+    # root whose run reached its writes.
     param([string]$Root)
     Show-KcdRestartNote
     $folders = @()
-    foreach ($kind in @('apply', 'undo')) { foreach ($name in (Get-KcdEvidenceFolders -Root $Root -Kind $kind)) { $folders += $name } }
+    foreach ($kind in @('apply', 'undo')) {
+        foreach ($name in (Get-KcdEvidenceFolders -Root $Root -Kind $kind)) {
+            if (Test-Path -LiteralPath (Join-Path -Path (Join-Path -Path $Root -ChildPath $name) -ChildPath (Get-KcdWritesBegunName)) -PathType Leaf) { $folders += $name }
+        }
+    }
     if ($folders.Count -eq 0) {
-        Write-KcdOut -Text ('No apply or undo folder under ' + $Root + ', so whether a restart followed a change is not known here.')
+        Write-KcdOut -Text ('No apply or undo folder that reached its writes under ' + $Root + ', so whether a restart followed a change is not known here.')
         return
     }
     $newest = @($folders | Sort-Object)[-1]
@@ -665,6 +683,12 @@ function Invoke-KcdApply {
     $again = Read-KcdState -Rows $rows
     if (-not (Test-KcdSameState -Before $state -After $again)) {
         Write-KcdOut -Text 'REFUSED: the values changed while they were being saved. Nothing changed; run -Plan again.'
+        Write-KcdLogFile -Folder $folder
+        return 1
+    }
+    $markError = Set-KcdWritesBegun -Folder $folder
+    if ($markError) {
+        Write-KcdOut -Text ('REFUSED: ' + $markError + '. Nothing changed.')
         Write-KcdLogFile -Folder $folder
         return 1
     }
@@ -824,6 +848,12 @@ function Invoke-KcdUndo {
     }
     Write-KcdOut -Text ('Saved the state before the undo: ' + $undoFolder)
     foreach ($line in $savedNow.Files) { Write-KcdOut -Text ('  SHA-256 ' + $line) }
+    $markError = Set-KcdWritesBegun -Folder $undoFolder
+    if ($markError) {
+        Write-KcdOut -Text ('REFUSED: ' + $markError + '. Nothing changed.')
+        Write-KcdLogFile -Folder $undoFolder
+        return 1
+    }
 
     $writeError = ''
     for ($i = 0; $i -lt $rows.Count; $i++) {

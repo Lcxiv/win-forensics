@@ -222,7 +222,7 @@ Describe '-Apply' {
         $folders = @(Get-KcdFolders -Root $root)
         $folders | Should -Be @('20260301T120000Z-apply')
         $folder = Join-Path $root $folders[0]
-        @(Get-ChildItem -LiteralPath $folder | ForEach-Object { $_.Name } | Sort-Object) | Should -Be @('before-values.csv', 'i8042prt-Parameters.reg', 'kbdhid-Parameters.reg', 'log.txt', 'SHA256SUMS.txt')
+        @(Get-ChildItem -LiteralPath $folder | ForEach-Object { $_.Name } | Sort-Object) | Should -Be @('before-values.csv', 'i8042prt-Parameters.reg', 'kbdhid-Parameters.reg', 'log.txt', 'SHA256SUMS.txt', 'writes-begun.txt')
         $sums = @(Get-Content -LiteralPath (Join-Path $folder 'SHA256SUMS.txt'))
         $sums.Count | Should -Be 3
         foreach ($line in $sums) {
@@ -353,7 +353,7 @@ Describe '-Readback' {
         $first = Invoke-Kcd -Arguments @{ Readback = $true }
         $first.ExitCode | Should -Be 1
         $first.Text | Should -Match 'FAIL HKLM\\SYSTEM\\CurrentControlSet\\Services\\kbdhid\\Parameters\\CrashOnCtrlScroll is absent, expected REG_DWORD 1'
-        $first.Text | Should -Match 'No apply or undo folder under'
+        $first.Text | Should -Match 'No apply or undo folder that reached its writes under'
         $first.Calls | Should -BeNullOrEmpty
 
         $null = Invoke-Kcd -Arguments @{ Apply = $true }
@@ -370,6 +370,30 @@ Describe '-Readback' {
 
         $global:KcdSynthetic.LastBootError = 'no CIM here'
         (Invoke-Kcd -Arguments @{ Readback = $true }).Text | Should -Match 'the last boot time could not be read \(no CIM here\), so whether a restart followed is unknown'
+    }
+
+    It 'never counts a refused -Apply or -Undo folder as the newest change' {
+        $root = Start-KcdCase
+        $global:KcdSynthetic.ExportCodes['hklm\system\currentcontrolset\services\i8042prt\parameters'] = 1
+        $refusedApply = Invoke-Kcd -Arguments @{ Apply = $true }
+        $refusedApply.ExitCode | Should -Be 1
+        @(Get-KcdFolders -Root $root).Count | Should -Be 1
+        (Invoke-Kcd -Arguments @{ Readback = $true }).Text | Should -Match 'No apply or undo folder that reached its writes under'
+
+        $global:KcdSynthetic.ExportCodes.Clear()
+        (Invoke-Kcd -Arguments @{ Apply = $true }).ExitCode | Should -Be 0
+        $global:KcdSynthetic.LastBoot = [datetime]::new(2026, 3, 2, 8, 0, 0, [System.DateTimeKind]::Utc)
+        $global:KcdSynthetic.Now = [datetime]::new(2026, 3, 2, 12, 0, 0, [System.DateTimeKind]::Utc)
+        $global:KcdSynthetic.ExportCodes['hklm\system\currentcontrolset\services\kbdhid\parameters'] = 1
+        $refusedUndo = Invoke-Kcd -Arguments @{ Undo = $true }
+        $refusedUndo.ExitCode | Should -Be 1
+        $refusedUndo.Writes | Should -BeNullOrEmpty
+        @(Get-KcdFolders -Root $root | Where-Object { $_ -like '*-undo' }).Count | Should -Be 1
+
+        $readback = Invoke-Kcd -Arguments @{ Readback = $true }
+        $readback.ExitCode | Should -Be 0
+        $readback.Text | Should -Match 'Restart done: the PC booted at 2026-03-02T08:00:00Z, after the newest apply at'
+        $readback.Text | Should -Not -Match 'RESTART PENDING: the PC last booted'
     }
 
     It 'treats an unreadable value as FAIL, never as absent' {
@@ -399,7 +423,7 @@ Describe '-Undo' {
         Get-KcdSnapshot | Should -BeExactly $before
         $undoName = @(Get-KcdFolders -Root $root | Where-Object { $_ -like '*-undo' })[0]
         $undoFolder = Join-Path $root $undoName
-        @(Get-ChildItem -LiteralPath $undoFolder | ForEach-Object { $_.Name } | Sort-Object) | Should -Be @('before-undo-values.csv', 'i8042prt-Parameters.reg', 'kbdhid-Parameters.reg', 'log.txt', 'SHA256SUMS.txt')
+        @(Get-ChildItem -LiteralPath $undoFolder | ForEach-Object { $_.Name } | Sort-Object) | Should -Be @('before-undo-values.csv', 'i8042prt-Parameters.reg', 'kbdhid-Parameters.reg', 'log.txt', 'SHA256SUMS.txt', 'writes-begun.txt')
     }
 
     It 'restores a value that existed as REG_DWORD 0 to REG_DWORD 0' {
