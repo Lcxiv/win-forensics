@@ -10,8 +10,11 @@ from conftest import REPO_ROOT
 COLLECTOR_DIR = REPO_ROOT / "collectors" / "windows"
 COLLECTOR_NAME = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 HELPER = "_common.ps1"
+# The local scenario runner: its entry script and its library. The leading underscore keeps both
+# out of the dispatcher's verbs, like the helper.
+RUNNER = ("_run-scenario.ps1", "_scenarios.ps1")
 SHIPPED = sorted(COLLECTOR_DIR.glob("*.ps1"))
-COLLECTORS = [p for p in SHIPPED if p.name != HELPER]
+COLLECTORS = [p for p in SHIPPED if p.name != HELPER and p.name not in RUNNER]
 EXPECTED_COLLECTORS = ["application-errors", "bugcheck-history", "clock-calibration", "config-snapshot", "dpcisr-trace", "driver-inventory", "presentmon-frames", "reliability-records", "rf-survey", "tdr-events", "whea-errors"]
 
 # Commands that change the machine, reach the network, prompt, handle credentials, or run text
@@ -139,6 +142,10 @@ def test_names_follow_the_seam_and_the_helper_cannot_be_dispatched():
         assert COLLECTOR_NAME.match(path.stem), path.name
     assert (COLLECTOR_DIR / HELPER).is_file()
     assert not COLLECTOR_NAME.match(HELPER.removesuffix(".ps1")), "the dispatcher must never map a verb to the helper"
+    for name in RUNNER:
+        assert (COLLECTOR_DIR / name).is_file()
+        assert not COLLECTOR_NAME.match(name.removesuffix(".ps1")), "the scenario runner is started at the PC, never dispatched"
+    assert sorted(p.name for p in SHIPPED if p.name.startswith("_")) == sorted((HELPER,) + RUNNER)
     assert [p.name for p in COLLECTOR_DIR.iterdir() if p.is_file() and p.suffix != ".ps1"] == ["README.md"], \
         "the setup script installs *.ps1 from this directory; everything a collector needs at run time is a .ps1 file here"
 
@@ -170,10 +177,15 @@ def test_shipped_scripts_are_read_only(path):
            "-LiteralPath $topologyPath", "-LiteralPath $summaryPath", "-LiteralPath $Path -Force",
            "-LiteralPath $reportPath -Force", "-LiteralPath $privateDir -Recurse -Force",
            "-LiteralPath $etlPath -Force", "-LiteralPath $wprTempPath -Recurse -Force",
-           "-LiteralPath $samplesPath", "-LiteralPath $finalPath", "-LiteralPath $livePath")
-    # The only rename is the clock collector closing its live marks file inside raw/operator_marks.
+           "-LiteralPath $samplesPath", "-LiteralPath $finalPath", "-LiteralPath $livePath",
+           # The scenario runner: the raw and private folders a collector it stopped at its deadline
+           # left in its own step folder, and a step's raw folder once every source moved out of it.
+           "-LiteralPath $leftover -Recurse -Force", "-LiteralPath $stepRaw -Force")
+    # The only renames are the clock collector closing its live marks file inside raw/operator_marks,
+    # and the scenario runner moving a finished step's raw/<source> folder into the run's raw/.
     moves = [line.strip() for line in code.splitlines() if "::Move(" in line]
-    assert all("$LivePath, $FinalPath" in m for m in moves), moves
+    allowed_move = "$from, $to" if path.name == "_scenarios.ps1" else "$LivePath, $FinalPath"
+    assert all(allowed_move in m for m in moves), moves
     assert all(any(marker in r for marker in own) for r in removals), removals
     # The only process runner is the helper's: wevtutil with the export verb, netsh and powercfg (checked on what
     # the runs record, test_collector_bundles and the Pester suite), the inbox wpr, a pinned xperf and the
@@ -185,12 +197,14 @@ def test_shipped_scripts_are_read_only(path):
         assert "ProcessStartInfo" not in code
 
 
-def test_helper_writes_json_without_convertto_json():
+@pytest.mark.parametrize("name", (HELPER,) + RUNNER)
+def test_helper_writes_json_without_convertto_json(name):
     # ConvertTo-Json has a default depth of 2, and in Windows PowerShell it writes a psobject
     # wrapped array as an object with value and Count members (PowerShell/PowerShell issues 3153
     # and 5579). Neither can be tested off Windows, so the helper has its own writer and must
-    # not fall back to the cmdlet.
-    text = (COLLECTOR_DIR / HELPER).read_text(encoding="ascii")
+    # not fall back to the cmdlet. ConvertFrom-Json turns ISO 8601 text into DateTime in
+    # PowerShell 7 and not in 5.1, so the runner reads child manifests with the helper's reader.
+    text = (COLLECTOR_DIR / name).read_text(encoding="ascii")
     code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
     assert "ConvertTo-Json" not in code and "ConvertFrom-Json" not in code
     assert "$script:" not in code and "$global:" not in code
@@ -200,7 +214,7 @@ def test_readme_covers_every_collector_and_the_elevated_list():
     readme = (COLLECTOR_DIR / "README.md").read_text(encoding="utf-8")
     for path in COLLECTORS:
         assert f"`{path.stem}`" in readme, path.stem
-    for heading in ("## Interface", "## Collectors", "## Needs elevation", "## Facts to verify on the PC", "## Testing"):
+    for heading in ("## Interface", "## Collectors", "## Scenario runner", "## Needs elevation", "## Facts to verify on the PC", "## Testing"):
         assert heading in readme, heading
     for term in ("Minidump", "MEMORY.DMP", "Security", "Get-StorageReliabilityCounter", "chkdsk", "sfc", "wlanreport"):
         assert term in readme, term

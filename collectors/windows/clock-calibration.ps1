@@ -528,11 +528,13 @@ function Invoke-WfClockSessionSource {
                 Confirm = {
                     # The session is open while its live marks file is.
                     param($S, [string]$Moment)
+                    $null = $Moment
                     if ($S.MarksFileCreated -and -not $S.MarksRenamed -and (Test-Path -LiteralPath $livePath)) { return 'active' }
                     return 'idle'
                 }
                 Cancel  = {
                     param($S, [string]$Read)
+                    $null = $Read
                     if ($S.MarksFileCreated -and -not $S.MarksRenamed) { return (& $closeMarks $S) }
                     return $true
                 }

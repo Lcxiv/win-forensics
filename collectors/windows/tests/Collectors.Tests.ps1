@@ -156,11 +156,11 @@ Describe 'collector names' {
         foreach ($name in @('_common', 'Bugcheck', 'a', 'x_y', '-x', '1abc', 'a.b', ('a' * 42))) { Test-WfCollectorName -Name $name | Should -BeFalse -Because $name }
     }
 
-    It 'gives every script in the collector directory a valid name, except the helper' {
+    It 'gives every script in the collector directory a valid name, except the helper and the scenario runner' {
         $scripts = @(Get-ChildItem -LiteralPath $script:CollectorRoot -Filter '*.ps1' -File)
         $scripts.Count | Should -BeGreaterThan 1
         foreach ($file in $scripts) {
-            if ($file.Name -ceq '_common.ps1') { Test-WfCollectorName -Name $file.BaseName | Should -BeFalse }
+            if (@('_common.ps1', '_scenarios.ps1', '_run-scenario.ps1') -ccontains $file.Name) { Test-WfCollectorName -Name $file.BaseName | Should -BeFalse }
             else { Test-WfCollectorName -Name $file.BaseName | Should -BeTrue -Because $file.Name }
         }
     }

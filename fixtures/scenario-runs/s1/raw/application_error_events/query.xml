@@ -1,0 +1,8 @@
+<QueryList>
+  <Query Id="0" Path="Application">
+    <Select Path="Application">*[System[Provider[@Name='Application Error'] and (EventID=1000) and TimeCreated[@SystemTime &gt;= '2026-01-30T12:03:27.000Z' and @SystemTime &lt;= '2026-03-01T12:03:27.000Z']]]</Select>
+    <Select Path="Application">*[System[Provider[@Name='Application Hang'] and (EventID=1002) and TimeCreated[@SystemTime &gt;= '2026-01-30T12:03:27.000Z' and @SystemTime &lt;= '2026-03-01T12:03:27.000Z']]]</Select>
+    <Select Path="Application">*[System[Provider[@Name='Windows Error Reporting'] and (EventID=1001) and TimeCreated[@SystemTime &gt;= '2026-01-30T12:03:27.000Z' and @SystemTime &lt;= '2026-03-01T12:03:27.000Z']]]</Select>
+    <Select Path="Application">*[System[Provider[@Name='.NET Runtime'] and (EventID=1026) and TimeCreated[@SystemTime &gt;= '2026-01-30T12:03:27.000Z' and @SystemTime &lt;= '2026-03-01T12:03:27.000Z']]]</Select>
+  </Query>
+</QueryList>

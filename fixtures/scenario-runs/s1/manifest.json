@@ -1,0 +1,3136 @@
+{
+  "manifest_version": "1.2.0",
+  "bundle_id": "20260301T120001Z_s1_ae3a76a9",
+  "created_utc": "2026-03-01T12:04:48.0000000Z",
+  "scenario": {
+    "id": "s1",
+    "version": "1.0.0",
+    "requested_duration_s": 300,
+    "target_process": null,
+    "marks": [
+      {
+        "label": "felt a stutter",
+        "at_utc": "2026-03-01T12:00:22.3000000Z",
+        "qpc": 27345851901334
+      },
+      {
+        "label": "second stutter, shorter",
+        "at_utc": "2026-03-01T12:00:46.0520000Z",
+        "qpc": 27346089401334
+      }
+    ]
+  },
+  "capture": {
+    "start_utc": "2026-03-01T12:00:01.0000000Z",
+    "stop_utc": "2026-03-01T12:04:48.0000000Z",
+    "orchestrator": "wf-runner:s1",
+    "orchestrator_version": "1.0.0",
+    "elevated": true,
+    "incomplete": true
+  },
+  "machine": {
+    "machine_id": "ae3a76a9f32fa71b72616118339e376c",
+    "hostname": "SYNTHETIC-PC",
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26100",
+      "build": 26100,
+      "ubr": 1,
+      "display_version": "24H2",
+      "architecture": "64-bit",
+      "edition": "Professional"
+    },
+    "cpu": {
+      "name": "Synthetic CPU",
+      "logical_processors": 16,
+      "qpc_frequency_hz": 10000000
+    },
+    "memory_bytes": 34359738368,
+    "gpus": [
+      {
+        "name": "Synthetic Display Adapter",
+        "driver_version": "1.2.3.4",
+        "driver_date": "2026-01-15T00:00:00.0000000Z",
+        "device_id": "PCI\\VEN_FFFF&DEV_0001"
+      }
+    ],
+    "bios": {
+      "vendor": "Synthetic Firmware",
+      "version": "S1.00",
+      "release_date": "2025-11-01T00:00:00.0000000Z"
+    },
+    "board": {
+      "manufacturer": "Synthetic Boards",
+      "product": "SB-1"
+    },
+    "drivers": [
+      {
+        "name": "Synthetic Display Adapter",
+        "version": "1.2.3.4",
+        "provider": "Synthetic Graphics",
+        "class": "DISPLAY"
+      },
+      {
+        "name": "ACPI x64-based PC",
+        "version": "10.0.26100.1",
+        "provider": "Microsoft",
+        "class": "SYSTEM"
+      }
+    ],
+    "time_zone": {
+      "name": "UTC",
+      "utc_offset_minutes": 0,
+      "dst_active": false
+    }
+  },
+  "collectors": [
+    {
+      "id": "clock_calibration",
+      "kind": "clock",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:09.0000000Z",
+        "checks": [
+          {
+            "name": "qpc_high_resolution",
+            "ok": true,
+            "detail": "Stopwatch.IsHighResolution: True"
+          },
+          {
+            "name": "qpc_frequency",
+            "ok": true,
+            "detail": "Stopwatch.Frequency: 10000000 Hz"
+          }
+        ]
+      },
+      "command": [
+        "Stopwatch.GetTimestamp",
+        "DateTime.UtcNow.ToFileTimeUtc",
+        "Stopwatch.GetTimestamp"
+      ],
+      "started_utc": "2026-03-01T12:00:07.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:14.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "3cab18cc6532b92bf87e35ea298c4b1d4f0c4598f60d968fd465ea5972e1e305"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "duration_seconds": 300,
+          "interval_seconds": 5,
+          "expected_pairs": 61,
+          "timeout_seconds": 360,
+          "max_artifact_bytes": 67108864,
+          "edge_budget_milliseconds": 100
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "pairs_taken": 61,
+          "missing_pairs": 0,
+          "stop_pair_taken": true,
+          "edge_pairs": 61,
+          "largest_step_100ns": 10000,
+          "qpc_frequency_hz": 10000000,
+          "qpc_high_resolution": true,
+          "session_start_qpc": 27345678911259,
+          "session_stop_qpc": 27348678921259,
+          "failure": null,
+          "time_adjustment": "not read: GetSystemTimeAdjustment is not reachable from Windows PowerShell 5.1 without compiling code; both members are null"
+        },
+        "verified_by": "the pairs themselves in samples.jsonl (one line per pair, in the order taken, each saying whether it was taken at a change of the system clock); result.json carries the missed slots, the largest clock step seen and any failure"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/clock_calibration/result.json",
+          "bytes": 477,
+          "sha256": "5d8a14b54c61727462a08a2ce701476965d4313cf710713aba7fd777d79afd1a",
+          "role": "report"
+        },
+        {
+          "path": "raw/clock_calibration/samples.jsonl",
+          "bytes": 16056,
+          "sha256": "69014b4ffc454121cbc12daae1bb2c18a28382ed06e4612e8ed2c078cfcc464b",
+          "role": "primary"
+        },
+        {
+          "path": "raw/clock_calibration/session.json",
+          "bytes": 2267,
+          "sha256": "3cab18cc6532b92bf87e35ea298c4b1d4f0c4598f60d968fd465ea5972e1e305",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:05.0010000Z",
+        "end": "2026-03-01T12:05:05.0170000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "61 pairs: a start pair, one every 5 s strictly inside the 300 s session (59 slots) and a stop pair, all read through the high resolution performance counter (timestamps.md section 3, clock calibration exception)",
+        "met": true,
+        "detail": "61 of 61 pairs taken, 0 missing, stop pair taken: True, 61 at a clock edge; Stopwatch.IsHighResolution True"
+      },
+      "target_process": null
+    },
+    {
+      "id": "operator_marks",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:10.0000000Z",
+        "checks": [
+          {
+            "name": "live_marks_file_created",
+            "ok": true,
+            "detail": "raw/operator_marks/marks.open.jsonl, opened right after the start pair"
+          }
+        ]
+      },
+      "command": [
+        "clock-calibration.ps1",
+        "-OutputDirectory",
+        "<session directory>",
+        "-Mark",
+        "<label>"
+      ],
+      "started_utc": "2026-03-01T12:00:07.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:15.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "40e3ca054d28534a3389fae437998ef91aafd5c02eeb5bd1e602b72572e0c468"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "live_file": "marks.open.jsonl",
+          "final_file": "marks.jsonl",
+          "label_max_length": 80,
+          "max_artifact_bytes": 67108864
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "marks": 2,
+          "malformed_lines": 0,
+          "closed": true
+        },
+        "verified_by": "the marks file itself; every line is checked against the exact shape the mark command writes"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/operator_marks/instructions.json",
+          "bytes": 1365,
+          "sha256": "40e3ca054d28534a3389fae437998ef91aafd5c02eeb5bd1e602b72572e0c468",
+          "role": "config"
+        },
+        {
+          "path": "raw/operator_marks/marks.jsonl",
+          "bytes": 369,
+          "sha256": "44198cb402d4b4d9065a8a8a0ea0a5258fc9e205a2639f0f2c1f810031918e47",
+          "role": "primary"
+        },
+        {
+          "path": "raw/operator_marks/result.json",
+          "bytes": 227,
+          "sha256": "40a7bd588c730401b44cab95449a1666da5be967e1e998cf045c0fd50857d366",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:05.0010000Z",
+        "end": "2026-03-01T12:05:05.0170000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the live marks file exists from the start pair to the stop pair, is closed right after it, and every line in it is a mark written by this script; zero marks is a legitimate observation",
+        "met": true,
+        "detail": "2 marks, 0 malformed lines, closed: True"
+      },
+      "target_process": null
+    },
+    {
+      "id": "wpr_trace",
+      "kind": "wpr",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:11.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\wpr.exe"
+          },
+          {
+            "name": "tracerpt_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\tracerpt.exe"
+          },
+          {
+            "name": "account_elevated",
+            "ok": true,
+            "detail": "<account>; starting a kernel trace session needs an elevated account (see the collector header for the citation)"
+          },
+          {
+            "name": "no_recording_in_progress",
+            "ok": true,
+            "detail": "wpr -status (default instance) reads as idle: WPR is not recording"
+          },
+          {
+            "name": "profile_enumerated",
+            "ok": true,
+            "detail": "wpr -profiles enumerated the profile file and exited 0"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\wpr.exe",
+        "-start",
+        "<bundle>/raw/wpr_trace/dpcisr-trace.wprp!WfDpcIsrTrace.Verbose",
+        "-filemode",
+        "-recordtempto",
+        "<bundle>/private/temp",
+        "-instancename",
+        "WfDpcIsrTrace-20260301T120010Z"
+      ],
+      "started_utc": "2026-03-01T12:00:10.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:13.0000000Z",
+      "exit_code": 0,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "cbd25aeb8462ea2c4151c27c03e7d91a7585cf1cf5dbdcec8d8ecc6cdde7d535"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [
+          "NT Kernel Logger"
+        ],
+        "keywords": [
+          "Interrupt",
+          "DPC",
+          "Loader"
+        ],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "profile_name": "WfDpcIsrTrace",
+          "profile_id": "WfDpcIsrTrace.Verbose.File",
+          "logging_mode": "file",
+          "instance_name": "WfDpcIsrTrace-20260301T120010Z",
+          "buffer_size_kb": 1024,
+          "buffer_count": 64,
+          "duration_seconds": 60,
+          "max_trace_bytes": 2147483648,
+          "events_lost_bound": 0,
+          "buffers_lost_bound": 0,
+          "record_temp_to": "<bundle>/private/temp",
+          "trace_path": "<bundle>/private/trace.etl",
+          "trace_kept_in_bundle": false,
+          "stop_arguments": [
+            "-stop",
+            "<bundle>/private/trace.etl",
+            "win-forensics dpcisr-trace 20260301T120010Z",
+            "-skipPdbGen",
+            "-instancename",
+            "WfDpcIsrTrace-20260301T120010Z"
+          ],
+          "tool_timeout_seconds": 120,
+          "short_timeout_seconds": 30,
+          "worst_case_seconds": 690
+        }
+      },
+      "enabled": {
+        "providers": [
+          "NT Kernel Logger"
+        ],
+        "keywords": [
+          "Interrupt",
+          "DPC",
+          "Loader"
+        ],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "instance_name": "WfDpcIsrTrace-20260301T120010Z",
+          "dropped_events_after_start": 0,
+          "events_lost_after_start": 0,
+          "buffers_lost_listed_after_start": false,
+          "logging_mode": "File",
+          "final_events_lost": 0,
+          "final_buffers_lost": 0,
+          "session_started_utc": "2026-03-01T12:00:12.0000000Z",
+          "session_stop_issued_utc": "2026-03-01T12:01:12.0000000Z",
+          "recording_seconds": 60,
+          "trace_bytes": 4096,
+          "trace_sha256": "d7726ba3832ddd6c5cc7ea0c52b3076b551fce5a84c0c6f1022f502c91ed4987",
+          "trace_kept_in_bundle": false,
+          "temp_bytes_seen": 4096,
+          "stopped_early_at_cap": false,
+          "session_state_after_stop": "idle",
+          "session_state_final": "idle",
+          "session_confirmed_stopped": true
+        },
+        "verified_by": "keywords and buffer size from \"wpr -status profiles collectors -details -instancename <name>\" right after the start (status.txt); final events lost and buffers lost from \"tracerpt <trace> -summary\" after the stop (tracerpt-summary.txt); the session end from \"wpr -status -instancename <name>\""
+      },
+      "events_lost": 0,
+      "buffers_lost": 0,
+      "buffers": {
+        "size_kb": 1024,
+        "count": 64,
+        "mode": "file"
+      },
+      "artifacts": [
+        {
+          "path": "raw/wpr_trace/dpcisr-trace.wprp",
+          "bytes": 1583,
+          "sha256": "cbd25aeb8462ea2c4151c27c03e7d91a7585cf1cf5dbdcec8d8ecc6cdde7d535",
+          "role": "config"
+        },
+        {
+          "path": "raw/wpr_trace/session.json",
+          "bytes": 5669,
+          "sha256": "c4a945064b468682652d438293c894f5300ed62c06bc091ae5892db7742e0e15",
+          "role": "report"
+        },
+        {
+          "path": "raw/wpr_trace/status.txt",
+          "bytes": 431,
+          "sha256": "dc9e3c211c9d787f150c7e5d9e70a8708926d8a4c0fdb82f409b74053e0f2aa9",
+          "role": "report"
+        },
+        {
+          "path": "raw/wpr_trace/tracerpt-summary.txt",
+          "bytes": 274,
+          "sha256": "2a29c133c40cf92e3fc1842e36a6154f4628d3f1fe2228cb5ae663a309a99234",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:12.0000000Z",
+        "end": "2026-03-01T12:01:12.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "wpr starts the profile under the collector's own instance name, lists the kernel collector with the three requested keywords and a readable loss figure, records for the requested duration, saves a non empty trace within the cap, reads as idle after the stop, and tracerpt reports zero events lost and zero buffers lost for the saved trace",
+        "met": true,
+        "detail": "final events lost 0; final buffers lost 0; trace 4096 bytes; recording 60 s of 60 requested; session idle"
+      },
+      "target_process": null
+    },
+    {
+      "id": "dpcisr_report",
+      "kind": "xperf",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:01:15.0000000Z",
+        "checks": [
+          {
+            "name": "trace_present",
+            "ok": true,
+            "detail": "<bundle>/private/trace.etl (on the machine only)"
+          },
+          {
+            "name": "tool_named",
+            "ok": true,
+            "detail": "C:\\Tools\\WindowsPerformanceToolkit\\xperf.exe"
+          },
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "sha256 7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b, version 10.0.26100.1 (synthetic)"
+          },
+          {
+            "name": "tool_pinned",
+            "ok": true,
+            "detail": "matches the pinned build 10.0.26100.1 (synthetic) from synthetic Windows Performance Toolkit build for the test suite"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Tools\\WindowsPerformanceToolkit\\xperf.exe",
+        "-i",
+        "<bundle>/private/trace.etl",
+        "-a",
+        "dpcisr"
+      ],
+      "started_utc": "2026-03-01T12:01:14.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:16.0000000Z",
+      "exit_code": 0,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "79569a8587e6a48598cd9d846e13eb5deaa9b5347624feb97c5d41005a28dd64"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\Tools\\WindowsPerformanceToolkit\\xperf.exe",
+          "tool_source": "operator supplied (-XperfPath); xperf.exe is part of the Windows Performance Toolkit in the Windows ADK, not inbox on Windows, and runs only when its SHA-256 and version match a pinned build, checked before and after the run",
+          "pinned_builds": [
+            {
+              "version": "10.0.26100.1 (synthetic)",
+              "sha256": "7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b",
+              "source": "synthetic Windows Performance Toolkit build for the test suite"
+            }
+          ],
+          "arguments": [
+            "-i",
+            "<bundle>/private/trace.etl",
+            "-a",
+            "dpcisr"
+          ],
+          "trace": "<bundle>/private/trace.etl",
+          "trace_sha256": "d7726ba3832ddd6c5cc7ea0c52b3076b551fce5a84c0c6f1022f502c91ed4987",
+          "trace_events_lost": 0,
+          "trace_buffers_lost": 0,
+          "timeout_seconds": 120,
+          "max_artifact_bytes": 67108864,
+          "output_encoding": "utf-8",
+          "output_code_page": 65001,
+          "line_endings": "lf",
+          "protection": "hardware addresses (six hexadecimal pairs) become mac-<12 hex> pseudonyms before the report is written"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 13,
+          "stdout_bytes": 13888,
+          "sections_found": [
+            "DPC Info",
+            "Interrupt Info"
+          ],
+          "tool_sha256": "7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b",
+          "tool_sha256_after_run": "7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b",
+          "tool_version": "10.0.26100.1 (synthetic)",
+          "trace_sha256": "d7726ba3832ddd6c5cc7ea0c52b3076b551fce5a84c0c6f1022f502c91ed4987",
+          "mac_addresses_replaced": 0
+        },
+        "verified_by": "the tool file hash and version in result.json matched the pinned build before the run and the hash again after it; the process exit code, timing and byte count are in result.json; the report is dpcisr.txt; the trace it describes is named by its SHA-256"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/dpcisr_report/command.json",
+          "bytes": 1091,
+          "sha256": "79569a8587e6a48598cd9d846e13eb5deaa9b5347624feb97c5d41005a28dd64",
+          "role": "config"
+        },
+        {
+          "path": "raw/dpcisr_report/dpcisr.txt",
+          "bytes": 13888,
+          "sha256": "c3da7a95e98b75428f7e2bd71f81e95cf5b9964ebb0f8f60499f660d1c740f1d",
+          "role": "primary"
+        },
+        {
+          "path": "raw/dpcisr_report/result.json",
+          "bytes": 916,
+          "sha256": "a9858d847b56420c1240020a5d222954293e954350035cf2927e8ff5bec591ac",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:12.0000000Z",
+        "end": "2026-03-01T12:01:12.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "a pinned xperf.exe, unchanged across the run, exits 0 on \"xperf -i trace.etl -a dpcisr\" and prints the DPC Info and Interrupt Info sections, from a trace with zero events lost and zero buffers lost",
+        "met": true,
+        "detail": "exit code 0; sections DPC Info, Interrupt Info; trace events lost 0; trace buffers lost 0"
+      },
+      "target_process": null
+    },
+    {
+      "id": "presentmon_frames",
+      "kind": "presentmon",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:01:25.0000000Z",
+        "checks": [
+          {
+            "name": "binary_present",
+            "ok": true,
+            "detail": "C:\\ProgramData\\win-forensics\\tools\\PresentMon-2.6.0-x64.exe"
+          },
+          {
+            "name": "binary_sha256_pinned",
+            "ok": true,
+            "detail": "sha256 b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af, pinned b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af"
+          },
+          {
+            "name": "binary_length_pinned",
+            "ok": true,
+            "detail": "980320 bytes, pinned 980320"
+          },
+          {
+            "name": "wpr_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\wpr.exe"
+          },
+          {
+            "name": "wpr_instance_idle",
+            "ok": true,
+            "detail": "wpr -status exit code 0; timed out False; in progress False"
+          }
+        ]
+      },
+      "command": [
+        "C:\\ProgramData\\win-forensics\\tools\\PresentMon-2.6.0-x64.exe",
+        "--etl_file",
+        "raw/presentmon_frames/trace.etl",
+        "--output_stdout",
+        "--qpc_time"
+      ],
+      "started_utc": "2026-03-01T12:01:23.0000000Z",
+      "stopped_utc": "2026-03-01T12:02:44.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "d678db536f72bb0454df52acbcb7a575f491ff60390821af40f6526d8c2aff5b"
+      },
+      "filter_hash": {
+        "algorithm": "sha256",
+        "value": "092ceac774d5c0893926c896cf35151a9700d72fbcef5764e4eaa3026edac1fb"
+      },
+      "requested": {
+        "providers": [
+          "Microsoft-Windows-Kernel-Process",
+          "Microsoft-Windows-DxgKrnl",
+          "Microsoft-Windows-Win32k",
+          "Microsoft-Windows-Dwm-Core",
+          "Microsoft-Windows-Dwm-Core-Win7",
+          "Microsoft-Windows-DxgKrnl-Win7",
+          "Microsoft-Windows-DXGI",
+          "Microsoft-Windows-D3D9",
+          "NVIDIA-DisplayDriver"
+        ],
+        "keywords": [
+          "Microsoft-Windows-Kernel-Process:0x8000000000000010",
+          "Microsoft-Windows-DxgKrnl:0x8000841",
+          "Microsoft-Windows-Win32k:0x8400000440c01000",
+          "Microsoft-Windows-Dwm-Core:0x8000000000000081",
+          "Microsoft-Windows-Dwm-Core-Win7:all",
+          "Microsoft-Windows-DxgKrnl-Win7:all",
+          "Microsoft-Windows-DXGI:0x8000000000000002",
+          "Microsoft-Windows-D3D9:0x8000000000000002",
+          "NVIDIA-DisplayDriver:0x1000000000000000"
+        ],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\ProgramData\\win-forensics\\tools\\PresentMon-2.6.0-x64.exe",
+          "pinned": {
+            "version": "2.6.0",
+            "file_name": "PresentMon-2.6.0-x64.exe",
+            "sha256": "b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af",
+            "length": 980320,
+            "release_url": "https://github.com/GameTechDev/PresentMon/releases/tag/v2.6.0",
+            "asset_url": "https://github.com/GameTechDev/PresentMon/releases/download/v2.6.0/PresentMon-2.6.0-x64.exe",
+            "documentation_url": "https://github.com/GameTechDev/PresentMon/blob/v2.6.0/README-ConsoleApplication.md",
+            "source_url": "https://github.com/GameTechDev/PresentMon/tree/v2.6.0",
+            "digest_source": "the digest GitHub records for the release asset (release API digest field), read 2026-11-18"
+          },
+          "controller": "C:\\Windows\\System32\\wpr.exe",
+          "method": "wpr records the providers below, under the instance name, to a file inside the bundle for the window; PresentMon then reads that file with --etl_file and prints its CSV on stdout, captured under the artifact cap; the file is deleted after it was read because a WPR merged recording may carry the network adapter hardware and IP addresses. Live PresentMon is not run: in realtime mode it opens a PROCESS_QUERY_LIMITED_INFORMATION handle to every presenting process (OutputThread.cpp QueryProcessName, v2.6.0) and enables SeDebugPrivilege when it can (MainThread.cpp); with --etl_file both are skipped (the same two functions test args.mEtlFileName)",
+          "wpr_commands": {
+            "probe": [
+              "-status",
+              "-instancename",
+              "wf-presentmon-frames"
+            ],
+            "start": [
+              "-start",
+              "raw/presentmon_frames/profile.wprp!WfPresentMonFrames.Verbose",
+              "-filemode",
+              "-recordtempto",
+              "raw/presentmon_frames/wpr-temp",
+              "-instancename",
+              "wf-presentmon-frames"
+            ],
+            "status": [
+              "-status",
+              "collectors",
+              "-details",
+              "-instancename",
+              "wf-presentmon-frames"
+            ],
+            "stop": [
+              "-stop",
+              "raw/presentmon_frames/trace.etl",
+              "win-forensics presentmon-frames",
+              "-skipPdbGen",
+              "-instancename",
+              "wf-presentmon-frames"
+            ],
+            "cancel": [
+              "-cancel",
+              "-instancename",
+              "wf-presentmon-frames"
+            ]
+          },
+          "instance_name": "wf-presentmon-frames",
+          "profile": {
+            "path": "raw/presentmon_frames/profile.wprp",
+            "name": "WfPresentMonFrames",
+            "maximum_file_size_mb": 48,
+            "buffer_size_kb": 64,
+            "buffers": 256,
+            "file_mode": "Sequential",
+            "event_id_filters": true
+          },
+          "providers": [
+            {
+              "id": "Microsoft-Windows-Kernel-Process",
+              "guid": "22fb2cd6-0e7b-422b-a0c7-2fad1fd0e716",
+              "keywords": "0x8000000000000010",
+              "level": 4,
+              "capture_state": "0x8000000000000010",
+              "strict": false,
+              "events": [
+                1,
+                2,
+                15
+              ],
+              "source": "EnableProvidersListing: ProcessStart_Start, ProcessStop_Stop, ProcessRundown_Info, plus EVENT_CONTROL_CODE_CAPTURE_STATE for the rundown of processes already running"
+            },
+            {
+              "id": "Microsoft-Windows-DxgKrnl",
+              "guid": "802ec45a-1e99-4b83-9920-87c98277ba9d",
+              "keywords": "0x8000841",
+              "level": 4,
+              "capture_state": "0x840",
+              "strict": true,
+              "events": [
+                17,
+                27,
+                28,
+                29,
+                30,
+                31,
+                32,
+                116,
+                166,
+                168,
+                171,
+                172,
+                175,
+                177,
+                178,
+                180,
+                184,
+                215,
+                244,
+                252,
+                259,
+                266,
+                273,
+                382,
+                422,
+                424,
+                501
+              ],
+              "source": "EnableProvidersListing: the present history, flip, blit, queue packet, VSync, context, device, hardware queue and DMA packet events for track display and track GPU; the Performance keyword (0x4000000000000000) is removed as PresentMon does; capture state for Context_DCStart and Device_DCStart"
+            },
+            {
+              "id": "Microsoft-Windows-Win32k",
+              "guid": "8c416c79-d49b-4f01-a467-e56d3aa8234c",
+              "keywords": "0x8400000440c01000",
+              "level": 4,
+              "capture_state": null,
+              "strict": true,
+              "events": [
+                63,
+                73,
+                201,
+                225,
+                301
+              ],
+              "source": "EnableProvidersListing: TokenCompositionSurfaceObject_Info, TokenStateChanged_Info (track display), InputDeviceRead_Stop, RetrieveInputMessage_Info, OnInputXformUpdate_Info (track input)"
+            },
+            {
+              "id": "Microsoft-Windows-Dwm-Core",
+              "guid": "9e9bba3c-2e38-40cb-99f4-9e8281425164",
+              "keywords": "0x8000000000000081",
+              "level": 5,
+              "capture_state": null,
+              "strict": true,
+              "events": [
+                15,
+                64,
+                69,
+                70,
+                101,
+                196
+              ],
+              "source": "EnableProvidersListing: GetPresentHistory_Info, SCHEDULE_PRESENT_Start, SCHEDULE_SURFACEUPDATE_Info, FlipChain_Pending, FlipChain_Complete, FlipChain_Dirty; Composition (0x1) is added for Windows 10, where PresentMon swaps it for Scheduling (0x80)"
+            },
+            {
+              "id": "Microsoft-Windows-Dwm-Core-Win7",
+              "guid": "8c9dd1ad-e6e5-4b07-b455-684a9d879900",
+              "keywords": null,
+              "level": 5,
+              "capture_state": null,
+              "strict": false,
+              "events": [],
+              "source": "EnableProvidersListing: EnableWithoutFiltering(Microsoft_Windows_Dwm_Core::Win7::GUID, TRACE_LEVEL_VERBOSE)"
+            },
+            {
+              "id": "Microsoft-Windows-DxgKrnl-Win7",
+              "guid": "65cd4c8a-0848-4583-92a0-31c0fbaf00c0",
+              "keywords": null,
+              "level": 4,
+              "capture_state": null,
+              "strict": false,
+              "events": [],
+              "source": "EnableProvidersListing: EnableWithoutFiltering(Microsoft_Windows_DxgKrnl::Win7::GUID, TRACE_LEVEL_INFORMATION)"
+            },
+            {
+              "id": "Microsoft-Windows-DXGI",
+              "guid": "ca11c036-0102-4a2d-a6ad-f03cfed5d3c9",
+              "keywords": "0x8000000000000002",
+              "level": 0,
+              "capture_state": null,
+              "strict": true,
+              "events": [
+                42,
+                43,
+                55,
+                56
+              ],
+              "source": "EnableProvidersListing: Present_Start, Present_Stop, PresentMultiplaneOverlay_Start, PresentMultiplaneOverlay_Stop"
+            },
+            {
+              "id": "Microsoft-Windows-D3D9",
+              "guid": "783aca0a-790e-4d7f-8451-aa850511c6b9",
+              "keywords": "0x8000000000000002",
+              "level": 0,
+              "capture_state": null,
+              "strict": true,
+              "events": [
+                1,
+                2
+              ],
+              "source": "EnableProvidersListing: Present_Start, Present_Stop"
+            },
+            {
+              "id": "NVIDIA-DisplayDriver",
+              "guid": "ae4f8626-8265-40d1-a70b-11b64240e8e9",
+              "keywords": "0x1000000000000000",
+              "level": 4,
+              "capture_state": null,
+              "strict": false,
+              "events": [
+                1
+              ],
+              "source": "EnableProvidersListing: NvidiaDisplayDriver_Events::FlipRequest (PresentData/ETW/NV_DD.h)"
+            }
+          ],
+          "presentmon_arguments": [
+            "--etl_file",
+            "raw/presentmon_frames/trace.etl",
+            "--output_stdout",
+            "--qpc_time"
+          ],
+          "output_paths_recorded_as": "bundle relative paths; the processes received the absolute paths of the same files in this bundle, in double quotes",
+          "csv_console_code_page": "utf-8",
+          "recording_kept": false,
+          "recording_deleted_because": "a WPR merged recording may hold the network adapter hardware and IP addresses (SystemConfig_NIC through the merge's NetworkInterface custom event); the project keeps those out of every bundle, so the recording is read on the PC and deleted. recording.json keeps its size, SHA-256 and header",
+          "duration_seconds": 60,
+          "deadlines_seconds": {
+            "start": 60,
+            "status": 30,
+            "stop": 180,
+            "decode": 240,
+            "cancel": 60
+          },
+          "helper_deadline_seconds": 840,
+          "process_names": [],
+          "max_artifact_bytes": 67108864,
+          "console_cap_bytes": 1048576,
+          "disk_budget": {
+            "session_file_max_bytes": 50331648,
+            "merged_file_max_bytes": 67108864,
+            "csv_max_bytes": 67108864,
+            "console_max_bytes_per_stream": 1048576,
+            "peak_bytes_bound": 186646528,
+            "note": "the session stops at session_file_max_bytes (MaximumFileSize, sequential); the merged file is checked against merged_file_max_bytes and deleted either way; the CSV is captured under csv_max_bytes by the process runner, which stops PresentMon at the cap; the merge temp folder is removed on every path. The peak is bounded by the session file plus the merged file plus the CSV plus two console streams (peak_bytes_bound), and ETW keeps 200 MB free on the system drive"
+          },
+          "option_citations": {
+            "--etl_file": "Analyze an ETW trace log file instead of the actively running processes.",
+            "--output_stdout": "Write CSV output to STDOUT.",
+            "--qpc_time": "Output the CPU start time as a performance counter value.",
+            "--process_name": "Only record processes with the specified exe name. This argument can be repeated to capture multiple processes.",
+            "wpr -start": "Starts one or more profiles. -filemode: recording is done in file mode. -recordtempto: the temporary folder path that the recording is saved to.",
+            "wpr -status": "Displays the status of an active recording (if any). collectors: lists collector information, with Events Lost per collector and the enabled providers.",
+            "wpr -stop": "Cancels and saves the recording initiated by WPR (if any) to the given file. -skipPdbGen disables dynamic generation of pdbs for .NET modules.",
+            "wpr -cancel": "Cancels the current recording without saving the recorded data.",
+            "-instancename": "Specifies a name to uniquely identify the tracing instance. This option can be applied to any commands that manipulate the logging session. -instancename must be the last parameter."
+          },
+          "account": {
+            "elevated": false,
+            "performance_log_users": true
+          }
+        }
+      },
+      "enabled": {
+        "providers": [
+          "Microsoft-Windows-Kernel-Process",
+          "Microsoft-Windows-DxgKrnl",
+          "Microsoft-Windows-Win32k",
+          "Microsoft-Windows-Dwm-Core",
+          "Microsoft-Windows-Dwm-Core-Win7",
+          "Microsoft-Windows-DxgKrnl-Win7",
+          "Microsoft-Windows-DXGI",
+          "Microsoft-Windows-D3D9"
+        ],
+        "keywords": [
+          "Microsoft-Windows-Kernel-Process:0x8000000000000010",
+          "Microsoft-Windows-DxgKrnl:0x8000841",
+          "Microsoft-Windows-Win32k:0x8400000440c01000",
+          "Microsoft-Windows-Dwm-Core:0x8000000000000081",
+          "Microsoft-Windows-Dwm-Core-Win7:0x0",
+          "Microsoft-Windows-DxgKrnl-Win7:0x0",
+          "Microsoft-Windows-DXGI:0x8000000000000002",
+          "Microsoft-Windows-D3D9:0x8000000000000002"
+        ],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "wpr_start_exit_code": 0,
+          "recording_in_progress": true,
+          "settings_match_request": true,
+          "stop_confirmed": true,
+          "session_ended_early": false,
+          "events_lost": 0,
+          "events_lost_sources": {
+            "wpr_status_dropped_events": 0,
+            "wpr_status_collectors": 0,
+            "etl_header_events_lost": 0,
+            "etl_header_buffers_lost": 0
+          },
+          "buffers_lost": 0,
+          "etl_bytes": 4096,
+          "etl_sha256": "fd0e275d4fe5b6fbe289dcea4c2b7ee460132e67f3344f339bf25065673de18b",
+          "etl_kept": false,
+          "etl_header_found": true,
+          "clock_type": "qpc",
+          "perf_freq_hz": 10000000,
+          "recording_start_utc": "2026-03-01T12:01:28.0000000Z",
+          "recording_end_utc": "2026-03-01T12:02:39.0000000Z",
+          "presentmon_exit_code": 0,
+          "presentmon_overflowed_presents": null,
+          "presentmon_warnings": [],
+          "csv_present": true,
+          "csv_bytes": 2998,
+          "csv_header": [
+            "Application",
+            "ProcessID",
+            "SwapChainAddress",
+            "PresentRuntime",
+            "SyncInterval",
+            "PresentFlags",
+            "AllowsTearing",
+            "PresentMode",
+            "TimeInQPC",
+            "MsBetweenSimulationStart",
+            "MsBetweenPresents",
+            "MsBetweenDisplayChange",
+            "MsInPresentAPI",
+            "MsRenderPresentLatency",
+            "MsUntilDisplayed",
+            "CPUStartQPC",
+            "MsBetweenAppStart",
+            "MsCPUBusy",
+            "MsCPUWait",
+            "MsGPULatency",
+            "MsGPUTime",
+            "MsGPUBusy",
+            "MsGPUWait",
+            "MsAnimationError",
+            "AnimationTime",
+            "MsFlipDelay",
+            "MsAllInputToPhotonLatency",
+            "MsClickToPhotonLatency"
+          ],
+          "qpc_time_column": true,
+          "records": 10,
+          "processes": [
+            {
+              "application": "SyntheticGame.exe",
+              "process_id": 4242,
+              "frames": 8
+            },
+            {
+              "application": "<unknown>",
+              "process_id": 5120,
+              "frames": 2
+            }
+          ],
+          "unknown_application_frames": 2,
+          "elevated": false,
+          "performance_log_users": true
+        },
+        "verified_by": "wpr -status collectors -details at the end of the window (recording in progress, Dropped event and Events Lost counters, the enabled providers with their keywords and levels compared with the request), the log file header of the recording (events and buffers lost, clock type, start and end), the CSV PresentMon printed (a CPUStartQPC column proves --qpc_time) and its stderr (overflowed presents), and the exit codes and console text of every run in console.txt"
+      },
+      "events_lost": 0,
+      "buffers_lost": 0,
+      "buffers": {
+        "size_kb": 64,
+        "count": 256,
+        "mode": "file"
+      },
+      "artifacts": [
+        {
+          "path": "raw/presentmon_frames/command.json",
+          "bytes": 9745,
+          "sha256": "d678db536f72bb0454df52acbcb7a575f491ff60390821af40f6526d8c2aff5b",
+          "role": "config"
+        },
+        {
+          "path": "raw/presentmon_frames/console.txt",
+          "bytes": 1721,
+          "sha256": "45deb499b9dd0e225619e9a21bd9f48bb462a24819abc0f48ab6e537a59cf460",
+          "role": "log"
+        },
+        {
+          "path": "raw/presentmon_frames/frames.csv",
+          "bytes": 2998,
+          "sha256": "33d53d71d08711737cfda8233e7cc0f14674c7b80237e5560f33d9121558fc9d",
+          "role": "primary"
+        },
+        {
+          "path": "raw/presentmon_frames/profile.wprp",
+          "bytes": 6038,
+          "sha256": "092ceac774d5c0893926c896cf35151a9700d72fbcef5764e4eaa3026edac1fb",
+          "role": "config"
+        },
+        {
+          "path": "raw/presentmon_frames/recording.json",
+          "bytes": 4807,
+          "sha256": "d4472c56d973dfbb54a03533882313353cfc21f47b2bce7bd9118e3d1d9a8c9b",
+          "role": "report"
+        },
+        {
+          "path": "raw/presentmon_frames/result.json",
+          "bytes": 3767,
+          "sha256": "6c0aad33eea9f2b04b9fe5858828d66c08d62dc14f8a262bd197fc6f70ab4a72",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:01:26.0000000Z",
+        "end": "2026-03-01T12:02:37.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "wpr starts the profile under this collector's instance name and reports the recording in progress at the end of the window with the requested providers enabled and zero loss; wpr -stop saves the file and the instance is confirmed idle; the file's header reads with zero events and buffers lost, a session that ran until the stop, and a size under the cap; the pinned PresentMon, hashed again, exits 0 reading it with --etl_file and --qpc_time, reports no overflowed presents, and prints at least one frame row. Zero frames is never a quiet window with this binary (an empty output cannot be told from a read that stopped early) and is capture_failed",
+        "met": true,
+        "detail": "wpr start exit 0; in progress at the end True; settings match True; events lost 0; buffers lost 0; recording 4096 bytes; session ended early False; stop confirmed True; PresentMon exit 0; overflowed presents none reported; 10 frames from 2 processes; CPUStartQPC column True"
+      },
+      "target_process": null
+    },
+    {
+      "id": "system_restart_events",
+      "kind": "eventlog",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:03:02.0000000Z",
+        "checks": [
+          {
+            "name": "channel_found",
+            "ok": true,
+            "detail": "channel System"
+          },
+          {
+            "name": "channel_readable",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.Diagnostics.Eventing.Reader.EventLogReader",
+        "System",
+        "raw/system_restart_events/query.xml"
+      ],
+      "started_utc": "2026-03-01T12:02:52.0000000Z",
+      "stopped_utc": "2026-03-01T12:03:04.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "6d7c134bb38ccd22f59aafec185891df8caf3e30da8e0d55720d44f474e91cf1"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "System",
+          "event_ids": [
+            41,
+            46,
+            1001,
+            1074,
+            6006,
+            6008,
+            6009,
+            7045
+          ],
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:02:53.0000000Z",
+          "window_end_utc": "2026-03-01T12:02:53.0000000Z",
+          "max_events": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
+          "query_sha256": "6d7c134bb38ccd22f59aafec185891df8caf3e30da8e0d55720d44f474e91cf1"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "System",
+          "query_accepted": true,
+          "window_start_utc": "2026-01-30T12:02:53.0000000Z",
+          "window_end_utc": "2026-03-01T12:02:53.0000000Z",
+          "records_read": 4,
+          "records_exported": 4,
+          "truncated": false,
+          "timed_out": false,
+          "evtx_exported": false,
+          "evtx_exit_code": null,
+          "evtx_message": "synthetic backend: wevtutil does not exist off Windows",
+          "evtx_command": null
+        },
+        "verified_by": "EventLogReader accepted the query in query.xml; the oldest retained record and the provider list are in channel_state.json"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/system_restart_events/channel_state.json",
+          "bytes": 776,
+          "sha256": "6fece5528c7e03c2950fc92f759f9176a05ce5636e27f1e54d8b314dc1cc3ad3",
+          "role": "report"
+        },
+        {
+          "path": "raw/system_restart_events/events.json",
+          "bytes": 4808,
+          "sha256": "ca46622e340cfb659b342cb1f19a5fee30883ce7b8fc245799265d54ecb391a1",
+          "role": "primary"
+        },
+        {
+          "path": "raw/system_restart_events/query.xml",
+          "bytes": 347,
+          "sha256": "6d7c134bb38ccd22f59aafec185891df8caf3e30da8e0d55720d44f474e91cf1",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-01-30T12:02:53.0000000Z",
+        "end": "2026-03-01T12:02:53.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
+        "met": true,
+        "detail": "4 records read; requested window 2026-01-30T12:02:53.0000000Z to 2026-03-01T12:02:53.0000000Z; covered range starts 2026-01-30T12:02:53.0000000Z"
+      },
+      "target_process": null
+    },
+    {
+      "id": "system_whea_events",
+      "kind": "eventlog",
+      "required": false,
+      "status": "observed_zero",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:03:17.0000000Z",
+        "checks": [
+          {
+            "name": "channel_found",
+            "ok": true,
+            "detail": "channel System"
+          },
+          {
+            "name": "channel_readable",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.Diagnostics.Eventing.Reader.EventLogReader",
+        "System",
+        "raw/system_whea_events/query.xml"
+      ],
+      "started_utc": "2026-03-01T12:03:11.0000000Z",
+      "stopped_utc": "2026-03-01T12:03:19.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "c12e238fc924063c75791fa02707e2aea9d8c3b24dad90648491ae003c77732d"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [
+          "Microsoft-Windows-WHEA-Logger"
+        ],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "System",
+          "event_ids": [],
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:03:12.0000000Z",
+          "window_end_utc": "2026-03-01T12:03:12.0000000Z",
+          "max_events": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
+          "query_sha256": "c12e238fc924063c75791fa02707e2aea9d8c3b24dad90648491ae003c77732d"
+        }
+      },
+      "enabled": {
+        "providers": [
+          "Microsoft-Windows-WHEA-Logger"
+        ],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "System",
+          "query_accepted": true,
+          "window_start_utc": "2026-01-30T12:03:12.0000000Z",
+          "window_end_utc": "2026-03-01T12:03:12.0000000Z",
+          "records_read": 0,
+          "records_exported": 0,
+          "truncated": false,
+          "timed_out": false,
+          "evtx_exported": false,
+          "evtx_exit_code": null,
+          "evtx_message": "synthetic backend: wevtutil does not exist off Windows",
+          "evtx_command": null
+        },
+        "verified_by": "EventLogReader accepted the query in query.xml; the oldest retained record and the provider list are in channel_state.json"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/system_whea_events/channel_state.json",
+          "bytes": 821,
+          "sha256": "bc6ffd9010afa4462b1466389f4cc788be7c733dfa62876cf02bcf8077a92d49",
+          "role": "report"
+        },
+        {
+          "path": "raw/system_whea_events/events.json",
+          "bytes": 3,
+          "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+          "role": "primary"
+        },
+        {
+          "path": "raw/system_whea_events/query.xml",
+          "bytes": 272,
+          "sha256": "c12e238fc924063c75791fa02707e2aea9d8c3b24dad90648491ae003c77732d",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-01-30T12:03:12.0000000Z",
+        "end": "2026-03-01T12:03:12.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
+        "met": true,
+        "detail": "0 records read; requested window 2026-01-30T12:03:12.0000000Z to 2026-03-01T12:03:12.0000000Z; covered range starts 2026-01-30T12:03:12.0000000Z"
+      },
+      "target_process": null
+    },
+    {
+      "id": "application_error_events",
+      "kind": "eventlog",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:03:34.0000000Z",
+        "checks": [
+          {
+            "name": "channel_found",
+            "ok": true,
+            "detail": "channel Application"
+          },
+          {
+            "name": "channel_readable",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.Diagnostics.Eventing.Reader.EventLogReader",
+        "Application",
+        "raw/application_error_events/query.xml"
+      ],
+      "started_utc": "2026-03-01T12:03:26.0000000Z",
+      "stopped_utc": "2026-03-01T12:03:36.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "3861b6c55a46c04cfaaf040866464618c957a68413d09e60665a1466b64bcd6e"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [
+          "Application Error",
+          "Application Hang",
+          "Windows Error Reporting",
+          ".NET Runtime"
+        ],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "Application",
+          "event_ids": [
+            1000,
+            1002,
+            1001,
+            1026
+          ],
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:03:27.0000000Z",
+          "window_end_utc": "2026-03-01T12:03:27.0000000Z",
+          "max_events": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
+          "query_sha256": "3861b6c55a46c04cfaaf040866464618c957a68413d09e60665a1466b64bcd6e"
+        }
+      },
+      "enabled": {
+        "providers": [
+          "Application Error",
+          "Application Hang",
+          "Windows Error Reporting",
+          ".NET Runtime"
+        ],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "Application",
+          "query_accepted": true,
+          "window_start_utc": "2026-02-20T12:03:24.0000000Z",
+          "window_end_utc": "2026-03-01T12:03:27.0000000Z",
+          "records_read": 2,
+          "records_exported": 2,
+          "truncated": false,
+          "timed_out": false,
+          "evtx_exported": false,
+          "evtx_exit_code": null,
+          "evtx_message": "synthetic backend: wevtutil does not exist off Windows",
+          "evtx_command": null
+        },
+        "verified_by": "EventLogReader accepted the query in query.xml; the oldest retained record and the provider list are in channel_state.json"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/application_error_events/channel_state.json",
+          "bytes": 906,
+          "sha256": "8e701385750b86d198a67e6369cfda92cab0978bf3f11ed503f5140ae4a9d52a",
+          "role": "report"
+        },
+        {
+          "path": "raw/application_error_events/events.json",
+          "bytes": 3007,
+          "sha256": "b153e360aa497837aef8ca0adf8f8a8a7adf0e01ed041039f0e01624c5f1f834",
+          "role": "primary"
+        },
+        {
+          "path": "raw/application_error_events/query.xml",
+          "bytes": 940,
+          "sha256": "3861b6c55a46c04cfaaf040866464618c957a68413d09e60665a1466b64bcd6e",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-02-20T12:03:24.0000000Z",
+        "end": "2026-03-01T12:03:27.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
+        "met": true,
+        "detail": "2 records read; requested window 2026-01-30T12:03:27.0000000Z to 2026-03-01T12:03:27.0000000Z; covered range starts 2026-02-20T12:03:24.0000000Z"
+      },
+      "target_process": null
+    },
+    {
+      "id": "system_display_events",
+      "kind": "eventlog",
+      "required": false,
+      "status": "capture_failed",
+      "status_reason": "zero matching records, but Microsoft does not document which provider logs this signal, so an empty result is not accepted as a quiet window until the verification step in collectors/windows/README.md has been done on this machine",
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:03:49.0000000Z",
+        "checks": [
+          {
+            "name": "channel_found",
+            "ok": true,
+            "detail": "channel System"
+          },
+          {
+            "name": "channel_readable",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.Diagnostics.Eventing.Reader.EventLogReader",
+        "System",
+        "raw/system_display_events/query.xml"
+      ],
+      "started_utc": "2026-03-01T12:03:43.0000000Z",
+      "stopped_utc": "2026-03-01T12:03:51.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "537e702d6a3753708be0dbc7294f0c477ccbffc316900335987e65d472851111"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [
+          "Display"
+        ],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "System",
+          "event_ids": [],
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:03:44.0000000Z",
+          "window_end_utc": "2026-03-01T12:03:44.0000000Z",
+          "max_events": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
+          "query_sha256": "537e702d6a3753708be0dbc7294f0c477ccbffc316900335987e65d472851111"
+        }
+      },
+      "enabled": {
+        "providers": [
+          "Display"
+        ],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "System",
+          "query_accepted": true,
+          "window_start_utc": "2026-01-30T12:03:44.0000000Z",
+          "window_end_utc": "2026-03-01T12:03:44.0000000Z",
+          "records_read": 0,
+          "records_exported": 0,
+          "truncated": false,
+          "timed_out": false,
+          "evtx_exported": false,
+          "evtx_exit_code": null,
+          "evtx_message": "synthetic backend: wevtutil does not exist off Windows",
+          "evtx_command": null
+        },
+        "verified_by": "EventLogReader accepted the query in query.xml; the oldest retained record and the provider list are in channel_state.json"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/system_display_events/channel_state.json",
+          "bytes": 799,
+          "sha256": "8606ea3e89c039fca923fc212f964ff67e41acf27244d7c810f1a8aa2a5d332b",
+          "role": "report"
+        },
+        {
+          "path": "raw/system_display_events/query.xml",
+          "bytes": 250,
+          "sha256": "537e702d6a3753708be0dbc7294f0c477ccbffc316900335987e65d472851111",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-01-30T12:03:44.0000000Z",
+        "end": "2026-03-01T12:03:44.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
+        "met": false,
+        "detail": "0 records read; requested window 2026-01-30T12:03:44.0000000Z to 2026-03-01T12:03:44.0000000Z; covered range starts 2026-01-30T12:03:44.0000000Z"
+      },
+      "target_process": null
+    },
+    {
+      "id": "system_bugcheck_events",
+      "kind": "eventlog",
+      "required": false,
+      "status": "observed_zero",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:03:58.0000000Z",
+        "checks": [
+          {
+            "name": "channel_found",
+            "ok": true,
+            "detail": "channel System"
+          },
+          {
+            "name": "channel_readable",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.Diagnostics.Eventing.Reader.EventLogReader",
+        "System",
+        "raw/system_bugcheck_events/query.xml"
+      ],
+      "started_utc": "2026-03-01T12:03:52.0000000Z",
+      "stopped_utc": "2026-03-01T12:04:00.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "17859e330b6e7e3d4fffa4bfa1a5cb3bcfe1f5ca22c195138f11adb2bb93ef5a"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "System",
+          "event_ids": [
+            41,
+            1001
+          ],
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:03:53.0000000Z",
+          "window_end_utc": "2026-03-01T12:03:53.0000000Z",
+          "max_events": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
+          "query_sha256": "17859e330b6e7e3d4fffa4bfa1a5cb3bcfe1f5ca22c195138f11adb2bb93ef5a"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "System",
+          "query_accepted": true,
+          "window_start_utc": "2026-01-30T12:03:53.0000000Z",
+          "window_end_utc": "2026-03-01T12:03:53.0000000Z",
+          "records_read": 0,
+          "records_exported": 0,
+          "truncated": false,
+          "timed_out": false,
+          "evtx_exported": false,
+          "evtx_exit_code": null,
+          "evtx_message": "synthetic backend: wevtutil does not exist off Windows",
+          "evtx_command": null
+        },
+        "verified_by": "EventLogReader accepted the query in query.xml; the oldest retained record and the provider list are in channel_state.json"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/system_bugcheck_events/channel_state.json",
+          "bytes": 776,
+          "sha256": "cd442df145e7a0599cbfa112a18f3b447e478f503b7a3b9015796981deb63c39",
+          "role": "report"
+        },
+        {
+          "path": "raw/system_bugcheck_events/events.json",
+          "bytes": 3,
+          "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+          "role": "primary"
+        },
+        {
+          "path": "raw/system_bugcheck_events/query.xml",
+          "bytes": 253,
+          "sha256": "17859e330b6e7e3d4fffa4bfa1a5cb3bcfe1f5ca22c195138f11adb2bb93ef5a",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-01-30T12:03:53.0000000Z",
+        "end": "2026-03-01T12:03:53.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
+        "met": true,
+        "detail": "0 records read; requested window 2026-01-30T12:03:53.0000000Z to 2026-03-01T12:03:53.0000000Z; covered range starts 2026-01-30T12:03:53.0000000Z"
+      },
+      "target_process": null
+    },
+    {
+      "id": "reliability_records",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:04:12.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_ReliabilityRecords"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/cimv2",
+        "-ClassName",
+        "Win32_ReliabilityRecords",
+        "-Property",
+        "ComputerName,EventIdentifier,InsertionStrings,Logfile,Message,ProductName,RecordNumber,SourceName,TimeGenerated,User",
+        "-OperationTimeoutSec",
+        "300",
+        "-Filter",
+        "TimeGenerated >= '20260130120408.000000+000' AND TimeGenerated <= '20260301120408.000000+000'"
+      ],
+      "started_utc": "2026-03-01T12:04:07.0000000Z",
+      "stopped_utc": "2026-03-01T12:04:15.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "56db541f8108ccb2bd0e29aacde13b8bb1c6fa29d508333f9db3007c8d65f4cc"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_ReliabilityRecords",
+          "namespace": "root/cimv2",
+          "properties": [
+            "ComputerName",
+            "EventIdentifier",
+            "InsertionStrings",
+            "Logfile",
+            "Message",
+            "ProductName",
+            "RecordNumber",
+            "SourceName",
+            "TimeGenerated",
+            "User"
+          ],
+          "filter": "TimeGenerated >= '20260130120408.000000+000' AND TimeGenerated <= '20260301120408.000000+000'",
+          "time_property": "TimeGenerated",
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:04:08.0000000Z",
+          "window_end_utc": "2026-03-01T12:04:08.0000000Z",
+          "coverage_probe_filter": "TimeGenerated < '20260130120408.000000+000'",
+          "max_records": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_ReliabilityRecords",
+          "namespace": "root/cimv2",
+          "properties": [
+            "ComputerName",
+            "EventIdentifier",
+            "InsertionStrings",
+            "Logfile",
+            "Message",
+            "ProductName",
+            "RecordNumber",
+            "SourceName",
+            "TimeGenerated",
+            "User"
+          ],
+          "filter": "TimeGenerated >= '20260130120408.000000+000' AND TimeGenerated <= '20260301120408.000000+000'",
+          "time_property": "TimeGenerated",
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:04:08.0000000Z",
+          "window_end_utc": "2026-03-01T12:04:08.0000000Z",
+          "records_read": 2,
+          "records_exported": 2,
+          "truncated": false,
+          "coverage_probe": true
+        },
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/reliability_records/query.json",
+          "bytes": 709,
+          "sha256": "56db541f8108ccb2bd0e29aacde13b8bb1c6fa29d508333f9db3007c8d65f4cc",
+          "role": "config"
+        },
+        {
+          "path": "raw/reliability_records/records.json",
+          "bytes": 719,
+          "sha256": "3b2af3bb6b30dfb5f3dce27136f31a08c57293bb72ddab5f3f0d4ed2c12812b4",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-01-30T12:04:08.0000000Z",
+        "end": "2026-03-01T12:04:08.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "every instance inside the window is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when a record at or before the window start proves the range was covered",
+        "met": true,
+        "detail": "2 instances inside the window; coverage probe found 1 record at or before the window start; covered range starts 2026-01-30T12:04:08.0000000Z"
+      },
+      "target_process": null
+    },
+    {
+      "id": "reliability_stability_metrics",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:04:21.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_ReliabilityStabilityMetrics"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/cimv2",
+        "-ClassName",
+        "Win32_ReliabilityStabilityMetrics",
+        "-Property",
+        "EndMeasurementDate,RelID,StartMeasurementDate,SystemStabilityIndex,TimeGenerated",
+        "-OperationTimeoutSec",
+        "300",
+        "-Filter",
+        "TimeGenerated >= '20260130120417.000000+000' AND TimeGenerated <= '20260301120417.000000+000'"
+      ],
+      "started_utc": "2026-03-01T12:04:16.0000000Z",
+      "stopped_utc": "2026-03-01T12:04:24.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "aeee02f25ab34974c1bac222d5ea26fd41526bcbfe04adf0339e0b8a1f87c167"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_ReliabilityStabilityMetrics",
+          "namespace": "root/cimv2",
+          "properties": [
+            "EndMeasurementDate",
+            "RelID",
+            "StartMeasurementDate",
+            "SystemStabilityIndex",
+            "TimeGenerated"
+          ],
+          "filter": "TimeGenerated >= '20260130120417.000000+000' AND TimeGenerated <= '20260301120417.000000+000'",
+          "time_property": "TimeGenerated",
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:04:17.0000000Z",
+          "window_end_utc": "2026-03-01T12:04:17.0000000Z",
+          "coverage_probe_filter": "TimeGenerated < '20260130120417.000000+000'",
+          "max_records": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_ReliabilityStabilityMetrics",
+          "namespace": "root/cimv2",
+          "properties": [
+            "EndMeasurementDate",
+            "RelID",
+            "StartMeasurementDate",
+            "SystemStabilityIndex",
+            "TimeGenerated"
+          ],
+          "filter": "TimeGenerated >= '20260130120417.000000+000' AND TimeGenerated <= '20260301120417.000000+000'",
+          "time_property": "TimeGenerated",
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:04:17.0000000Z",
+          "window_end_utc": "2026-03-01T12:04:17.0000000Z",
+          "records_read": 2,
+          "records_exported": 2,
+          "truncated": false,
+          "coverage_probe": true
+        },
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/reliability_stability_metrics/query.json",
+          "bytes": 647,
+          "sha256": "aeee02f25ab34974c1bac222d5ea26fd41526bcbfe04adf0339e0b8a1f87c167",
+          "role": "config"
+        },
+        {
+          "path": "raw/reliability_stability_metrics/records.json",
+          "bytes": 463,
+          "sha256": "941e0bf38a03ddf0878614341110a1407bf76e9f9efb2a9b256a76fd1f3d39fe",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-01-30T12:04:17.0000000Z",
+        "end": "2026-03-01T12:04:17.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "every instance inside the window is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when a record at or before the window start proves the range was covered",
+        "met": true,
+        "detail": "2 instances inside the window; coverage probe found 1 record at or before the window start; covered range starts 2026-01-30T12:04:17.0000000Z"
+      },
+      "target_process": null
+    },
+    {
+      "id": "pnp_signed_drivers",
+      "kind": "config_snapshot",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:04:37.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_PnPSignedDriver"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/cimv2",
+        "-ClassName",
+        "Win32_PnPSignedDriver",
+        "-Property",
+        "DeviceID,DeviceName,DeviceClass,ClassGuid,Description,FriendlyName,Manufacturer,DriverProviderName,DriverVersion,DriverDate,DriverName,InfName,IsSigned,Signer,HardWareID,CompatID,Location,Started,StartMode,Status",
+        "-OperationTimeoutSec",
+        "300"
+      ],
+      "started_utc": "2026-03-01T12:04:31.0000000Z",
+      "stopped_utc": "2026-03-01T12:04:38.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "43f56d83d7c7b57ec4b88edbbc64957655353f70be0cc0fdb043bb0a779f6bfd"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_PnPSignedDriver",
+          "namespace": "root/cimv2",
+          "properties": [
+            "DeviceID",
+            "DeviceName",
+            "DeviceClass",
+            "ClassGuid",
+            "Description",
+            "FriendlyName",
+            "Manufacturer",
+            "DriverProviderName",
+            "DriverVersion",
+            "DriverDate",
+            "DriverName",
+            "InfName",
+            "IsSigned",
+            "Signer",
+            "HardWareID",
+            "CompatID",
+            "Location",
+            "Started",
+            "StartMode",
+            "Status"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "coverage_probe_filter": null,
+          "max_records": 20000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_PnPSignedDriver",
+          "namespace": "root/cimv2",
+          "properties": [
+            "DeviceID",
+            "DeviceName",
+            "DeviceClass",
+            "ClassGuid",
+            "Description",
+            "FriendlyName",
+            "Manufacturer",
+            "DriverProviderName",
+            "DriverVersion",
+            "DriverDate",
+            "DriverName",
+            "InfName",
+            "IsSigned",
+            "Signer",
+            "HardWareID",
+            "CompatID",
+            "Location",
+            "Started",
+            "StartMode",
+            "Status"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "records_read": 3,
+          "records_exported": 3,
+          "truncated": false,
+          "coverage_probe": null
+        },
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/pnp_signed_drivers/query.json",
+          "bytes": 680,
+          "sha256": "43f56d83d7c7b57ec4b88edbbc64957655353f70be0cc0fdb043bb0a779f6bfd",
+          "role": "config"
+        },
+        {
+          "path": "raw/pnp_signed_drivers/records.json",
+          "bytes": 1539,
+          "sha256": "5d0e6d4bf573db0a12631cf4e559ac98bde5cf8b5f25b27ce68ae6072629f493",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:04:37.0000000Z",
+        "end": "2026-03-01T12:04:37.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": true,
+        "detail": "3 instances"
+      },
+      "target_process": null
+    },
+    {
+      "id": "system_drivers",
+      "kind": "config_snapshot",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:04:44.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_SystemDriver"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/cimv2",
+        "-ClassName",
+        "Win32_SystemDriver",
+        "-Property",
+        "Name,DisplayName,Description,PathName,ServiceType,StartMode,State,Started,Status,ErrorControl,ExitCode,AcceptStop,TagId",
+        "-OperationTimeoutSec",
+        "300"
+      ],
+      "started_utc": "2026-03-01T12:04:39.0000000Z",
+      "stopped_utc": "2026-03-01T12:04:45.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "085779de5ebed5ff1c046ef23f4107eea2f478f77e84d5b3d09bc8a616f1a23a"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_SystemDriver",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Name",
+            "DisplayName",
+            "Description",
+            "PathName",
+            "ServiceType",
+            "StartMode",
+            "State",
+            "Started",
+            "Status",
+            "ErrorControl",
+            "ExitCode",
+            "AcceptStop",
+            "TagId"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "coverage_probe_filter": null,
+          "max_records": 20000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_SystemDriver",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Name",
+            "DisplayName",
+            "Description",
+            "PathName",
+            "ServiceType",
+            "StartMode",
+            "State",
+            "Started",
+            "Status",
+            "ErrorControl",
+            "ExitCode",
+            "AcceptStop",
+            "TagId"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "records_read": 2,
+          "records_exported": 2,
+          "truncated": false,
+          "coverage_probe": null
+        },
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/system_drivers/query.json",
+          "bytes": 535,
+          "sha256": "085779de5ebed5ff1c046ef23f4107eea2f478f77e84d5b3d09bc8a616f1a23a",
+          "role": "config"
+        },
+        {
+          "path": "raw/system_drivers/records.json",
+          "bytes": 629,
+          "sha256": "1db1c8e1280eb26cb6a2774b5bee2d3d01cdfadad521134a377c2688a89c2bac",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:04:44.0000000Z",
+        "end": "2026-03-01T12:04:44.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": true,
+        "detail": "2 instances"
+      },
+      "target_process": null
+    }
+  ],
+  "calibration": {
+    "status": "observed",
+    "method": "one thread reads Stopwatch.GetTimestamp (QueryPerformanceCounter), [DateTime]::UtcNow.ToFileTimeUtc() (the system time at the resolution of the system timer), Stopwatch.GetTimestamp, at the session start, every 5 s strictly inside the session, and at the stop. Each pair is taken at the instant the system clock changes value: the clock is read in a loop until it changes, and the counter read before the last unchanged reading and the one after the changed reading bracket the moment the clock took its new value; the size of that change (the clock increment) is recorded with the pair. The frequency is Stopwatch.Frequency (QueryPerformanceFrequency). GetSystemTimePreciseAsFileTime and GetSystemTimeAdjustment are not called: neither is reachable from Windows PowerShell 5.1 without compiling code, so both members of time_adjustment are null. See docs/clock-calibration.md.",
+    "qpc_frequency_hz": 10000000,
+    "expected_pairs": 61,
+    "pairs": [
+      {
+        "seq": 0,
+        "phase": "start",
+        "qpc_before": 27345678911134,
+        "qpc_after": 27345678911384,
+        "filetime_utc_100ns": 134168400050010000
+      },
+      {
+        "seq": 1,
+        "phase": "interval",
+        "qpc_before": 27345728918534,
+        "qpc_after": 27345728918784,
+        "filetime_utc_100ns": 134168400100020000
+      },
+      {
+        "seq": 2,
+        "phase": "interval",
+        "qpc_before": 27345778926084,
+        "qpc_after": 27345778926334,
+        "filetime_utc_100ns": 134168400150030000
+      },
+      {
+        "seq": 3,
+        "phase": "interval",
+        "qpc_before": 27345828923634,
+        "qpc_after": 27345828923884,
+        "filetime_utc_100ns": 134168400200030000
+      },
+      {
+        "seq": 4,
+        "phase": "interval",
+        "qpc_before": 27345878921034,
+        "qpc_after": 27345878921284,
+        "filetime_utc_100ns": 134168400250030000
+      },
+      {
+        "seq": 5,
+        "phase": "interval",
+        "qpc_before": 27345928918584,
+        "qpc_after": 27345928918834,
+        "filetime_utc_100ns": 134168400300030000
+      },
+      {
+        "seq": 6,
+        "phase": "interval",
+        "qpc_before": 27345978926134,
+        "qpc_after": 27345978926384,
+        "filetime_utc_100ns": 134168400350040000
+      },
+      {
+        "seq": 7,
+        "phase": "interval",
+        "qpc_before": 27346028923534,
+        "qpc_after": 27346028923784,
+        "filetime_utc_100ns": 134168400400040000
+      },
+      {
+        "seq": 8,
+        "phase": "interval",
+        "qpc_before": 27346078921084,
+        "qpc_after": 27346078921334,
+        "filetime_utc_100ns": 134168400450040000
+      },
+      {
+        "seq": 9,
+        "phase": "interval",
+        "qpc_before": 27346128918634,
+        "qpc_after": 27346128918884,
+        "filetime_utc_100ns": 134168400500040000
+      },
+      {
+        "seq": 10,
+        "phase": "interval",
+        "qpc_before": 27346178926034,
+        "qpc_after": 27346178926284,
+        "filetime_utc_100ns": 134168400550050000
+      },
+      {
+        "seq": 11,
+        "phase": "interval",
+        "qpc_before": 27346228923584,
+        "qpc_after": 27346228923834,
+        "filetime_utc_100ns": 134168400600050000
+      },
+      {
+        "seq": 12,
+        "phase": "interval",
+        "qpc_before": 27346278921134,
+        "qpc_after": 27346278921384,
+        "filetime_utc_100ns": 134168400650050000
+      },
+      {
+        "seq": 13,
+        "phase": "interval",
+        "qpc_before": 27346328918534,
+        "qpc_after": 27346328918784,
+        "filetime_utc_100ns": 134168400700050000
+      },
+      {
+        "seq": 14,
+        "phase": "interval",
+        "qpc_before": 27346378926084,
+        "qpc_after": 27346378926334,
+        "filetime_utc_100ns": 134168400750060000
+      },
+      {
+        "seq": 15,
+        "phase": "interval",
+        "qpc_before": 27346428923634,
+        "qpc_after": 27346428923884,
+        "filetime_utc_100ns": 134168400800060000
+      },
+      {
+        "seq": 16,
+        "phase": "interval",
+        "qpc_before": 27346478921034,
+        "qpc_after": 27346478921284,
+        "filetime_utc_100ns": 134168400850060000
+      },
+      {
+        "seq": 17,
+        "phase": "interval",
+        "qpc_before": 27346528918584,
+        "qpc_after": 27346528918834,
+        "filetime_utc_100ns": 134168400900060000
+      },
+      {
+        "seq": 18,
+        "phase": "interval",
+        "qpc_before": 27346578926134,
+        "qpc_after": 27346578926384,
+        "filetime_utc_100ns": 134168400950070000
+      },
+      {
+        "seq": 19,
+        "phase": "interval",
+        "qpc_before": 27346628923534,
+        "qpc_after": 27346628923784,
+        "filetime_utc_100ns": 134168401000070000
+      },
+      {
+        "seq": 20,
+        "phase": "interval",
+        "qpc_before": 27346678921084,
+        "qpc_after": 27346678921334,
+        "filetime_utc_100ns": 134168401050070000
+      },
+      {
+        "seq": 21,
+        "phase": "interval",
+        "qpc_before": 27346728918634,
+        "qpc_after": 27346728918884,
+        "filetime_utc_100ns": 134168401100070000
+      },
+      {
+        "seq": 22,
+        "phase": "interval",
+        "qpc_before": 27346778926034,
+        "qpc_after": 27346778926284,
+        "filetime_utc_100ns": 134168401150080000
+      },
+      {
+        "seq": 23,
+        "phase": "interval",
+        "qpc_before": 27346828923584,
+        "qpc_after": 27346828923834,
+        "filetime_utc_100ns": 134168401200080000
+      },
+      {
+        "seq": 24,
+        "phase": "interval",
+        "qpc_before": 27346878921134,
+        "qpc_after": 27346878921384,
+        "filetime_utc_100ns": 134168401250080000
+      },
+      {
+        "seq": 25,
+        "phase": "interval",
+        "qpc_before": 27346928918534,
+        "qpc_after": 27346928918784,
+        "filetime_utc_100ns": 134168401300080000
+      },
+      {
+        "seq": 26,
+        "phase": "interval",
+        "qpc_before": 27346978926084,
+        "qpc_after": 27346978926334,
+        "filetime_utc_100ns": 134168401350090000
+      },
+      {
+        "seq": 27,
+        "phase": "interval",
+        "qpc_before": 27347028923634,
+        "qpc_after": 27347028923884,
+        "filetime_utc_100ns": 134168401400090000
+      },
+      {
+        "seq": 28,
+        "phase": "interval",
+        "qpc_before": 27347078921034,
+        "qpc_after": 27347078921284,
+        "filetime_utc_100ns": 134168401450090000
+      },
+      {
+        "seq": 29,
+        "phase": "interval",
+        "qpc_before": 27347128918584,
+        "qpc_after": 27347128918834,
+        "filetime_utc_100ns": 134168401500090000
+      },
+      {
+        "seq": 30,
+        "phase": "interval",
+        "qpc_before": 27347178926134,
+        "qpc_after": 27347178926384,
+        "filetime_utc_100ns": 134168401550100000
+      },
+      {
+        "seq": 31,
+        "phase": "interval",
+        "qpc_before": 27347228923534,
+        "qpc_after": 27347228923784,
+        "filetime_utc_100ns": 134168401600100000
+      },
+      {
+        "seq": 32,
+        "phase": "interval",
+        "qpc_before": 27347278921084,
+        "qpc_after": 27347278921334,
+        "filetime_utc_100ns": 134168401650100000
+      },
+      {
+        "seq": 33,
+        "phase": "interval",
+        "qpc_before": 27347328918634,
+        "qpc_after": 27347328918884,
+        "filetime_utc_100ns": 134168401700100000
+      },
+      {
+        "seq": 34,
+        "phase": "interval",
+        "qpc_before": 27347378926034,
+        "qpc_after": 27347378926284,
+        "filetime_utc_100ns": 134168401750110000
+      },
+      {
+        "seq": 35,
+        "phase": "interval",
+        "qpc_before": 27347428923584,
+        "qpc_after": 27347428923834,
+        "filetime_utc_100ns": 134168401800110000
+      },
+      {
+        "seq": 36,
+        "phase": "interval",
+        "qpc_before": 27347478921134,
+        "qpc_after": 27347478921384,
+        "filetime_utc_100ns": 134168401850110000
+      },
+      {
+        "seq": 37,
+        "phase": "interval",
+        "qpc_before": 27347528918534,
+        "qpc_after": 27347528918784,
+        "filetime_utc_100ns": 134168401900110000
+      },
+      {
+        "seq": 38,
+        "phase": "interval",
+        "qpc_before": 27347578926084,
+        "qpc_after": 27347578926334,
+        "filetime_utc_100ns": 134168401950120000
+      },
+      {
+        "seq": 39,
+        "phase": "interval",
+        "qpc_before": 27347628923634,
+        "qpc_after": 27347628923884,
+        "filetime_utc_100ns": 134168402000120000
+      },
+      {
+        "seq": 40,
+        "phase": "interval",
+        "qpc_before": 27347678921034,
+        "qpc_after": 27347678921284,
+        "filetime_utc_100ns": 134168402050120000
+      },
+      {
+        "seq": 41,
+        "phase": "interval",
+        "qpc_before": 27347728918584,
+        "qpc_after": 27347728918834,
+        "filetime_utc_100ns": 134168402100120000
+      },
+      {
+        "seq": 42,
+        "phase": "interval",
+        "qpc_before": 27347778926134,
+        "qpc_after": 27347778926384,
+        "filetime_utc_100ns": 134168402150130000
+      },
+      {
+        "seq": 43,
+        "phase": "interval",
+        "qpc_before": 27347828923534,
+        "qpc_after": 27347828923784,
+        "filetime_utc_100ns": 134168402200130000
+      },
+      {
+        "seq": 44,
+        "phase": "interval",
+        "qpc_before": 27347878921084,
+        "qpc_after": 27347878921334,
+        "filetime_utc_100ns": 134168402250130000
+      },
+      {
+        "seq": 45,
+        "phase": "interval",
+        "qpc_before": 27347928918634,
+        "qpc_after": 27347928918884,
+        "filetime_utc_100ns": 134168402300130000
+      },
+      {
+        "seq": 46,
+        "phase": "interval",
+        "qpc_before": 27347978926034,
+        "qpc_after": 27347978926284,
+        "filetime_utc_100ns": 134168402350140000
+      },
+      {
+        "seq": 47,
+        "phase": "interval",
+        "qpc_before": 27348028923584,
+        "qpc_after": 27348028923834,
+        "filetime_utc_100ns": 134168402400140000
+      },
+      {
+        "seq": 48,
+        "phase": "interval",
+        "qpc_before": 27348078921134,
+        "qpc_after": 27348078921384,
+        "filetime_utc_100ns": 134168402450140000
+      },
+      {
+        "seq": 49,
+        "phase": "interval",
+        "qpc_before": 27348128918534,
+        "qpc_after": 27348128918784,
+        "filetime_utc_100ns": 134168402500140000
+      },
+      {
+        "seq": 50,
+        "phase": "interval",
+        "qpc_before": 27348178926084,
+        "qpc_after": 27348178926334,
+        "filetime_utc_100ns": 134168402550150000
+      },
+      {
+        "seq": 51,
+        "phase": "interval",
+        "qpc_before": 27348228923634,
+        "qpc_after": 27348228923884,
+        "filetime_utc_100ns": 134168402600150000
+      },
+      {
+        "seq": 52,
+        "phase": "interval",
+        "qpc_before": 27348278921034,
+        "qpc_after": 27348278921284,
+        "filetime_utc_100ns": 134168402650150000
+      },
+      {
+        "seq": 53,
+        "phase": "interval",
+        "qpc_before": 27348328918584,
+        "qpc_after": 27348328918834,
+        "filetime_utc_100ns": 134168402700150000
+      },
+      {
+        "seq": 54,
+        "phase": "interval",
+        "qpc_before": 27348378926134,
+        "qpc_after": 27348378926384,
+        "filetime_utc_100ns": 134168402750160000
+      },
+      {
+        "seq": 55,
+        "phase": "interval",
+        "qpc_before": 27348428923534,
+        "qpc_after": 27348428923784,
+        "filetime_utc_100ns": 134168402800160000
+      },
+      {
+        "seq": 56,
+        "phase": "interval",
+        "qpc_before": 27348478921084,
+        "qpc_after": 27348478921334,
+        "filetime_utc_100ns": 134168402850160000
+      },
+      {
+        "seq": 57,
+        "phase": "interval",
+        "qpc_before": 27348528918634,
+        "qpc_after": 27348528918884,
+        "filetime_utc_100ns": 134168402900160000
+      },
+      {
+        "seq": 58,
+        "phase": "interval",
+        "qpc_before": 27348578926034,
+        "qpc_after": 27348578926284,
+        "filetime_utc_100ns": 134168402950170000
+      },
+      {
+        "seq": 59,
+        "phase": "interval",
+        "qpc_before": 27348628923584,
+        "qpc_after": 27348628923834,
+        "filetime_utc_100ns": 134168403000170000
+      },
+      {
+        "seq": 60,
+        "phase": "stop",
+        "qpc_before": 27348678921134,
+        "qpc_after": 27348678921384,
+        "filetime_utc_100ns": 134168403050170000
+      }
+    ],
+    "missing_pairs": 0,
+    "time_adjustment": {
+      "start": null,
+      "stop": null
+    },
+    "boot_time_utc": "2026-02-27T12:00:05.0000000Z"
+  },
+  "tools": [
+    {
+      "name": "powershell",
+      "version": "5.1.26100.1",
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "sha256": null
+    },
+    {
+      "name": "wevtutil",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wevtutil.exe",
+      "sha256": null
+    },
+    {
+      "name": "collector:scenario-runner",
+      "version": "1.0.0",
+      "path": "<install directory>\\scenario-runner.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector-helper:_common.ps1",
+      "version": "1.2.0",
+      "path": "<install directory>\\_common.ps1",
+      "sha256": null
+    },
+    {
+      "name": "scenario-runner-library:_scenarios.ps1",
+      "version": "1.0.0",
+      "path": "<install directory>\\_scenarios.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector:clock-calibration",
+      "version": "1.0.0",
+      "path": "<install directory>\\clock-calibration.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector:dpcisr-trace",
+      "version": "1.1.0",
+      "path": "<install directory>\\dpcisr-trace.ps1",
+      "sha256": null
+    },
+    {
+      "name": "wpr",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wpr.exe",
+      "sha256": null
+    },
+    {
+      "name": "tracerpt",
+      "version": null,
+      "path": "C:\\Windows\\System32\\tracerpt.exe",
+      "sha256": null
+    },
+    {
+      "name": "xperf",
+      "version": "10.0.26100.1 (synthetic)",
+      "path": "C:\\Tools\\WindowsPerformanceToolkit\\xperf.exe",
+      "sha256": "7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b"
+    },
+    {
+      "name": "collector:presentmon-frames",
+      "version": "2.1.0",
+      "path": "<install directory>\\presentmon-frames.ps1",
+      "sha256": null
+    },
+    {
+      "name": "presentmon",
+      "version": "2.6.0",
+      "path": "C:\\ProgramData\\win-forensics\\tools\\PresentMon-2.6.0-x64.exe",
+      "sha256": "b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af"
+    },
+    {
+      "name": "collector:bugcheck-history",
+      "version": "1.0.0",
+      "path": "<install directory>\\bugcheck-history.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector:whea-errors",
+      "version": "1.0.0",
+      "path": "<install directory>\\whea-errors.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector:application-errors",
+      "version": "1.0.0",
+      "path": "<install directory>\\application-errors.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector:tdr-events",
+      "version": "1.0.0",
+      "path": "<install directory>\\tdr-events.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector:reliability-records",
+      "version": "1.0.0",
+      "path": "<install directory>\\reliability-records.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector:driver-inventory",
+      "version": "1.0.0",
+      "path": "<install directory>\\driver-inventory.ps1",
+      "sha256": null
+    }
+  ],
+  "symbols": {
+    "symbol_path": null,
+    "cache_path": null,
+    "dbghelp_version": null
+  },
+  "checksum_algorithm": "sha256",
+  "notes": [
+    "Scenario runner 1.0.0, scenario s1 version 1.0.0: One bounded latency session on the gaming PC: the state before, the DPC and interrupt trace and the frame recording inside one clock calibration session, the history collectors, and the state after.",
+    "Ran as the collector account (its name is not recorded); elevated: True; member of Event Log Readers (S-1-5-32-573): True; member of Performance Log Users (S-1-5-32-559): False.",
+    "Each collector ran as its own Windows PowerShell process, one after another, except the clock session, which ran in the background across the live captures. Each collector's own manifest, summary and log are kept under logs/steps/<step>/ with the profile folder written as <profile>, the account as <account> and this directory as <bundle>; raw/ holds every source the runner merged, under its own id or with the step's prefix (state_before_, state_after_).",
+    "In this scenario the history steps are optional: their sources are listed with required false whatever the collector marked.",
+    "Step state_before (config-snapshot): absent; config-snapshot.ps1 is not in this checkout (the state snapshot is PR 11); the slot is kept so the order does not change when it lands",
+    "Step clock (clock-calibration): completed",
+    "Step dpcisr (dpcisr-trace): completed",
+    "Step frames (presentmon-frames): completed",
+    "Step bugchecks (bugcheck-history): completed",
+    "Step whea (whea-errors): completed",
+    "Step app_errors (application-errors): completed",
+    "Step tdr (tdr-events): completed",
+    "Step reliability (reliability-records): completed",
+    "Step drivers (driver-inventory): completed",
+    "Step state_after (config-snapshot): absent; config-snapshot.ps1 is not in this checkout (the state snapshot is PR 11); the slot is kept so the order does not change when it lands",
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine."
+  ],
+  "preflight": {
+    "ok": true,
+    "at_utc": "2026-03-01T12:00:02.0000000Z",
+    "required": [
+      "interpreter",
+      "account",
+      "script:clock",
+      "rights:clock",
+      "script:dpcisr",
+      "rights:dpcisr",
+      "script:frames",
+      "rights:frames",
+      "free_space",
+      "tool:presentmon"
+    ],
+    "checks": [
+      {
+        "name": "interpreter",
+        "ok": true,
+        "detail": "edition Desktop, version 5.1.26100.1; the collectors target Windows PowerShell 5.1 (edition Desktop)"
+      },
+      {
+        "name": "account",
+        "ok": true,
+        "detail": "elevated: True; Event Log Readers (S-1-5-32-573): True; Performance Log Users (S-1-5-32-559): False; the account name is not recorded"
+      },
+      {
+        "name": "script:clock",
+        "ok": true,
+        "detail": "clock-calibration.ps1 beside the runner"
+      },
+      {
+        "name": "rights:clock",
+        "ok": true,
+        "detail": "clock-calibration needs no group membership or elevation"
+      },
+      {
+        "name": "script:dpcisr",
+        "ok": true,
+        "detail": "dpcisr-trace.ps1 beside the runner"
+      },
+      {
+        "name": "rights:dpcisr",
+        "ok": true,
+        "detail": "dpcisr-trace needs an elevated administrator token"
+      },
+      {
+        "name": "script:frames",
+        "ok": true,
+        "detail": "presentmon-frames.ps1 beside the runner"
+      },
+      {
+        "name": "rights:frames",
+        "ok": true,
+        "detail": "presentmon-frames needs an elevated token, or Performance Log Users membership (whether wpr.exe accepts that group is README verification item 41)"
+      },
+      {
+        "name": "script:bugchecks",
+        "ok": true,
+        "detail": "bugcheck-history.ps1 beside the runner"
+      },
+      {
+        "name": "rights:bugchecks",
+        "ok": true,
+        "detail": "bugcheck-history needs Event Log Readers membership or elevation"
+      },
+      {
+        "name": "script:whea",
+        "ok": true,
+        "detail": "whea-errors.ps1 beside the runner"
+      },
+      {
+        "name": "rights:whea",
+        "ok": true,
+        "detail": "whea-errors needs Event Log Readers membership or elevation"
+      },
+      {
+        "name": "script:app_errors",
+        "ok": true,
+        "detail": "application-errors.ps1 beside the runner"
+      },
+      {
+        "name": "rights:app_errors",
+        "ok": true,
+        "detail": "application-errors needs Event Log Readers membership or elevation"
+      },
+      {
+        "name": "script:tdr",
+        "ok": true,
+        "detail": "tdr-events.ps1 beside the runner"
+      },
+      {
+        "name": "rights:tdr",
+        "ok": true,
+        "detail": "tdr-events needs Event Log Readers membership or elevation"
+      },
+      {
+        "name": "script:reliability",
+        "ok": true,
+        "detail": "reliability-records.ps1 beside the runner"
+      },
+      {
+        "name": "rights:reliability",
+        "ok": true,
+        "detail": "reliability-records needs no group membership or elevation"
+      },
+      {
+        "name": "script:drivers",
+        "ok": true,
+        "detail": "driver-inventory.ps1 beside the runner"
+      },
+      {
+        "name": "rights:drivers",
+        "ok": true,
+        "detail": "driver-inventory needs no group membership or elevation"
+      },
+      {
+        "name": "free_space",
+        "ok": true,
+        "detail": "500000000000 bytes free on C:\\; the scenario needs at least 3489660928"
+      },
+      {
+        "name": "tool:xperf",
+        "ok": false,
+        "detail": "C:\\Tools\\WindowsPerformanceToolkit\\xperf.exe: SHA-256 7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b, version 10.0.26100.1 (synthetic) matches no pinned build"
+      },
+      {
+        "name": "tool:presentmon",
+        "ok": true,
+        "detail": "C:\\ProgramData\\win-forensics\\tools\\PresentMon-2.6.0-x64.exe: SHA-256 and size match the pinned PresentMon 2.6.0 build; version resource 2.6.0"
+      }
+    ]
+  },
+  "run": {
+    "runner_version": "1.0.0",
+    "scenario": "s1",
+    "scenario_version": "1.0.0",
+    "minimum_free_bytes": 3489660928,
+    "clock_brackets_live": true,
+    "steps": [
+      {
+        "step": "state_before",
+        "collector": "config-snapshot",
+        "phase": "state",
+        "background": false,
+        "required": false,
+        "sources": [],
+        "outcome": "absent",
+        "exit_code": null,
+        "summary_status": null,
+        "started_utc": null,
+        "stopped_utc": null,
+        "deadline_seconds": 1320,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": "config-snapshot.ps1 is not in this checkout (the state snapshot is PR 11); the slot is kept so the order does not change when it lands"
+      },
+      {
+        "step": "clock",
+        "collector": "clock-calibration",
+        "phase": "live",
+        "background": true,
+        "required": true,
+        "sources": [
+          "clock_calibration",
+          "operator_marks"
+        ],
+        "outcome": "completed",
+        "exit_code": 0,
+        "summary_status": "ok",
+        "started_utc": "2026-03-01T12:00:04.0000000Z",
+        "stopped_utc": "2026-03-01T12:02:47.0000000Z",
+        "deadline_seconds": 780,
+        "ready": true,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "dpcisr",
+        "collector": "dpcisr-trace",
+        "phase": "live",
+        "background": false,
+        "required": true,
+        "sources": [
+          "wpr_trace",
+          "dpcisr_report"
+        ],
+        "outcome": "completed",
+        "exit_code": 0,
+        "summary_status": "ok",
+        "started_utc": "2026-03-01T12:00:07.0000000Z",
+        "stopped_utc": "2026-03-01T12:01:18.0000000Z",
+        "deadline_seconds": 1110,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "frames",
+        "collector": "presentmon-frames",
+        "phase": "live",
+        "background": false,
+        "required": true,
+        "sources": [
+          "presentmon_frames"
+        ],
+        "outcome": "completed",
+        "exit_code": 0,
+        "summary_status": "ok",
+        "started_utc": "2026-03-01T12:01:20.0000000Z",
+        "stopped_utc": "2026-03-01T12:02:46.0000000Z",
+        "deadline_seconds": 1260,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "bugchecks",
+        "collector": "bugcheck-history",
+        "phase": "history",
+        "background": false,
+        "required": false,
+        "sources": [
+          "system_restart_events"
+        ],
+        "outcome": "completed",
+        "exit_code": 0,
+        "summary_status": "ok",
+        "started_utc": "2026-03-01T12:02:49.0000000Z",
+        "stopped_utc": "2026-03-01T12:03:06.0000000Z",
+        "deadline_seconds": 720,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "whea",
+        "collector": "whea-errors",
+        "phase": "history",
+        "background": false,
+        "required": false,
+        "sources": [
+          "system_whea_events"
+        ],
+        "outcome": "completed",
+        "exit_code": 0,
+        "summary_status": "ok",
+        "started_utc": "2026-03-01T12:03:08.0000000Z",
+        "stopped_utc": "2026-03-01T12:03:21.0000000Z",
+        "deadline_seconds": 720,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "app_errors",
+        "collector": "application-errors",
+        "phase": "history",
+        "background": false,
+        "required": false,
+        "sources": [
+          "application_error_events"
+        ],
+        "outcome": "completed",
+        "exit_code": 0,
+        "summary_status": "ok",
+        "started_utc": "2026-03-01T12:03:23.0000000Z",
+        "stopped_utc": "2026-03-01T12:03:38.0000000Z",
+        "deadline_seconds": 720,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "tdr",
+        "collector": "tdr-events",
+        "phase": "history",
+        "background": false,
+        "required": false,
+        "sources": [
+          "system_display_events",
+          "system_bugcheck_events"
+        ],
+        "outcome": "completed",
+        "exit_code": 0,
+        "summary_status": "partial",
+        "started_utc": "2026-03-01T12:03:40.0000000Z",
+        "stopped_utc": "2026-03-01T12:04:02.0000000Z",
+        "deadline_seconds": 1020,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "reliability",
+        "collector": "reliability-records",
+        "phase": "history",
+        "background": false,
+        "required": false,
+        "sources": [
+          "reliability_records",
+          "reliability_stability_metrics"
+        ],
+        "outcome": "completed",
+        "exit_code": 0,
+        "summary_status": "ok",
+        "started_utc": "2026-03-01T12:04:04.0000000Z",
+        "stopped_utc": "2026-03-01T12:04:26.0000000Z",
+        "deadline_seconds": 1020,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "drivers",
+        "collector": "driver-inventory",
+        "phase": "history",
+        "background": false,
+        "required": false,
+        "sources": [
+          "pnp_signed_drivers",
+          "system_drivers"
+        ],
+        "outcome": "completed",
+        "exit_code": 0,
+        "summary_status": "ok",
+        "started_utc": "2026-03-01T12:04:28.0000000Z",
+        "stopped_utc": "2026-03-01T12:04:47.0000000Z",
+        "deadline_seconds": 1020,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "state_after",
+        "collector": "config-snapshot",
+        "phase": "state",
+        "background": false,
+        "required": false,
+        "sources": [],
+        "outcome": "absent",
+        "exit_code": null,
+        "summary_status": null,
+        "started_utc": null,
+        "stopped_utc": null,
+        "deadline_seconds": 1320,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": "config-snapshot.ps1 is not in this checkout (the state snapshot is PR 11); the slot is kept so the order does not change when it lands"
+      }
+    ]
+  }
+}

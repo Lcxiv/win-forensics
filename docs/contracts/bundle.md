@@ -1,6 +1,6 @@
 # Bundle contract
 
-Status: phase 0a, version 1.1.0 (1.0.0 plus `buffers_lost` in every collector entry and open question 5). Schema: `schemas/manifest.schema.json` (1.1.0). Companion contracts: [timestamps.md](timestamps.md), [decoded-tables.md](decoded-tables.md), [measurement-status.md](measurement-status.md).
+Status: phase 0a, version 1.2.0 (1.1.0 plus the optional `preflight` and `run` sections a scenario runner writes; 1.1.0 added `buffers_lost` in every collector entry and open question 5). Schema: `schemas/manifest.schema.json` (1.2.0). Companion contracts: [timestamps.md](timestamps.md), [decoded-tables.md](decoded-tables.md), [measurement-status.md](measurement-status.md).
 
 ## 1. Layout
 
@@ -49,6 +49,13 @@ Rules:
 - `symbols`: symbol path, cache path, and dbghelp version.
 - `checksum_algorithm`: `sha256`.
 - `notes[]`: free text written by the operator or the orchestrator.
+
+Two optional sections, written only by an orchestrator that runs several collectors as one scenario (the local scenario runner, [collectors/windows/README.md](../../collectors/windows/README.md), "Scenario runner"); a single collector's manifest has neither:
+
+- `preflight`: the read only checks made before anything started, each `{name, ok, detail}`, the time they were made, `required` (the checks whose failure refuses the run) and `ok`. A refused run starts nothing and still writes a manifest, with every declared source in `collectors[]` as `not_collected` and the failed checks as the reason. Preflight never remediates. The account is recorded as booleans (elevated, group membership), never by name.
+- `run`: the runner's version, the scenario and its version, the minimum free space the preflight held the volume to, `clock_brackets_live` (whether the clock session's first and last calibration pairs bracket every live capture step), and `steps[]` in the order they ran: step id, collector, phase (`state`, `live`, `history`), whether it ran in the background, whether the scenario requires it, the source ids it declares, its outcome (`completed`, `no_manifest`, `timed_out`, `start_failed`, `not_started`, `absent`), exit code, the collector's own summary status, start and stop, the deadline it was held to, whether a background step reported ready, whether the runner removed a stopped step's private and raw folders, and the end check the runner made on a live session it had to stop (`session_end`: instance, whether its state could be read, the final state, whether it was confirmed idle, whether a cancel was issued, and a detail). `absent` is a step reserved by the scenario whose collector is not installed; it has no `collectors[]` entry, because nothing ran.
+
+`run.steps[]` is the orchestration record: it never carries a measurement status. Status stays in `collectors[]`, one entry per source as for a single collector, and a source the runner moved between folders is hashed again at its new place (a mismatch is `capture_failed`).
 
 The manifest schema requires most fields to be present even when unknown, with null as the value, so that a reader can tell "the orchestrator did not know" from "the orchestrator did not try".
 

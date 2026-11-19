@@ -893,6 +893,7 @@ function Invoke-WfPresentMonFramesSource {
                 }
                 Fail    = {
                     param($S, [string]$Message)
+                    $null = $S
                     $Log.Add('source ' + $id + ' raised: ' + $Message)
                 }
                 Confirm = {
@@ -911,6 +912,7 @@ function Invoke-WfPresentMonFramesSource {
                 Cancel  = {
                     # Only a recording this run started is cancelled, and only by its instance name.
                     param($S, [string]$Read)
+                    $null = $Read
                     $label = 'wpr ' + $cancelText
                     if (-not $S.Session.stop_issued) { $label = $label + ' (after a start that did not complete)' }
                     $run = Invoke-WfProcess -FilePath $wpr -Arguments $cancelText -TimeoutSeconds (Get-WfPresentMonCancelDeadline) -OutputEncoding $encoding -MaxBytes $consoleCap

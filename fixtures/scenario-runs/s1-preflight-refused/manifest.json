@@ -1,0 +1,1001 @@
+{
+  "manifest_version": "1.2.0",
+  "bundle_id": "20260301T120001Z_s1_ae3a76a9",
+  "created_utc": "2026-03-01T12:00:03.0000000Z",
+  "scenario": {
+    "id": "s1",
+    "version": "1.0.0",
+    "requested_duration_s": 300,
+    "target_process": null,
+    "marks": []
+  },
+  "capture": {
+    "start_utc": "2026-03-01T12:00:01.0000000Z",
+    "stop_utc": "2026-03-01T12:00:03.0000000Z",
+    "orchestrator": "wf-runner:s1",
+    "orchestrator_version": "1.0.0",
+    "elevated": false,
+    "incomplete": true
+  },
+  "machine": {
+    "machine_id": "ae3a76a9f32fa71b72616118339e376c",
+    "hostname": "SYNTHETIC-PC",
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26100",
+      "build": 26100,
+      "ubr": 1,
+      "display_version": "24H2",
+      "architecture": "64-bit",
+      "edition": "Professional"
+    },
+    "cpu": {
+      "name": "Synthetic CPU",
+      "logical_processors": 16,
+      "qpc_frequency_hz": 10000000
+    },
+    "memory_bytes": 34359738368,
+    "gpus": [
+      {
+        "name": "Synthetic Display Adapter",
+        "driver_version": "1.2.3.4",
+        "driver_date": "2026-01-15T00:00:00.0000000Z",
+        "device_id": "PCI\\VEN_FFFF&DEV_0001"
+      }
+    ],
+    "bios": {
+      "vendor": "Synthetic Firmware",
+      "version": "S1.00",
+      "release_date": "2025-11-01T00:00:00.0000000Z"
+    },
+    "board": {
+      "manufacturer": "Synthetic Boards",
+      "product": "SB-1"
+    },
+    "drivers": [],
+    "time_zone": {
+      "name": "UTC",
+      "utc_offset_minutes": 0,
+      "dst_active": false
+    }
+  },
+  "collectors": [
+    {
+      "id": "clock_calibration",
+      "kind": "clock",
+      "required": true,
+      "status": "not_collected",
+      "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+      "preflight": null,
+      "command": null,
+      "started_utc": null,
+      "stopped_utc": null,
+      "exit_code": null,
+      "config_hash": null,
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {}
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [],
+      "raw_time_range": null,
+      "expectation": null,
+      "target_process": null
+    },
+    {
+      "id": "operator_marks",
+      "kind": "other",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+      "preflight": null,
+      "command": null,
+      "started_utc": null,
+      "stopped_utc": null,
+      "exit_code": null,
+      "config_hash": null,
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {}
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [],
+      "raw_time_range": null,
+      "expectation": null,
+      "target_process": null
+    },
+    {
+      "id": "wpr_trace",
+      "kind": "wpr",
+      "required": true,
+      "status": "not_collected",
+      "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+      "preflight": null,
+      "command": null,
+      "started_utc": null,
+      "stopped_utc": null,
+      "exit_code": null,
+      "config_hash": null,
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {}
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [],
+      "raw_time_range": null,
+      "expectation": null,
+      "target_process": null
+    },
+    {
+      "id": "dpcisr_report",
+      "kind": "xperf",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+      "preflight": null,
+      "command": null,
+      "started_utc": null,
+      "stopped_utc": null,
+      "exit_code": null,
+      "config_hash": null,
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {}
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [],
+      "raw_time_range": null,
+      "expectation": null,
+      "target_process": null
+    },
+    {
+      "id": "presentmon_frames",
+      "kind": "presentmon",
+      "required": true,
+      "status": "not_collected",
+      "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+      "preflight": null,
+      "command": null,
+      "started_utc": null,
+      "stopped_utc": null,
+      "exit_code": null,
+      "config_hash": null,
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {}
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [],
+      "raw_time_range": null,
+      "expectation": null,
+      "target_process": null
+    },
+    {
+      "id": "system_restart_events",
+      "kind": "eventlog",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+      "preflight": null,
+      "command": null,
+      "started_utc": null,
+      "stopped_utc": null,
+      "exit_code": null,
+      "config_hash": null,
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {}
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [],
+      "raw_time_range": null,
+      "expectation": null,
+      "target_process": null
+    },
+    {
+      "id": "system_whea_events",
+      "kind": "eventlog",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+      "preflight": null,
+      "command": null,
+      "started_utc": null,
+      "stopped_utc": null,
+      "exit_code": null,
+      "config_hash": null,
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {}
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [],
+      "raw_time_range": null,
+      "expectation": null,
+      "target_process": null
+    },
+    {
+      "id": "application_error_events",
+      "kind": "eventlog",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+      "preflight": null,
+      "command": null,
+      "started_utc": null,
+      "stopped_utc": null,
+      "exit_code": null,
+      "config_hash": null,
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {}
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [],
+      "raw_time_range": null,
+      "expectation": null,
+      "target_process": null
+    },
+    {
+      "id": "system_display_events",
+      "kind": "eventlog",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+      "preflight": null,
+      "command": null,
+      "started_utc": null,
+      "stopped_utc": null,
+      "exit_code": null,
+      "config_hash": null,
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {}
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [],
+      "raw_time_range": null,
+      "expectation": null,
+      "target_process": null
+    },
+    {
+      "id": "system_bugcheck_events",
+      "kind": "eventlog",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+      "preflight": null,
+      "command": null,
+      "started_utc": null,
+      "stopped_utc": null,
+      "exit_code": null,
+      "config_hash": null,
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {}
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [],
+      "raw_time_range": null,
+      "expectation": null,
+      "target_process": null
+    },
+    {
+      "id": "reliability_records",
+      "kind": "other",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+      "preflight": null,
+      "command": null,
+      "started_utc": null,
+      "stopped_utc": null,
+      "exit_code": null,
+      "config_hash": null,
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {}
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [],
+      "raw_time_range": null,
+      "expectation": null,
+      "target_process": null
+    },
+    {
+      "id": "reliability_stability_metrics",
+      "kind": "other",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+      "preflight": null,
+      "command": null,
+      "started_utc": null,
+      "stopped_utc": null,
+      "exit_code": null,
+      "config_hash": null,
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {}
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [],
+      "raw_time_range": null,
+      "expectation": null,
+      "target_process": null
+    },
+    {
+      "id": "pnp_signed_drivers",
+      "kind": "config_snapshot",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+      "preflight": null,
+      "command": null,
+      "started_utc": null,
+      "stopped_utc": null,
+      "exit_code": null,
+      "config_hash": null,
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {}
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [],
+      "raw_time_range": null,
+      "expectation": null,
+      "target_process": null
+    },
+    {
+      "id": "system_drivers",
+      "kind": "config_snapshot",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+      "preflight": null,
+      "command": null,
+      "started_utc": null,
+      "stopped_utc": null,
+      "exit_code": null,
+      "config_hash": null,
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {}
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [],
+      "raw_time_range": null,
+      "expectation": null,
+      "target_process": null
+    }
+  ],
+  "calibration": {
+    "status": "not_collected",
+    "method": "the clock-calibration step did not finish with a manifest, so this run has no calibration pairs (run.steps says why)",
+    "qpc_frequency_hz": 10000000,
+    "expected_pairs": 0,
+    "pairs": [],
+    "missing_pairs": 0,
+    "time_adjustment": {
+      "start": null,
+      "stop": null
+    },
+    "boot_time_utc": "2026-02-27T12:00:00.0000000Z"
+  },
+  "tools": [
+    {
+      "name": "powershell",
+      "version": "5.1.26100.1",
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "sha256": null
+    },
+    {
+      "name": "wevtutil",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wevtutil.exe",
+      "sha256": null
+    },
+    {
+      "name": "collector:scenario-runner",
+      "version": "1.0.0",
+      "path": "<install directory>\\scenario-runner.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector-helper:_common.ps1",
+      "version": "1.2.0",
+      "path": "<install directory>\\_common.ps1",
+      "sha256": null
+    },
+    {
+      "name": "scenario-runner-library:_scenarios.ps1",
+      "version": "1.0.0",
+      "path": "<install directory>\\_scenarios.ps1",
+      "sha256": null
+    }
+  ],
+  "symbols": {
+    "symbol_path": null,
+    "cache_path": null,
+    "dbghelp_version": null
+  },
+  "checksum_algorithm": "sha256",
+  "notes": [
+    "Scenario runner 1.0.0, scenario s1 version 1.0.0: One bounded latency session on the gaming PC: the state before, the DPC and interrupt trace and the frame recording inside one clock calibration session, the history collectors, and the state after.",
+    "Ran as the collector account (its name is not recorded); elevated: False; member of Event Log Readers (S-1-5-32-573): True; member of Performance Log Users (S-1-5-32-559): False.",
+    "Each collector ran as its own Windows PowerShell process, one after another, except the clock session, which ran in the background across the live captures. Each collector's own manifest, summary and log are kept under logs/steps/<step>/ with the profile folder written as <profile>, the account as <account> and this directory as <bundle>; raw/ holds every source the runner merged, under its own id or with the step's prefix (state_before_, state_after_).",
+    "In this scenario the history steps are optional: their sources are listed with required false whatever the collector marked.",
+    "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+    "Step state_before (config-snapshot): absent; config-snapshot.ps1 is not in this checkout (the state snapshot is PR 11); the slot is kept so the order does not change when it lands",
+    "Step clock (clock-calibration): not_started",
+    "Step dpcisr (dpcisr-trace): not_started",
+    "Step frames (presentmon-frames): not_started",
+    "Step bugchecks (bugcheck-history): not_started",
+    "Step whea (whea-errors): not_started",
+    "Step app_errors (application-errors): not_started",
+    "Step tdr (tdr-events): not_started",
+    "Step reliability (reliability-records): not_started",
+    "Step drivers (driver-inventory): not_started",
+    "Step state_after (config-snapshot): absent; config-snapshot.ps1 is not in this checkout (the state snapshot is PR 11); the slot is kept so the order does not change when it lands",
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine."
+  ],
+  "preflight": {
+    "ok": false,
+    "at_utc": "2026-03-01T12:00:02.0000000Z",
+    "required": [
+      "interpreter",
+      "account",
+      "script:clock",
+      "rights:clock",
+      "script:dpcisr",
+      "rights:dpcisr",
+      "script:frames",
+      "rights:frames",
+      "free_space",
+      "tool:presentmon"
+    ],
+    "checks": [
+      {
+        "name": "interpreter",
+        "ok": true,
+        "detail": "edition Desktop, version 5.1.26100.1; the collectors target Windows PowerShell 5.1 (edition Desktop)"
+      },
+      {
+        "name": "account",
+        "ok": true,
+        "detail": "elevated: False; Event Log Readers (S-1-5-32-573): True; Performance Log Users (S-1-5-32-559): False; the account name is not recorded"
+      },
+      {
+        "name": "script:clock",
+        "ok": true,
+        "detail": "clock-calibration.ps1 beside the runner"
+      },
+      {
+        "name": "rights:clock",
+        "ok": true,
+        "detail": "clock-calibration needs no group membership or elevation"
+      },
+      {
+        "name": "script:dpcisr",
+        "ok": true,
+        "detail": "dpcisr-trace.ps1 beside the runner"
+      },
+      {
+        "name": "rights:dpcisr",
+        "ok": false,
+        "detail": "dpcisr-trace needs an elevated administrator token"
+      },
+      {
+        "name": "script:frames",
+        "ok": true,
+        "detail": "presentmon-frames.ps1 beside the runner"
+      },
+      {
+        "name": "rights:frames",
+        "ok": false,
+        "detail": "presentmon-frames needs an elevated token, or Performance Log Users membership (whether wpr.exe accepts that group is README verification item 41)"
+      },
+      {
+        "name": "script:bugchecks",
+        "ok": true,
+        "detail": "bugcheck-history.ps1 beside the runner"
+      },
+      {
+        "name": "rights:bugchecks",
+        "ok": true,
+        "detail": "bugcheck-history needs Event Log Readers membership or elevation"
+      },
+      {
+        "name": "script:whea",
+        "ok": true,
+        "detail": "whea-errors.ps1 beside the runner"
+      },
+      {
+        "name": "rights:whea",
+        "ok": true,
+        "detail": "whea-errors needs Event Log Readers membership or elevation"
+      },
+      {
+        "name": "script:app_errors",
+        "ok": true,
+        "detail": "application-errors.ps1 beside the runner"
+      },
+      {
+        "name": "rights:app_errors",
+        "ok": true,
+        "detail": "application-errors needs Event Log Readers membership or elevation"
+      },
+      {
+        "name": "script:tdr",
+        "ok": true,
+        "detail": "tdr-events.ps1 beside the runner"
+      },
+      {
+        "name": "rights:tdr",
+        "ok": true,
+        "detail": "tdr-events needs Event Log Readers membership or elevation"
+      },
+      {
+        "name": "script:reliability",
+        "ok": true,
+        "detail": "reliability-records.ps1 beside the runner"
+      },
+      {
+        "name": "rights:reliability",
+        "ok": true,
+        "detail": "reliability-records needs no group membership or elevation"
+      },
+      {
+        "name": "script:drivers",
+        "ok": true,
+        "detail": "driver-inventory.ps1 beside the runner"
+      },
+      {
+        "name": "rights:drivers",
+        "ok": true,
+        "detail": "driver-inventory needs no group membership or elevation"
+      },
+      {
+        "name": "free_space",
+        "ok": true,
+        "detail": "500000000000 bytes free on C:\\; the scenario needs at least 3489660928"
+      },
+      {
+        "name": "tool:xperf",
+        "ok": false,
+        "detail": "C:\\Tools\\WindowsPerformanceToolkit\\xperf.exe: SHA-256 7f3a9c2e4b1d6058a2c4e6f8091b3d5f7a9c1e3b5d7f9a0c2e4b6d8f0a1c3e5b, version 10.0.26100.1 (synthetic) matches no pinned build"
+      },
+      {
+        "name": "tool:presentmon",
+        "ok": true,
+        "detail": "C:\\ProgramData\\win-forensics\\tools\\PresentMon-2.6.0-x64.exe: SHA-256 and size match the pinned PresentMon 2.6.0 build; version resource 2.6.0"
+      }
+    ]
+  },
+  "run": {
+    "runner_version": "1.0.0",
+    "scenario": "s1",
+    "scenario_version": "1.0.0",
+    "minimum_free_bytes": 3489660928,
+    "clock_brackets_live": null,
+    "steps": [
+      {
+        "step": "state_before",
+        "collector": "config-snapshot",
+        "phase": "state",
+        "background": false,
+        "required": false,
+        "sources": [],
+        "outcome": "absent",
+        "exit_code": null,
+        "summary_status": null,
+        "started_utc": null,
+        "stopped_utc": null,
+        "deadline_seconds": 1320,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": "config-snapshot.ps1 is not in this checkout (the state snapshot is PR 11); the slot is kept so the order does not change when it lands"
+      },
+      {
+        "step": "clock",
+        "collector": "clock-calibration",
+        "phase": "live",
+        "background": true,
+        "required": true,
+        "sources": [
+          "clock_calibration",
+          "operator_marks"
+        ],
+        "outcome": "not_started",
+        "exit_code": null,
+        "summary_status": null,
+        "started_utc": null,
+        "stopped_utc": null,
+        "deadline_seconds": 780,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "dpcisr",
+        "collector": "dpcisr-trace",
+        "phase": "live",
+        "background": false,
+        "required": true,
+        "sources": [
+          "wpr_trace",
+          "dpcisr_report"
+        ],
+        "outcome": "not_started",
+        "exit_code": null,
+        "summary_status": null,
+        "started_utc": null,
+        "stopped_utc": null,
+        "deadline_seconds": 1110,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "frames",
+        "collector": "presentmon-frames",
+        "phase": "live",
+        "background": false,
+        "required": true,
+        "sources": [
+          "presentmon_frames"
+        ],
+        "outcome": "not_started",
+        "exit_code": null,
+        "summary_status": null,
+        "started_utc": null,
+        "stopped_utc": null,
+        "deadline_seconds": 1260,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "bugchecks",
+        "collector": "bugcheck-history",
+        "phase": "history",
+        "background": false,
+        "required": false,
+        "sources": [
+          "system_restart_events"
+        ],
+        "outcome": "not_started",
+        "exit_code": null,
+        "summary_status": null,
+        "started_utc": null,
+        "stopped_utc": null,
+        "deadline_seconds": 720,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "whea",
+        "collector": "whea-errors",
+        "phase": "history",
+        "background": false,
+        "required": false,
+        "sources": [
+          "system_whea_events"
+        ],
+        "outcome": "not_started",
+        "exit_code": null,
+        "summary_status": null,
+        "started_utc": null,
+        "stopped_utc": null,
+        "deadline_seconds": 720,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "app_errors",
+        "collector": "application-errors",
+        "phase": "history",
+        "background": false,
+        "required": false,
+        "sources": [
+          "application_error_events"
+        ],
+        "outcome": "not_started",
+        "exit_code": null,
+        "summary_status": null,
+        "started_utc": null,
+        "stopped_utc": null,
+        "deadline_seconds": 720,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "tdr",
+        "collector": "tdr-events",
+        "phase": "history",
+        "background": false,
+        "required": false,
+        "sources": [
+          "system_display_events",
+          "system_bugcheck_events"
+        ],
+        "outcome": "not_started",
+        "exit_code": null,
+        "summary_status": null,
+        "started_utc": null,
+        "stopped_utc": null,
+        "deadline_seconds": 1020,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "reliability",
+        "collector": "reliability-records",
+        "phase": "history",
+        "background": false,
+        "required": false,
+        "sources": [
+          "reliability_records",
+          "reliability_stability_metrics"
+        ],
+        "outcome": "not_started",
+        "exit_code": null,
+        "summary_status": null,
+        "started_utc": null,
+        "stopped_utc": null,
+        "deadline_seconds": 1020,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "drivers",
+        "collector": "driver-inventory",
+        "phase": "history",
+        "background": false,
+        "required": false,
+        "sources": [
+          "pnp_signed_drivers",
+          "system_drivers"
+        ],
+        "outcome": "not_started",
+        "exit_code": null,
+        "summary_status": null,
+        "started_utc": null,
+        "stopped_utc": null,
+        "deadline_seconds": 1020,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": null
+      },
+      {
+        "step": "state_after",
+        "collector": "config-snapshot",
+        "phase": "state",
+        "background": false,
+        "required": false,
+        "sources": [],
+        "outcome": "absent",
+        "exit_code": null,
+        "summary_status": null,
+        "started_utc": null,
+        "stopped_utc": null,
+        "deadline_seconds": 1320,
+        "ready": null,
+        "private_removed": null,
+        "session_end": null,
+        "detail": "config-snapshot.ps1 is not in this checkout (the state snapshot is PR 11); the slot is kept so the order does not change when it lands"
+      }
+    ]
+  }
+}

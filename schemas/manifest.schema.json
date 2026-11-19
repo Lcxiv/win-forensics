@@ -3,7 +3,7 @@
   "$id": "https://github.com/Lcxiv/win-forensics/schemas/manifest.schema.json",
   "title": "Bundle manifest (manifest.json)",
   "description": "Written by the capture orchestrator when the privileged capture session closes. See docs/contracts/bundle.md.",
-  "x-schema-version": "1.1.0",
+  "x-schema-version": "1.2.0",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -994,6 +994,253 @@
       "type": "array",
       "items": {
         "type": "string"
+      }
+    },
+    "preflight": {
+      "description": "Written by the scenario runner (collectors/windows/_run-scenario.ps1): the read only checks it made before starting anything. required names the checks that refuse the run when they fail; ok is false exactly when one of them failed, and then nothing ran. See docs/contracts/bundle.md section 3.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ok",
+        "at_utc",
+        "required",
+        "checks"
+      ],
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "at_utc": {
+          "$ref": "common.schema.json#/$defs/iso_utc"
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/check"
+          }
+        }
+      }
+    },
+    "run": {
+      "description": "Written by the scenario runner: the scenario, each step in its fixed order with how it ended, and whether the clock calibration pairs bracket the live captures.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runner_version",
+        "scenario",
+        "scenario_version",
+        "minimum_free_bytes",
+        "clock_brackets_live",
+        "steps"
+      ],
+      "properties": {
+        "runner_version": {
+          "$ref": "common.schema.json#/$defs/semver"
+        },
+        "scenario": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "scenario_version": {
+          "$ref": "common.schema.json#/$defs/semver"
+        },
+        "minimum_free_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "clock_brackets_live": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "True when the first calibration pair precedes the first live capture's start and the last pair follows the last capture's stop; null when there are no pairs or no live capture ran."
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "step",
+              "collector",
+              "phase",
+              "background",
+              "required",
+              "sources",
+              "outcome",
+              "exit_code",
+              "summary_status",
+              "started_utc",
+              "stopped_utc",
+              "deadline_seconds",
+              "ready",
+              "private_removed",
+              "session_end",
+              "detail"
+            ],
+            "properties": {
+              "step": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              "collector": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{1,40}$"
+              },
+              "phase": {
+                "type": "string",
+                "enum": [
+                  "state",
+                  "live",
+                  "history"
+                ]
+              },
+              "background": {
+                "type": "boolean"
+              },
+              "required": {
+                "type": "boolean",
+                "description": "Whether the scenario requires this step's sources; an optional step's sources are listed with required false."
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The source ids this step declares in the registry, as named in collectors[]."
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "completed",
+                  "no_manifest",
+                  "timed_out",
+                  "start_failed",
+                  "absent",
+                  "not_started"
+                ],
+                "description": "completed: the collector exited before its deadline and wrote a manifest. no_manifest: it exited without one. timed_out: the runner stopped it at its deadline (or at the output cap). start_failed: the process did not start. absent: the collector script is not in this checkout (a reserved slot). not_started: the preflight refused the run."
+              },
+              "exit_code": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "summary_status": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "ok",
+                  "partial",
+                  "failed",
+                  null
+                ]
+              },
+              "started_utc": {
+                "anyOf": [
+                  {
+                    "$ref": "common.schema.json#/$defs/iso_utc"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "stopped_utc": {
+                "anyOf": [
+                  {
+                    "$ref": "common.schema.json#/$defs/iso_utc"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "deadline_seconds": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "The collector's own worst case for its arguments plus the runner's margin."
+              },
+              "ready": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "description": "For a background step, whether it reported ready before the foreground steps started."
+              },
+              "private_removed": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "description": "For a step that did not complete: whether its raw and private folders were removed."
+              },
+              "session_end": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "instance",
+                      "checked",
+                      "state_final",
+                      "confirmed",
+                      "cancel_issued",
+                      "detail"
+                    ],
+                    "properties": {
+                      "instance": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "checked": {
+                        "type": "boolean"
+                      },
+                      "state_final": {
+                        "type": "string",
+                        "enum": [
+                          "idle",
+                          "active",
+                          "unknown"
+                        ]
+                      },
+                      "confirmed": {
+                        "type": "boolean"
+                      },
+                      "cancel_issued": {
+                        "type": "boolean"
+                      },
+                      "detail": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                ],
+                "description": "For a live step that did not complete: the runner's end check of the session the collector owned."
+              },
+              "detail": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
       }
     }
   }

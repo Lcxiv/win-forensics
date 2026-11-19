@@ -243,17 +243,10 @@ function ConvertTo-DpcIsrInteger {
 }
 
 function Get-DpcIsrStatusState {
-    # active, idle or unknown, from one "wpr -status" run. Only a run that
-    # exited 0 with a recognised text counts; an error, an empty or capped
-    # output or a text in words the reader does not know is unknown, which
-    # fails preflight and never confirms a stop.
+    # active, idle or unknown, from one "wpr -status" run (Get-WfWprStatusState
+    # in the helper, which the scenario runner's end check uses too).
     param($Run)
-    if (-not [bool]$Run['Started'] -or [bool]$Run['TimedOut'] -or [bool]$Run['Oversized']) { return 'unknown' }
-    if ($null -eq $Run['ExitCode'] -or [int]$Run['ExitCode'] -ne 0) { return 'unknown' }
-    $text = ([string]$Run['StdOut'] + "`n" + [string]$Run['StdErr'])
-    if ($text -match '(?i)recording is in progress') { return 'active' }
-    if ($text -match '(?i)\bnot recording\b') { return 'idle' }
-    return 'unknown'
+    return (Get-WfWprStatusState -Run $Run)
 }
 
 function Read-DpcIsrWprStatus {
@@ -536,14 +529,12 @@ $invokeWprTrace = {
     $finalState = $null
     $readErrorKind = ''
     $readErrorMessage = ''
-    $statusText = $null
     $parsedStatus = $null
     $enabledKeywords = $null
     $enabledStacks = $null
     $enabledProviders = $null
     $statusBufferKb = $null
     $earlyEventsLost = $null
-    $settingsReason = $null
     $summary = $null
     $summaryRun = $null
     $traceBytes = $null
@@ -635,6 +626,7 @@ $invokeWprTrace = {
                 }
                 Started = {
                     param($S)
+                    $null = $S
                     $session.session_started_utc = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
                     $Log.Add(('session {0} started, recording for {1} s' -f $instance, $duration))
                 }
@@ -700,6 +692,7 @@ $invokeWprTrace = {
                     # After each second of the bound: the cap on the temporary
                     # recording. Nothing else runs between the deadline and the stop.
                     param($S)
+                    $null = $S
                     $bytes = Get-DpcIsrDirectoryBytes -Path $tempDir
                     if ($bytes -gt $session.temp_bytes_seen) { $session.temp_bytes_seen = $bytes }
                     if ($bytes -gt $maxTraceBytes) {
@@ -729,11 +722,13 @@ $invokeWprTrace = {
                 }
                 Confirm = {
                     param($S, [string]$Moment)
+                    $null = $S, $Moment
                     $statusRun = Invoke-DpcIsrTool -Tool $tool -Verb 'status' -Arguments @() -Instance $instance -TimeoutSeconds $short -Runs $runs -Log $Log -BundleRoot $BundleRoot
                     return (Get-DpcIsrStatusState -Run $statusRun)
                 }
                 Cancel  = {
                     param($S, [string]$Read)
+                    $null = $S
                     $cancelRun = Invoke-DpcIsrTool -Tool $tool -Verb 'cancel' -Arguments @() -Instance $instance -TimeoutSeconds $short -Runs $runs -Log $Log -BundleRoot $BundleRoot
                     $Log.Add(('session {0} read as {1}; cancelled: exit code {2}' -f $instance, $Read, [string]$cancelRun['ExitCode']))
                     return (Test-DpcIsrRunOk -Run $cancelRun)
@@ -742,14 +737,12 @@ $invokeWprTrace = {
             $liveRecord = Invoke-WfLiveSession -LiveHooks $liveHooks -LiveState $live -LiveSeconds $duration
             $readErrorKind = [string]$live.ReadErrorKind
             $readErrorMessage = [string]$live.ReadErrorMessage
-            $statusText = $live.StatusText
             $parsedStatus = $live.ParsedStatus
             $enabledKeywords = $live.EnabledKeywords
             $enabledStacks = $live.EnabledStacks
             $enabledProviders = $live.EnabledProviders
             $statusBufferKb = $live.StatusBufferKb
             $earlyEventsLost = $live.EarlyEventsLost
-            $settingsReason = $live.SettingsReason
             $sessionStarted = [bool]$liveRecord.may_remain
             $stopIssued = [bool]$liveRecord.stop_issued
             $cancelIssued = [bool]$liveRecord.cancel_issued
