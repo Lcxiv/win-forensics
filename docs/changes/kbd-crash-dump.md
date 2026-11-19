@@ -55,7 +55,7 @@ To undo, in the same kind of window:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\changes\windows\kbd-crash-dump.ps1 -Undo
 ```
 
-It restores the newest apply folder's before-state exactly: a value that was absent is deleted, a value that existed gets its saved REG_DWORD back, and nothing else is touched. It refuses if the saved CSV does not match its SHA-256, if the CSV names any key or value other than the documented ones, or if something other than this script changed a value since the apply. It saves the state it is about to undo to its own `<UTC time>-undo` folder first. Make a restart after it too (that the removal also waits for a restart is an inference from Microsoft's restart note, not a documented fact).
+It restores the newest apply folder's before-state exactly: a value that was absent is deleted, a value that existed gets its saved REG_DWORD back, and nothing else is touched. It refuses if the saved CSV does not match its SHA-256, if the CSV names any key or value other than the documented ones, or if something other than this script changed a value since the apply. It saves the state it is about to undo to its own `<UTC time>-undo` folder first. If every value already reads as saved (for example, a second `-Undo`), it says there is nothing to undo, saves no folder and changes nothing. Make a restart after it too (that the removal also waits for a restart is an inference from Microsoft's restart note, not a documented fact).
 
 ## The key sequence during a freeze
 
