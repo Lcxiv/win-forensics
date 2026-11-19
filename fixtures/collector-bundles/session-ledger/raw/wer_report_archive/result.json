@@ -1,0 +1,13 @@
+{
+  "path_display": "<ProgramData>\\Microsoft\\Windows\\WER\\ReportArchive",
+  "parent_exists": true,
+  "exists": true,
+  "listed": true,
+  "listed_at_utc": "2026-03-01T12:01:06.0000000Z",
+  "error": null,
+  "file_count": 0,
+  "folder_count": 0,
+  "truncated": false,
+  "oldest_time_utc": null,
+  "newest_time_utc": null
+}

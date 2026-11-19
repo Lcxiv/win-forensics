@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Decode a bundle's driver inventory into the ``driver_service_class`` table.
 
-See docs/contracts/decoded-tables.md section 5.24 and docs/driver-classes.md.
+See docs/contracts/decoded-tables.md section 5.26 and docs/driver-classes.md.
 The table joins two sources of the ``driver-inventory`` collector on the
 driver service name:
 

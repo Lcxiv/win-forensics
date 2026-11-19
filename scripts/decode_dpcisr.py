@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Decode an ``xperf -i trace.etl -a dpcisr`` text report into three decoded tables.
 
-Tables (see docs/contracts/decoded-tables.md sections 5.1, 5.2 and 5.23):
+Tables (see docs/contracts/decoded-tables.md sections 5.1, 5.2 and 5.25):
 
 * ``dpcisr_module_cpu``: one row per (kind, module, cpu) cell of the
   "CPU Usage Summing By Module For the Whole Trace" tables, with the module's

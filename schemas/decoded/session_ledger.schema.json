@@ -1,0 +1,308 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/session_ledger.schema.json",
+  "title": "session_ledger row",
+  "description": "Provisional. One row per play session (a game or launcher log file) or incident (an event record, a dump file, a report folder), joined from session-ledger and history bundles of one machine by scripts/build_session_ledger.py. Provenance points at the byte copy of the source artifact under the ledger output's raw/bundles/<bundle id>/. See docs/session-ledger.md.",
+  "x-schema-version": "0.1.0",
+  "x-decoded-table": "session_ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "entry_id",
+    "entry_kind",
+    "title",
+    "title_role",
+    "incident_type",
+    "start_utc",
+    "end_utc",
+    "start_basis",
+    "end_basis",
+    "start_inferred",
+    "end_inferred",
+    "duration_s",
+    "session_check",
+    "event_log",
+    "event_provider",
+    "event_id",
+    "event_record_id",
+    "bugcheck_code",
+    "bugcheck_code_hex",
+    "image_name",
+    "file_name",
+    "file_bytes",
+    "component",
+    "report_kind",
+    "period_id",
+    "period_label",
+    "source_bundle_id",
+    "source_collector",
+    "source_id",
+    "observations",
+    "provenance"
+  ],
+  "properties": {
+    "entry_id": {
+      "type": "string",
+      "pattern": "^e-[0-9a-f]{16}$",
+      "description": "Id: the first 16 hex of SHA-256 over the entry's identity (an event's log, record id, provider, event id and time; a dump file's kind, folder, extension, size and creation time; a report folder's kind, name prefix and creation time; a session's title and creation time, plus its last write time when two logs of that title share a creation time in any input bundle). A rebuild with more bundles keeps the ids of entries already seen, except a session whose creation time first becomes shared when a bundle is added: it is re-keyed with its last write time."
+    },
+    "entry_kind": {
+      "enum": [
+        "session",
+        "incident"
+      ]
+    },
+    "title": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "overwatch",
+        "fortnite",
+        "battlenet",
+        "epic_games_launcher",
+        null
+      ],
+      "description": "The game or launcher of a session; for an incident, the title whose allow-listed image name a crash or hang record names, else null."
+    },
+    "title_role": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "game",
+        "launcher",
+        null
+      ]
+    },
+    "incident_type": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "kernel_power_41",
+        "bugcheck_1001",
+        "whea_event",
+        "app_crash_1000",
+        "app_hang_1002",
+        "wer_1001",
+        "dotnet_1026",
+        "display_4101",
+        "display_event",
+        "display_driver_event",
+        "werkernel_event",
+        "live_kernel_report",
+        "minidump",
+        "wer_report_queued",
+        "wer_report_archived",
+        null
+      ]
+    },
+    "start_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{7}Z$",
+      "description": "Session: the log file's creation time (null when it cannot be trusted, see session_check). Incident: the event's TimeCreated, or a dump or report's creation time."
+    },
+    "end_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{7}Z$",
+      "description": "Session: the log file's last write time, an inferred end. Incidents are points and have no end."
+    },
+    "start_basis": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "file_creation_time",
+        "event_time",
+        null
+      ]
+    },
+    "end_basis": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "file_last_write_time",
+        null
+      ]
+    },
+    "start_inferred": {
+      "type": "boolean",
+      "description": "True when the start is a file time taken to stand for the start of play (the log creation time), not a recorded start."
+    },
+    "end_inferred": {
+      "type": "boolean",
+      "description": "True when the end is the log's last write, which can be earlier than the true end (a game that stops writing) and is the end of a session cut short by a freeze."
+    },
+    "duration_s": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "end minus start, only when both are known and session_check is ok."
+    },
+    "session_check": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "ok",
+        "creation_shared",
+        "replaced_in_place",
+        "end_before_start",
+        null
+      ],
+      "description": "creation_shared: two logs of the title share this creation time in some input bundle (file name tunnelling), so it may be inherited from a log that is gone and the start is unknown; replaced_in_place: a later snapshot shows the file smaller or written earlier, so the start is unknown; end_before_start: the times disagree."
+    },
+    "event_log": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "event_provider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "event_id": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "event_record_id": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "bugcheck_code": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Kernel-Power 41 only: the named BugcheckCode data item, decimal as Windows records it; null when the record has no named item. Zero is a record with no bug check written."
+    },
+    "bugcheck_code_hex": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^0x[0-9A-F]{8}$"
+    },
+    "image_name": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "overwatch.exe",
+        "fortniteclient-win64-shipping.exe",
+        "battle.net.exe",
+        "epicgameslauncher.exe",
+        null
+      ],
+      "description": "Only an allow-listed game or launcher image; any other image name is not copied."
+    },
+    "file_name": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "A log or dump name the collector kept verbatim; null for a pseudonymised name (pseudonyms are salted per run and do not identify a file across bundles)."
+    },
+    "file_bytes": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "component": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[A-Za-z0-9]{1,40}$",
+      "description": "A live kernel dump's component folder."
+    },
+    "report_kind": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[A-Za-z]{1,32}$",
+      "description": "The leading word of a Windows Error Reporting report folder name."
+    },
+    "period_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "period_label": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "source_bundle_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_]{1,128}$"
+    },
+    "source_collector": {
+      "enum": [
+        "session-ledger",
+        "bugcheck-history",
+        "tdr-events",
+        "application-errors",
+        "whea-errors"
+      ]
+    },
+    "source_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$"
+    },
+    "observations": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "How many input bundles held this entry; the row is the latest bundle's observation."
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "properties": {
+            "decoded_table": {
+              "const": "session_ledger"
+            },
+            "schema_version": {
+              "const": "0.1.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
