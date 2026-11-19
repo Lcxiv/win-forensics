@@ -699,7 +699,7 @@
   "checksum_algorithm": "sha256",
   "notes": [
     "Read only collector session-bracket version 1.0.0: What did the machine and each running process do between the baseline read and the read after a play session, within one boot (baseline phase; game guard: Overwatch.exe, FortniteClient-Win64-Shipping.exe)?",
-    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "Ran as the collector account (its name is not recorded); elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
     "game guard: FortniteClient-Win64-Shipping.exe was running, so only the guard read; run the read again when no game runs"

@@ -19,7 +19,7 @@ from conftest import REPO_ROOT
 
 CHANGES = REPO_ROOT / "changes" / "windows"
 # Everything that reads the PC or runs on it: the collectors (with their tests, fixtures and
-# README), the SSH front door, and the Mac side scripts. The later scenario runner goes here too.
+# README and the scenario runner), the SSH front door, and the Mac side scripts.
 READERS = [REPO_ROOT / "collectors", REPO_ROOT / "remote-access", REPO_ROOT / "scripts"]
 # Anything that would let a reader find or start a change script: the folder name in either
 # separator style, and the script's own name.

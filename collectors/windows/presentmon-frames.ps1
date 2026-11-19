@@ -118,56 +118,9 @@ if (-not $OutputDirectory -or -not (Test-Path -LiteralPath $common)) {
 }
 . $common
 
-# --- the pin -----------------------------------------------------------------
-# GitHub release v2.6.0 of GameTechDev/PresentMon, published 2026-09-21, asset
-# PresentMon-2.6.0-x64.exe. The digest is the one GitHub records for the
-# release asset (the release API's digest field, read 2026-11-18); the size is
-# the asset size from the same record. Only these exact bytes are run.
-function Get-WfPresentMonPinnedVersion { return '2.6.0' }
-function Get-WfPresentMonPinnedFileName { return 'PresentMon-2.6.0-x64.exe' }
-function Get-WfPresentMonPinnedSha256 { return 'b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af' }
-function Get-WfPresentMonPinnedLength { return [int64]980320 }
-function Get-WfPresentMonReleaseUrl { return 'https://github.com/GameTechDev/PresentMon/releases/tag/v2.6.0' }
-function Get-WfPresentMonAssetUrl { return 'https://github.com/GameTechDev/PresentMon/releases/download/v2.6.0/PresentMon-2.6.0-x64.exe' }
-function Get-WfPresentMonDocumentationUrl { return 'https://github.com/GameTechDev/PresentMon/blob/v2.6.0/README-ConsoleApplication.md' }
-function Get-WfPresentMonSourceUrl { return 'https://github.com/GameTechDev/PresentMon/tree/v2.6.0' }
-# The WPR recording: the instance name every wpr call carries (WPR
-# Command-Line Options: -instancename "specifies a name to uniquely identify
-# the tracing instance" and "must be the last parameter"), which is also the
-# event collector's name in the profile, and the profile name inside the .wprp.
-function Get-WfPresentMonInstanceName { return 'wf-presentmon-frames' }
-function Get-WfPresentMonProfileName { return 'WfPresentMonFrames' }
-# Deadlines in seconds for the phases that are not the recording window.
-function Get-WfPresentMonStartDeadline { return 60 }
-function Get-WfPresentMonStatusDeadline { return 30 }
-function Get-WfPresentMonStopDeadline { return 180 }
-function Get-WfPresentMonDecodeDeadline { return 240 }
-function Get-WfPresentMonCancelDeadline { return 60 }
-# Cap on what a program may print on a console stream that is not the CSV.
-function Get-WfPresentMonConsoleCapBytes { return [int64]1048576 }
-# A process name: letters, digits, dot, underscore and hyphen, not starting
-# with a hyphen, so it can never read as an option.
-function Get-WfPresentMonProcessNamePattern { return '^[A-Za-z0-9._][A-Za-z0-9._-]{0,119}$' }
-# How far the session's own end time may precede the stop request before the
-# session counts as closed early (it reached its file cap or died).
-function Get-WfPresentMonEndToleranceSeconds { return 5 }
-
-function Get-WfPresentMonDefaultPath {
-    # <install root>\tools\<pinned file name>: the collectors live two levels
-    # below the install root (remote\collectors on the PC; collectors\windows
-    # in the repository, where tools\ is ignored by git).
-    param([string]$ScriptRoot)
-    $installRoot = Split-Path -Parent (Split-Path -Parent $ScriptRoot)
-    return [System.IO.Path]::Combine($installRoot, 'tools', (Get-WfPresentMonPinnedFileName))
-}
-
-function Get-WfPresentMonSessionCapMb {
-    # The profile's MaximumFileSize: three quarters of the artifact cap in
-    # whole megabytes, at least 1, so that the merged file (the session file
-    # plus what WPR's -stop adds) has room to stay under the artifact cap.
-    param([int64]$MaxArtifactBytes)
-    return [int][math]::Max(1, [math]::Floor($MaxArtifactBytes * 0.75 / 1048576.0))
-}
+# The pin, the instance name, the deadlines and the default path of the
+# PresentMon binary are in the helper (_common.ps1, "PresentMon pin"), where
+# the scenario runner's preflight reads them too.
 
 function Get-WfPresentMonProviders {
     # The providers PresentMon 2.6.0 enables for the console application's
@@ -691,8 +644,8 @@ function Invoke-WfPresentMonFramesSource {
     $sessionCapMb = Get-WfPresentMonSessionCapMb -MaxArtifactBytes $MaxArtifactBytes
     $wpr = Get-WfWprPath
     $encoding = Get-WfConsoleOutputEncoding
-    # True from the instant our -start was issued until our stop was confirmed
-    # or our cancel completed: the only state in which a cancel is ours to send.
+    # True when a recording this run started may still be active: the
+    # session's end check could not read the instance as idle.
     $ownsRecording = $false
     $cancelRun = $null
     $dataLeft = $false
@@ -767,7 +720,7 @@ function Invoke-WfPresentMonFramesSource {
                 merged_file_max_bytes       = $MaxArtifactBytes
                 csv_max_bytes               = $MaxArtifactBytes
                 console_max_bytes_per_stream = $consoleCap
-                peak_bytes_bound            = [int64]$sessionCapMb * 1048576 + 2 * $MaxArtifactBytes + 2 * $consoleCap
+                peak_bytes_bound            = Get-WfPresentMonPeakBytesBound -MaxArtifactBytes $MaxArtifactBytes
                 note                        = 'the session stops at session_file_max_bytes (MaximumFileSize, sequential); the merged file is checked against merged_file_max_bytes and deleted either way; the CSV is captured under csv_max_bytes by the process runner, which stops PresentMon at the cap; the merge temp folder is removed on every path. The peak is bounded by the session file plus the merged file plus the CSV plus two console streams (peak_bytes_bound), and ETW keeps 200 MB free on the system drive'
             }
             option_citations       = [ordered]@{
@@ -847,7 +800,7 @@ function Invoke-WfPresentMonFramesSource {
 
         $readErrorKind = ''
         $readErrorMessage = ''
-        $startRun = $null; $statusRun = $null; $stopRun = $null; $afterRun = $null; $decodeRun = $null
+        $startRun = $null; $statusRun = $null; $stopRun = $null; $afterRun = $null; $afterCancelRun = $null; $decodeRun = $null
         $statusFacts = New-WfWprStatusFacts
         $afterFacts = New-WfWprStatusFacts
         $comparison = [ordered]@{ ok = $null; providers = @() }
@@ -885,23 +838,105 @@ function Invoke-WfPresentMonFramesSource {
                 $readErrorMessage = ('the idle state of this collector''s WPR instance could not be established (wpr -status exit code {0}, timed out {1}): "{2}"; nothing was started' -f $probeRun['ExitCode'], [bool]$probeRun['TimedOut'], (Get-WfSaid -Run $probeRun))
             }
         } else {
-            # Phase 1: start the recording. The time bound is taken before the
-            # start is issued, so the range the source claims contains the recording.
-            $recordStartBound = Get-WfUtcNow
-            $Log.Add('source ' + $id + ': wpr ' + ($wprCommands['start'] -join ' '))
-            $startRun = Invoke-WfProcess -FilePath $wpr -Arguments $startText -TimeoutSeconds (Get-WfPresentMonStartDeadline) -OutputEncoding $encoding -MaxBytes $consoleCap
-            $null = $console.Append((Get-WfRunText -Label ('wpr ' + ($wprCommands['start'] -join ' ')) -Run $startRun))
-            $startSaid = Get-WfSaid -Run $startRun
-            if (-not (Test-WfRunCompleted -Run $startRun)) {
-                # A start that was issued but did not complete may have left a
-                # recording of our instance behind; it is ours to cancel.
-                if ($startRun['Started'] -and ($startRun['TimedOut'] -or $startRun['Oversized'])) {
-                    $ownsRecording = $true
-                    $cancelRun = Invoke-WfProcess -FilePath $wpr -Arguments $cancelText -TimeoutSeconds (Get-WfPresentMonCancelDeadline) -OutputEncoding $encoding -MaxBytes $consoleCap
-                    $null = $console.Append((Get-WfRunText -Label ('wpr ' + $cancelText + ' (after a start that did not complete)') -Run $cancelRun))
-                    if (Test-WfRunCompleted -Run $cancelRun) { $ownsRecording = $false }
+            # The recording runs through the helper's one live session path,
+            # Invoke-WfLiveSession: start, the window on the monotonic clock,
+            # stop, and on every exit path the end check (this instance is
+            # read; anything but a confirmed idle state, or a stop that did not
+            # complete, is cancelled and read again). The hooks are what is
+            # particular to wpr; they write their results into $live.
+            $live = @{
+                StartRun = $null; StatusRun = $null; StopRun = $null; AfterRun = $null; CancelRun = $null; AfterCancelRun = $null
+                StatusFacts = $statusFacts; AfterFacts = $afterFacts; Comparison = $comparison
+                StartBound = $null; StopRequested = $null; StopBound = $null
+            }
+            $liveHooks = @{
+                Start   = {
+                    # Phase 1: start the recording. The time bound is taken before
+                    # the start is issued, so the range the source claims contains
+                    # the recording. A start that was issued but did not complete
+                    # (timed out, or printed above the cap) may have left a
+                    # recording of our instance behind: it is ours to end.
+                    param($S)
+                    $S.StartBound = Get-WfUtcNow
+                    $Log.Add('source ' + $id + ': wpr ' + ($wprCommands['start'] -join ' '))
+                    $run = Invoke-WfProcess -FilePath $wpr -Arguments $startText -TimeoutSeconds (Get-WfPresentMonStartDeadline) -OutputEncoding $encoding -MaxBytes $consoleCap
+                    $S.StartRun = $run
+                    $null = $console.Append((Get-WfRunText -Label ('wpr ' + ($wprCommands['start'] -join ' ')) -Run $run))
+                    return @{ Ok = (Test-WfRunCompleted -Run $run); MayRemain = ([bool]$run['Started'] -and ([bool]$run['TimedOut'] -or [bool]$run['Oversized'])) }
                 }
-                if ($startSaid -match '(?i)access (is )?denied') {
+                Stop    = {
+                    # Phase 2, the window, is the helper's bound: nothing runs
+                    # while the machine is observed. Phase 3: the controller's
+                    # own counters and enabled settings, then the stop.
+                    param($S)
+                    $run = Invoke-WfProcess -FilePath $wpr -Arguments $statusText -TimeoutSeconds (Get-WfPresentMonStatusDeadline) -OutputEncoding $encoding -MaxBytes $consoleCap
+                    $S.StatusRun = $run
+                    $null = $console.Append((Get-WfRunText -Label ('wpr ' + $statusText + ' (end of the window)') -Run $run))
+                    $facts = Get-WfWprStatusFacts -Text ([string]$run['StdOut'] + "`n" + [string]$run['StdErr'])
+                    $S.StatusFacts = $facts
+                    $S.Comparison = Compare-WfPresentMonEnabledProviders -Requested $providers -Enabled $facts['providers']
+                    $S.StopRequested = Get-WfUtcNow
+                    $Log.Add('source ' + $id + ': wpr ' + ($wprCommands['stop'] -join ' '))
+                    $run = Invoke-WfProcess -FilePath $wpr -Arguments $stopText -TimeoutSeconds (Get-WfPresentMonStopDeadline) -OutputEncoding $encoding -MaxBytes $consoleCap
+                    $S.StopRun = $run
+                    $null = $console.Append((Get-WfRunText -Label ('wpr ' + ($wprCommands['stop'] -join ' ')) -Run $run))
+                    $S.StopBound = Get-WfUtcNow
+                    return (Test-WfRunCompleted -Run $run)
+                }
+                Fail    = {
+                    param($S, [string]$Message)
+                    $null = $S
+                    $Log.Add('source ' + $id + ' raised: ' + $Message)
+                }
+                Confirm = {
+                    # Phase 4: this instance, and only this instance, is read.
+                    param($S, [string]$Moment)
+                    $label = '(after the stop)'
+                    if ($Moment -eq 'after_cancel') { $label = '(after the cancel)' } elseif (-not $S.Session.stop_issued) { $label = '(after a start that did not complete)' }
+                    $run = Invoke-WfProcess -FilePath $wpr -Arguments $probeText -TimeoutSeconds (Get-WfPresentMonStatusDeadline) -OutputEncoding $encoding -MaxBytes $consoleCap
+                    $null = $console.Append((Get-WfRunText -Label ('wpr ' + $probeText + ' ' + $label) -Run $run))
+                    $facts = Get-WfWprStatusFacts -Text ([string]$run['StdOut'] + "`n" + [string]$run['StdErr'])
+                    if ($Moment -eq 'after_cancel') { $S.AfterCancelRun = $run } else { $S.AfterRun = $run; $S.AfterFacts = $facts }
+                    if (-not (Test-WfRunCompleted -Run $run)) { return 'unknown' }
+                    if ($facts['in_progress']) { return 'active' }
+                    return 'idle'
+                }
+                Cancel  = {
+                    # Only a recording this run started is cancelled, and only by its instance name.
+                    param($S, [string]$Read)
+                    $null = $Read
+                    $label = 'wpr ' + $cancelText
+                    if (-not $S.Session.stop_issued) { $label = $label + ' (after a start that did not complete)' }
+                    $run = Invoke-WfProcess -FilePath $wpr -Arguments $cancelText -TimeoutSeconds (Get-WfPresentMonCancelDeadline) -OutputEncoding $encoding -MaxBytes $consoleCap
+                    $S.CancelRun = $run
+                    $null = $console.Append((Get-WfRunText -Label $label -Run $run))
+                    return (Test-WfRunCompleted -Run $run)
+                }
+            }
+            $liveRecord = Invoke-WfLiveSession -LiveHooks $liveHooks -LiveState $live -LiveSeconds $duration
+            $recordStartBound = $live.StartBound
+            $recordStopRequested = $live.StopRequested
+            $recordStopBound = $live.StopBound
+            $startRun = $live.StartRun; $statusRun = $live.StatusRun; $stopRun = $live.StopRun; $afterRun = $live.AfterRun
+            $cancelRun = $live.CancelRun; $afterCancelRun = $live.AfterCancelRun
+            $statusFacts = $live.StatusFacts; $afterFacts = $live.AfterFacts; $comparison = $live.Comparison
+            # True when this run may have left a recording of its instance
+            # behind: the end check could not read the instance as idle.
+            $ownsRecording = ([bool]$liveRecord.may_remain -and -not [bool]$liveRecord.confirmed)
+            $stopOk = [bool]$liveRecord.stop_ok
+            $stopConfirmed = ($stopOk -and $liveRecord.state_after_stop -eq 'idle')
+            if ($null -ne $liveRecord.end_error) { $Log.Add('source ' + $id + ': the end check raised: ' + [string]$liveRecord.end_error) }
+            if ($null -ne $liveRecord.error) {
+                $readErrorKind = 'other'
+                $readErrorMessage = 'the collector raised while running this source: ' + [string]$liveRecord.error
+            } elseif (-not $liveRecord.start_ok) {
+                $startSaid = Get-WfSaid -Run $startRun
+                if ($ownsRecording) {
+                    # Something was started and its end is not confirmed: not
+                    # "never started", so not not_collected.
+                    $readErrorKind = 'other'
+                    $readErrorMessage = ('wpr -start did not complete (exit code {0}; timed out {1}): "{2}"; the instance could not be read as idle after the cancel' -f $startRun['ExitCode'], [bool]$startRun['TimedOut'], $startSaid)
+                } elseif ($startSaid -match '(?i)access (is )?denied') {
                     $readErrorKind = 'access_denied'
                     $readErrorMessage = ('wpr -start was refused (exit code {0}): "{1}". Microsoft documents that only elevated administrators, members of Performance Log Users, and the service accounts can control event tracing sessions; whether WPR itself accepts a Performance Log Users member is on the verification list' -f $startRun['ExitCode'], $startSaid)
                 } else {
@@ -909,32 +944,6 @@ function Invoke-WfPresentMonFramesSource {
                     $readErrorMessage = ('wpr -start did not complete (exit code {0}; timed out {1}): "{2}"; nothing was recorded' -f $startRun['ExitCode'], [bool]$startRun['TimedOut'], $startSaid)
                 }
             } else {
-                $ownsRecording = $true
-                # Phase 2: the window. Nothing runs while the machine is observed.
-                Wait-WfSeconds -Seconds $duration
-                # Phase 3: the controller's own counters and enabled settings, then the stop.
-                $statusRun = Invoke-WfProcess -FilePath $wpr -Arguments $statusText -TimeoutSeconds (Get-WfPresentMonStatusDeadline) -OutputEncoding $encoding -MaxBytes $consoleCap
-                $null = $console.Append((Get-WfRunText -Label ('wpr ' + $statusText + ' (end of the window)') -Run $statusRun))
-                $statusFacts = Get-WfWprStatusFacts -Text ([string]$statusRun['StdOut'] + "`n" + [string]$statusRun['StdErr'])
-                $comparison = Compare-WfPresentMonEnabledProviders -Requested $providers -Enabled $statusFacts['providers']
-                $recordStopRequested = Get-WfUtcNow
-                $Log.Add('source ' + $id + ': wpr ' + ($wprCommands['stop'] -join ' '))
-                $stopRun = Invoke-WfProcess -FilePath $wpr -Arguments $stopText -TimeoutSeconds (Get-WfPresentMonStopDeadline) -OutputEncoding $encoding -MaxBytes $consoleCap
-                $null = $console.Append((Get-WfRunText -Label ('wpr ' + ($wprCommands['stop'] -join ' ')) -Run $stopRun))
-                $recordStopBound = Get-WfUtcNow
-                $stopOk = Test-WfRunCompleted -Run $stopRun
-                # Phase 4: confirm this instance is idle; cancel it if it is not or if the stop did not complete.
-                $afterRun = Invoke-WfProcess -FilePath $wpr -Arguments $probeText -TimeoutSeconds (Get-WfPresentMonStatusDeadline) -OutputEncoding $encoding -MaxBytes $consoleCap
-                $null = $console.Append((Get-WfRunText -Label ('wpr ' + $probeText + ' (after the stop)') -Run $afterRun))
-                $afterFacts = Get-WfWprStatusFacts -Text ([string]$afterRun['StdOut'] + "`n" + [string]$afterRun['StdErr'])
-                $stopConfirmed = ($stopOk -and (Test-WfRunCompleted -Run $afterRun) -and -not $afterFacts['in_progress'])
-                if ($stopConfirmed) {
-                    $ownsRecording = $false
-                } else {
-                    $cancelRun = Invoke-WfProcess -FilePath $wpr -Arguments $cancelText -TimeoutSeconds (Get-WfPresentMonCancelDeadline) -OutputEncoding $encoding -MaxBytes $consoleCap
-                    $null = $console.Append((Get-WfRunText -Label ('wpr ' + $cancelText) -Run $cancelRun))
-                    if (Test-WfRunCompleted -Run $cancelRun) { $ownsRecording = $false }
-                }
                 foreach ($failure in @(Remove-WfPresentMonRecordingData -wprTempPath $wprTempPath)) {
                     $Log.Add('source ' + $id + ': the wpr temp folder could not be deleted after the stop and is tried again at the end: ' + $failure)
                 }
@@ -1085,7 +1094,7 @@ function Invoke-WfPresentMonFramesSource {
         }
         $stopped = Get-WfUtcNow
         if ($ownsRecording) {
-            $message = 'source ' + $id + ': could not confirm that the WPR recording of instance ' + $instance + ' stopped (the status after the stop did not show it idle and the cancel did not complete); run "wpr -cancel -instancename ' + $instance + '" as an administrator to be sure'
+            $message = 'source ' + $id + ': could not confirm that the WPR recording of instance ' + $instance + ' stopped (the status read after the stop, and after the cancel that followed, did not show it idle); run "wpr -cancel -instancename ' + $instance + '" as an administrator to be sure'
             $Notes.Add($message); $Log.Add($message)
             if ($readErrorKind) { $readErrorMessage += '; the recording may still be active (see the manifest notes)' }
         }
@@ -1174,6 +1183,9 @@ function Invoke-WfPresentMonFramesSource {
             recorded_data_left = @($leftover)
             account     = $config.account
         }
+        # The read after a cancel exists only on the paths that cancelled, so a
+        # run that never cancelled keeps the record it always had.
+        if ($null -ne $afterCancelRun) { $report.runs['after_cancel'] = ConvertTo-WfRunRecord -Run $afterCancelRun -Deadline (Get-WfPresentMonStatusDeadline) }
         Write-WfJsonFile -Path (Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/result.json')) -Object $report
         if (Test-WfObservedStatus -Status $entry.status) {
             # The range the source claims contains the recording: from before
@@ -1228,17 +1240,11 @@ function Invoke-WfPresentMonFramesSource {
         $entry.status_reason = 'the collector raised while running this source: ' + $_.Exception.Message
         $Log.Add('source ' + $id + ' raised: ' + $_.Exception.Message)
         if ($ownsRecording) {
-            # Only a recording this run started is cancelled, and only by its instance name.
-            try {
-                $cancelRun = Invoke-WfProcess -FilePath $wpr -Arguments ('-cancel -instancename ' + $instance) -TimeoutSeconds (Get-WfPresentMonCancelDeadline) -OutputEncoding $encoding -MaxBytes $consoleCap
-                $Log.Add('source ' + $id + ': wpr -cancel -instancename ' + $instance + ' after the failure exited ' + [string]$cancelRun['ExitCode'])
-                if (Test-WfRunCompleted -Run $cancelRun) { $ownsRecording = $false }
-            } catch { $Log.Add('source ' + $id + ': wpr -cancel after the failure could not run: ' + $_.Exception.Message) }
-            if ($ownsRecording) {
-                $message = 'source ' + $id + ': the collector failed while its WPR recording (instance ' + $instance + ') may still be active; run "wpr -cancel -instancename ' + $instance + '" as an administrator'
-                $Notes.Add($message); $Log.Add($message)
-                $entry.status_reason += '; the recording may still be active (see the manifest notes)'
-            }
+            # The session's end check (Invoke-WfLiveSession) already read the
+            # instance, cancelled it and read it again without seeing it idle.
+            $message = 'source ' + $id + ': the collector failed while its WPR recording (instance ' + $instance + ') may still be active; run "wpr -cancel -instancename ' + $instance + '" as an administrator'
+            $Notes.Add($message); $Log.Add($message)
+            $entry.status_reason += '; the recording may still be active (see the manifest notes)'
         }
         $undeleted = @(Remove-WfPresentMonRecordingData -wprTempPath $wprTempPath -etlPath $etlPath)
         if ($undeleted.Count -gt 0) {
@@ -1312,8 +1318,9 @@ $definition = @{
 
 # The helper's per source deadline covers every phase: the probe, a leftover
 # cancel and a second probe, the start, the window, the status at the end,
-# the stop and merge, the status after it, a cancel, the offline read, and
-# the cancel after a failure: four status runs and three cancels.
+# the stop and merge, the end check (a status, a cancel, a status) and the
+# offline read: five status runs and two cancels fit in the four status runs
+# and three cancels this has always allowed.
 $timeout = 4 * (Get-WfPresentMonStatusDeadline) + 3 * (Get-WfPresentMonCancelDeadline) + (Get-WfPresentMonStartDeadline) + $DurationSeconds + (Get-WfPresentMonStopDeadline) + (Get-WfPresentMonDecodeDeadline)
 $exitCode = @(Invoke-WfCollectorScript -Definition $definition -OutputDirectory $OutputDirectory -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $timeout -CollectorPath $PSCommandPath)[-1]
 exit $exitCode

@@ -35,7 +35,7 @@
 #              OnCall = <scriptblock run when the program is started, for a side effect> },
 #              for wpr and the PresentMon binary, matched in order after Commands; a run with
 #              no match exits 1. An entry may instead carry Responses = <list of such maps>, used
-#              in call order with the last repeating. Waited = seconds passed to Wait-WfSeconds, summed
+#              in call order with the last repeating. Waited = seconds passed to Start-WfSleep, summed
 #   Binaries   full path -> @{ Length; Sha256; FileVersion; ProductVersion } for Get-WfBinaryInfo;
 #              a missing key is a file that does not exist
 #   Account    the values Get-WfAccountInfo returns (elevated, group memberships)
@@ -73,6 +73,19 @@
 #              a drift and optional steps; marks fire during a wait
 #   Stdout     list that receives what a collector prints on stdout
 #   Stderr     list that receives what a collector prints on stderr
+#   ProfilePath  the account's profile folder the scenario runner refuses tool paths under
+#   Host       the interpreter's edition and version (Get-WfPowerShellHost)
+#   FreeBytes  free bytes on the output directory's volume, or $null when unreadable
+#   Children   for the scenario runner: collector name -> @{ Case = <a case of
+#              Get-WfSyntheticCases whose Setup prepares that collector's machine>;
+#              StartFails = <message>; Stuck = $true (stopped at the deadline: the
+#              collector never finishes, leaves Leftovers, a list of bundle relative
+#              files, behind); NotReady = $true (a background collector that never
+#              reports ready); Concurrent = $true (it ran alongside the runner, whose
+#              clock does not advance by its run time) }. Each child runs in process at its start against a
+#              fresh synthetic machine (Reset-WfSynthetic at the runner's clock, then
+#              the case's Setup), and the runner's machine is restored afterwards.
+#   ChildRuns  list of @{ Name; Arguments; WorkingDirectory } for every child started
 
 function Reset-WfSynthetic {
     param([datetime]$Now = ([datetime]::new(2026, 3, 1, 12, 0, 0, [System.DateTimeKind]::Utc)))
@@ -99,6 +112,7 @@ function Reset-WfSynthetic {
         Files        = @{}
         Pnp          = @{ Devices = @() }
         Processes    = New-Object 'System.Collections.Generic.List[object]'
+        WatchPath    = $null
         Waited       = 0
         Salt         = 'synthetic-salt-0001'
         Elevated     = $false
@@ -112,6 +126,11 @@ function Reset-WfSynthetic {
         Desktop      = $null
         Stdout       = New-Object 'System.Collections.Generic.List[string]'
         Stderr       = New-Object 'System.Collections.Generic.List[string]'
+        ProfilePath  = 'C:\Users\synthetic-owner'
+        Host         = [ordered]@{ edition = 'Desktop'; version = '5.1.26100.1' }
+        FreeBytes    = [int64]500000000000
+        Children     = @{}
+        ChildRuns    = New-Object 'System.Collections.Generic.List[object]'
     }
     $global:WfSynthetic.Clock = New-WfSyntheticClock
 }
@@ -570,12 +589,6 @@ function Test-WfToolPresent {
     return $true
 }
 
-function Wait-WfSeconds {
-    # The recording window passes on the synthetic clock, not in real time.
-    param([int]$Seconds)
-    $global:WfSynthetic.Ticks += $Seconds
-    $global:WfSynthetic.Waited += $Seconds
-}
 
 function Get-WfBinaryInfo {
     param([string]$Path)
@@ -613,7 +626,9 @@ function Invoke-WfProcess {
     # export has its own replacement above).
     param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null, [int64]$MaxBytes = 0)
     $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Oversized = $false; Error = $null; DurationMs = $null; StdOutBytes = [int64]0; StdErrBytes = [int64]0; Diagnostic = $null }
-    $global:WfSynthetic.Processes.Add(@{ FilePath = $FilePath; Arguments = $Arguments })
+    $watched = $null
+    if ($global:WfSynthetic.WatchPath) { $watched = (Test-Path -LiteralPath $global:WfSynthetic.WatchPath) }
+    $global:WfSynthetic.Processes.Add(@{ FilePath = $FilePath; Arguments = $Arguments; WatchedPathExists = $watched })
     if ($TimeoutSeconds -lt 1) {
         $result.Error = 'not started: the deadline had passed'
         return $result
@@ -1329,6 +1344,100 @@ function Get-WfPinnedToolBuilds {
 }
 
 function Start-WfSleep {
+    # The bound of a live session passes on the synthetic clock, not in real time.
     param([int]$Seconds)
     $global:WfSynthetic.Ticks += [math]::Max(0, $Seconds)
+    $global:WfSynthetic.Waited += [math]::Max(0, $Seconds)
 }
+
+function Get-WfUserProfilePath {
+    return [string]$global:WfSynthetic.ProfilePath
+}
+
+function Get-WfPowerShellHost {
+    return $global:WfSynthetic.Host
+}
+
+function Get-WfPowerShellExePath {
+    return 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+}
+
+function Get-WfVolumeFreeSpace {
+    param([string]$Path)
+    if ($null -eq $global:WfSynthetic.FreeBytes) { return [ordered]@{ root = 'C:\'; free_bytes = $null; error = 'synthetic: the volume could not be read' } }
+    return [ordered]@{ root = 'C:\'; free_bytes = [int64]$global:WfSynthetic.FreeBytes; error = $null }
+}
+
+function Start-WfCollectorChild {
+    # Runs the collector in this process, at once, against its own synthetic
+    # machine, and keeps the result for Wait-WfCollectorChild. The argument
+    # list is parsed back into named parameters as powershell.exe -File would.
+    param([string]$ScriptPath, [string[]]$Arguments, [string]$WorkingDirectory)
+    $name = [System.IO.Path]::GetFileNameWithoutExtension($ScriptPath)
+    $global:WfSynthetic.ChildRuns.Add(@{ Name = $name; Arguments = @($Arguments); WorkingDirectory = $WorkingDirectory })
+    $spec = $global:WfSynthetic.Children[$name]
+    $result = [ordered]@{ Started = $true; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Oversized = $false; Error = $null; DurationMs = 5; StdOutBytes = [int64]0; StdErrBytes = [int64]0; Diagnostic = $null }
+    $handle = @{ Name = $name; Result = $result; Ready = $true }
+    if ($null -eq $spec) { throw ('synthetic backend: no child scenario for ' + $name) }
+    if ($spec['StartFails']) {
+        $result.Started = $false
+        $result.Error = [string]$spec['StartFails']
+        return $handle
+    }
+    if ($spec['NotReady']) { $handle.Ready = $false }
+    $parameters = @{}
+    for ($i = 0; $i -lt $Arguments.Count - 1; $i += 2) { $parameters[([string]$Arguments[$i]).TrimStart('-')] = [string]$Arguments[$i + 1] }
+    $runner = $global:WfSynthetic
+    try {
+        Reset-WfSynthetic -Now (Get-WfUtcNow)
+        $case = @(Get-WfSyntheticCases | Where-Object { $_['Case'] -eq $spec['Case'] })[0]
+        & $case['Setup'] $parameters['OutputDirectory']
+        if ($spec['Stuck']) {
+            $null = New-Item -ItemType Directory -Force -Path $parameters['OutputDirectory']
+            foreach ($relative in @($spec['Leftovers'])) {
+                $path = Join-WfBundlePath -BundleRoot $parameters['OutputDirectory'] -RelativePath $relative
+                $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $path)
+                [System.IO.File]::WriteAllText($path, 'synthetic leftover')
+            }
+            $result.TimedOut = $true
+            $result.Error = 'the process did not finish within the deadline and was stopped'
+            $global:WfSynthetic.Ticks += 600
+        } else {
+            & $ScriptPath @parameters
+            $result.ExitCode = $LASTEXITCODE
+            $result.StdOut = ((@($global:WfSynthetic.Stdout) -join "`n") + "`n")
+            $result.StdErr = (@($global:WfSynthetic.Stderr) -join "`n")
+        }
+        $elapsed = [int]$global:WfSynthetic.Ticks
+    } finally {
+        $global:WfSynthetic = $runner
+    }
+    # A background child ran alongside the runner: its time is not the runner's.
+    if (-not $spec['Concurrent']) { $global:WfSynthetic.Ticks += $elapsed }
+    return $handle
+}
+
+function Wait-WfCollectorChild {
+    param($Handle, [int]$TimeoutSeconds)
+    $result = $Handle.Result
+    $result['Waited'] = $TimeoutSeconds
+    return $result
+}
+
+function Test-WfCollectorChildExited {
+    param($Handle)
+    return $true
+}
+
+function Test-WfCollectorChildReady {
+    param($Handle, [string]$ReadyPath)
+    return [bool]$Handle.Ready
+}
+
+function Get-WfScriptToolRecord {
+    # As Get-WfToolInventory here: no hash and no real path, so the fixtures
+    # do not change when a script is edited.
+    param([string]$Name, [string]$Version, [string]$Path)
+    return [ordered]@{ name = $Name; version = $Version; path = ('<install directory>\' + [System.IO.Path]::GetFileName($Path)); sha256 = $null }
+}
+
