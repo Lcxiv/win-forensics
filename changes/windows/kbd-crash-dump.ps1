@@ -473,18 +473,11 @@ function Get-KcdSha256 {
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
-function Get-KcdExportTarget {
-    # The key a reg export saves for a change row: the key itself when it
-    # exists, otherwise its parent (the service key), which records that the
-    # key was absent.
-    param($State)
-    if ($State.KeyExisted) { return $State.Path }
-    return $State.Path.Substring(0, $State.Path.LastIndexOf('\'))
-}
-
 function Save-KcdEvidence {
-    # Creates the folder, writes the values CSV, exports every affected key
-    # with reg export, and writes SHA256SUMS.txt. Any failure is returned as a
+    # Creates the folder, writes the values CSV, exports every existing change
+    # key with reg export (an absent key is recorded only as KeyExisted False
+    # in the CSV, never through its parent service key), and writes
+    # SHA256SUMS.txt. Any failure is returned as a
     # reason; the caller then changes nothing.
     param([string]$Folder, [string]$CsvName, [string]$Mode, [object[]]$State)
     $result = @{ Ok = $false; Reason = ''; Files = @() }
@@ -496,8 +489,8 @@ function Save-KcdEvidence {
         $files = New-Object System.Collections.Generic.List[string]
         $files.Add($CsvName)
         $exported = @{}
-        foreach ($s in @($State | Where-Object { $_.Role -eq 'change' })) {
-            $target = Get-KcdExportTarget -State $s
+        foreach ($s in @($State | Where-Object { $_.Role -eq 'change' -and $_.KeyExisted })) {
+            $target = $s.Path
             if ($exported.ContainsKey($target)) { continue }
             $exported[$target] = $true
             $fileName = ($target.Substring((Get-KcdServicesPath).Length + 1) -replace '\\', '-') + '.reg'
@@ -623,7 +616,7 @@ function Write-KcdLogFile {
             Write-KcdTextFile -Path (Join-Path -Path $Folder -ChildPath 'log.txt') -Text (($KcdLog.ToArray() -join "`r`n") + "`r`n")
         }
     } catch {
-        Write-KcdLine -Text ('note: the log could not be written to the evidence folder: ' + [string]$_.Exception.Message)
+        Write-KcdLine -Text (Protect-KcdText -Text ('note: the log could not be written to the evidence folder: ' + [string]$_.Exception.Message))
     }
 }
 
@@ -795,6 +788,25 @@ function Test-KcdEqualsSaved {
     return ($Live.ValueExisted -and $Live.Kind -eq $Saved.Kind -and $Live.Data -eq $Saved.Data)
 }
 
+function Show-KcdSavedReadback {
+    # PASS or FAIL per value against the saved before-state. Returns the FAIL count.
+    param([object[]]$Saved, [object[]]$After)
+    $fails = 0
+    for ($i = 0; $i -lt $Saved.Count; $i++) {
+        $s = $Saved[$i]
+        $where = (Get-KcdHivePath -Path $s.Path) + '\' + $s.Name
+        $savedText = 'absent'
+        if ($s.ValueExisted) { $savedText = (Get-KcdKindName -Kind $s.Kind) + ' ' + $s.Data }
+        if (Test-KcdEqualsSaved -Live $After[$i] -Saved $s) {
+            Write-KcdOut -Text ('PASS ' + $where + ' is ' + (Format-KcdValue -State $After[$i]) + ', as saved')
+        } else {
+            $fails++
+            Write-KcdOut -Text ('FAIL ' + $where + ' is ' + (Format-KcdValue -State $After[$i]) + ', saved ' + $savedText)
+        }
+    }
+    return $fails
+}
+
 function Invoke-KcdUndo {
     param([string]$Root, [string]$Folder)
     Write-KcdOut -Text 'kbd-crash-dump -Undo'
@@ -837,6 +849,16 @@ function Invoke-KcdUndo {
     if ($failed.Count -gt 0) {
         Write-KcdOut -Text ('REFUSED: ' + $failed.Count + ' precondition(s) failed. Nothing changed.')
         return 1
+    }
+
+    $differs = @(for ($i = 0; $i -lt $rows.Count; $i++) { if (-not (Test-KcdEqualsSaved -Live $live[$i] -Saved $saved.Rows[$i])) { $i } })
+    $createdLeft = @($saved.Rows | Where-Object { -not $_.KeyExisted } | ForEach-Object { $_.Path } | Sort-Object -Unique | Where-Object { $entry = Read-KcdKey -Path $_; (-not $entry.Ok) -or ($null -ne $entry.Key) })
+    if ($differs.Count -eq 0 -and $createdLeft.Count -eq 0) {
+        Write-KcdOut -Text 'Nothing to undo: every value already reads as saved and no key the apply created remains. Nothing changed and no folder was saved.'
+        Write-KcdOut -Text 'Readback against the saved before-state:'
+        $null = Show-KcdSavedReadback -Saved $saved.Rows -After $live
+        Write-KcdOut -Text 'RESULT: PASS. The saved before-state is already in place.'
+        return 0
     }
 
     $undoFolder = Join-Path -Path $Root -ChildPath ((Get-KcdStamp -Utc (Get-KcdUtcNow)) + '-undo')
@@ -902,19 +924,7 @@ function Invoke-KcdUndo {
 
     Write-KcdOut -Text 'Readback against the saved before-state:'
     $after = Read-KcdState -Rows $rows
-    $fails = 0
-    for ($i = 0; $i -lt $rows.Count; $i++) {
-        $s = $saved.Rows[$i]
-        $where = (Get-KcdHivePath -Path $s.Path) + '\' + $s.Name
-        $savedText = 'absent'
-        if ($s.ValueExisted) { $savedText = (Get-KcdKindName -Kind $s.Kind) + ' ' + $s.Data }
-        if (Test-KcdEqualsSaved -Live $after[$i] -Saved $s) {
-            Write-KcdOut -Text ('PASS ' + $where + ' is ' + (Format-KcdValue -State $after[$i]) + ', as saved')
-        } else {
-            $fails++
-            Write-KcdOut -Text ('FAIL ' + $where + ' is ' + (Format-KcdValue -State $after[$i]) + ', saved ' + $savedText)
-        }
-    }
+    $fails = Show-KcdSavedReadback -Saved $saved.Rows -After $after
     foreach ($note in $keyNotes) { $fails++; Write-KcdOut -Text $note }
     Write-KcdOut -Text 'Restart: Microsoft documents a restart for the setting to take effect; that the restored values also take effect only after a restart is an inference. This script never restarts the PC.'
     $code = 0

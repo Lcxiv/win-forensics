@@ -247,15 +247,15 @@ Describe '-Apply' {
         [System.IO.File]::ReadAllBytes((Join-Path $folder 'before-values.csv'))[0] | Should -Be ([byte][char]'"')
     }
 
-    It 'creates a missing Parameters key under its existing service key, records that, and exports the service key' {
+    It 'creates a missing Parameters key under its existing service key, records its absence in the CSV, and never exports the service key' {
         $root = Start-KcdCase
         $global:KcdSynthetic.Registry.Remove($script:Ps2Parameters.ToLowerInvariant())
         $run = Invoke-Kcd -Arguments @{ Apply = $true }
         $run.ExitCode | Should -Be 0
-        $run.Calls | Should -Contain 'export HKLM\SYSTEM\CurrentControlSet\Services\i8042prt'
+        @($run.Calls | Where-Object { $_ -like 'export *' }) | Should -Be @('export HKLM\SYSTEM\CurrentControlSet\Services\kbdhid\Parameters')
         $run.Calls | Should -Contain ('create-key ' + $script:Ps2Parameters)
         $folder = Join-Path $root @(Get-KcdFolders -Root $root)[0]
-        Test-Path -LiteralPath (Join-Path $folder 'i8042prt.reg') | Should -BeTrue
+        @(Get-ChildItem -LiteralPath $folder -Filter '*.reg' | ForEach-Object { $_.Name }) | Should -Be @('kbdhid-Parameters.reg')
         $row = @(Get-Content -LiteralPath (Join-Path $folder 'before-values.csv') | ConvertFrom-Csv | Where-Object { $_.Role -eq 'change' -and $_.Key -like '*i8042prt*' })[0]
         $row.KeyExisted | Should -BeExactly 'False'
     }
@@ -546,6 +546,24 @@ Describe '-Undo' {
         Get-KcdValueText -Path $script:KbdParameters -Name 'CrashOnCtrlScroll' | Should -BeExactly 'DWord 1'
     }
 
+    It 'reports nothing to undo when the saved state is already in place, saving no folder -Readback counts' {
+        $root = Start-KcdCase
+        $null = Invoke-Kcd -Arguments @{ Apply = $true }
+        (Invoke-Kcd -Arguments @{ Undo = $true }).ExitCode | Should -Be 0
+        $global:KcdSynthetic.LastBoot = [datetime]::new(2026, 3, 2, 8, 0, 0, [System.DateTimeKind]::Utc)
+        $global:KcdSynthetic.Now = [datetime]::new(2026, 3, 2, 12, 0, 0, [System.DateTimeKind]::Utc)
+        $foldersBefore = @(Get-KcdFolders -Root $root)
+        $again = Invoke-Kcd -Arguments @{ Undo = $true }
+        $again.ExitCode | Should -Be 0
+        $again.Calls | Should -BeNullOrEmpty
+        $again.Text | Should -Match 'Nothing to undo'
+        $again.Text | Should -Match 'PASS HKLM\\SYSTEM\\CurrentControlSet\\Services\\kbdhid\\Parameters\\CrashOnCtrlScroll is absent, as saved'
+        @(Get-KcdFolders -Root $root) | Should -Be $foldersBefore
+        $readback = Invoke-Kcd -Arguments @{ Readback = $true }
+        $readback.Text | Should -Match 'Restart done: the PC booted at 2026-03-02T08:00:00Z, after the newest undo at'
+        $readback.Text | Should -Not -Match 'RESTART PENDING: the PC last booted'
+    }
+
     It 'reports a failed restore with exit 2 and succeeds when run again' {
         $null = Start-KcdCase
         $before = Get-KcdSnapshot
@@ -575,8 +593,6 @@ Describe '-AlternateKeys' {
         $apply = Invoke-Kcd -Arguments @{ Apply = $true; AlternateKeys = $true }
         $apply.ExitCode | Should -Be 0
         $apply.Calls | Should -Be @(
-            'export HKLM\SYSTEM\CurrentControlSet\Services\kbdhid',
-            'export HKLM\SYSTEM\CurrentControlSet\Services\i8042prt',
             ('create-key ' + $script:KbdCrashdump),
             'set SYSTEM\CurrentControlSet\Services\kbdhid\crashdump\Dump1Keys = 2',
             'set SYSTEM\CurrentControlSet\Services\kbdhid\crashdump\Dump2Key = 61',
@@ -596,6 +612,31 @@ Describe '-AlternateKeys' {
         $undo.Writes | Should -Contain ('delete-key ' + $script:Ps2Crashdump)
         Get-KcdSnapshot | Should -BeExactly $before
         $root | Should -Not -BeNullOrEmpty
+    }
+
+    It 'saves no .reg for absent crashdump keys and never exports the kbdhid or i8042prt service key' {
+        $root = Start-KcdCase
+        $run = Invoke-Kcd -Arguments @{ Apply = $true; AlternateKeys = $true }
+        $run.ExitCode | Should -Be 0
+        @($run.Calls | Where-Object { $_ -like 'export *' }) | Should -BeNullOrEmpty
+        $folder = Join-Path $root @(Get-KcdFolders -Root $root)[0]
+        @(Get-ChildItem -LiteralPath $folder -Filter '*.reg') | Should -BeNullOrEmpty
+        $sums = @(Get-Content -LiteralPath (Join-Path $folder 'SHA256SUMS.txt'))
+        $sums.Count | Should -Be 1
+        $sums[0] | Should -Match '  before-values\.csv$'
+        $rows = @(Get-Content -LiteralPath (Join-Path $folder 'before-values.csv') | ConvertFrom-Csv | Where-Object { $_.Role -eq 'change' })
+        $rows.Count | Should -Be 4
+        foreach ($row in $rows) { $row.KeyExisted | Should -BeExactly 'False' }
+
+        $undo = Invoke-Kcd -Arguments @{ Undo = $true }
+        $undo.ExitCode | Should -Be 0
+        @($undo.Calls | Where-Object { $_ -like 'export *' }) | Should -Be @(
+            'export HKLM\SYSTEM\CurrentControlSet\Services\kbdhid\crashdump',
+            'export HKLM\SYSTEM\CurrentControlSet\Services\i8042prt\crashdump')
+        foreach ($call in $run.Calls + $undo.Calls) {
+            $call | Should -Not -BeExactly 'export HKLM\SYSTEM\CurrentControlSet\Services\kbdhid'
+            $call | Should -Not -BeExactly 'export HKLM\SYSTEM\CurrentControlSet\Services\i8042prt'
+        }
     }
 
     It 'takes a documented -Dump1Keys combination and names every first key it allows' {

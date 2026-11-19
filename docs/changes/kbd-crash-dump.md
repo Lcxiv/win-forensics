@@ -39,7 +39,7 @@ At the PC, with the game, its launcher and anti-cheat closed:
    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\changes\windows\kbd-crash-dump.ps1 -Apply
    ```
 
-   It checks the preconditions again, then saves the before-state to a new folder `Desktop\wf-changes\kbd-crash-dump\<UTC time>-apply` (a values CSV, a `reg export` of each affected key, and `SHA256SUMS.txt`), and stops without changing anything if any of that fails. Then it writes the two values and prints `PASS` or `FAIL` for each. Exit code 0 is all `PASS`; 1 is refused with nothing changed; 2 means a write or the readback failed, and `-Undo` is the next step.
+   It checks the preconditions again, then saves the before-state to a new folder `Desktop\wf-changes\kbd-crash-dump\<UTC time>-apply` (a values CSV, a `reg export` of each affected key that already exists, and `SHA256SUMS.txt`; a key that does not exist yet is recorded as absent in the CSV, and the `kbdhid` or `i8042prt` service key above it is never exported), and stops without changing anything if any of that fails. Then it writes the two values and prints `PASS` or `FAIL` for each. Exit code 0 is all `PASS`; 1 is refused with nothing changed; 2 means a write or the readback failed, and `-Undo` is the next step.
 4. Make the normal restart.
 5. After the restart, read it back:
 

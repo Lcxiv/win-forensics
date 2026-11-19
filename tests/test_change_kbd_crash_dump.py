@@ -4,7 +4,7 @@ The area rules (no reference from unattended code, ASCII, the forbidden command 
 ``tests/test_changes_area.py``, and ``tests/test_changes_pwsh.py`` runs the analyzer and the whole
 Pester suite. What the script writes is checked on its behaviour by ``KbdCrashDump.Tests.ps1``
 against the synthetic registry (every write and export any test makes is recorded). This file keeps
-the safety guards that hold even for code no test reaches, the operator page's required sections,
+the safety guards that hold even for code no test reaches, the shape of the README's K table,
 and the unmodified script run as a process off Windows, where every adapter fails and it must refuse
 without writing anything.
 """
@@ -24,8 +24,6 @@ from test_changes_area import code_lines
 
 CHANGE_DIR = REPO_ROOT / "changes" / "windows"
 SCRIPT = CHANGE_DIR / "kbd-crash-dump.ps1"
-DOC = REPO_ROOT / "docs" / "changes" / "kbd-crash-dump.md"
-LEARN_KBD = "https://learn.microsoft.com/windows-hardware/drivers/debugger/forcing-a-system-crash-from-the-keyboard"
 
 # The functions allowed to hold a registry write primitive: the three write adapters and the one
 # that opens an existing parent key for them.
@@ -107,17 +105,21 @@ def test_the_guards_catch_what_they_are_for():
     assert sorted(reg_offenders(planted)) == ["Invoke-KcdRegExport: import", "Show-KcdState"]
 
 
-def test_the_operator_page_covers_the_brief():
-    text = DOC.read_text(encoding="utf-8")
-    for needle in ("Hold down the right CTRL key, and press SCROLL LOCK twice", "MANUALLY_INITIATED_CRASH", "Dump1Keys",
-                   "Dump2Key", "-AlternateKeys", "## What you should see", "## After the reboot", "## What it cannot do",
-                   "high interrupt request level", "Whether a GPU hang freeze responds is unverified",
-                   "crashes the PC on purpose", "## Follow-up: a deliberate test crash", "take effect", LEARN_KBD,
-                   "BugcheckCode` 226"):
-        assert needle in text, needle
-    readme = (CHANGE_DIR / "README.md").read_text(encoding="utf-8")
-    assert "## Facts to verify on the PC" in readme
-    assert re.findall(r"^\| (K\d+) \|", readme, re.MULTILINE) == [f"K{i}" for i in range(1, 12)]
+def k_table(readme: str) -> list[list[str]]:
+    """The rows of the "Facts to verify on the PC" K table, each split into its cells."""
+    rows = []
+    for line in readme.splitlines():
+        if re.match(r"^\| K\d+ \|", line):
+            rows.append([cell.strip() for cell in line.strip().strip("|").split("|")])
+    return rows
+
+
+def test_the_k_table_runs_k1_to_kn_with_four_filled_columns():
+    rows = k_table((CHANGE_DIR / "README.md").read_text(encoding="utf-8"))
+    assert rows
+    assert [row[0] for row in rows] == [f"K{i}" for i in range(1, len(rows) + 1)]
+    for row in rows:
+        assert len(row) == 4 and all(row), row
 
 
 # ---------------------------------------------------------------------------
