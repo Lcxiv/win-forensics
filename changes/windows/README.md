@@ -1,23 +1,64 @@
 # Change tooling for the gaming PC
 
-This directory holds the only code in the repository that changes the PC. Each script makes one change, is run by hand at the PC on the captain's own Yes for that change, and can put back exactly what it changed. Everything else in the repository (the collectors, the scenario runner, the SSH front door) is read only and never refers to this directory; `tests/test_changes_area.py` enforces that.
+This directory holds the only code in the repository that changes the PC. Each script makes one change, either one step of the undo order in the latency change timeline report or one researched change such as the network tuning, is run by hand at the PC on the captain's own Yes for that change, and can put back exactly what it changed. Everything else in the repository (the collectors, the scenario runner, the SSH front door) is read only and never refers to this directory; `tests/test_changes_area.py` enforces that.
 
 ## Rules for every change script
 
 - **Separate area.** Change scripts live here, outside `collectors/`, one self contained script per change, with a library beside it when it needs one. No collector, no part of the scenario runner and nothing in `remote-access/` may call, list or name anything here, and nothing the dispatcher, the runner or a collector does may start a change script. Collectors keep their own read only rules and forbidden command list.
 - **Verbs.** `-Plan` is the default and reads only: it prints the current state, exactly what would change and every precondition, and refuses with the reason when one fails. `-Apply` saves the before-state, checks, writes and reads back. `-Undo` restores the saved before-state. `-Readback` reads only and prints PASS or FAIL per value. Only `-Apply` and `-Undo` change anything; each must be named, one verb per run, and no script ever prompts.
-- **Save before change, refuse without it.** `-Apply` writes every affected value to a timestamped evidence folder first (a values CSV, `reg export` files and a SHA-256 list written last) and refuses if any part of that fails. `-Undo` restores exactly what was saved and nothing else. Every Apply and Undo ends with a readback that prints PASS or FAIL per value.
+- **Save before change, refuse without it.** `-Apply` writes every affected key to a timestamped evidence folder first (a values CSV, `reg export` files and a SHA-256 list written last) and refuses if any part of that fails. `-Undo` restores exactly what was saved: a value that was absent is deleted again, and nothing else is touched. Every Apply and Undo ends with a readback that prints PASS or FAIL per value.
 - **Stop on the unexpected.** The precheck refuses when a live value is not the one the plan expects, and prints what is there instead.
 - **Nothing else.** No installs, downloads, network calls, scheduled tasks, services, restarts, game handles, injection or overlays, and nothing runs while the game or its launcher runs. Nothing gives itself lasting elevation: a script that needs administrator rights says so and the operator starts an elevated Windows PowerShell by hand.
-- **Privacy.** Output uses fixed labels (`ethernet-1`) and `<profile>`; it never prints a user name, profile path, command line, device instance path, or hardware or network address. Evidence folders stay on the PC.
+- **Privacy.** Output uses fixed labels (`display-adapter-1`, `ethernet-1`) and `<profile>`; it never prints a user name, profile path, command line, device instance path, or hardware or network address. Evidence folders stay on the PC.
 - **Windows PowerShell 5.1, plain ASCII,** and no `ConvertTo-Json`. Every Windows fact is cited to Microsoft Learn or the tool's own documentation next to the code, and anything not yet seen on the PC is on the list at the end of this page.
 
 The scripts are tested only against a synthetic backend: `tests/` replaces every adapter that touches Windows, and the Pester suite runs every Apply, Undo and Readback path, including the failure paths (export fails, precheck fails, write fails, readback mismatch, undo after a partial apply). Nothing is ever tested on a real registry or adapter.
 
 ```
 pwsh -NoProfile -File changes/windows/tests/Invoke-Checks.ps1 -ModulePath tools/psmodules
-pytest tests/test_changes_area.py tests/test_change_network_tuning.py tests/test_changes_pwsh.py
+pytest tests/test_changes_area.py tests/test_change_gpu_affinity_1a.py tests/test_change_network_tuning.py tests/test_changes_pwsh.py
 ```
+
+## `gpu-affinity-1a.ps1`: step 1a, display adapter interrupt affinity
+
+What it changes: the two values Stutter Guard's affinity tweak wrote on 12 November under the display adapter's `Device Parameters\Interrupt Management\Affinity Policy` key, `DevicePolicy` and `AssignmentSetOverride`, which a later tool rewrote on 17 November (CPU 6). It puts each back to the state recorded in the single matching `Originals` row of Stutter Guard's journal: Existed false deletes the value, Existed true writes the recorded type and data. It never touches `DevicePriority` (no journal row covers it; it is read and saved for the record), the MSI properties (step 1b) or anything else. The operator page with the sequence, the play log and the advance criteria is [docs/changes/step-1a-gpu-affinity.md](../../docs/changes/step-1a-gpu-affinity.md).
+
+```
+gpu-affinity-1a.ps1 [-Plan] | -Apply | -Undo [-EvidenceFolder <yyyyMMddTHHmmssZ>] | -Readback
+                    [-StutterGuardDataDirectory <dir>] [-EvidenceRoot <dir>]
+```
+
+Defaults: the Stutter Guard data folder is `%ProgramData%\Stutter Guard` (the pinned `Paths.cs` also knows an older `DPC Latency Tweaker` folder; pass it with `-StutterGuardDataDirectory` if that is where `journal.json` is), the evidence root `%ProgramData%\win-forensics\changes\gpu-affinity-1a`. Exit codes: 0 done (Plan: every precondition holds; Readback: every value PASS), 1 a write or a readback failed, 2 refused or cannot tell, with nothing changed. Plan and Readback run unelevated; Apply and Undo refuse unless the console is elevated.
+
+### What Plan checks
+
+| Check | Passes when |
+| --- | --- |
+| `device` | exactly one present PCI device of the Display setup class, with an instance path of the PCI shape (`Get-PnpDevice -Class Display -PresentOnly`) |
+| `game` | neither the game nor its launcher is running |
+| `live` | `DevicePolicy` is REG_DWORD 4 and `AssignmentSetOverride` holds a mask with only CPU 6 (REG_BINARY, REG_DWORD or REG_QWORD); otherwise it prints what is there |
+| `journal` | `journal.json` reads as the pinned format; one malformed row makes it unreadable |
+| `row-DevicePolicy`, `row-AssignmentSetOverride` | exactly one `Originals` row with Kind `reg` and the value's Target, belonging to tweak `irq.<instance>`, recorded on 12 November |
+| `session-reg` | the reg export Stutter Guard made of the device's `Interrupt Management` key in the session that recorded the rows (the latest `Backups\yyyyMMdd-HHmmss` of that day created no later than the row), parsed as text and never imported, shows the same before-state for both values |
+| `bitsum-backup` | Bitsum's `HKLM\SOFTWARE\Bitsum\InterruptAffinityBackup` has exactly one entry for the adapter's vendor and device, and what it recorded agrees with the rows (no mask recorded when the row says there was no mask, the same mask or policy when one was) |
+| `nothing-to-do` | the live values are not already the rows' values |
+| `reapply` | no scheduled task, service or running program that could put the values back (below) |
+
+### Sources
+
+- **The values and their types.** `DevicePolicy` is a REG_DWORD (`IrqPolicySpecifiedProcessors` is 4) and `AssignmentSetOverride` a KAFFINITY mask stored as REG_BINARY (little endian, at most the platform's KAFFINITY size), REG_DWORD or REG_QWORD, under the device's `Interrupt Management\Affinity Policy` key; Microsoft recommends the default policy where it applies: [Interrupt affinity and priority](https://learn.microsoft.com/windows-hardware/drivers/kernel/interrupt-affinity-and-priority).
+- **Restart.** The values reach the driver through `IRP_MN_FILTER_RESOURCE_REQUIREMENTS`, which the PnP manager sends before it allocates the device's resources during initial device configuration and may send during rebalancing: [IRP_MN_FILTER_RESOURCE_REQUIREMENTS](https://learn.microsoft.com/windows-hardware/drivers/kernel/irp-mn-filter-resource-requirements). So a restart is needed before the change takes effect. That the display adapter takes them at the next restart is an inference; Bitsum documents the same for display adapters ([Interrupt Affinity Policy](https://bitsum.com/apps/process-lasso/docs/tools/interrupt-affinity-policy/), [IRQControl](https://bitsum.com/irqcontrol/)). The script never restarts anything and says so in Plan, Apply and Readback; Readback compares the last boot time ([Win32_OperatingSystem](https://learn.microsoft.com/windows/win32/cimwin32prov/win32-operatingsystem)) with the Apply time.
+- **The key.** The script opens `HKLM\SYSTEM\CurrentControlSet\Enum\<instance>\Device Parameters\...` in the 64 bit view with `Microsoft.Win32.RegistryKey` ([OpenBaseKey](https://learn.microsoft.com/dotnet/api/microsoft.win32.registrykey.openbasekey), [GetValue](https://learn.microsoft.com/dotnet/api/microsoft.win32.registrykey.getvalue), [SetValue](https://learn.microsoft.com/dotnet/api/microsoft.win32.registrykey.setvalue), [DeleteValue](https://learn.microsoft.com/dotnet/api/microsoft.win32.registrykey.deletevalue)). This departs from Learn, which says a device's hardware key must not be opened directly and names `SetupDiOpenDevRegKey` or `CM_Open_DevNode_Key` instead ([Opening a device's hardware key](https://learn.microsoft.com/windows-hardware/drivers/install/opening-a-device-s-hardware-key)). The Enum path is the one Stutter Guard's journal names, the one `reg export` takes, and the one the other tools wrote through; using it keeps the change free of native interop. Item 1a.2 below checks that it is the same key.
+- **Saving.** `reg export <key> <file> /y` returns 0 on success and 1 on failure: [reg export](https://learn.microsoft.com/windows-server/administration/windows-commands/reg-export). The evidence folder holds `before-values.csv` (role, value, existence, kind, data, the target state and a SHA-256 of the device's instance path, never the path), `evidence.txt` (journal and session export hashes, the row numbers, the pinned source commit), `affinity-policy.reg`, `msi-properties.reg`, `bitsum-backup.reg` and `SHA256SUMS`, written last; a folder without `SHA256SUMS` is incomplete and Undo never uses it. The reg exports carry the instance path, so the folder stays on the PC.
+- **Stutter Guard's records,** read from its public source at commit `8c783a478f4b511c273b3235bf745b5d64550f49`, never by running anything it ships: `Journal.cs` (the row fields, first record wins, System.Text.Json with nulls omitted), `RegistryOps.cs` (how a value is written into Data), `JournalRestorer.cs` (Existed with a kind and data writes, otherwise deletes), `BackupSet.cs` (the session folders and the export file names), `Paths.cs` (the data folder) and `Interrupts.cs` (the tweak exports the `Interrupt Management` key, then writes `DevicePolicy` 4 and `AssignmentSetOverride`). The reader is `_stutter-guard-journal.ps1`; later steps (1b, 4a) call `Read-WfSgJournal` and `Select-WfSgOriginalRow` with their own targets.
+- **Unsafe undo sources,** never used: Stutter Guard's `undo-all.ps1` and per session `undo.ps1` (they revert every session), whole key `.reg` imports (they overwrite every value), and Bitsum's Restore All, Reset Configuration or uninstall (every changed device).
+
+### Re-application
+
+Plan refuses while anything that could put the values back is present, and names it:
+
+- **Stutter Guard.** At the pinned commit it registers two tasks under `\Stutter Guard\` (`BootTasks.cs`, `TaskSched.cs`): "Device power saving off" runs `StutterGuard.exe --agent device-power` at boot, which changes device power settings only (`Agent.cs`, `DevicePower.ApplyNow`), and "Timer resolution" starts the timer helper at logon. `--agent drift-check` only reads. Re-applying a drifted interrupt affinity ("heal") happens only from the app's window on a click (`Pages.cs`). Plan accepts exactly these task actions as known, refuses any other action in those folders or any task or service that runs `StutterGuard.exe`, `IRQControl.exe`, `LatencyTest.exe` or `DpcTimerRes.exe` with an action it has not reviewed, and refuses while `StutterGuard`, `IRQControl` or `LatencyTest` is running.
+- **Bitsum.** The Interrupt Affinity Policy tool is its own program (IRQControl) that writes the policy Windows reads when it starts a device; the Process Governor applies process rules ([How it works](https://bitsum.com/apps/process-lasso/docs/getting-started/how-it-works/), [Auto-start](https://bitsum.com/apps/process-lasso/docs/deployment/auto-start/)). Neither page describes re-applying an interrupt policy at boot or on a timer. Silence is not proof, so the Governor is reported, not refused, and Readback after the restart is the check: a value put back reads FAIL.
 
 ## `network-tuning.ps1`: the wired adapter's network settings
 
@@ -69,7 +110,19 @@ When every selected setting already holds its proposed value, Plan says NOTHING 
 
 ## Facts to verify on the PC
 
-Kept here rather than in the collectors' list, because nothing under `collectors/` may name this area. Each item is unverified until the PC session reports it, with its date and "reported, not reproduced" status. The `4n` prefix marks the network items, next to steps 4a and 4b.
+Kept here rather than in the collectors' list, because nothing under `collectors/` may name this area. Each item is unverified until the PC session reports it, with its date and "reported, not reproduced" status.
+
+1a.1. `Get-PnpDevice -Class Display -PresentOnly` lists exactly one PCI device, the graphics card, with an instance path of the shape `PCI\VEN_xxxx&DEV_xxxx...\...`. An enabled integrated GPU would be a second one and Plan refuses.
+1a.2. The Enum path opened through `Microsoft.Win32.RegistryKey` holds the same `Affinity Policy` values as the device's hardware key opened with `SetupDiOpenDevRegKey` (`DIREG_DEV`), reads unelevated, and an elevated administrator may set and delete values in it without a new key or permission change.
+1a.3. `reg export` of the `Affinity Policy`, `MessageSignaledInterruptProperties` and Bitsum backup keys exits 0 and writes UTF-16 text with a byte order mark and the header `Windows Registry Editor Version 5.00`; a REG_QWORD appears as `hex(b):` with eight bytes. Only the header and the `dword:`, `hex:` and deletion forms have a Microsoft source; the rest is unverified.
+1a.4. `journal.json` on the PC has the pinned shape: PascalCase names, `When` with a UTC offset, no `ValueKind` or `Data` on Existed false rows, and exactly one `reg` row for each of the two GPU affinity targets with tweak id `irq.<instance>`.
+1a.5. The 12 November backup session folder holds `<SafeName of HKLM\...\Interrupt Management>.reg`, and its folder name uses the same local clock as the journal's `When`.
+1a.6. Bitsum's `InterruptAffinityBackup` key has one direct subkey per saved device whose name contains `VEN_xxxx&DEV_xxxx`, and the graphics card's entry has no value named `AssignmentSetOverride` or containing `Mask` (the PC evidence reports "no mask recorded"). The layout is undocumented.
+1a.7. Process names as `Get-Process` reports them: `StutterGuard`, `IRQControl`, `LatencyTest`, `ProcessGovernor`, and the game and launcher names in `Get-Wf1aGameProcesses`.
+1a.8. `Get-ScheduledTask` run unelevated lists the two Stutter Guard tasks with their `Execute` and `Arguments`; if it does not, only the elevated Plan inside Apply sees them, so run Plan elevated for the authoritative answer.
+1a.9. After the restart, the display adapter's interrupts are no longer confined to CPU 6 (a `dpcisr-trace` per CPU read shows it); the registry readback alone cannot show what the driver was given.
+
+The network items carry the `4n` prefix, next to steps 4a and 4b.
 
 4n.1. `Get-NetAdapter -Physical` on the PC lists the wired adapter with `Status` `Up`, `NdisPhysicalMedium` 14, `ConnectorPresent` true and `DriverFileName` `rt25cx21x64.sys`, and lists the Wi-Fi adapter (if present) with another medium.
 4n.2. `Get-NetAdapterAdvancedProperty -Name <adapter> -AllProperties` runs unelevated and returns `*IdleRestriction` once, displayed as "idle power down restriction", with `RegistryDataType` 1, `RegistryValue` `0` and `ValidRegistryValues` `0` and `1`.

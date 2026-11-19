@@ -1,0 +1,13 @@
+{
+  "path_display": "<MyDocuments>\\Overwatch\\Logs",
+  "parent_exists": true,
+  "exists": true,
+  "listed": true,
+  "listed_at_utc": "2026-03-01T12:00:05.0000000Z",
+  "error": null,
+  "file_count": 4,
+  "folder_count": 1,
+  "truncated": false,
+  "oldest_time_utc": "2026-02-20T06:00:00.0000000Z",
+  "newest_time_utc": "2026-02-28T02:24:00.0000000Z"
+}

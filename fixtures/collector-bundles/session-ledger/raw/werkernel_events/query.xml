@@ -1,0 +1,4 @@
+<QueryList>
+  <Query Id="0" Path="Microsoft-Windows-WerKernel/Operational">
+  </Query>
+</QueryList>

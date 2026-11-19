@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/session_ledger_periods.schema.json",
+  "title": "session_ledger_periods row",
+  "description": "Provisional. One row per configuration period of the operator's periods file: hours played by the tracked games, sessions, and incidents by type, each count beside its denominator and coverage, a rate only when every input it rests on is complete. Built by scripts/build_session_ledger.py; see docs/session-ledger.md.",
+  "x-schema-version": "0.1.0",
+  "x-decoded-table": "session_ledger_periods",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "period_id",
+    "period_label",
+    "start_utc",
+    "end_utc",
+    "end_is_as_of",
+    "period_hours",
+    "tracked_titles",
+    "sessions",
+    "sessions_without_duration",
+    "hours_played",
+    "hours_played_complete",
+    "hours_played_gaps",
+    "play",
+    "incidents",
+    "provenance"
+  ],
+  "properties": {
+    "period_id": {
+      "type": "string"
+    },
+    "period_label": {
+      "type": "string"
+    },
+    "start_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{7}Z$"
+    },
+    "end_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{7}Z$"
+    },
+    "end_is_as_of": {
+      "type": "boolean",
+      "description": "An open period ends at the capture start of the latest session-ledger bundle."
+    },
+    "period_hours": {
+      "type": "number",
+      "minimum": 0
+    },
+    "tracked_titles": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "overwatch",
+          "fortnite"
+        ]
+      }
+    },
+    "sessions": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sessions_without_duration": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "hours_played": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Hours of the tracked games' sessions with a known duration that fall inside the period."
+    },
+    "hours_played_complete": {
+      "type": "boolean"
+    },
+    "hours_played_gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "play": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "coverage_status",
+          "covered_hours",
+          "sessions",
+          "sessions_without_duration",
+          "hours_played"
+        ],
+        "properties": {
+          "title": {
+            "enum": [
+              "overwatch",
+              "fortnite"
+            ]
+          },
+          "coverage_status": {
+            "enum": [
+              "full",
+              "partial",
+              "none"
+            ]
+          },
+          "covered_hours": {
+            "type": "number",
+            "minimum": 0
+          },
+          "sessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sessions_without_duration": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "hours_played": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "incidents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "incident_type",
+          "count",
+          "count_basis",
+          "coverage_status",
+          "covered_hours",
+          "hours_played",
+          "per_hour",
+          "withheld_reason"
+        ],
+        "properties": {
+          "incident_type": {
+            "enum": [
+              "kernel_power_41",
+              "bugcheck_1001",
+              "whea_event",
+              "app_crash_1000",
+              "app_hang_1002",
+              "wer_1001",
+              "dotnet_1026",
+              "display_4101",
+              "display_event",
+              "display_driver_event",
+              "werkernel_event",
+              "live_kernel_report",
+              "minidump",
+              "wer_report_queued",
+              "wer_report_archived"
+            ]
+          },
+          "count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Incidents of the type anchored in the period; null when no input covers the period."
+          },
+          "count_basis": {
+            "enum": [
+              "complete",
+              "found_only",
+              "snapshot",
+              "not_measured"
+            ]
+          },
+          "coverage_status": {
+            "enum": [
+              "full",
+              "partial",
+              "none",
+              "snapshot"
+            ]
+          },
+          "covered_hours": {
+            "type": "number",
+            "minimum": 0
+          },
+          "hours_played": {
+            "type": "number",
+            "minimum": 0,
+            "description": "The denominator, beside every rate."
+          },
+          "per_hour": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "count over hours_played; set only when count_basis is complete, incident and play coverage are full, every session in or reaching into the period has a duration, and hours_played is above zero."
+          },
+          "withheld_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "properties": {
+            "decoded_table": {
+              "const": "session_ledger_periods"
+            },
+            "schema_version": {
+              "const": "0.1.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
