@@ -1798,8 +1798,13 @@ function Invoke-WfFileSource {
     # run (a configuration) matches a pattern, for example the vendor's switch
     # that keeps process command lines out of its log being off. When the gate
     # does not pass, or the gating file was not copied, the file is
-    # summarised instead, and result.json says which.
+    # summarised instead, and result.json says which. The gate reads the
+    # switch as it is now, not as it was when an older line was written, so
+    # a source whose text can carry command lines also sets
+    # StripArgumentsAfterExecutable, which removes by shape everything after
+    # a program in each field of the copy.
     $gate = $Source['CopyGate']
+    $stripArguments = [bool]$Source['StripArgumentsAfterExecutable']
     $gateResult = $null
     if ($mode -eq 'copy' -and $null -ne $gate) {
         $gateResult = [ordered]@{ source = [string]$gate['Source']; pattern = [string]$gate['Pattern']; passed = $false; detail = $null }
@@ -1845,7 +1850,7 @@ function Invoke-WfFileSource {
             $why = 'the file was to be copied, but its copy gate did not pass (' + [string]$gateResult.detail + '), so only its size, time, hash and token counts are recorded'
         } elseif ($mode -eq 'copy') {
             $why = 'the file is the owner''s own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)'
-            $protection = Get-WfCopiedTextProtectionDescription
+            $protection = Get-WfCopiedTextProtectionDescription -StripArgumentsAfterExecutable:$stripArguments
         }
         $config = [ordered]@{
             path               = $candidates[0]
@@ -1909,7 +1914,7 @@ function Invoke-WfFileSource {
             try { $sourceSha = (([System.BitConverter]::ToString($sha.ComputeHash($bytes))) -replace '-', '').ToLowerInvariant() } finally { $sha.Dispose() }
             if ($mode -eq 'copy') {
                 $decoded = ConvertFrom-WfTextBytes -Bytes $bytes
-                $copy = Protect-WfCopiedText -Text ([string]$decoded['Text']) -Salt ([string]$Context['Salt'])
+                $copy = Protect-WfCopiedText -Text ([string]$decoded['Text']) -Salt ([string]$Context['Salt']) -StripArgumentsAfterExecutable:$stripArguments
                 $copy['Encoding'] = [string]$decoded['Encoding']
                 $copy['HadByteOrderMark'] = [bool]$decoded['HadByteOrderMark']
                 if ($Context.ContainsKey('CopiedTexts')) { $Context['CopiedTexts'][$id] = [string]$copy['Text'] }
@@ -1937,7 +1942,12 @@ function Invoke-WfFileSource {
         $stopped = Get-WfUtcNow
         $verbatim = $null
         if ($null -ne $copy) {
-            $verbatim = ((-not $copy['HadByteOrderMark']) -and $copy['Encoding'] -eq 'utf-8' -and ([int]$copy['UserCount'] + [int]$copy['MailCount'] + [int]$copy['HostCount'] + [int]$copy['MacCount']) -eq 0)
+            $verbatim = ((-not $copy['HadByteOrderMark']) -and $copy['Encoding'] -eq 'utf-8' -and ([int]$copy['UserCount'] + [int]$copy['MailCount'] + [int]$copy['HostCount'] + [int]$copy['MacCount'] + [int]$copy['ArgumentCount']) -eq 0)
+        }
+        $protectionCounts = $null
+        if ($null -ne $copy) {
+            $protectionCounts = [ordered]@{ user_profile_names_replaced = $copy['UserCount']; email_addresses_replaced = $copy['MailCount']; unc_hosts_replaced = $copy['HostCount']; mac_addresses_replaced = $copy['MacCount'] }
+            if ($stripArguments) { $protectionCounts['command_arguments_removed'] = $copy['ArgumentCount'] }
         }
         $report = [ordered]@{
             path                = $path
@@ -1955,7 +1965,7 @@ function Invoke-WfFileSource {
             source_encoding     = $(if ($null -ne $copy) { $copy['Encoding'] } else { $null })
             source_byte_order_mark = $(if ($null -ne $copy) { $copy['HadByteOrderMark'] } else { $null })
             copy_is_verbatim    = $verbatim
-            protection          = $(if ($null -ne $copy) { [ordered]@{ user_profile_names_replaced = $copy['UserCount']; email_addresses_replaced = $copy['MailCount']; unc_hosts_replaced = $copy['HostCount']; mac_addresses_replaced = $copy['MacCount'] } } else { $null })
+            protection          = $protectionCounts
         }
         Write-WfJsonFile -Path (Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/result.json')) -Object $report
         if ($readErrorKind) {
@@ -1969,7 +1979,9 @@ function Invoke-WfFileSource {
             $met = $true
             $entry.raw_time_range = New-WfTimeRange -StartUtc $started -EndUtc $stopped
             if ($mode -eq 'copy') {
-                $Notes.Add(('source {0}: the file was copied with {1} user profile folder names, {2} e-mail shaped tokens, {3} UNC host names and {4} hardware addresses replaced by pseudonyms; result.json holds the SHA-256 of the original bytes' -f $id, $copy['UserCount'], $copy['MailCount'], $copy['HostCount'], $copy['MacCount']))
+                $argumentNote = ''
+                if ($stripArguments) { $argumentNote = (' and the arguments after a program removed in {0} fields' -f $copy['ArgumentCount']) }
+                $Notes.Add(('source {0}: the file was copied with {1} user profile folder names, {2} e-mail shaped tokens, {3} UNC host names and {4} hardware addresses replaced by pseudonyms{5}; result.json holds the SHA-256 of the original bytes' -f $id, $copy['UserCount'], $copy['MailCount'], $copy['HostCount'], $copy['MacCount'], $argumentNote))
             } elseif ($null -ne $gateResult) {
                 $Notes.Add('source ' + $id + ': the file exists and was summarised, not copied, because its copy gate did not pass: ' + [string]$gateResult.detail)
             } else {
@@ -2316,31 +2328,110 @@ function ConvertTo-WfPseudonymisedMatches {
     return [ordered]@{ Text = $builder.ToString(); Count = $count }
 }
 
+function Get-WfArgumentsOmittedMarker {
+    return '<arguments omitted>'
+}
+
+function Get-WfExecutableTokenPattern {
+    # A program in a logged command: a quoted run that ends in .exe, .com,
+    # .bat or .cmd right before its closing quote, or otherwise the first of
+    # those extensions that is not followed by a letter, a digit or an
+    # underscore. Case does not matter.
+    return '(?i)"[^"\r\n]*\.(?:exe|com|bat|cmd)"|\.(?:exe|com|bat|cmd)(?![A-Za-z0-9_])'
+}
+
+function Protect-WfCommandField {
+    # One field of a vendor log line. Everything after the first executable
+    # token (after its closing quote when it is quoted) is replaced by a fixed
+    # marker, because it is the argument text of a command line, which can
+    # carry credentials and account names and has no shape of its own. A
+    # field whose program has nothing after it, or that names no program, is
+    # returned as it is. A field wrapped in CSV quotes (every inner quote
+    # doubled) is unwrapped first and wrapped again.
+    param([string]$Field)
+    $result = [ordered]@{ Text = $Field; Stripped = $false }
+    if ([string]::IsNullOrEmpty($Field)) { return $result }
+    $wrapped = $false
+    $inner = $Field
+    if ($Field.Length -ge 2 -and $Field.StartsWith('"') -and $Field.EndsWith('"')) {
+        $interior = $Field.Substring(1, $Field.Length - 2)
+        if (-not $interior.Replace('""', '').Contains('"')) {
+            $wrapped = $true
+            $inner = $interior.Replace('""', '"')
+        }
+    }
+    $match = [regex]::Match($inner, (Get-WfExecutableTokenPattern))
+    if (-not $match.Success) { return $result }
+    $end = $match.Index + $match.Length
+    if ($inner.Substring($end).Trim().Length -eq 0) { return $result }
+    $kept = $inner.Substring(0, $end) + ' ' + (Get-WfArgumentsOmittedMarker)
+    if ($wrapped) { $kept = '"' + $kept.Replace('"', '""') + '"' }
+    $result.Text = $kept
+    $result.Stripped = $true
+    return $result
+}
+
+function Protect-WfLoggedCommandLines {
+    # Applies Protect-WfCommandField to every comma separated field of every
+    # line. A comma inside a quoted run does not end a field; a quote left
+    # open ends at the end of its line. Separators and line endings are kept
+    # as they are. Returns the text and the number of fields changed.
+    param([string]$Text)
+    if ($null -eq $Text) { return [ordered]@{ Text = ''; Count = 0 } }
+    $fields = [regex]::Matches($Text, '(?:[^,"\r\n]+|"[^"\r\n]*"?)+')
+    $builder = New-Object System.Text.StringBuilder
+    $last = 0
+    $count = 0
+    foreach ($field in $fields) {
+        $null = $builder.Append($Text.Substring($last, $field.Index - $last))
+        $protected = Protect-WfCommandField -Field $field.Value
+        $null = $builder.Append([string]$protected['Text'])
+        if ($protected['Stripped']) { $count += 1 }
+        $last = $field.Index + $field.Length
+    }
+    $null = $builder.Append($Text.Substring($last))
+    return [ordered]@{ Text = $builder.ToString(); Count = $count }
+}
+
 function Protect-WfCopiedText {
     # The protection applied to every copied text: user profile folder names,
     # e-mail shaped tokens, UNC host names, hardware addresses, each found by
     # its shape. Line endings and everything else stay as they are. What has
-    # no shape (an account name inside an argument) is not caught, which is
-    # why vendor text that can carry command lines is kept out by a gate.
-    param([string]$Text, [string]$Salt)
+    # no shape (an account name inside an argument) is not caught, so a
+    # source whose text can carry command lines asks for
+    # StripArgumentsAfterExecutable: everything after a program in a field
+    # is removed first, and the four rules apply to what remains.
+    param([string]$Text, [string]$Salt, [switch]$StripArgumentsAfterExecutable)
+    $argumentCount = 0
+    if ($StripArgumentsAfterExecutable) {
+        $stripped = Protect-WfLoggedCommandLines -Text $Text
+        $Text = [string]$stripped['Text']
+        $argumentCount = [int]$stripped['Count']
+    }
     $users = ConvertTo-WfPseudonymisedMatches -Text $Text -Pattern (Get-WfUserProfilePattern) -Kind 'user' -Salt $Salt -Keep (Get-WfStandardProfileFolders)
     $mails = ConvertTo-WfPseudonymisedMatches -Text ([string]$users['Text']) -Pattern (Get-WfEmailPattern) -Kind 'mail' -Salt $Salt
     $hosts = ConvertTo-WfPseudonymisedMatches -Text ([string]$mails['Text']) -Pattern (Get-WfUncHostPattern) -Kind 'host' -Salt $Salt
     $macs = Protect-WfMacAddresses -Text ([string]$hosts['Text']) -Salt $Salt
-    return [ordered]@{ Text = [string]$macs['Text']; UserCount = [int]$users['Count']; MailCount = [int]$mails['Count']; HostCount = [int]$hosts['Count']; MacCount = [int]$macs['Count'] }
+    return [ordered]@{ Text = [string]$macs['Text']; UserCount = [int]$users['Count']; MailCount = [int]$mails['Count']; HostCount = [int]$hosts['Count']; MacCount = [int]$macs['Count']; ArgumentCount = $argumentCount }
 }
 
 function Get-WfCopiedTextProtectionDescription {
-    return [ordered]@{
+    param([switch]$StripArgumentsAfterExecutable)
+    $description = [ordered]@{
         mode           = 'copy'
         user_pseudonym = 'user-<first 12 hex of SHA-256(salt, name)>, every folder name after \Users\ in a path, except the standard folders Public, Default, Default User and All Users'
         mail_pseudonym = 'mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token'
         host_pseudonym = 'host-<first 12 hex of SHA-256(salt, name)>, the host of every UNC path (two leading separators)'
         mac_pseudonym  = 'mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address'
-        limits         = 'a DOMAIN\\user pair, an account name in a command line argument, or a computer name standing alone has no shape of its own and is not caught; a copy gate keeps vendor text that can carry command lines out (see copy_gate)'
+        limits         = 'a DOMAIN\\user pair, an account name outside a path, or a computer name standing alone has no shape of its own and is not caught'
         salt           = 'random per run, never written; pseudonyms are consistent inside this bundle only'
         encoding       = 'the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json'
     }
+    if ($StripArgumentsAfterExecutable) {
+        $description['argument_removal'] = 'in every comma separated field of every line, everything after the first program (a token ending in .exe, .com, .bat or .cmd, quoted or not; after its closing quote when quoted) is replaced by ' + (Get-WfArgumentsOmittedMarker) + ', whatever the vendor switch said when the line was written; the copy gate is a second layer (see copy_gate)'
+        $description['argument_removal_limits'] = 'a logged command whose program has none of those extensions is not caught, and an unquoted argument that holds a comma is cut at the comma and its tail kept; read the copy before the bundle leaves the PC'
+    }
+    return $description
 }
 
 function ConvertFrom-WfTextBytes {

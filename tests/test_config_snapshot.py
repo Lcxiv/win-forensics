@@ -104,6 +104,17 @@ def test_copied_files_are_protected_and_their_original_hash_is_recorded(bundle_c
     log = (bundle / "raw" / "process_lasso_log" / "processlasso.log").read_text(encoding="utf-8")
     pseudonym = ini.split("ExcludedProcesses=C:\\Users\\")[1].split("\\")[0]
     assert pseudonym in log and pseudonym in journal
+    # The collector counts the fields of the vendor log in which it removed everything after a program; the synthetic log has none.
+    log_report_path = bundle / "raw" / "process_lasso_log" / "result.json"
+    log_report = json.loads(log_report_path.read_text(encoding="utf-8"))
+    assert log_report["protection"]["command_arguments_removed"] == 0 and log_report["copy_is_verbatim"] is False
+    log_report["protection"]["command_arguments_removed"] = 3
+    log_report_path.write_text(json.dumps(log_report), encoding="utf-8")
+    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+    for artifact in next(c for c in manifest["collectors"] if c["id"] == "process_lasso_log")["artifacts"]:
+        artifact["bytes"] = (bundle / artifact["path"]).stat().st_size
+        artifact["sha256"] = wf_schema.sha256_of(bundle / artifact["path"])
+    (bundle / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     decoded(bundle)
     copied = {r["key"]: r for r in rows(bundle, "config_snapshot") if r["key"] in ("config_copied", "log_copied", "journal_copied")}
     assert set(copied) == {"config_copied", "log_copied", "journal_copied"}
@@ -113,6 +124,9 @@ def test_copied_files_are_protected_and_their_original_hash_is_recorded(bundle_c
     assert copied["config_copied"]["provenance"]["row_id_or_offset"] == "offset:0"
     assert copied["config_copied"]["decoded"]["copy"] == "raw/process_lasso_config/prolasso.ini"
     assert copied["log_copied"]["decoded"]["copy_gate"]["passed"] is True, "the vendor log was copied because the INI says command lines are off"
+    assert copied["log_copied"]["decoded"]["protection"]["command_arguments_removed"] == 3, "the row carries the count of fields whose command arguments were removed"
+    assert copied["log_copied"]["decoded"]["copy_is_verbatim"] is False
+    assert "command_arguments_removed" not in copied["config_copied"]["decoded"]["protection"], "only the vendor log asks for the rule"
     sidecar = meta(bundle, "config_snapshot")
     assert {"raw/process_lasso_config/result.json", "raw/process_lasso_config/prolasso.ini"} <= {f["path"] for f in sidecar["source_files"]}
 

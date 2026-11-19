@@ -375,8 +375,12 @@ $definition = @{
             # IncludeCommandLines setting (https://bitsum.com/apps/process-lasso/docs/interface/logging/,
             # https://bitsum.com/apps/process-lasso/docs/reference/ini-config/). The
             # log is copied only when the copied INI says that switch is off;
-            # otherwise it is summarised (size, time, hash, line count).
-            CopyGate           = @{ Source = 'process_lasso_config'; Pattern = '(?im)^\s*IncludeCommandLines\s*=\s*(false|0)\s*$'; Reason = 'the INI does not say IncludeCommandLines is off, so the log may carry process command lines, which the vendor documents as possibly sensitive and which no shape rule can protect' }
+            # otherwise it is summarised (size, time, hash, line count). The
+            # switch says nothing about lines written while it was on, so in
+            # the copy everything after a program in a field is removed by
+            # shape first; the gate is the second layer.
+            StripArgumentsAfterExecutable = $true
+            CopyGate           = @{ Source = 'process_lasso_config'; Pattern = '(?im)^\s*IncludeCommandLines\s*=\s*(false|0)\s*$'; Reason = 'the INI does not say IncludeCommandLines is off, so the log may carry process command lines, which the vendor documents as possibly sensitive and whose removal by shape misses a program without a known extension' }
             MissingHint        = 'Bitsum names the action log prolasso.log (https://bitsum.com/apps/process-lasso/docs/getting-started/how-it-works/) and says its path is set under Options / General / Configure Startup (https://bitsum.com/apps/process-lasso/docs/interface/logging/); the candidates tried are listed in source.json.'
             Expectation        = 'the action log exists at one of the candidate paths and is readable; its protected text and the hash of the original are recorded'
         },

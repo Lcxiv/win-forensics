@@ -1438,7 +1438,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "42c106761f0dadaa1368efc1c9242fe52c8a8c0247b207d502ce7e78ebffeff3"
+        "value": "12183be91de5d738c777100d6f6866efc5ee2dea5de86d3ce13be0d891a45350"
       },
       "filter_hash": null,
       "requested": {
@@ -1481,7 +1481,7 @@
             "mail_pseudonym": "mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token",
             "host_pseudonym": "host-<first 12 hex of SHA-256(salt, name)>, the host of every UNC path (two leading separators)",
             "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
-            "limits": "a DOMAIN\\\\user pair, an account name in a command line argument, or a computer name standing alone has no shape of its own and is not caught; a copy gate keeps vendor text that can carry command lines out (see copy_gate)",
+            "limits": "a DOMAIN\\\\user pair, an account name outside a path, or a computer name standing alone has no shape of its own and is not caught",
             "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
             "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json"
           }
@@ -1525,8 +1525,8 @@
       "artifacts": [
         {
           "path": "raw/timer_helper_process/query.json",
-          "bytes": 1643,
-          "sha256": "42c106761f0dadaa1368efc1c9242fe52c8a8c0247b207d502ce7e78ebffeff3",
+          "bytes": 1551,
+          "sha256": "12183be91de5d738c777100d6f6866efc5ee2dea5de86d3ce13be0d891a45350",
           "role": "config"
         }
       ],
@@ -1664,7 +1664,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "0a135fa48ef4d632eeec66a6de8d07104f76ede1eaa9b49bb56affe32413303d"
+        "value": "85c3a184ebca8f5b8c48b23f765f7ea66fb125cb21a9c0bd2eb4ab2e368b76ed"
       },
       "filter_hash": null,
       "requested": {
@@ -1689,7 +1689,7 @@
             "mail_pseudonym": "mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token",
             "host_pseudonym": "host-<first 12 hex of SHA-256(salt, name)>, the host of every UNC path (two leading separators)",
             "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
-            "limits": "a DOMAIN\\\\user pair, an account name in a command line argument, or a computer name standing alone has no shape of its own and is not caught; a copy gate keeps vendor text that can carry command lines out (see copy_gate)",
+            "limits": "a DOMAIN\\\\user pair, an account name outside a path, or a computer name standing alone has no shape of its own and is not caught",
             "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
             "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json"
           },
@@ -1725,8 +1725,8 @@
         },
         {
           "path": "raw/process_lasso_config/source.json",
-          "bytes": 1647,
-          "sha256": "0a135fa48ef4d632eeec66a6de8d07104f76ede1eaa9b49bb56affe32413303d",
+          "bytes": 1555,
+          "sha256": "85c3a184ebca8f5b8c48b23f765f7ea66fb125cb21a9c0bd2eb4ab2e368b76ed",
           "role": "config"
         }
       ],
@@ -1969,7 +1969,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "aaf3fd6fa65ac6df75ca44d42c35a55181dcd2f3c9eea12c30f9963e7b5b2319"
+        "value": "a985ade50294de3bc3829e477f502dfe837e2dc38cd912bc8fa2da55c364c4e3"
       },
       "filter_hash": null,
       "requested": {
@@ -1994,7 +1994,7 @@
             "mail_pseudonym": "mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token",
             "host_pseudonym": "host-<first 12 hex of SHA-256(salt, name)>, the host of every UNC path (two leading separators)",
             "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
-            "limits": "a DOMAIN\\\\user pair, an account name in a command line argument, or a computer name standing alone has no shape of its own and is not caught; a copy gate keeps vendor text that can carry command lines out (see copy_gate)",
+            "limits": "a DOMAIN\\\\user pair, an account name outside a path, or a computer name standing alone has no shape of its own and is not caught",
             "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
             "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json"
           },
@@ -2030,8 +2030,8 @@
         },
         {
           "path": "raw/stutter_guard_journal/source.json",
-          "bytes": 1633,
-          "sha256": "aaf3fd6fa65ac6df75ca44d42c35a55181dcd2f3c9eea12c30f9963e7b5b2319",
+          "bytes": 1541,
+          "sha256": "a985ade50294de3bc3829e477f502dfe837e2dc38cd912bc8fa2da55c364c4e3",
           "role": "config"
         }
       ],

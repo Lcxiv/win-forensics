@@ -33,7 +33,7 @@
     "mail_pseudonym": "mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token",
     "host_pseudonym": "host-<first 12 hex of SHA-256(salt, name)>, the host of every UNC path (two leading separators)",
     "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
-    "limits": "a DOMAIN\\\\user pair, an account name in a command line argument, or a computer name standing alone has no shape of its own and is not caught; a copy gate keeps vendor text that can carry command lines out (see copy_gate)",
+    "limits": "a DOMAIN\\\\user pair, an account name outside a path, or a computer name standing alone has no shape of its own and is not caught",
     "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
     "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json"
   }

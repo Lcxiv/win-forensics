@@ -27,6 +27,7 @@
     "user_profile_names_replaced": 1,
     "email_addresses_replaced": 0,
     "unc_hosts_replaced": 0,
-    "mac_addresses_replaced": 0
+    "mac_addresses_replaced": 0,
+    "command_arguments_removed": 0
   }
 }
