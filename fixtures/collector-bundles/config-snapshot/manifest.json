@@ -1937,7 +1937,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "af5e4dacdf392780a94c75e2c2a45f61b2a9a95b950d83c4ab3a998b48995976"
+        "value": "e4760dc20cc9ee409babad7a530a60f5a28f20d60b18fe03e2ad6cd2336d1220"
       },
       "filter_hash": null,
       "requested": {
@@ -1972,8 +1972,8 @@
             "limits": "a DOMAIN\\\\user pair, an account name outside a path, or a computer name standing alone has no shape of its own and is not caught",
             "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
             "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json",
-            "argument_removal": "in every comma separated field of every line, everything after the first program (a token ending in .exe, .com, .bat or .cmd, quoted or not; after its closing quote when quoted) is replaced by <arguments omitted>, whatever the vendor switch said when the line was written; the copy gate is a second layer (see copy_gate)",
-            "argument_removal_limits": "a logged command whose program has none of those extensions is not caught, and an unquoted argument that holds a comma is cut at the comma and its tail kept; read the copy before the bundle leaves the PC"
+            "argument_removal": "on every line, everything after the first program (the first .exe, .com, .bat or .cmd, in any case, directly followed by a double quote, white space, a comma or the end of the line; the closing quote is kept when one directly follows) is replaced by <arguments omitted>, whatever the vendor switch said when the line was written; columns after the program are lost with it; the copy gate is a second layer (see copy_gate)",
+            "argument_removal_limits": "a logged command whose program has none of those extensions is not caught; read the copy before the bundle leaves the PC"
           },
           "sharing": "the file is opened for reading with writers allowed to continue; a file being appended may be read mid line, and the hash is of the bytes read"
         }
@@ -2001,20 +2001,20 @@
       "artifacts": [
         {
           "path": "raw/process_lasso_log/processlasso.log",
-          "bytes": 345,
-          "sha256": "088fac7a0c911f9f537393ec3d65f9a9ad257a03fc828e5b9428504b59ff6592",
+          "bytes": 290,
+          "sha256": "145f25770dc14128c7acc42a77c8de8beb811df2466bcd74c3957baae44eef13",
           "role": "primary"
         },
         {
           "path": "raw/process_lasso_log/result.json",
           "bytes": 1037,
-          "sha256": "894c319219262e8b4eda7298ab0c7dd676a2a5397cb25d1e333259bb437066a3",
+          "sha256": "3dce317524be073174202793bcf0f570946496ce6ba92b1722eae95df06d51f9",
           "role": "report"
         },
         {
           "path": "raw/process_lasso_log/source.json",
-          "bytes": 2435,
-          "sha256": "af5e4dacdf392780a94c75e2c2a45f61b2a9a95b950d83c4ab3a998b48995976",
+          "bytes": 2453,
+          "sha256": "e4760dc20cc9ee409babad7a530a60f5a28f20d60b18fe03e2ad6cd2336d1220",
           "role": "config"
         }
       ],
@@ -2307,7 +2307,7 @@
     "Network names, hardware addresses and Bluetooth peer names are pseudonyms (ssid-<12 hex>, mac-<12 hex>, name-<12 hex>) keyed with a random salt that was not stored: the same value maps to the same pseudonym inside this bundle and to nothing outside it. The saved Wi-Fi profiles of this PC are the exception: they are the owner's own networks and stay readable, each with its pseudonym, so an explicit owner selection can be matched at analysis time.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
     "source process_lasso_config: the file was copied with 2 user profile folder names, 1 e-mail shaped tokens, 1 UNC host names and 0 hardware addresses replaced by pseudonyms; result.json holds the SHA-256 of the original bytes",
-    "source process_lasso_log: the file was copied with 1 user profile folder names, 0 e-mail shaped tokens, 0 UNC host names and 0 hardware addresses replaced by pseudonyms and the arguments after a program removed in 0 fields; result.json holds the SHA-256 of the original bytes",
+    "source process_lasso_log: the file was copied with 1 user profile folder names, 0 e-mail shaped tokens, 0 UNC host names and 0 hardware addresses replaced by pseudonyms and the arguments after a program removed on 3 lines; result.json holds the SHA-256 of the original bytes",
     "source stutter_guard_journal: the file was copied with 1 user profile folder names, 0 e-mail shaped tokens, 0 UNC host names and 0 hardware addresses replaced by pseudonyms; result.json holds the SHA-256 of the original bytes"
   ]
 }

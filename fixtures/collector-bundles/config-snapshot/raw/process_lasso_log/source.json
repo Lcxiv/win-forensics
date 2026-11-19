@@ -25,8 +25,8 @@
     "limits": "a DOMAIN\\\\user pair, an account name outside a path, or a computer name standing alone has no shape of its own and is not caught",
     "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
     "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json",
-    "argument_removal": "in every comma separated field of every line, everything after the first program (a token ending in .exe, .com, .bat or .cmd, quoted or not; after its closing quote when quoted) is replaced by <arguments omitted>, whatever the vendor switch said when the line was written; the copy gate is a second layer (see copy_gate)",
-    "argument_removal_limits": "a logged command whose program has none of those extensions is not caught, and an unquoted argument that holds a comma is cut at the comma and its tail kept; read the copy before the bundle leaves the PC"
+    "argument_removal": "on every line, everything after the first program (the first .exe, .com, .bat or .cmd, in any case, directly followed by a double quote, white space, a comma or the end of the line; the closing quote is kept when one directly follows) is replaced by <arguments omitted>, whatever the vendor switch said when the line was written; columns after the program are lost with it; the copy gate is a second layer (see copy_gate)",
+    "argument_removal_limits": "a logged command whose program has none of those extensions is not caught; read the copy before the bundle leaves the PC"
   },
   "sharing": "the file is opened for reading with writers allowed to continue; a file being appended may be read mid line, and the hash is of the bytes read"
 }

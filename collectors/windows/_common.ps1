@@ -1802,7 +1802,7 @@ function Invoke-WfFileSource {
     # switch as it is now, not as it was when an older line was written, so
     # a source whose text can carry command lines also sets
     # StripArgumentsAfterExecutable, which removes by shape everything after
-    # a program in each field of the copy.
+    # the first program on each line of the copy.
     $gate = $Source['CopyGate']
     $stripArguments = [bool]$Source['StripArgumentsAfterExecutable']
     $gateResult = $null
@@ -1980,7 +1980,7 @@ function Invoke-WfFileSource {
             $entry.raw_time_range = New-WfTimeRange -StartUtc $started -EndUtc $stopped
             if ($mode -eq 'copy') {
                 $argumentNote = ''
-                if ($stripArguments) { $argumentNote = (' and the arguments after a program removed in {0} fields' -f $copy['ArgumentCount']) }
+                if ($stripArguments) { $argumentNote = (' and the arguments after a program removed on {0} lines' -f $copy['ArgumentCount']) }
                 $Notes.Add(('source {0}: the file was copied with {1} user profile folder names, {2} e-mail shaped tokens, {3} UNC host names and {4} hardware addresses replaced by pseudonyms{5}; result.json holds the SHA-256 of the original bytes' -f $id, $copy['UserCount'], $copy['MailCount'], $copy['HostCount'], $copy['MacCount'], $argumentNote))
             } elseif ($null -ne $gateResult) {
                 $Notes.Add('source ' + $id + ': the file exists and was summarised, not copied, because its copy gate did not pass: ' + [string]$gateResult.detail)
@@ -2332,62 +2332,32 @@ function Get-WfArgumentsOmittedMarker {
     return '<arguments omitted>'
 }
 
-function Get-WfExecutableTokenPattern {
-    # A program in a logged command: a quoted run that ends in .exe, .com,
-    # .bat or .cmd right before its closing quote, or otherwise the first of
-    # those extensions that is not followed by a letter, a digit or an
-    # underscore. Case does not matter.
-    return '(?i)"[^"\r\n]*\.(?:exe|com|bat|cmd)"|\.(?:exe|com|bat|cmd)(?![A-Za-z0-9_])'
-}
-
-function Protect-WfCommandField {
-    # One field of a vendor log line. Everything after the first executable
-    # token (after its closing quote when it is quoted) is replaced by a fixed
-    # marker, because it is the argument text of a command line, which can
-    # carry credentials and account names and has no shape of its own. A
-    # field whose program has nothing after it, or that names no program, is
-    # returned as it is. A field wrapped in CSV quotes (every inner quote
-    # doubled) is unwrapped first and wrapped again.
-    param([string]$Field)
-    $result = [ordered]@{ Text = $Field; Stripped = $false }
-    if ([string]::IsNullOrEmpty($Field)) { return $result }
-    $wrapped = $false
-    $inner = $Field
-    if ($Field.Length -ge 2 -and $Field.StartsWith('"') -and $Field.EndsWith('"')) {
-        $interior = $Field.Substring(1, $Field.Length - 2)
-        if (-not $interior.Replace('""', '').Contains('"')) {
-            $wrapped = $true
-            $inner = $interior.Replace('""', '"')
-        }
-    }
-    $match = [regex]::Match($inner, (Get-WfExecutableTokenPattern))
-    if (-not $match.Success) { return $result }
-    $end = $match.Index + $match.Length
-    if ($inner.Substring($end).Trim().Length -eq 0) { return $result }
-    $kept = $inner.Substring(0, $end) + ' ' + (Get-WfArgumentsOmittedMarker)
-    if ($wrapped) { $kept = '"' + $kept.Replace('"', '""') + '"' }
-    $result.Text = $kept
-    $result.Stripped = $true
-    return $result
-}
-
 function Protect-WfLoggedCommandLines {
-    # Applies Protect-WfCommandField to every comma separated field of every
-    # line. A comma inside a quoted run does not end a field; a quote left
-    # open ends at the end of its line. Separators and line endings are kept
-    # as they are. Returns the text and the number of fields changed.
+    # One rule per line of a vendor log. The first place where .exe, .com,
+    # .bat or .cmd (any case) is directly followed by a double quote, white
+    # space, a comma or the end of the line is where a program ends. The
+    # line is kept up to there, with the closing quote when one directly
+    # follows, and the whole rest of the line is replaced by a fixed marker,
+    # because it can be the argument text of a command line, which can carry
+    # credentials and account names and has no shape of its own. Columns
+    # after the program are lost with it. A line with no program, or with
+    # nothing after its first program, stays as it is, and so does every
+    # line ending. Returns the text and the number of lines changed.
     param([string]$Text)
     if ($null -eq $Text) { return [ordered]@{ Text = ''; Count = 0 } }
-    $fields = [regex]::Matches($Text, '(?:[^,"\r\n]+|"[^"\r\n]*"?)+')
+    $programs = [regex]::Matches($Text, '(?i)(\.(?:exe|com|bat|cmd)(?=["\s,]|\z)"?)([^\r\n]*)')
     $builder = New-Object System.Text.StringBuilder
     $last = 0
     $count = 0
-    foreach ($field in $fields) {
-        $null = $builder.Append($Text.Substring($last, $field.Index - $last))
-        $protected = Protect-WfCommandField -Field $field.Value
-        $null = $builder.Append([string]$protected['Text'])
-        if ($protected['Stripped']) { $count += 1 }
-        $last = $field.Index + $field.Length
+    foreach ($program in $programs) {
+        $null = $builder.Append($Text.Substring($last, $program.Index - $last))
+        if ($program.Groups[2].Value.Trim().Length -eq 0) {
+            $null = $builder.Append($program.Value)
+        } else {
+            $null = $builder.Append($program.Groups[1].Value + ' ' + (Get-WfArgumentsOmittedMarker))
+            $count += 1
+        }
+        $last = $program.Index + $program.Length
     }
     $null = $builder.Append($Text.Substring($last))
     return [ordered]@{ Text = $builder.ToString(); Count = $count }
@@ -2399,8 +2369,8 @@ function Protect-WfCopiedText {
     # its shape. Line endings and everything else stay as they are. What has
     # no shape (an account name inside an argument) is not caught, so a
     # source whose text can carry command lines asks for
-    # StripArgumentsAfterExecutable: everything after a program in a field
-    # is removed first, and the four rules apply to what remains.
+    # StripArgumentsAfterExecutable: everything after the first program on a
+    # line is removed first, and the four rules apply to what remains.
     param([string]$Text, [string]$Salt, [switch]$StripArgumentsAfterExecutable)
     $argumentCount = 0
     if ($StripArgumentsAfterExecutable) {
@@ -2428,8 +2398,8 @@ function Get-WfCopiedTextProtectionDescription {
         encoding       = 'the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json'
     }
     if ($StripArgumentsAfterExecutable) {
-        $description['argument_removal'] = 'in every comma separated field of every line, everything after the first program (a token ending in .exe, .com, .bat or .cmd, quoted or not; after its closing quote when quoted) is replaced by ' + (Get-WfArgumentsOmittedMarker) + ', whatever the vendor switch said when the line was written; the copy gate is a second layer (see copy_gate)'
-        $description['argument_removal_limits'] = 'a logged command whose program has none of those extensions is not caught, and an unquoted argument that holds a comma is cut at the comma and its tail kept; read the copy before the bundle leaves the PC'
+        $description['argument_removal'] = 'on every line, everything after the first program (the first .exe, .com, .bat or .cmd, in any case, directly followed by a double quote, white space, a comma or the end of the line; the closing quote is kept when one directly follows) is replaced by ' + (Get-WfArgumentsOmittedMarker) + ', whatever the vendor switch said when the line was written; columns after the program are lost with it; the copy gate is a second layer (see copy_gate)'
+        $description['argument_removal_limits'] = 'a logged command whose program has none of those extensions is not caught; read the copy before the bundle leaves the PC'
     }
     return $description
 }
