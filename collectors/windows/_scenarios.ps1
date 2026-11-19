@@ -133,7 +133,7 @@ function Get-WfCollectorRegistry {
         [ordered]@{
             Name = 'config-snapshot'; Rights = 'none'; Tools = @(); ReadyFile = $null; Session = $null
             # Sixteen exports are held to -MaxArtifactBytes (the two keys.json,
-            # three WMI records.json and two process lists, topology.json, five
+            # two WMI records.json and two process lists, topology.json, five
             # powercfg output.txt, two listing.json and two protected copies),
             # and each powercfg listing's result.json repeats its output line by
             # line, counted as one more cap each.

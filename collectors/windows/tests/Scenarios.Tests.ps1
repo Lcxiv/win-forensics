@@ -194,11 +194,12 @@ Describe 'runner helpers' {
         $entry['Session'] | Should -BeNullOrEmpty
         $entry['ReadyFile'] | Should -BeNullOrEmpty
         @($entry['Tools']).Count | Should -Be 0
-        $text = [System.IO.File]::ReadAllText((Join-Path $script:CollectorRoot 'config-snapshot.ps1'))
-        $text | Should -Match '\[int\]\$TimeoutSeconds = 50\b'
-        $reading = @([regex]::Matches($text, "Type\s*=\s*'(\w+)'") | Where-Object { $_.Groups[1].Value -ne 'unavailable' }).Count
-        $reading | Should -Be 17
-        (& $entry['WorstCase'] ([ordered]@{ Snapshot = 'start' })) | Should -Be ($reading * 50)
+        $manifest = Read-WfJsonFile -Path (Join-Path $script:CollectorRoot '../../fixtures/collector-bundles/config-snapshot/manifest.json')
+        $reading = @($manifest['collectors'] | Where-Object { -not (@($_['artifacts']).Count -eq 1 -and @($_['artifacts'])[0]['path'] -like '*/reason.json') })
+        $reading.Count | Should -Be 17
+        $timeouts = @($reading | ForEach-Object { $_['requested']['options']['timeout_seconds'] } | Sort-Object -Unique)
+        $timeouts | Should -Be @(50)
+        (& $entry['WorstCase'] ([ordered]@{ Snapshot = 'start' })) | Should -Be ($reading.Count * $timeouts[0])
     }
 
     It 'plans the clock session as 270 seconds plus three windows, capped at 840 above a 190 second window' {
