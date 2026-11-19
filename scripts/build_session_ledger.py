@@ -2,7 +2,7 @@
 """Build the session and incident ledger from collector bundles and a periods file.
 
 See docs/session-ledger.md for the method and docs/contracts/decoded-tables.md
-sections 5.21 and 5.22 for the two tables. The inputs are bundles written by
+sections 5.23 and 5.24 for the two tables. The inputs are bundles written by
 the read only collectors (one or more ``session-ledger`` bundles, and any of
 ``bugcheck-history``, ``tdr-events``, ``application-errors`` and
 ``whea-errors``, all from one machine) and the operator's configuration

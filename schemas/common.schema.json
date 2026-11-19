@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Lcxiv/win-forensics/schemas/common.schema.json",
   "title": "Shared definitions for win-forensics schemas",
-  "x-schema-version": "1.4.0",
+  "x-schema-version": "1.5.0",
   "$defs": {
     "semver": {
       "type": "string",
@@ -78,6 +78,8 @@
         "clock_segments",
         "operator_marks",
         "diskio_activity",
+        "net_quality",
+        "net_quality_bursts",
         "session_ledger",
         "session_ledger_periods"
       ]

@@ -1,6 +1,6 @@
 # The session and incident ledger
 
-One table puts every play session and every incident of one machine on one timeline, and a second table sums them per configuration period: hours played, sessions, and incidents by type, each count beside its denominator and its coverage. The point is to judge a change to the PC by hours played under it, not by memory. This document is the method; the tables are sections 5.21 and 5.22 of [decoded-tables.md](contracts/decoded-tables.md), and what the collector reads, with its citations, is "The session-ledger sources" in [collectors/windows/README.md](../collectors/windows/README.md).
+One table puts every play session and every incident of one machine on one timeline, and a second table sums them per configuration period: hours played, sessions, and incidents by type, each count beside its denominator and its coverage. The point is to judge a change to the PC by hours played under it, not by memory. This document is the method; the tables are sections 5.23 and 5.24 of [decoded-tables.md](contracts/decoded-tables.md), and what the collector reads, with its citations, is "The session-ledger sources" in [collectors/windows/README.md](../collectors/windows/README.md).
 
 ## The split between the PC and the Mac
 
@@ -40,7 +40,7 @@ The other records `bugcheck-history` exports (6006, 6008, 6009, 1074, 46, 7045) 
 
 A session is one log file of a game or launcher (Overwatch, Fortnite, the Battle.net desktop app, the Epic Games Launcher), from its file times. No source here records a session; the times are inferences, and the row says so:
 
-- `start_utc` is the file's creation time, `start_basis` `file_creation_time`, `start_inferred` true. Whether a log is created at launch is verification item 86.
+- `start_utc` is the file's creation time, `start_basis` `file_creation_time`, `start_inferred` true. Whether a log is created at launch is verification item 94.
 - `end_utc` is the file's last write time, `end_basis` `file_last_write_time`, `end_inferred` true. A game stops writing before it exits, and a session that ends in a freeze ends at the last write before it; either way the end is not a recorded exit.
 - `duration_s` is the difference, set only when both are known and `session_check` is `ok`.
 
@@ -48,13 +48,13 @@ Only `.log` files at the top of a title's folder count. Overwatch's `Errors` fol
 
 `session_check` takes three other values, each of which leaves the start and the duration null:
 
-- `creation_shared`: two logs of one title in one bundle have the same creation time. File name tunnelling gives a file created under a name that was just renamed or deleted the old file's creation time ([MS-FSA, tunnel cache](https://learn.microsoft.com/openspecs/windows_protocols/ms-fsa/69f1cc34-20d8-4889-8108-e871065cf9f9); [FsRtlAddToTunnelCache](https://learn.microsoft.com/windows-hardware/drivers/ddi/ntifs/nf-ntifs-_fsrtl_advanced_fcb_header-fsrtladdtotunnelcache)), which is what a game that renames its log to a backup and opens a new one under the old name would see (item 87). The decision is taken over every bundle, not per bundle, so a purged backup cannot hand its start to the next log: the log written first among all the bundles keeps its start; the others lose it.
+- `creation_shared`: two logs of one title in one bundle have the same creation time. File name tunnelling gives a file created under a name that was just renamed or deleted the old file's creation time ([MS-FSA, tunnel cache](https://learn.microsoft.com/openspecs/windows_protocols/ms-fsa/69f1cc34-20d8-4889-8108-e871065cf9f9); [FsRtlAddToTunnelCache](https://learn.microsoft.com/windows-hardware/drivers/ddi/ntifs/nf-ntifs-_fsrtl_advanced_fcb_header-fsrtladdtotunnelcache)), which is what a game that renames its log to a backup and opens a new one under the old name would see (item 95). The decision is taken over every bundle, not per bundle, so a purged backup cannot hand its start to the next log: the log written first among all the bundles keeps its start; the others lose it.
 - `replaced_in_place`: a later bundle shows the same log (the identity below) smaller, or last written earlier, than an earlier bundle did. It is not the same file grown, so its start cannot be trusted.
 - `end_before_start`: the two times disagree.
 
 Across bundles, one log is one row: the identity is the title and the creation time, plus the last write time when two logs of that title share the creation time in any bundle. The name is not part of it, because a game that renames its log to a backup between two runs keeps the file's times and changes its name, and a pseudonym is salted per run. The row shows the latest bundle's observation, its file name included, and `observations` counts the bundles that saw it. Its `entry_id` is a hash of that identity, an event's by log, record id, provider, event id and time, a dump file's by kind, folder, extension, size and creation time, and a report folder's by kind, name prefix and creation time. Ids are stable across rebuilds except for a session whose creation time first becomes shared when a bundle is added: that log is re-keyed with its last write time, so its id changes.
 
-A known limitation follows from the same rule. A log that grew between two runs and was later renamed beside a tunnelled successor (a launcher left open across a collector run, then restarted) is matched by its last write time once its creation time is shared, so it can appear as an `ok` row ending at the earlier observation plus a `creation_shared` row for the same file: its session can end early and appear twice. A game rotates its log at launch, while it is closed, so the hours of a tracked game should not be affected, only launcher rows; whether that holds for Fortnite and the Epic Games Launcher is item 87, and a fix is under Follow-up.
+A known limitation follows from the same rule. A log that grew between two runs and was later renamed beside a tunnelled successor (a launcher left open across a collector run, then restarted) is matched by its last write time once its creation time is shared, so it can appear as an `ok` row ending at the earlier observation plus a `creation_shared` row for the same file: its session can end early and appear twice. A game rotates its log at launch, while it is closed, so the hours of a tracked game should not be affected, only launcher rows; whether that holds for Fortnite and the Epic Games Launcher is item 95, and a fix is under Follow-up.
 
 Process Lasso's log is not read. Bitsum does not document its line format ([logging](https://bitsum.com/apps/process-lasso/docs/interface/logging/)), and an allowlist parser needs one; it is under Follow-up.
 
@@ -64,7 +64,7 @@ An event row is identified by its log, record id, provider, event id and time, s
 
 `bugcheck_code` is read only from the record's named `BugcheckCode` data item, decimal as Windows writes it ([event 41](https://learn.microsoft.com/troubleshoot/windows-client/performance/event-id-41-restart)); a record without the name leaves it null rather than trusting a position. Learn says a 41 with `BugcheckCode` 0 and `PowerButtonTimestamp` 0 is a power cut or a hang the machine did not report, which is the freeze this ledger is for.
 
-`image_name` is copied only when a crash or hang record names one of the four game and launcher images on the allowlist in the builder (item 97); any other program's name stays out, and its crash is still counted.
+`image_name` is copied only when a crash or hang record names one of the four game and launcher images on the allowlist in the builder (item 105); any other program's name stays out, and its crash is still counted.
 
 ## Configuration periods
 
@@ -117,7 +117,7 @@ The output holds `inputs.json` (each bundle with its manifest SHA-256 and source
 
 - Process Lasso's log through an allowlist parser, once Bitsum documents the line format or a committed synthetic sample is accepted as the format fixture.
 - A `collect-session-ledger` route in the SSH dispatcher. The dispatcher runs as the collector account, whose profile holds no game logs, so it needs a design that runs as the player without storing the player's credential; until then the collector is run by hand at the PC.
-- Fortnite session starts when item 87 shows tunnelling: a source that records the launch itself (a line inside the log, which would need a reader of the log text and its own privacy review).
-- A log that grew between runs and was later renamed beside a tunnelled successor: match it to its earlier observation by name and size growth instead of its last write time, once item 87 shows how the Fortnite and Epic Games Launcher rotation behaves.
+- Fortnite session starts when item 95 shows tunnelling: a source that records the launch itself (a line inside the log, which would need a reader of the log text and its own privacy review).
+- A log that grew between runs and was later renamed beside a tunnelled successor: match it to its earlier observation by name and size growth instead of its last write time, once item 95 shows how the Fortnite and Epic Games Launcher rotation behaves.
 - An analyzer that compares periods: the summary gives counts and hours; a judgement of whether a change helped needs a stated model for rare events and enough hours, and belongs in an analyzer with its own contract.
 - Reliability Monitor records, once a key to deduplicate them against the event exports is settled.
