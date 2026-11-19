@@ -4730,7 +4730,7 @@ function Get-WfLogicalProcessorInformation {
     # in-memory assembly that lives in this process only; whether the Windows
     # PowerShell 5.1 compiler starts a compiler process or writes temporary
     # files while it does so is not documented on Learn and is unverified
-    # (README verification item 23). The declaration names one function and
+    # (README verification item 36). The declaration names one function and
     # nothing else, and the static test pins it. The call reads; it has no
     # setter.
     # The first call with a null buffer asks for the size (ERROR_INSUFFICIENT_BUFFER,
@@ -4795,7 +4795,7 @@ function New-WfDeviceKeyNative {
     # Microsoft documents that Add-Type compiles the source and generates an
     # in-memory assembly; whether the Windows PowerShell 5.1 compiler starts a
     # compiler process or writes temporary files while it does so is not
-    # documented on Learn and is unverified (README verification item 23):
+    # documented on Learn and is unverified (README verification item 36):
     # https://learn.microsoft.com/powershell/module/microsoft.powershell.utility/add-type?view=powershell-5.1
     $result = @{ Ok = $false; Error = $null; Api = $null }
     $typeName = 'WfNative.WfDeviceKey'
