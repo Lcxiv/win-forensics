@@ -1267,7 +1267,7 @@
   "checksum_algorithm": "sha256",
   "notes": [
     "Read only collector rf-survey version 1.0.0: What does the 2.4 GHz airspace around the desk look like, which adapter carries the traffic, and where do the wireless receivers sit on the PC?",
-    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "Ran as the collector account (its name is not recorded); elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
     "Each event log query selects a fixed interval, window_end_utc minus the window to window_end_utc, so records raised while the query ran are not part of the result.",
     "Network names, hardware addresses and Bluetooth peer names are pseudonyms (ssid-<12 hex>, mac-<12 hex>, name-<12 hex>) keyed with a random salt that was not stored: the same value maps to the same pseudonym inside this bundle and to nothing outside it. The saved Wi-Fi profiles of this PC are the exception: they are the owner's own networks and stay readable, each with its pseudonym, so an explicit owner selection can be matched at analysis time.",

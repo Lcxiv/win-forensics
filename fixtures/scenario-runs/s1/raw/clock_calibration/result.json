@@ -1,0 +1,18 @@
+{
+  "started_utc": "2026-03-01T12:00:07.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:13.0000000Z",
+  "status": "observed",
+  "pairs_taken": 91,
+  "expected_pairs": 91,
+  "missing_pairs": 0,
+  "stop_pair_taken": true,
+  "missed_slots": [],
+  "edge_pairs": 91,
+  "largest_step_100ns": 10000,
+  "session_start_qpc": 27345678911259,
+  "session_stop_qpc": 27350178926259,
+  "qpc_frequency_hz": 10000000,
+  "qpc_high_resolution": true,
+  "samples_bytes": 23961,
+  "failure": null
+}

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WindowsPerformanceRecorder Version="1.0" Author="win-forensics presentmon-frames" Comments="ETW providers and event ids PresentMon 2.6.0 enables for its default options, recorded for offline analysis with --etl_file">
+  <Profiles>
+    <EventCollector Id="EventCollector_WfPresentMonFrames" Name="wf-presentmon-frames" FileName="wf-presentmon-frames.etl">
+      <BufferSize Value="64"/>
+      <Buffers Value="256"/>
+      <MaximumFileSize Value="48" FileMode="Sequential"/>
+    </EventCollector>
+    <EventProvider Id="EventProvider_MicrosoftWindowsKernelProcess" Name="22fb2cd6-0e7b-422b-a0c7-2fad1fd0e716" NonPagedMemory="true" Level="4">
+      <Keywords>
+        <Keyword Value="0x8000000000000010"/>
+      </Keywords>
+      <CaptureStateOnStart>
+        <Keyword Value="0x8000000000000010"/>
+      </CaptureStateOnStart>
+      <EventFilters FilterIn="true">
+        <EventId Value="1"/>
+        <EventId Value="2"/>
+        <EventId Value="15"/>
+      </EventFilters>
+    </EventProvider>
+    <EventProvider Id="EventProvider_MicrosoftWindowsDxgKrnl" Name="802ec45a-1e99-4b83-9920-87c98277ba9d" NonPagedMemory="true" Level="4" Strict="true">
+      <Keywords>
+        <Keyword Value="0x8000841"/>
+      </Keywords>
+      <CaptureStateOnStart>
+        <Keyword Value="0x840"/>
+      </CaptureStateOnStart>
+      <EventFilters FilterIn="true">
+        <EventId Value="17"/>
+        <EventId Value="27"/>
+        <EventId Value="28"/>
+        <EventId Value="29"/>
+        <EventId Value="30"/>
+        <EventId Value="31"/>
+        <EventId Value="32"/>
+        <EventId Value="116"/>
+        <EventId Value="166"/>
+        <EventId Value="168"/>
+        <EventId Value="171"/>
+        <EventId Value="172"/>
+        <EventId Value="175"/>
+        <EventId Value="177"/>
+        <EventId Value="178"/>
+        <EventId Value="180"/>
+        <EventId Value="184"/>
+        <EventId Value="215"/>
+        <EventId Value="244"/>
+        <EventId Value="252"/>
+        <EventId Value="259"/>
+        <EventId Value="266"/>
+        <EventId Value="273"/>
+        <EventId Value="382"/>
+        <EventId Value="422"/>
+        <EventId Value="424"/>
+        <EventId Value="501"/>
+      </EventFilters>
+    </EventProvider>
+    <EventProvider Id="EventProvider_MicrosoftWindowsWin32k" Name="8c416c79-d49b-4f01-a467-e56d3aa8234c" NonPagedMemory="true" Level="4" Strict="true">
+      <Keywords>
+        <Keyword Value="0x8400000440c01000"/>
+      </Keywords>
+      <EventFilters FilterIn="true">
+        <EventId Value="63"/>
+        <EventId Value="73"/>
+        <EventId Value="201"/>
+        <EventId Value="225"/>
+        <EventId Value="301"/>
+      </EventFilters>
+    </EventProvider>
+    <EventProvider Id="EventProvider_MicrosoftWindowsDwmCore" Name="9e9bba3c-2e38-40cb-99f4-9e8281425164" NonPagedMemory="true" Level="5" Strict="true">
+      <Keywords>
+        <Keyword Value="0x8000000000000081"/>
+      </Keywords>
+      <EventFilters FilterIn="true">
+        <EventId Value="15"/>
+        <EventId Value="64"/>
+        <EventId Value="69"/>
+        <EventId Value="70"/>
+        <EventId Value="101"/>
+        <EventId Value="196"/>
+      </EventFilters>
+    </EventProvider>
+    <EventProvider Id="EventProvider_MicrosoftWindowsDwmCoreWin7" Name="8c9dd1ad-e6e5-4b07-b455-684a9d879900" NonPagedMemory="true" Level="5"/>
+    <EventProvider Id="EventProvider_MicrosoftWindowsDxgKrnlWin7" Name="65cd4c8a-0848-4583-92a0-31c0fbaf00c0" NonPagedMemory="true" Level="4"/>
+    <EventProvider Id="EventProvider_MicrosoftWindowsDXGI" Name="ca11c036-0102-4a2d-a6ad-f03cfed5d3c9" NonPagedMemory="true" Strict="true">
+      <Keywords>
+        <Keyword Value="0x8000000000000002"/>
+      </Keywords>
+      <EventFilters FilterIn="true">
+        <EventId Value="42"/>
+        <EventId Value="43"/>
+        <EventId Value="55"/>
+        <EventId Value="56"/>
+      </EventFilters>
+    </EventProvider>
+    <EventProvider Id="EventProvider_MicrosoftWindowsD3D9" Name="783aca0a-790e-4d7f-8451-aa850511c6b9" NonPagedMemory="true" Strict="true">
+      <Keywords>
+        <Keyword Value="0x8000000000000002"/>
+      </Keywords>
+      <EventFilters FilterIn="true">
+        <EventId Value="1"/>
+        <EventId Value="2"/>
+      </EventFilters>
+    </EventProvider>
+    <EventProvider Id="EventProvider_NVIDIADisplayDriver" Name="ae4f8626-8265-40d1-a70b-11b64240e8e9" NonPagedMemory="true" Level="4">
+      <Keywords>
+        <Keyword Value="0x1000000000000000"/>
+      </Keywords>
+      <EventFilters FilterIn="true">
+        <EventId Value="1"/>
+      </EventFilters>
+    </EventProvider>
+    <Profile Id="WfPresentMonFrames.Verbose.File" Name="WfPresentMonFrames" Description="win-forensics presentmon-frames: the providers and event ids PresentMon 2.6.0 enables, recorded to a file" LoggingMode="File" DetailLevel="Verbose">
+      <ProblemCategories>
+        <ProblemCategory Value="First level triage"/>
+      </ProblemCategories>
+      <Collectors>
+        <EventCollectorId Value="EventCollector_WfPresentMonFrames">
+          <EventProviders>
+            <EventProviderId Value="EventProvider_MicrosoftWindowsKernelProcess"/>
+            <EventProviderId Value="EventProvider_MicrosoftWindowsDxgKrnl"/>
+            <EventProviderId Value="EventProvider_MicrosoftWindowsWin32k"/>
+            <EventProviderId Value="EventProvider_MicrosoftWindowsDwmCore"/>
+            <EventProviderId Value="EventProvider_MicrosoftWindowsDwmCoreWin7"/>
+            <EventProviderId Value="EventProvider_MicrosoftWindowsDxgKrnlWin7"/>
+            <EventProviderId Value="EventProvider_MicrosoftWindowsDXGI"/>
+            <EventProviderId Value="EventProvider_MicrosoftWindowsD3D9"/>
+            <EventProviderId Value="EventProvider_NVIDIADisplayDriver"/>
+          </EventProviders>
+        </EventCollectorId>
+      </Collectors>
+    </Profile>
+  </Profiles>
+</WindowsPerformanceRecorder>

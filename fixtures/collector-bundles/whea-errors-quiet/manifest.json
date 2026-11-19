@@ -221,7 +221,7 @@
   "checksum_algorithm": "sha256",
   "notes": [
     "Read only collector whea-errors version 1.0.0: Did the Windows Hardware Error Architecture report corrected or uncorrected hardware errors?",
-    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "Ran as the collector account (its name is not recorded); elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
     "Each event log query selects a fixed interval, window_end_utc minus the window to window_end_utc, so records raised while the query ran are not part of the result.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
