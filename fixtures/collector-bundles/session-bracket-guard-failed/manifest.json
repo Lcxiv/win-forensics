@@ -1,0 +1,689 @@
+{
+  "manifest_version": "1.1.0",
+  "bundle_id": "20260301T120001Z_session_bracket_ae3a76a9",
+  "created_utc": "2026-03-01T12:00:20.0000000Z",
+  "scenario": {
+    "id": "session_bracket",
+    "version": "1.0.0",
+    "requested_duration_s": 0,
+    "target_process": null,
+    "marks": []
+  },
+  "capture": {
+    "start_utc": "2026-03-01T12:00:01.0000000Z",
+    "stop_utc": "2026-03-01T12:00:20.0000000Z",
+    "orchestrator": "wf-collector:session-bracket",
+    "orchestrator_version": "1.2.0",
+    "elevated": false,
+    "incomplete": true
+  },
+  "machine": {
+    "machine_id": "ae3a76a9f32fa71b72616118339e376c",
+    "hostname": "SYNTHETIC-PC",
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26100",
+      "build": 26100,
+      "ubr": 1,
+      "display_version": "24H2",
+      "architecture": "64-bit",
+      "edition": "Professional"
+    },
+    "cpu": {
+      "name": "Synthetic CPU",
+      "logical_processors": 16,
+      "qpc_frequency_hz": 10000000
+    },
+    "memory_bytes": 34359738368,
+    "gpus": [
+      {
+        "name": "Synthetic Display Adapter",
+        "driver_version": "1.2.3.4",
+        "driver_date": "2026-01-15T00:00:00.0000000Z",
+        "device_id": "PCI\\VEN_FFFF&DEV_0001"
+      }
+    ],
+    "bios": {
+      "vendor": "Synthetic Firmware",
+      "version": "S1.00",
+      "release_date": "2025-11-01T00:00:00.0000000Z"
+    },
+    "board": {
+      "manufacturer": "Synthetic Boards",
+      "product": "SB-1"
+    },
+    "drivers": [],
+    "time_zone": {
+      "name": "UTC",
+      "utc_offset_minutes": 0,
+      "dst_active": false
+    }
+  },
+  "collectors": [
+    {
+      "id": "game_guard",
+      "kind": "process_inventory",
+      "required": true,
+      "status": "not_collected",
+      "status_reason": "preflight failed, the account cannot read the source: synthetic:access_denied: Access denied",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:04.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": false,
+            "detail": "synthetic:access_denied: Access denied"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "game_guard",
+        "Get-CimInstance",
+        "-ClassName",
+        "Win32_Process",
+        "-Property",
+        "Name",
+        "-OperationTimeoutSec",
+        "90"
+      ],
+      "started_utc": "2026-03-01T12:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:05.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "993bc336a81386727bbbf9257c4169387e58284e25194d8fbae2955080fa1b9b"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_Process",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Name"
+          ],
+          "filter": null,
+          "game_process_names": [
+            "Overwatch.exe",
+            "FortniteClient-Win64-Shipping.exe"
+          ],
+          "comparison": "ordinal, ignoring case, on the whole image name",
+          "max_records": 50000,
+          "timeout_seconds": 90
+        }
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/game_guard/query.json",
+          "bytes": 320,
+          "sha256": "993bc336a81386727bbbf9257c4169387e58284e25194d8fbae2955080fa1b9b",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "the whole process list is read (image names only) and none of the game process names is running; a running game, or a list that could not be read, stops every other source",
+        "met": false,
+        "detail": "synthetic:access_denied: Access denied"
+      },
+      "target_process": null
+    },
+    {
+      "id": "boot",
+      "kind": "config_snapshot",
+      "required": true,
+      "status": "not_collected",
+      "status_reason": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:06.0000000Z",
+        "checks": [
+          {
+            "name": "game_guard",
+            "ok": false,
+            "detail": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "skipped",
+        "boot"
+      ],
+      "started_utc": "2026-03-01T12:00:06.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:07.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "d0069e5aac3eb7ca07b533f23611b45063520141427e9d46d990d4fb7640a4b2"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "source": "boot",
+          "read": "Win32_OperatingSystem LastBootUpTime",
+          "phase": "baseline",
+          "skipped": true,
+          "reason": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+        }
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/boot/query.json",
+          "bytes": 350,
+          "sha256": "d0069e5aac3eb7ca07b533f23611b45063520141427e9d46d990d4fb7640a4b2",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "the one operating system instance and its last boot time",
+        "met": false,
+        "detail": "not read: the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+      },
+      "target_process": null
+    },
+    {
+      "id": "process_io",
+      "kind": "process_inventory",
+      "required": true,
+      "status": "not_collected",
+      "status_reason": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:08.0000000Z",
+        "checks": [
+          {
+            "name": "game_guard",
+            "ok": false,
+            "detail": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "skipped",
+        "process_io"
+      ],
+      "started_utc": "2026-03-01T12:00:08.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:09.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "80bf3b490978c25ec10871752e2c4c563c22ac24495db1b729f8470cb6dc48e5"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "source": "process_io",
+          "read": "Win32_Process Name, ProcessId, CreationDate, WriteTransferCount, WriteOperationCount",
+          "phase": "",
+          "skipped": true,
+          "reason": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+        }
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/process_io/query.json",
+          "bytes": 396,
+          "sha256": "80bf3b490978c25ec10871752e2c4c563c22ac24495db1b729f8470cb6dc48e5",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": false,
+        "detail": "not read: the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+      },
+      "target_process": null
+    },
+    {
+      "id": "disk_totals",
+      "kind": "other",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:10.0000000Z",
+        "checks": [
+          {
+            "name": "game_guard",
+            "ok": false,
+            "detail": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "skipped",
+        "disk_totals"
+      ],
+      "started_utc": "2026-03-01T12:00:10.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:11.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "cf1e6d2e2261431592ba1b92b42f87f4af0ad86f8470cc22d9e8ded734ab1c32"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "source": "disk_totals",
+          "read": "Win32_PerfRawData_PerfDisk_PhysicalDisk raw cumulative bytes and operations",
+          "phase": "",
+          "skipped": true,
+          "reason": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+        }
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/disk_totals/query.json",
+          "bytes": 388,
+          "sha256": "cf1e6d2e2261431592ba1b92b42f87f4af0ad86f8470cc22d9e8ded734ab1c32",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": false,
+        "detail": "not read: the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+      },
+      "target_process": null
+    },
+    {
+      "id": "memory_paging",
+      "kind": "other",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:12.0000000Z",
+        "checks": [
+          {
+            "name": "game_guard",
+            "ok": false,
+            "detail": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "skipped",
+        "memory_paging"
+      ],
+      "started_utc": "2026-03-01T12:00:12.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:13.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "27660bdfa71a8c868301d0cbb9f61930a3b87b03c6a769b40f85211f6cd05f82"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "source": "memory_paging",
+          "read": "Win32_PerfRawData_PerfOS_Memory raw cumulative page counts",
+          "phase": "",
+          "skipped": true,
+          "reason": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+        }
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/memory_paging/query.json",
+          "bytes": 373,
+          "sha256": "27660bdfa71a8c868301d0cbb9f61930a3b87b03c6a769b40f85211f6cd05f82",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": false,
+        "detail": "not read: the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+      },
+      "target_process": null
+    },
+    {
+      "id": "config_readback",
+      "kind": "config_snapshot",
+      "required": true,
+      "status": "not_collected",
+      "status_reason": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:14.0000000Z",
+        "checks": [
+          {
+            "name": "game_guard",
+            "ok": false,
+            "detail": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "skipped",
+        "config_readback"
+      ],
+      "started_utc": "2026-03-01T12:00:14.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:15.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "8e2066de75a25cfa4015b931cf05b65176f0dc89607b75efb6524f64d9ea3547"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "source": "config_readback",
+          "read": "the TDR, crash dump and Windows Error Reporting values",
+          "phase": "",
+          "skipped": true,
+          "reason": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+        }
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/config_readback/query.json",
+          "bytes": 371,
+          "sha256": "8e2066de75a25cfa4015b931cf05b65176f0dc89607b75efb6524f64d9ea3547",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "each key is opened for reading and each named value is recorded present (with type and bytes) or absent",
+        "met": false,
+        "detail": "not read: the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+      },
+      "target_process": null
+    },
+    {
+      "id": "power_active_scheme",
+      "kind": "powercfg",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:16.0000000Z",
+        "checks": [
+          {
+            "name": "game_guard",
+            "ok": false,
+            "detail": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "skipped",
+        "power_active_scheme"
+      ],
+      "started_utc": "2026-03-01T12:00:16.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:17.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "418657f46a589297472693ebcd08f8a8d28a6a9ae23b5ef443e43b33f1bcd54c"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "source": "power_active_scheme",
+          "read": "powercfg /getactivescheme",
+          "phase": "",
+          "skipped": true,
+          "reason": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+        }
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/power_active_scheme/query.json",
+          "bytes": 346,
+          "sha256": "418657f46a589297472693ebcd08f8a8d28a6a9ae23b5ef443e43b33f1bcd54c",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "powercfg exits with code 0 and prints at least one line with a GUID",
+        "met": false,
+        "detail": "not read: the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+      },
+      "target_process": null
+    },
+    {
+      "id": "event_counts",
+      "kind": "other",
+      "required": true,
+      "status": "not_collected",
+      "status_reason": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:18.0000000Z",
+        "checks": [
+          {
+            "name": "game_guard",
+            "ok": false,
+            "detail": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "skipped",
+        "event_counts"
+      ],
+      "started_utc": "2026-03-01T12:00:18.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:19.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "7bd9be8efdbc15b5292159fcc4f68bde26eefd083f3e15b202e4c7163afc3f8b"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "source": "event_counts",
+          "read": "System and Application since boot, counted by provider, event id and level",
+          "phase": "",
+          "skipped": true,
+          "reason": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+        }
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/event_counts/query.json",
+          "bytes": 388,
+          "sha256": "7bd9be8efdbc15b5292159fcc4f68bde26eefd083f3e15b202e4c7163afc3f8b",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "every record of each channel since boot is read within the deadline and the cap, and each channel still holds a record at or before the boot",
+        "met": false,
+        "detail": "not read: the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+      },
+      "target_process": null
+    }
+  ],
+  "calibration": {
+    "status": "not_applicable",
+    "method": "none: this collector reads historical records that carry their own UTC system time, so there is no QPC session to calibrate",
+    "qpc_frequency_hz": 10000000,
+    "expected_pairs": 0,
+    "pairs": [],
+    "missing_pairs": 0,
+    "time_adjustment": {
+      "start": null,
+      "stop": null
+    },
+    "boot_time_utc": "2026-02-27T12:00:00.0000000Z"
+  },
+  "tools": [
+    {
+      "name": "powershell",
+      "version": "5.1.26100.1",
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "sha256": null
+    },
+    {
+      "name": "wevtutil",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wevtutil.exe",
+      "sha256": null
+    },
+    {
+      "name": "collector:session-bracket",
+      "version": "1.0.0",
+      "path": "<install directory>\\session-bracket.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector-helper:_common.ps1",
+      "version": "1.2.0",
+      "path": "<install directory>\\_common.ps1",
+      "sha256": null
+    }
+  ],
+  "symbols": {
+    "symbol_path": null,
+    "cache_path": null,
+    "dbghelp_version": null
+  },
+  "checksum_algorithm": "sha256",
+  "notes": [
+    "Read only collector session-bracket version 1.0.0: What did the machine and each running process do between the baseline read and the read after a play session, within one boot (baseline phase; game guard: Overwatch.exe, FortniteClient-Win64-Shipping.exe)?",
+    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine."
+  ]
+}

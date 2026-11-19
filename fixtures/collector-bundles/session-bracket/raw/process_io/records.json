@@ -1,0 +1,10 @@
+[
+{"Name":"System","ProcessId":4,"CreationDate":"2026-02-27T12:00:00.0000000Z","WriteTransferCount":2400000000,"WriteOperationCount":180000},
+{"Name":"svchost.exe","ProcessId":912,"CreationDate":"2026-02-27T12:00:09.0000000Z","WriteTransferCount":5100000,"WriteOperationCount":2200},
+{"Name":"example-launcher.exe","ProcessId":3000,"CreationDate":"2026-03-01T11:00:00.0000000Z","WriteTransferCount":4100000000,"WriteOperationCount":520000},
+{"Name":"example-sync.exe","ProcessId":3100,"CreationDate":"2026-02-28T16:00:00.0000000Z","WriteTransferCount":990000,"WriteOperationCount":140},
+{"Name":"example-updater.exe","ProcessId":3200,"CreationDate":"2026-02-28T06:00:00.0000000Z","WriteTransferCount":77000,"WriteOperationCount":12},
+{"Name":"example-agent.exe","ProcessId":3300,"CreationDate":"2026-02-27T20:00:00.0000000Z","WriteTransferCount":64000,"WriteOperationCount":9},
+{"Name":"example-ghost.exe","ProcessId":3500,"CreationDate":null,"WriteTransferCount":1000,"WriteOperationCount":1},
+{"Name":"example-cache.exe","ProcessId":3400,"CreationDate":"2026-02-27T19:00:00.0000000Z","WriteTransferCount":9000000,"WriteOperationCount":800}
+]

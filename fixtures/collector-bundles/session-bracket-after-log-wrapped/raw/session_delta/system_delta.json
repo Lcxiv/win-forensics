@@ -1,0 +1,132 @@
+{
+  "baseline_bundle_id": "20260301T120001Z_session_bracket_ae3a76a9",
+  "baseline_folder": "session-bracket",
+  "baseline_start_utc": "2026-03-01T12:00:01.0000000Z",
+  "after_start_utc": "2026-03-01T15:01:14.0000000Z",
+  "boot_utc": "2026-02-27T12:00:00.0000000Z",
+  "disks": [
+    {
+      "instance": "0 C:",
+      "gap_code": 0,
+      "gap": "matched",
+      "deltas": {
+        "DiskWriteBytesPersec": 3400000000,
+        "DiskWritesPersec": 160000,
+        "DiskReadBytesPersec": 9100000000,
+        "DiskReadsPersec": 210000
+      }
+    },
+    {
+      "instance": "_Total",
+      "gap_code": 0,
+      "gap": "matched",
+      "deltas": {
+        "DiskWriteBytesPersec": 3400000000,
+        "DiskWritesPersec": 160000,
+        "DiskReadBytesPersec": 9100000000,
+        "DiskReadsPersec": 210000
+      }
+    }
+  ],
+  "memory": [
+    {
+      "instance": null,
+      "gap_code": 0,
+      "gap": "matched",
+      "deltas": {
+        "PagesOutputPersec": 52000,
+        "PageWritesPersec": 700,
+        "PagesInputPersec": 90000,
+        "PageReadsPersec": 6000
+      }
+    }
+  ],
+  "events": null,
+  "config": [
+    {
+      "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+      "name": "TdrLevel",
+      "before": "DWord 03000000",
+      "after": "DWord 03000000",
+      "same": true
+    },
+    {
+      "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+      "name": "TdrDelay",
+      "before": "DWord 0a000000",
+      "after": "DWord 0a000000",
+      "same": true
+    },
+    {
+      "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\CrashControl",
+      "name": "CrashDumpEnabled",
+      "before": "DWord 01000000",
+      "after": "DWord 01000000",
+      "same": true
+    },
+    {
+      "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\CrashControl",
+      "name": "LogEvent",
+      "before": "DWord 01000000",
+      "after": "DWord 01000000",
+      "same": true
+    },
+    {
+      "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\CrashControl",
+      "name": "AutoReboot",
+      "before": "DWord 01000000",
+      "after": "DWord 01000000",
+      "same": true
+    },
+    {
+      "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting",
+      "name": "Disabled",
+      "before": "absent",
+      "after": "absent",
+      "same": true
+    },
+    {
+      "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting",
+      "name": "ForceQueue",
+      "before": "absent",
+      "after": "absent",
+      "same": true
+    },
+    {
+      "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting",
+      "name": "DontSendAdditionalData",
+      "before": "absent",
+      "after": "absent",
+      "same": true
+    },
+    {
+      "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting",
+      "name": "DontShowUI",
+      "before": "absent",
+      "after": "absent",
+      "same": true
+    },
+    {
+      "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting",
+      "name": "LoggingDisabled",
+      "before": "absent",
+      "after": "absent",
+      "same": true
+    }
+  ],
+  "passed_over": [
+    {
+      "bundle_id": "20260301T120001Z_session_bracket_ae3a76a9",
+      "folder": "session-bracket-guard-failed",
+      "reason": "no observed boot time (boot not_collected)"
+    },
+    {
+      "bundle_id": "20260301T120001Z_session_bracket_ae3a76a9",
+      "folder": "session-bracket-game-running",
+      "reason": "no observed boot time (boot not_collected)"
+    }
+  ],
+  "not_compared": {
+    "event_counts": "baseline observed, after capture_failed"
+  }
+}

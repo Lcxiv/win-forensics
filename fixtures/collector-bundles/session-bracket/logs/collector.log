@@ -1,0 +1,10 @@
+2026-03-01T12:00:01.0000000Z collector session-bracket version 1.0.0, helper version 1.2.0, no time window (snapshot), 90 s per source
+source game_guard: status observed_zero, 2 artifacts
+source boot: status observed, 2 artifacts
+source process_io: status observed, 2 artifacts
+source disk_totals: status observed, 2 artifacts
+source memory_paging: status observed, 2 artifacts
+source config_readback: status observed, 3 artifacts
+source power_active_scheme: status observed, 3 artifacts
+source event_counts: status observed, 3 artifacts
+2026-03-01T12:01:17.0000000Z manifest written: bundle 20260301T120001Z_session_bracket_ae3a76a9, status ok, 19 artifacts

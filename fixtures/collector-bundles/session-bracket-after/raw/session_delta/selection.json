@@ -1,0 +1,18 @@
+{
+  "baseline_bundle_id": "20260301T120001Z_session_bracket_ae3a76a9",
+  "baseline_boot_utc": "2026-02-27T12:00:00.0000000Z",
+  "boot_utc": "2026-02-27T12:00:00.0000000Z",
+  "passed_over": [
+    {
+      "bundle_id": "20260301T120001Z_session_bracket_ae3a76a9",
+      "folder": "session-bracket-guard-failed",
+      "reason": "no observed boot time (boot not_collected)"
+    },
+    {
+      "bundle_id": "20260301T120001Z_session_bracket_ae3a76a9",
+      "folder": "session-bracket-game-running",
+      "reason": "no observed boot time (boot not_collected)"
+    }
+  ],
+  "refused": null
+}

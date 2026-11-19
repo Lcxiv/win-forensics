@@ -1,0 +1,7 @@
+{
+  "source": "process_io",
+  "read": "Win32_Process Name, ProcessId, CreationDate, WriteTransferCount, WriteOperationCount",
+  "phase": "",
+  "skipped": true,
+  "reason": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+}

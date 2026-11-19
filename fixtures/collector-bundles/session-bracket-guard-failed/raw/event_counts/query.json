@@ -1,0 +1,7 @@
+{
+  "source": "event_counts",
+  "read": "System and Application since boot, counted by provider, event id and level",
+  "phase": "",
+  "skipped": true,
+  "reason": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+}

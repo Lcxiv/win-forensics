@@ -454,6 +454,62 @@ function Get-WfSyntheticCases {
             }
         })
 
+    # The session bracket: a baseline read at logon and the read after a play
+    # session, subtracted within one boot. The machine, its processes and
+    # every number are invented (New-WfSyntheticBracketMachine). The baseline
+    # cases come first: the after cases look for them in the same folder.
+
+    # The baseline the logon task takes: no game running, every source read.
+    # Status ok.
+    $cases.Add(@{
+            Case = 'session-bracket'; Collector = 'session-bracket'; ExitCode = 0; Arguments = @{}
+            Setup = { New-WfSyntheticBracketMachine -Stage 'baseline' }
+        })
+
+    # The game started before the logon task ran (it auto-started, or the
+    # task started late): the guard finds it by image name and nothing else is
+    # read. Status partial; the after read passes this baseline over.
+    $cases.Add(@{
+            Case = 'session-bracket-game-running'; Collector = 'session-bracket'; ExitCode = 0; Arguments = @{}
+            Setup = { New-WfSyntheticBracketMachine -Stage 'baseline' -GameRunning }
+        })
+
+    # WMI refuses the process list: whether a game runs is unknown, so nothing
+    # else is read either. Every source is not_collected; the collector exits 1.
+    $cases.Add(@{
+            Case = 'session-bracket-guard-failed'; Collector = 'session-bracket'; ExitCode = 1; Arguments = @{}
+            Setup = { New-WfSyntheticBracketMachine -Stage 'baseline' -GuardFails }
+        })
+
+    # Three hours later in the same boot: the newest baseline with a boot
+    # time is the first case (the two newer looking ones are passed over and
+    # named), and every gap code appears in the process delta. Status ok.
+    $cases.Add(@{
+            Case = 'session-bracket-after'; Collector = 'session-bracket'; ExitCode = 0; Arguments = @{ Phase = 'after' }
+            Setup = { New-WfSyntheticBracketMachine -Stage 'after' }
+        })
+
+    # The machine restarted between the reads: nothing is subtracted across
+    # the reboot. session_delta not_collected, status partial.
+    $cases.Add(@{
+            Case = 'session-bracket-after-reboot'; Collector = 'session-bracket'; ExitCode = 0; Arguments = @{ Phase = 'after' }
+            Setup = { New-WfSyntheticBracketMachine -Stage 'after' -Rebooted }
+        })
+
+    # The System log no longer reaches back to the boot: its counts since
+    # boot are capture_failed and the event comparison is left out, while the
+    # process and disk deltas stand. Status partial.
+    $cases.Add(@{
+            Case = 'session-bracket-after-log-wrapped'; Collector = 'session-bracket'; ExitCode = 0; Arguments = @{ Phase = 'after' }
+            Setup = { New-WfSyntheticBracketMachine -Stage 'after' -SystemLogWrapped }
+        })
+
+    # No baseline in the folder named: nothing is subtracted. Status partial.
+    $cases.Add(@{
+            Case = 'session-bracket-after-no-baseline'; Collector = 'session-bracket'; ExitCode = 0; Arguments = @{ Phase = 'after'; BaselineDirectory = 'fixtures/no-session-baselines-here' }
+            Setup = { New-WfSyntheticBracketMachine -Stage 'after' }
+        })
+
     return $cases.ToArray()
 }
 
@@ -2069,4 +2125,103 @@ function New-WfSyntheticDiskIoDump {
     & $add 'FileIo' 36 10.5 @('FileObject', '0xffffa00000006000', 'FileName', ($volume + '\ProgramData\SyntheticLauncher\Manifests\Catalog\index.dat'))
     $xml = '<?xml version="1.0" encoding="UTF-8"?>' + "`r`n" + '<Events>' + "`r`n" + ($events.ToArray() -join "`r`n") + "`r`n" + '</Events>' + "`r`n"
     return @{ Xml = $xml; Count = $events.Count }
+}
+
+function New-WfSyntheticBracketMachine {
+    # The invented machine behind the session-bracket cases. The baseline is
+    # read at T0 (the backend's default clock), two days after the boot; the
+    # after read three hours later. Process rows, in order of the gap code
+    # they produce in the after read:
+    #   0 System, example-launcher.exe (a count above 2^32), svchost.exe (no change)
+    #   1 example-sync.exe exits
+    #   2 example-updater.exe restarts under the same process id
+    #   3 example-overlay.exe starts during the session
+    #   4 example-agent.exe loses its write count
+    #   5 example-ghost.exe has no creation time in either read
+    #   6 example-cache.exe reports a lower count than before
+    param([string]$Stage, [switch]$GameRunning, [switch]$GuardFails, [switch]$Rebooted, [switch]$SystemLogWrapped)
+    $t0 = $global:WfSynthetic.Now
+    $boot = $t0.AddDays(-2)
+    if ($Stage -eq 'after') { $global:WfSynthetic.Now = $t0.AddHours(3) }
+    if ($Rebooted) { $boot = $t0.AddHours(1) }
+    $text = { param([datetime]$Value) ConvertTo-WfUtcString -Value $Value }
+    $global:WfSynthetic.Cim['Win32_OperatingSystem'] = @{ Rows = @([ordered]@{ LastBootUpTime = (& $text $boot) }) }
+
+    $rows = New-Object 'System.Collections.Generic.List[object]'
+    $add = {
+        param([string]$Name, $ProcessId, $Created, $Bytes, $Ops)
+        $rows.Add([ordered]@{ Name = $Name; ProcessId = $ProcessId; CreationDate = $Created; WriteTransferCount = $Bytes; WriteOperationCount = $Ops })
+    }
+    if ($Rebooted) {
+        & $add 'System' 4 (& $text $boot) 48000000 2100
+        & $add 'svchost.exe' 912 (& $text $boot.AddSeconds(9)) 1200000 310
+        & $add 'example-launcher.exe' 6020 (& $text $boot.AddMinutes(2)) 830000000 41000
+    } elseif ($Stage -eq 'baseline') {
+        & $add 'System' 4 (& $text $boot) 2400000000 180000
+        & $add 'svchost.exe' 912 (& $text $boot.AddSeconds(9)) 5100000 2200
+        & $add 'example-launcher.exe' 3000 (& $text $t0.AddHours(-1)) 4100000000 520000
+        & $add 'example-sync.exe' 3100 (& $text $t0.AddHours(-20)) 990000 140
+        & $add 'example-updater.exe' 3200 (& $text $t0.AddHours(-30)) 77000 12
+        & $add 'example-agent.exe' 3300 (& $text $t0.AddHours(-40)) 64000 9
+        & $add 'example-ghost.exe' 3500 $null 1000 1
+        & $add 'example-cache.exe' 3400 (& $text $t0.AddHours(-41)) 9000000 800
+        if ($GameRunning) { & $add 'FortniteClient-Win64-Shipping.exe' 3600 (& $text $t0.AddMinutes(-3)) 120000 30 }
+    } else {
+        & $add 'System' 4 (& $text $boot) 2650000000 199000
+        & $add 'svchost.exe' 912 (& $text $boot.AddSeconds(9)) 5100000 2200
+        & $add 'example-launcher.exe' 3000 (& $text $t0.AddHours(-1)) 9100000000 1030000
+        & $add 'example-updater.exe' 3200 (& $text $t0.AddHours(2)) 3000 2
+        & $add 'example-agent.exe' 3300 (& $text $t0.AddHours(-40)) $null 11
+        & $add 'example-ghost.exe' 3500 $null 1500 2
+        & $add 'example-cache.exe' 3400 (& $text $t0.AddHours(-41)) 8000000 810
+        & $add 'example-overlay.exe' 3700 (& $text $t0.AddHours(1)) 2200000 400
+    }
+    if ($GuardFails) {
+        $global:WfSynthetic.Cim['Win32_Process'] = @{ ErrorKind = 'access_denied'; ErrorMessage = 'Access denied' }
+    } else {
+        $global:WfSynthetic.Cim['Win32_Process'] = @{ Rows = $rows.ToArray() }
+    }
+
+    # Raw cumulative counters: two disk instances and the one Memory instance.
+    $growth = $(if ($Stage -eq 'after' -and -not $Rebooted) { 1 } else { 0 })
+    $stamp = [int64](($global:WfSynthetic.Now - [datetime]::new(1601, 1, 1, 0, 0, 0, [System.DateTimeKind]::Utc)).Ticks)
+    $global:WfSynthetic.Cim['Win32_PerfRawData_PerfDisk_PhysicalDisk'] = @{ Rows = @(
+            [ordered]@{ Name = '0 C:'; DiskWriteBytesPersec = 61000000000 + $growth * 3400000000; DiskWritesPersec = 2900000 + $growth * 160000; DiskReadBytesPersec = 88000000000 + $growth * 9100000000; DiskReadsPersec = 3500000 + $growth * 210000; Timestamp_Sys100NS = $stamp; Frequency_Sys100NS = 10000000 },
+            [ordered]@{ Name = '_Total'; DiskWriteBytesPersec = 61000000000 + $growth * 3400000000; DiskWritesPersec = 2900000 + $growth * 160000; DiskReadBytesPersec = 88000000000 + $growth * 9100000000; DiskReadsPersec = 3500000 + $growth * 210000; Timestamp_Sys100NS = $stamp; Frequency_Sys100NS = 10000000 }
+        ) }
+    $global:WfSynthetic.Cim['Win32_PerfRawData_PerfOS_Memory'] = @{ Rows = @(
+            [ordered]@{ Name = $null; PagesOutputPersec = 410000 + $growth * 52000; PageWritesPersec = 9100 + $growth * 700; PagesInputPersec = 2300000 + $growth * 90000; PageReadsPersec = 160000 + $growth * 6000; Timestamp_Sys100NS = $stamp; Frequency_Sys100NS = 10000000 }
+        ) }
+
+    # The configuration the trial depends on: TDR level 3, a complete memory
+    # dump setting, the machine WER key without the named values, the others
+    # absent.
+    $global:WfSynthetic.Registry['HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers'] = @{ Values = @(@{ Name = 'TdrLevel'; Kind = 'DWord'; Data = 3 }, @{ Name = 'TdrDelay'; Kind = 'DWord'; Data = 10 }); SubKeys = @('Configuration') }
+    $global:WfSynthetic.Registry['HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl'] = @{ Values = @(@{ Name = 'CrashDumpEnabled'; Kind = 'DWord'; Data = 1 }, @{ Name = 'LogEvent'; Kind = 'DWord'; Data = 1 }, @{ Name = 'AutoReboot'; Kind = 'DWord'; Data = 1 }); SubKeys = @() }
+    $global:WfSynthetic.Registry['HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting'] = @{ Values = @(); SubKeys = @('Consent') }
+    $global:WfSynthetic.Commands['/getactivescheme'] = @{ ExitCode = 0; StdOut = (Get-WfSyntheticPowercfgText -Name 'getactivescheme-en'); StdErr = '' }
+
+    # The event logs: one record before the boot (outside the count), the
+    # boot itself, service starts, a recovered display driver timeout, and in
+    # the after read one more timeout and one application crash.
+    $systemOldest = $(if ($SystemLogWrapped) { 0.5 } else { 30 })
+    $global:WfSynthetic.Channels['System'] = New-WfSyntheticChannelState -OldestDaysAgo $systemOldest -RecordCount 18200
+    $global:WfSynthetic.Channels['Application'] = New-WfSyntheticChannelState -OldestDaysAgo 30 -RecordCount 9400
+    $sinceBoot = { param([double]$Hours) (($global:WfSynthetic.Now - $boot).TotalDays) - ($Hours / 24.0) }
+    $system = New-Object 'System.Collections.Generic.List[object]'
+    $application = New-Object 'System.Collections.Generic.List[object]'
+    $system.Add((New-WfSyntheticEvent -RecordId 18001 -Provider 'EventLog' -EventId 6006 -Level 4 -LevelDisplay 'Information' -DaysAgo (& $sinceBoot -0.1)))
+    $system.Add((New-WfSyntheticEvent -RecordId 18010 -Provider 'Microsoft-Windows-Kernel-General' -EventId 12 -Level 4 -LevelDisplay 'Information' -DaysAgo (& $sinceBoot 0.001)))
+    $system.Add((New-WfSyntheticEvent -RecordId 18020 -Provider 'Service Control Manager' -EventId 7036 -Level 4 -LevelDisplay 'Information' -DaysAgo (& $sinceBoot 0.01)))
+    $system.Add((New-WfSyntheticEvent -RecordId 18021 -Provider 'Service Control Manager' -EventId 7036 -Level 4 -LevelDisplay 'Information' -DaysAgo (& $sinceBoot 0.02)))
+    if (-not $Rebooted) {
+        $system.Add((New-WfSyntheticEvent -RecordId 18100 -Provider 'Display' -EventId 4101 -Level 3 -LevelDisplay 'Warning' -DaysAgo (& $sinceBoot 20)))
+        $application.Add((New-WfSyntheticEvent -RecordId 9300 -Channel 'Application' -Provider 'Application Error' -EventId 1000 -DaysAgo (& $sinceBoot 30)))
+    }
+    if ($Stage -eq 'after') {
+        $system.Add((New-WfSyntheticEvent -RecordId 18200 -Provider 'Display' -EventId 4101 -Level 3 -LevelDisplay 'Warning' -DaysAgo 0.05))
+        $application.Add((New-WfSyntheticEvent -RecordId 9390 -Channel 'Application' -Provider 'Application Error' -EventId 1000 -DaysAgo 0.04))
+    }
+    Add-WfSyntheticQuery -Match 'Path="System"' -Events $system.ToArray()
+    Add-WfSyntheticQuery -Match 'Path="Application"' -Events $application.ToArray()
 }

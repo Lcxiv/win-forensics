@@ -1,0 +1,10 @@
+2026-03-01T12:00:01.0000000Z collector session-bracket version 1.0.0, helper version 1.2.0, no time window (snapshot), 90 s per source
+source game_guard: status not_collected, 1 artifacts
+source boot: status not_collected (game guard), 1 artifacts
+source process_io: status not_collected (game guard), 1 artifacts
+source disk_totals: status not_collected (game guard), 1 artifacts
+source memory_paging: status not_collected (game guard), 1 artifacts
+source config_readback: status not_collected (game guard), 1 artifacts
+source power_active_scheme: status not_collected (game guard), 1 artifacts
+source event_counts: status not_collected (game guard), 1 artifacts
+2026-03-01T12:00:20.0000000Z manifest written: bundle 20260301T120001Z_session_bracket_ae3a76a9, status failed, 8 artifacts

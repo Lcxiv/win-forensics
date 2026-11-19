@@ -1,0 +1,6 @@
+[
+{"channel":"Application","provider_name":"Application Error","event_id":1000,"level":2,"count":2},
+{"channel":"System","provider_name":"Display","event_id":4101,"level":3,"count":2},
+{"channel":"System","provider_name":"Microsoft-Windows-Kernel-General","event_id":12,"level":4,"count":1},
+{"channel":"System","provider_name":"Service Control Manager","event_id":7036,"level":4,"count":2}
+]

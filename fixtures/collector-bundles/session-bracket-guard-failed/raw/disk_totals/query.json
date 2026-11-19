@@ -1,0 +1,7 @@
+{
+  "source": "disk_totals",
+  "read": "Win32_PerfRawData_PerfDisk_PhysicalDisk raw cumulative bytes and operations",
+  "phase": "",
+  "skipped": true,
+  "reason": "the game guard could not read the process list (not_collected: preflight failed, the account cannot read the source: synthetic:access_denied: Access denied), so whether a game is running is unknown; nothing else is read"
+}

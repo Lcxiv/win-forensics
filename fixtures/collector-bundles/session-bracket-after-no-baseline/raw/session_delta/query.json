@@ -1,0 +1,25 @@
+{
+  "baseline_folder": "the folder that holds this bundle, or -BaselineDirectory",
+  "selection": "the newest bundle of this collector whose boot source recorded phase baseline, whose capture started before this run, and whose boot time was observed; newer baselines without an observed boot time (the game guard stopped them, or the read failed) are passed over and named",
+  "refuse_when": [
+    "no usable baseline",
+    "a listed baseline artifact is missing or its SHA-256 differs from the baseline manifest",
+    "this read has no observed boot time",
+    "the boot times differ (a reboot between the reads)",
+    "the baseline or this read has no observed process list"
+  ],
+  "process_identity": "ProcessId plus CreationDate",
+  "arithmetic": "decimal subtraction of the cumulative counts; a negative difference is gap 6, never a delta",
+  "gap_codes": {
+    "0": "matched",
+    "1": "exited or not seen after; final count unavailable",
+    "2": "process id reused or restarted; instances cannot be subtracted",
+    "3": "new or not seen before; earlier count unavailable",
+    "4": "counter missing; no delta",
+    "5": "identity missing or ambiguous process id; no delta",
+    "6": "counter decreased; no delta"
+  },
+  "kept": "process names and numbers only",
+  "max_input_bytes": 67108864,
+  "timeout_seconds": 90
+}

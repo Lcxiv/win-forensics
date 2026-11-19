@@ -1,0 +1,1208 @@
+{
+  "manifest_version": "1.1.0",
+  "bundle_id": "20260301T150001Z_session_bracket_ae3a76a9",
+  "created_utc": "2026-03-01T15:01:17.0000000Z",
+  "scenario": {
+    "id": "session_bracket",
+    "version": "1.0.0",
+    "requested_duration_s": 0,
+    "target_process": null,
+    "marks": []
+  },
+  "capture": {
+    "start_utc": "2026-03-01T15:00:01.0000000Z",
+    "stop_utc": "2026-03-01T15:01:17.0000000Z",
+    "orchestrator": "wf-collector:session-bracket",
+    "orchestrator_version": "1.2.0",
+    "elevated": false,
+    "incomplete": true
+  },
+  "machine": {
+    "machine_id": "ae3a76a9f32fa71b72616118339e376c",
+    "hostname": "SYNTHETIC-PC",
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26100",
+      "build": 26100,
+      "ubr": 1,
+      "display_version": "24H2",
+      "architecture": "64-bit",
+      "edition": "Professional"
+    },
+    "cpu": {
+      "name": "Synthetic CPU",
+      "logical_processors": 16,
+      "qpc_frequency_hz": 10000000
+    },
+    "memory_bytes": 34359738368,
+    "gpus": [
+      {
+        "name": "Synthetic Display Adapter",
+        "driver_version": "1.2.3.4",
+        "driver_date": "2026-01-15T00:00:00.0000000Z",
+        "device_id": "PCI\\VEN_FFFF&DEV_0001"
+      }
+    ],
+    "bios": {
+      "vendor": "Synthetic Firmware",
+      "version": "S1.00",
+      "release_date": "2025-11-01T00:00:00.0000000Z"
+    },
+    "board": {
+      "manufacturer": "Synthetic Boards",
+      "product": "SB-1"
+    },
+    "drivers": [],
+    "time_zone": {
+      "name": "UTC",
+      "utc_offset_minutes": 0,
+      "dst_active": false
+    }
+  },
+  "collectors": [
+    {
+      "id": "game_guard",
+      "kind": "process_inventory",
+      "required": true,
+      "status": "observed_zero",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T15:00:12.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_Process"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "game_guard",
+        "Get-CimInstance",
+        "-ClassName",
+        "Win32_Process",
+        "-Property",
+        "Name",
+        "-OperationTimeoutSec",
+        "90"
+      ],
+      "started_utc": "2026-03-01T15:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T15:00:13.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "993bc336a81386727bbbf9257c4169387e58284e25194d8fbae2955080fa1b9b"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_Process",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Name"
+          ],
+          "filter": null,
+          "game_process_names": [
+            "Overwatch.exe",
+            "FortniteClient-Win64-Shipping.exe"
+          ],
+          "comparison": "ordinal, ignoring case, on the whole image name",
+          "max_records": 50000,
+          "timeout_seconds": 90
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "processes_listed": 8,
+          "games_found": [],
+          "guard_blocks_read": false
+        },
+        "verified_by": "Get-CimInstance returned the whole process list without error under its operation timeout and below the cap; an empty matches.json is a read that found no game, an observation"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/game_guard/matches.json",
+          "bytes": 3,
+          "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+          "role": "primary"
+        },
+        {
+          "path": "raw/game_guard/query.json",
+          "bytes": 320,
+          "sha256": "993bc336a81386727bbbf9257c4169387e58284e25194d8fbae2955080fa1b9b",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T15:00:12.0000000Z",
+        "end": "2026-03-01T15:00:12.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the whole process list is read (image names only) and none of the game process names is running; a running game, or a list that could not be read, stops every other source",
+        "met": true,
+        "detail": "8 processes listed; 0 game processes among them"
+      },
+      "target_process": null
+    },
+    {
+      "id": "boot",
+      "kind": "config_snapshot",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T15:00:18.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_OperatingSystem"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/cimv2",
+        "-ClassName",
+        "Win32_OperatingSystem",
+        "-Property",
+        "LastBootUpTime",
+        "-OperationTimeoutSec",
+        "90"
+      ],
+      "started_utc": "2026-03-01T15:00:14.0000000Z",
+      "stopped_utc": "2026-03-01T15:00:19.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "a01693e97542afb16b25d9aa0a3259cbadf979f0e7adc5579edca2c20f3b81ca"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_OperatingSystem",
+          "namespace": "root/cimv2",
+          "properties": [
+            "LastBootUpTime"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "coverage_probe_filter": null,
+          "max_records": 50000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 90,
+          "phase": "after",
+          "collector": "session-bracket"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_OperatingSystem",
+          "namespace": "root/cimv2",
+          "properties": [
+            "LastBootUpTime"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "records_read": 1,
+          "records_exported": 1,
+          "truncated": false,
+          "coverage_probe": null,
+          "phase": "after",
+          "collector": "session-bracket"
+        },
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/boot/query.json",
+          "bytes": 402,
+          "sha256": "a01693e97542afb16b25d9aa0a3259cbadf979f0e7adc5579edca2c20f3b81ca",
+          "role": "config"
+        },
+        {
+          "path": "raw/boot/records.json",
+          "bytes": 54,
+          "sha256": "c748045a808559211f46cc272345332a5c54465eca45ba1211d7b257f492efe1",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T15:00:18.0000000Z",
+        "end": "2026-03-01T15:00:18.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": true,
+        "detail": "1 instances"
+      },
+      "target_process": null
+    },
+    {
+      "id": "process_io",
+      "kind": "process_inventory",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T15:00:31.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_Process"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/cimv2",
+        "-ClassName",
+        "Win32_Process",
+        "-Property",
+        "Name,ProcessId,CreationDate,WriteTransferCount,WriteOperationCount",
+        "-OperationTimeoutSec",
+        "90"
+      ],
+      "started_utc": "2026-03-01T15:00:20.0000000Z",
+      "stopped_utc": "2026-03-01T15:00:32.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "b6b394e75a545afdb79f42b6a7a215ab8a3992570c5a0dc4983d3994dd5accd4"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_Process",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Name",
+            "ProcessId",
+            "CreationDate",
+            "WriteTransferCount",
+            "WriteOperationCount"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "coverage_probe_filter": null,
+          "max_records": 50000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 90,
+          "phase": "after",
+          "command_line_requested": false,
+          "image_path_requested": false,
+          "meaning": "write I/O counts file, network and device writes since the process started, never physical disk bytes"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_Process",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Name",
+            "ProcessId",
+            "CreationDate",
+            "WriteTransferCount",
+            "WriteOperationCount"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "records_read": 8,
+          "records_exported": 8,
+          "truncated": false,
+          "coverage_probe": null,
+          "phase": "after",
+          "command_line_requested": false,
+          "image_path_requested": false,
+          "meaning": "write I/O counts file, network and device writes since the process started, never physical disk bytes"
+        },
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/process_io/query.json",
+          "bytes": 626,
+          "sha256": "b6b394e75a545afdb79f42b6a7a215ab8a3992570c5a0dc4983d3994dd5accd4",
+          "role": "config"
+        },
+        {
+          "path": "raw/process_io/records.json",
+          "bytes": 1147,
+          "sha256": "4dbcbdb3825bfdfab7b3b4111a8cc32699195760b8f7558ad6b977980fa8bb7a",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T15:00:31.0000000Z",
+        "end": "2026-03-01T15:00:31.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": true,
+        "detail": "8 instances"
+      },
+      "target_process": null
+    },
+    {
+      "id": "disk_totals",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T15:00:38.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_PerfRawData_PerfDisk_PhysicalDisk"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/cimv2",
+        "-ClassName",
+        "Win32_PerfRawData_PerfDisk_PhysicalDisk",
+        "-Property",
+        "Name,DiskWriteBytesPersec,DiskWritesPersec,DiskReadBytesPersec,DiskReadsPersec,Timestamp_Sys100NS,Frequency_Sys100NS",
+        "-OperationTimeoutSec",
+        "90"
+      ],
+      "started_utc": "2026-03-01T15:00:33.0000000Z",
+      "stopped_utc": "2026-03-01T15:00:39.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "6558c61123100c4dfa721be1d5a036d76eb3bb9d27f0538f39d6d4d4cfecd061"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_PerfRawData_PerfDisk_PhysicalDisk",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Name",
+            "DiskWriteBytesPersec",
+            "DiskWritesPersec",
+            "DiskReadBytesPersec",
+            "DiskReadsPersec",
+            "Timestamp_Sys100NS",
+            "Frequency_Sys100NS"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "coverage_probe_filter": null,
+          "max_records": 50000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 90,
+          "phase": "after",
+          "meaning": "raw values of cumulative count counters: the totals since the counters started, not rates"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_PerfRawData_PerfDisk_PhysicalDisk",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Name",
+            "DiskWriteBytesPersec",
+            "DiskWritesPersec",
+            "DiskReadBytesPersec",
+            "DiskReadsPersec",
+            "Timestamp_Sys100NS",
+            "Frequency_Sys100NS"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "records_read": 2,
+          "records_exported": 2,
+          "truncated": false,
+          "coverage_probe": null,
+          "phase": "after",
+          "meaning": "raw values of cumulative count counters: the totals since the counters started, not rates"
+        },
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/disk_totals/query.json",
+          "bytes": 636,
+          "sha256": "6558c61123100c4dfa721be1d5a036d76eb3bb9d27f0538f39d6d4d4cfecd061",
+          "role": "config"
+        },
+        {
+          "path": "raw/disk_totals/records.json",
+          "bytes": 423,
+          "sha256": "2cd66f385880b5b28440c1e375408548091dc0cb6348bcbe7b57ae5b2acd89e8",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T15:00:38.0000000Z",
+        "end": "2026-03-01T15:00:38.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": true,
+        "detail": "2 instances"
+      },
+      "target_process": null
+    },
+    {
+      "id": "memory_paging",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T15:00:44.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_PerfRawData_PerfOS_Memory"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/cimv2",
+        "-ClassName",
+        "Win32_PerfRawData_PerfOS_Memory",
+        "-Property",
+        "Name,PagesOutputPersec,PageWritesPersec,PagesInputPersec,PageReadsPersec,Timestamp_Sys100NS,Frequency_Sys100NS",
+        "-OperationTimeoutSec",
+        "90"
+      ],
+      "started_utc": "2026-03-01T15:00:40.0000000Z",
+      "stopped_utc": "2026-03-01T15:00:45.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "132d4b296879ce2945c178a57860484708da57a30fe5d5fa5d770256e3af9b19"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_PerfRawData_PerfOS_Memory",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Name",
+            "PagesOutputPersec",
+            "PageWritesPersec",
+            "PagesInputPersec",
+            "PageReadsPersec",
+            "Timestamp_Sys100NS",
+            "Frequency_Sys100NS"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "coverage_probe_filter": null,
+          "max_records": 50000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 90,
+          "phase": "after",
+          "meaning": "raw values of cumulative count counters: pages written to and read from disk to resolve page faults since the counters started"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_PerfRawData_PerfOS_Memory",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Name",
+            "PagesOutputPersec",
+            "PageWritesPersec",
+            "PagesInputPersec",
+            "PageReadsPersec",
+            "Timestamp_Sys100NS",
+            "Frequency_Sys100NS"
+          ],
+          "filter": null,
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "records_read": 1,
+          "records_exported": 1,
+          "truncated": false,
+          "coverage_probe": null,
+          "phase": "after",
+          "meaning": "raw values of cumulative count counters: pages written to and read from disk to resolve page faults since the counters started"
+        },
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/memory_paging/query.json",
+          "bytes": 659,
+          "sha256": "132d4b296879ce2945c178a57860484708da57a30fe5d5fa5d770256e3af9b19",
+          "role": "config"
+        },
+        {
+          "path": "raw/memory_paging/records.json",
+          "bytes": 191,
+          "sha256": "b011107ee63b97d9fd509d574ed6893a0d5c711dc8a8ed6736c66658cbe41379",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T15:00:44.0000000Z",
+        "end": "2026-03-01T15:00:44.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": true,
+        "detail": "1 instances"
+      },
+      "target_process": null
+    },
+    {
+      "id": "config_readback",
+      "kind": "config_snapshot",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T15:00:54.0000000Z",
+        "checks": [
+          {
+            "name": "keys_readable",
+            "ok": true,
+            "detail": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers; HKLM:\\SYSTEM\\CurrentControlSet\\Control\\CrashControl; HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Error Reporting; HKLM:\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting; HKCU:\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting; HKLM:\\SOFTWARE\\Policies\\Microsoft\\PCHealth\\ErrorReporting"
+          }
+        ]
+      },
+      "command": [
+        "Microsoft.Win32.RegistryKey.GetValue",
+        "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+        "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\CrashControl",
+        "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Error Reporting",
+        "HKLM:\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting",
+        "HKCU:\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting",
+        "HKLM:\\SOFTWARE\\Policies\\Microsoft\\PCHealth\\ErrorReporting"
+      ],
+      "started_utc": "2026-03-01T15:00:46.0000000Z",
+      "stopped_utc": "2026-03-01T15:00:56.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "6385c95e0a22c2523654f52eff001afec68476d3d548e13ccb90439a4da28bc9"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "mode": "keys",
+          "classes": [],
+          "instance_prefixes": [],
+          "selection": null,
+          "resolver": "Get-Item on the fixed key path (the registry provider)",
+          "subkeys": null,
+          "max_values_per_key": null,
+          "key_list": [
+            {
+              "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+              "value_names": [
+                "TdrLevel",
+                "TdrDelay"
+              ]
+            },
+            {
+              "path": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\CrashControl",
+              "value_names": [
+                "CrashDumpEnabled",
+                "LogEvent",
+                "AutoReboot"
+              ]
+            },
+            {
+              "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Error Reporting",
+              "value_names": [
+                "Disabled",
+                "DontSendAdditionalData",
+                "LoggingDisabled",
+                "DontShowUI"
+              ]
+            },
+            {
+              "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting",
+              "value_names": [
+                "Disabled",
+                "ForceQueue",
+                "DontSendAdditionalData",
+                "DontShowUI",
+                "LoggingDisabled"
+              ]
+            },
+            {
+              "path": "HKCU:\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting",
+              "value_names": [
+                "Disabled",
+                "ForceQueue",
+                "DontSendAdditionalData",
+                "DontShowUI",
+                "LoggingDisabled"
+              ]
+            },
+            {
+              "path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\PCHealth\\ErrorReporting",
+              "value_names": [
+                "DoReport"
+              ]
+            }
+          ],
+          "citations": [
+            "https://learn.microsoft.com/windows-hardware/drivers/display/tdr-registry-keys",
+            "https://learn.microsoft.com/troubleshoot/windows-server/performance/memory-dump-file-options",
+            "https://learn.microsoft.com/windows/win32/wer/wer-settings",
+            "https://learn.microsoft.com/windows/client-management/mdm/policy-csp-errorreporting",
+            "https://learn.microsoft.com/windows/client-management/mdm/policy-csp-admx-icm"
+          ],
+          "protection": null,
+          "max_records": 50000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 90,
+          "read_only": "keys are opened for reading only (KEY_READ); a missing key is recorded as absent and never created; a key that could not be opened is recorded as unknown"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "mode": "keys",
+          "devices_present": null,
+          "devices_selected": null,
+          "elements": 6,
+          "keys_read": 3,
+          "keys_absent": 3,
+          "keys_unknown": 0,
+          "truncated": false
+        },
+        "verified_by": "every element records whether its key exists, the error if it could not be opened, and each value with its registry type and bytes; the counts are in result.json"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/config_readback/keys.json",
+          "bytes": 2416,
+          "sha256": "f698469a2078835d6c0e88e60f730032b2a2dd9591bc0936f974419345bc2922",
+          "role": "primary"
+        },
+        {
+          "path": "raw/config_readback/query.json",
+          "bytes": 2167,
+          "sha256": "6385c95e0a22c2523654f52eff001afec68476d3d548e13ccb90439a4da28bc9",
+          "role": "config"
+        },
+        {
+          "path": "raw/config_readback/result.json",
+          "bytes": 331,
+          "sha256": "9e8fdff65d1ee3bb050e61e9f43df830045ab64f1d5a891772abc32f2eed83ad",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T15:00:46.0000000Z",
+        "end": "2026-03-01T15:00:55.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "each key is opened for reading and each named value is recorded present (with type and bytes) or absent",
+        "met": true,
+        "detail": "6 elements; 3 keys read, 3 absent, 0 unknown"
+      },
+      "target_process": null
+    },
+    {
+      "id": "power_active_scheme",
+      "kind": "powercfg",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T15:00:59.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\powercfg.exe"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\powercfg.exe",
+        "/getactivescheme"
+      ],
+      "started_utc": "2026-03-01T15:00:57.0000000Z",
+      "stopped_utc": "2026-03-01T15:01:01.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "e0b42e9feb5b8118855ef14604b6b006ad09a22b5e4be71b12831c595f33a1d1"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "tool": "C:\\Windows\\System32\\powercfg.exe",
+          "arguments": "/getactivescheme",
+          "timeout_seconds": 90,
+          "max_artifact_bytes": 67108864,
+          "output_encoding": "utf-8",
+          "output_code_page": 65001,
+          "line_endings": "lf",
+          "protection": {
+            "mode": "generic",
+            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
+            "ssid_pseudonym": "ssid-<first 12 hex of SHA-256(salt, name)>, every network and profile name found by structure, plus every learned name wherever it appears",
+            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only"
+          },
+          "zero_records_rule": "capture_failed"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "exit_code": 0,
+          "timed_out": false,
+          "duration_ms": 7,
+          "stdout_bytes": 82,
+          "records": 1,
+          "mac_addresses_replaced": 0,
+          "network_names_replaced": 0,
+          "output_encoding": "utf-8"
+        },
+        "verified_by": "the process exit code, timing and byte counts are in result.json; the protected output is output.txt"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/power_active_scheme/command.json",
+          "bytes": 677,
+          "sha256": "e0b42e9feb5b8118855ef14604b6b006ad09a22b5e4be71b12831c595f33a1d1",
+          "role": "config"
+        },
+        {
+          "path": "raw/power_active_scheme/output.txt",
+          "bytes": 82,
+          "sha256": "5836b1717f1d6f1013587da647e3e6a50ab231a86ec64a89c036d1162ab035af",
+          "role": "primary"
+        },
+        {
+          "path": "raw/power_active_scheme/result.json",
+          "bytes": 638,
+          "sha256": "ff65e92a02b382e84beb5bc9cc009d8e261d255c8245cd1facef096fee3c240a",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T15:00:57.0000000Z",
+        "end": "2026-03-01T15:01:00.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "powercfg exits with code 0 and prints at least one line with a GUID",
+        "met": true,
+        "detail": "exit code 0; 1 records (lines carrying a GUID (the active scheme))"
+      },
+      "target_process": null
+    },
+    {
+      "id": "event_counts",
+      "kind": "other",
+      "required": true,
+      "status": "capture_failed",
+      "status_reason": "the read started and then failed: System: the oldest record the channel still holds (2026-03-01T03:00:00.0000000Z) is after the boot (2026-02-27T12:00:00.0000000Z), so records since boot may have been overwritten and the counts are not complete",
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T15:01:12.0000000Z",
+        "checks": [
+          {
+            "name": "channels_readable",
+            "ok": false,
+            "detail": "System: the oldest record the channel still holds (2026-03-01T03:00:00.0000000Z) is after the boot (2026-02-27T12:00:00.0000000Z), so records since boot may have been overwritten and the counts are not complete"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "event_counts",
+        "EventLogReader",
+        "System",
+        "Application"
+      ],
+      "started_utc": "2026-03-01T15:01:02.0000000Z",
+      "stopped_utc": "2026-03-01T15:01:13.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "399dd0da48d5846bc2b056c37624d40c05ecc385ca9ad1ad56fbc5d806888d36"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channels": [
+            "System",
+            "Application"
+          ],
+          "predicate": "(Level >= 0)",
+          "since_boot_utc": "2026-02-27T12:00:00.0000000Z",
+          "until_utc": "2026-03-01T15:01:03.0000000Z",
+          "counted_by": [
+            "channel",
+            "provider_name",
+            "event_id",
+            "level"
+          ],
+          "kept": "counts only; no message, event data or user id is written",
+          "max_records_per_channel": 50000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 90,
+          "queries": {
+            "System": "<QueryList>\n  <Query Id=\"0\" Path=\"System\">\n    <Select Path=\"System\">*[System[(Level &gt;= 0) and TimeCreated[@SystemTime &gt;= '2026-02-27T12:00:00.000Z' and @SystemTime &lt;= '2026-03-01T15:01:03.000Z']]]</Select>\n  </Query>\n</QueryList>\n",
+            "Application": "<QueryList>\n  <Query Id=\"0\" Path=\"Application\">\n    <Select Path=\"Application\">*[System[(Level &gt;= 0) and TimeCreated[@SystemTime &gt;= '2026-02-27T12:00:00.000Z' and @SystemTime &lt;= '2026-03-01T15:01:03.000Z']]]</Select>\n  </Query>\n</QueryList>\n"
+          }
+        }
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/event_counts/query.json",
+          "bytes": 1011,
+          "sha256": "399dd0da48d5846bc2b056c37624d40c05ecc385ca9ad1ad56fbc5d806888d36",
+          "role": "config"
+        },
+        {
+          "path": "raw/event_counts/result.json",
+          "bytes": 251,
+          "sha256": "3146cae9568a120fde08f481582f3c362a3c8987c275c766845211622c2fe9d1",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "every record of each channel since boot is read within the deadline and the cap, and each channel still holds a record at or before the boot",
+        "met": false,
+        "detail": "System: the oldest record the channel still holds (2026-03-01T03:00:00.0000000Z) is after the boot (2026-02-27T12:00:00.0000000Z), so records since boot may have been overwritten and the counts are not complete"
+      },
+      "target_process": null
+    },
+    {
+      "id": "session_delta",
+      "kind": "other",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T15:01:15.0000000Z",
+        "checks": [
+          {
+            "name": "baseline_found",
+            "ok": true,
+            "detail": "20260301T120001Z_session_bracket_ae3a76a9"
+          },
+          {
+            "name": "same_boot",
+            "ok": true,
+            "detail": "baseline 2026-02-27T12:00:00.0000000Z, now 2026-02-27T12:00:00.0000000Z"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "session_delta",
+        "baseline",
+        "newest in the same folder, same boot"
+      ],
+      "started_utc": "2026-03-01T15:01:14.0000000Z",
+      "stopped_utc": "2026-03-01T15:01:16.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "bf46187f2e3ae46689bbc51bce53faf45b33735ff1e528b629439870a20db291"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "baseline_folder": "the folder that holds this bundle, or -BaselineDirectory",
+          "selection": "the newest bundle of this collector whose boot source recorded phase baseline, whose capture started before this run, and whose boot time was observed; newer baselines without an observed boot time (the game guard stopped them, or the read failed) are passed over and named",
+          "refuse_when": [
+            "no usable baseline",
+            "a listed baseline artifact is missing or its SHA-256 differs from the baseline manifest",
+            "this read has no observed boot time",
+            "the boot times differ (a reboot between the reads)",
+            "the baseline or this read has no observed process list"
+          ],
+          "process_identity": "ProcessId plus CreationDate",
+          "arithmetic": "decimal subtraction of the cumulative counts; a negative difference is gap 6, never a delta",
+          "gap_codes": {
+            "0": "matched",
+            "1": "exited or not seen after; final count unavailable",
+            "2": "process id reused or restarted; instances cannot be subtracted",
+            "3": "new or not seen before; earlier count unavailable",
+            "4": "counter missing; no delta",
+            "5": "identity missing or ambiguous process id; no delta",
+            "6": "counter decreased; no delta"
+          },
+          "kept": "process names and numbers only",
+          "max_input_bytes": 67108864,
+          "timeout_seconds": 90
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "baseline_bundle_id": "20260301T120001Z_session_bracket_ae3a76a9",
+          "baseline_verified": true,
+          "same_boot": true,
+          "process_rows": 9,
+          "rows_with_gap": 6,
+          "baselines_passed_over": 2,
+          "not_compared": {
+            "event_counts": "baseline observed, after capture_failed"
+          }
+        },
+        "verified_by": "the baseline artifacts match the SHA-256 in its manifest, both boot times are the same observed LastBootUpTime, and both process lists are observed"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/session_delta/delta.csv",
+          "bytes": 769,
+          "sha256": "af4d50e95da92af881a8e564c8a8d8f03804cbb11ed46744d24ded26fb3b478e",
+          "role": "report"
+        },
+        {
+          "path": "raw/session_delta/process_delta.json",
+          "bytes": 2448,
+          "sha256": "2f14e25de2b57561294de93d8a16677946789ca1465aa0e3d4deec4bde35432d",
+          "role": "primary"
+        },
+        {
+          "path": "raw/session_delta/query.json",
+          "bytes": 1328,
+          "sha256": "bf46187f2e3ae46689bbc51bce53faf45b33735ff1e528b629439870a20db291",
+          "role": "config"
+        },
+        {
+          "path": "raw/session_delta/selection.json",
+          "bytes": 587,
+          "sha256": "dcd276b12929a5f6e6e1626a78d4929a334f7b555f22a4a5537e123d8744e74e",
+          "role": "report"
+        },
+        {
+          "path": "raw/session_delta/system_delta.json",
+          "bytes": 3566,
+          "sha256": "1d2f6e6ddfb2b7c8fcb3a1c7381bb1c2e5bd66d56d1304db75f7c65ff3a4a497",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:01.0000000Z",
+        "end": "2026-03-01T15:01:14.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the newest baseline is intact and from the same boot, both process lists are observed, and every process row has a delta or a gap code",
+        "met": true,
+        "detail": "9 process rows, 6 with a gap code; baseline 20260301T120001Z_session_bracket_ae3a76a9, same boot 2026-02-27T12:00:00.0000000Z"
+      },
+      "target_process": null
+    }
+  ],
+  "calibration": {
+    "status": "not_applicable",
+    "method": "none: this collector reads historical records that carry their own UTC system time, so there is no QPC session to calibrate",
+    "qpc_frequency_hz": 10000000,
+    "expected_pairs": 0,
+    "pairs": [],
+    "missing_pairs": 0,
+    "time_adjustment": {
+      "start": null,
+      "stop": null
+    },
+    "boot_time_utc": "2026-02-27T15:00:00.0000000Z"
+  },
+  "tools": [
+    {
+      "name": "powershell",
+      "version": "5.1.26100.1",
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "sha256": null
+    },
+    {
+      "name": "wevtutil",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wevtutil.exe",
+      "sha256": null
+    },
+    {
+      "name": "collector:session-bracket",
+      "version": "1.0.0",
+      "path": "<install directory>\\session-bracket.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector-helper:_common.ps1",
+      "version": "1.2.0",
+      "path": "<install directory>\\_common.ps1",
+      "sha256": null
+    }
+  ],
+  "symbols": {
+    "symbol_path": null,
+    "cache_path": null,
+    "dbghelp_version": null
+  },
+  "checksum_algorithm": "sha256",
+  "notes": [
+    "Read only collector session-bracket version 1.0.0: What did the machine and each running process do between the baseline read and the read after a play session, within one boot (after phase; game guard: Overwatch.exe, FortniteClient-Win64-Shipping.exe)?",
+    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
+    "event_counts: the System log no longer reaches back to the boot; a larger log size keeps a whole boot"
+  ]
+}

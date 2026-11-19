@@ -1,0 +1,707 @@
+{
+  "manifest_version": "1.1.0",
+  "bundle_id": "20260301T120001Z_session_bracket_ae3a76a9",
+  "created_utc": "2026-03-01T12:00:29.0000000Z",
+  "scenario": {
+    "id": "session_bracket",
+    "version": "1.0.0",
+    "requested_duration_s": 0,
+    "target_process": null,
+    "marks": []
+  },
+  "capture": {
+    "start_utc": "2026-03-01T12:00:01.0000000Z",
+    "stop_utc": "2026-03-01T12:00:29.0000000Z",
+    "orchestrator": "wf-collector:session-bracket",
+    "orchestrator_version": "1.2.0",
+    "elevated": false,
+    "incomplete": true
+  },
+  "machine": {
+    "machine_id": "ae3a76a9f32fa71b72616118339e376c",
+    "hostname": "SYNTHETIC-PC",
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26100",
+      "build": 26100,
+      "ubr": 1,
+      "display_version": "24H2",
+      "architecture": "64-bit",
+      "edition": "Professional"
+    },
+    "cpu": {
+      "name": "Synthetic CPU",
+      "logical_processors": 16,
+      "qpc_frequency_hz": 10000000
+    },
+    "memory_bytes": 34359738368,
+    "gpus": [
+      {
+        "name": "Synthetic Display Adapter",
+        "driver_version": "1.2.3.4",
+        "driver_date": "2026-01-15T00:00:00.0000000Z",
+        "device_id": "PCI\\VEN_FFFF&DEV_0001"
+      }
+    ],
+    "bios": {
+      "vendor": "Synthetic Firmware",
+      "version": "S1.00",
+      "release_date": "2025-11-01T00:00:00.0000000Z"
+    },
+    "board": {
+      "manufacturer": "Synthetic Boards",
+      "product": "SB-1"
+    },
+    "drivers": [],
+    "time_zone": {
+      "name": "UTC",
+      "utc_offset_minutes": 0,
+      "dst_active": false
+    }
+  },
+  "collectors": [
+    {
+      "id": "game_guard",
+      "kind": "process_inventory",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:13.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_Process"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "game_guard",
+        "Get-CimInstance",
+        "-ClassName",
+        "Win32_Process",
+        "-Property",
+        "Name",
+        "-OperationTimeoutSec",
+        "90"
+      ],
+      "started_utc": "2026-03-01T12:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:14.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "993bc336a81386727bbbf9257c4169387e58284e25194d8fbae2955080fa1b9b"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_Process",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Name"
+          ],
+          "filter": null,
+          "game_process_names": [
+            "Overwatch.exe",
+            "FortniteClient-Win64-Shipping.exe"
+          ],
+          "comparison": "ordinal, ignoring case, on the whole image name",
+          "max_records": 50000,
+          "timeout_seconds": 90
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "processes_listed": 9,
+          "games_found": [
+            "FortniteClient-Win64-Shipping.exe"
+          ],
+          "guard_blocks_read": true
+        },
+        "verified_by": "Get-CimInstance returned the whole process list without error under its operation timeout and below the cap; an empty matches.json is a read that found no game, an observation"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/game_guard/matches.json",
+          "bytes": 63,
+          "sha256": "642354454b5579f13ca30d225612210bbaf0e5618e9c1f32a6c49c0f0f9dd530",
+          "role": "primary"
+        },
+        {
+          "path": "raw/game_guard/query.json",
+          "bytes": 320,
+          "sha256": "993bc336a81386727bbbf9257c4169387e58284e25194d8fbae2955080fa1b9b",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:13.0000000Z",
+        "end": "2026-03-01T12:00:13.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the whole process list is read (image names only) and none of the game process names is running; a running game, or a list that could not be read, stops every other source",
+        "met": true,
+        "detail": "9 processes listed; 1 game processes among them"
+      },
+      "target_process": null
+    },
+    {
+      "id": "boot",
+      "kind": "config_snapshot",
+      "required": true,
+      "status": "not_collected",
+      "status_reason": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:15.0000000Z",
+        "checks": [
+          {
+            "name": "game_guard",
+            "ok": false,
+            "detail": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "skipped",
+        "boot"
+      ],
+      "started_utc": "2026-03-01T12:00:15.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:16.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "714931f645e3eed4cf0862bda0c42018471446ef5de54038918b01c255bbac8d"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "source": "boot",
+          "read": "Win32_OperatingSystem LastBootUpTime",
+          "phase": "baseline",
+          "skipped": true,
+          "reason": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+        }
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/boot/query.json",
+          "bytes": 289,
+          "sha256": "714931f645e3eed4cf0862bda0c42018471446ef5de54038918b01c255bbac8d",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "the one operating system instance and its last boot time",
+        "met": false,
+        "detail": "not read: a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+      },
+      "target_process": null
+    },
+    {
+      "id": "process_io",
+      "kind": "process_inventory",
+      "required": true,
+      "status": "not_collected",
+      "status_reason": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:17.0000000Z",
+        "checks": [
+          {
+            "name": "game_guard",
+            "ok": false,
+            "detail": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "skipped",
+        "process_io"
+      ],
+      "started_utc": "2026-03-01T12:00:17.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:18.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "d9bbcf4d93ba9018f00a4fa295c499629cbfd91e25cc93b3bafa54ae18cc73cb"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "source": "process_io",
+          "read": "Win32_Process Name, ProcessId, CreationDate, WriteTransferCount, WriteOperationCount",
+          "phase": "",
+          "skipped": true,
+          "reason": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+        }
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/process_io/query.json",
+          "bytes": 335,
+          "sha256": "d9bbcf4d93ba9018f00a4fa295c499629cbfd91e25cc93b3bafa54ae18cc73cb",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": false,
+        "detail": "not read: a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+      },
+      "target_process": null
+    },
+    {
+      "id": "disk_totals",
+      "kind": "other",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:19.0000000Z",
+        "checks": [
+          {
+            "name": "game_guard",
+            "ok": false,
+            "detail": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "skipped",
+        "disk_totals"
+      ],
+      "started_utc": "2026-03-01T12:00:19.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:20.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "ccf5b49d85b3ef2816dc5a64c7fe00a4aca66c7552b029acea711327d3efbac4"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "source": "disk_totals",
+          "read": "Win32_PerfRawData_PerfDisk_PhysicalDisk raw cumulative bytes and operations",
+          "phase": "",
+          "skipped": true,
+          "reason": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+        }
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/disk_totals/query.json",
+          "bytes": 327,
+          "sha256": "ccf5b49d85b3ef2816dc5a64c7fe00a4aca66c7552b029acea711327d3efbac4",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": false,
+        "detail": "not read: a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+      },
+      "target_process": null
+    },
+    {
+      "id": "memory_paging",
+      "kind": "other",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:21.0000000Z",
+        "checks": [
+          {
+            "name": "game_guard",
+            "ok": false,
+            "detail": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "skipped",
+        "memory_paging"
+      ],
+      "started_utc": "2026-03-01T12:00:21.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:22.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "9c31b5d316f90d3100c969cdcd5235ddc1a332137af122353656055783411f04"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "source": "memory_paging",
+          "read": "Win32_PerfRawData_PerfOS_Memory raw cumulative page counts",
+          "phase": "",
+          "skipped": true,
+          "reason": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+        }
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/memory_paging/query.json",
+          "bytes": 312,
+          "sha256": "9c31b5d316f90d3100c969cdcd5235ddc1a332137af122353656055783411f04",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": false,
+        "detail": "not read: a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+      },
+      "target_process": null
+    },
+    {
+      "id": "config_readback",
+      "kind": "config_snapshot",
+      "required": true,
+      "status": "not_collected",
+      "status_reason": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:23.0000000Z",
+        "checks": [
+          {
+            "name": "game_guard",
+            "ok": false,
+            "detail": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "skipped",
+        "config_readback"
+      ],
+      "started_utc": "2026-03-01T12:00:23.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:24.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "ab27878c80f232ca5df9d78773a849dc835123040b3e6031792691bc767b3617"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "source": "config_readback",
+          "read": "the TDR, crash dump and Windows Error Reporting values",
+          "phase": "",
+          "skipped": true,
+          "reason": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+        }
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/config_readback/query.json",
+          "bytes": 310,
+          "sha256": "ab27878c80f232ca5df9d78773a849dc835123040b3e6031792691bc767b3617",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "each key is opened for reading and each named value is recorded present (with type and bytes) or absent",
+        "met": false,
+        "detail": "not read: a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+      },
+      "target_process": null
+    },
+    {
+      "id": "power_active_scheme",
+      "kind": "powercfg",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:25.0000000Z",
+        "checks": [
+          {
+            "name": "game_guard",
+            "ok": false,
+            "detail": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "skipped",
+        "power_active_scheme"
+      ],
+      "started_utc": "2026-03-01T12:00:25.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:26.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "6504ed18451ec66fbbd01c00d12fb1868946a92362774457c18a1d6abdfb4a33"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "source": "power_active_scheme",
+          "read": "powercfg /getactivescheme",
+          "phase": "",
+          "skipped": true,
+          "reason": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+        }
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/power_active_scheme/query.json",
+          "bytes": 285,
+          "sha256": "6504ed18451ec66fbbd01c00d12fb1868946a92362774457c18a1d6abdfb4a33",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "powercfg exits with code 0 and prints at least one line with a GUID",
+        "met": false,
+        "detail": "not read: a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+      },
+      "target_process": null
+    },
+    {
+      "id": "event_counts",
+      "kind": "other",
+      "required": true,
+      "status": "not_collected",
+      "status_reason": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened",
+      "preflight": {
+        "ok": false,
+        "at_utc": "2026-03-01T12:00:27.0000000Z",
+        "checks": [
+          {
+            "name": "game_guard",
+            "ok": false,
+            "detail": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+          }
+        ]
+      },
+      "command": [
+        "session-bracket",
+        "skipped",
+        "event_counts"
+      ],
+      "started_utc": "2026-03-01T12:00:27.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:28.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "a561a7c4363d185dde6b5004eac91ac6976f4165bcd98e5d9be14607bffeab54"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "source": "event_counts",
+          "read": "System and Application since boot, counted by provider, event id and level",
+          "phase": "",
+          "skipped": true,
+          "reason": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+        }
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/event_counts/query.json",
+          "bytes": 327,
+          "sha256": "a561a7c4363d185dde6b5004eac91ac6976f4165bcd98e5d9be14607bffeab54",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": null,
+      "expectation": {
+        "declared": "every record of each channel since boot is read within the deadline and the cap, and each channel still holds a record at or before the boot",
+        "met": false,
+        "detail": "not read: a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+      },
+      "target_process": null
+    }
+  ],
+  "calibration": {
+    "status": "not_applicable",
+    "method": "none: this collector reads historical records that carry their own UTC system time, so there is no QPC session to calibrate",
+    "qpc_frequency_hz": 10000000,
+    "expected_pairs": 0,
+    "pairs": [],
+    "missing_pairs": 0,
+    "time_adjustment": {
+      "start": null,
+      "stop": null
+    },
+    "boot_time_utc": "2026-02-27T12:00:00.0000000Z"
+  },
+  "tools": [
+    {
+      "name": "powershell",
+      "version": "5.1.26100.1",
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "sha256": null
+    },
+    {
+      "name": "wevtutil",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wevtutil.exe",
+      "sha256": null
+    },
+    {
+      "name": "collector:session-bracket",
+      "version": "1.0.0",
+      "path": "<install directory>\\session-bracket.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector-helper:_common.ps1",
+      "version": "1.2.0",
+      "path": "<install directory>\\_common.ps1",
+      "sha256": null
+    }
+  ],
+  "symbols": {
+    "symbol_path": null,
+    "cache_path": null,
+    "dbghelp_version": null
+  },
+  "checksum_algorithm": "sha256",
+  "notes": [
+    "Read only collector session-bracket version 1.0.0: What did the machine and each running process do between the baseline read and the read after a play session, within one boot (baseline phase; game guard: Overwatch.exe, FortniteClient-Win64-Shipping.exe)?",
+    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
+    "game guard: FortniteClient-Win64-Shipping.exe was running, so only the guard read; run the read again when no game runs"
+  ]
+}

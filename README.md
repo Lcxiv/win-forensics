@@ -30,6 +30,12 @@ The same directory holds `rf-survey`, a read only survey of the 2.4 GHz band aro
 
 It also holds `config-snapshot`, the first piece of the live latency capture: the machine configuration that confounds every run, read before and after a capture (`-Snapshot start`, `-Snapshot stop`). It records each PCI function's interrupt affinity policy and MSI mode as the registry holds them, read through the documented device key API (type and bytes, decoded alongside, never reconciled with the routing a trace shows), the GPU timeout detection values, the CPU counts and caches with the SMT sibling map from `GetLogicalProcessorInformationEx`, the active power scheme with the AC and DC processor and idle settings, and the state of two third party tuning tools (installed files with versions and hashes, running components by process name, protected copies of their configuration and journal, and a summary of the vendor log that carries none of its text). Two questions it cannot answer with a documented read only path (which power mode overlay is active, the current timer resolution) are recorded `not_collected` with their reasons rather than guessed. `scripts/decode_config_snapshot.py` decodes a bundle into `config_snapshot`, `powercfg` and `process_inventory`.
 
+It also holds `session-bracket`, the automatic play session bracket: one read only collector run twice in a boot, `-Phase baseline` at logon and `-Phase after` when a session ends. Each read records the boot time, every process's write counters with its identity (name, process id, creation time; no command line or path), the raw disk and page file counters, the GPU timeout, crash dump and error reporting values with the active power plan, and System and Application event counts since boot. The after read subtracts against the newest intact baseline of the same boot, refuses across a reboot, matches processes on process id plus creation time and names every gap (exited, new, restarted, counter missing). Its first source is a game guard that reads only the process names and, when a game is already running, reads nothing else. The baseline is started by a per user logon task registered by a change script, which is the captain's own action at the PC (next section).
+
+## The change area
+
+`changes/windows/` holds the scripts that change the PC, one self contained script per change, kept apart from everything that reads it: collectors stay read only, and no file under `collectors/`, `remote-access/` or `scripts/` names the change area, so nothing the dispatcher, the scenario runner or a collector does can call one (`tests/test_changes_area.py`). Every change script has the verbs `-Plan` (the default, read only), `-Apply`, `-Undo` and `-Readback`, saves the before state to a hashed evidence folder before it changes anything and refuses without it, and ends every apply and undo with a PASS or FAIL readback per value. Each runs only when the captain runs it at the PC; [changes/windows/README.md](changes/windows/README.md) holds the rules, the scripts and their facts still to verify. The first is `session-bracket-task.ps1`, the per user, non elevated logon task that starts the `session-bracket` baseline.
+
 ## The four contracts
 
 | Contract | Document | Schemas |
@@ -51,6 +57,8 @@ schemas/                 JSON Schema (draft 2020-12), one file per table, plus m
                          and analysis/ for an analyzer's structured result
 collectors/windows/      read only PowerShell collectors for the PC, their shared helper _common.ps1, and README.md;
                          tests/ holds the Pester suite, the synthetic backend, and the fixture generator
+changes/windows/         the scripts that change the PC, one per change, run only by the captain at the PC, with
+                         README.md and tests/ (synthetic backends, Pester); nothing that reads the PC calls them
 scripts/                 wf_schema.py (schema registry and validation), decode_dpcisr.py, decode_pdh.py, decode_eventlog.py,
                          decode_tracestats.py (trace loss from the recorder's status text and the tracerpt summary),
                          decode_presentmon.py (the presentmon_frames table from a presentmon-frames bundle),
@@ -147,7 +155,7 @@ A `config-snapshot` bundle is decoded with:
 python scripts/decode_config_snapshot.py --bundle <bundle directory>
 ```
 
-The collector checks that need PowerShell (PSScriptAnalyzer with the Windows PowerShell 5.1 compatibility rules, the Pester suite, fixture freshness) run from `tests/test_collectors_pwsh.py` and skip when no `pwsh` is found. `scripts/fetch_pwsh.sh` fetches a pinned PowerShell 7 and the two modules into `tools/`, which git ignores.
+The collector checks that need PowerShell (PSScriptAnalyzer with the Windows PowerShell 5.1 compatibility rules, the Pester suite, fixture freshness) run from `tests/test_collectors_pwsh.py` and skip when no `pwsh` is found. `scripts/fetch_pwsh.sh` fetches a pinned PowerShell 7 and the two modules into `tools/`, which git ignores. The change scripts' analyzer and Pester suite run the same way from `tests/test_changes_area.py` (`changes/windows/tests/Invoke-Checks.ps1`), which also skips without `pwsh`.
 
 ## What the fixtures are and are not
 

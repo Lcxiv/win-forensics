@@ -12,7 +12,7 @@ COLLECTOR_NAME = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 HELPER = "_common.ps1"
 SHIPPED = sorted(COLLECTOR_DIR.glob("*.ps1"))
 COLLECTORS = [p for p in SHIPPED if p.name != HELPER]
-EXPECTED_COLLECTORS = ["application-errors", "bugcheck-history", "clock-calibration", "config-snapshot", "diskio-trace", "dpcisr-trace", "driver-inventory", "presentmon-frames", "reliability-records", "rf-survey", "tdr-events", "whea-errors"]
+EXPECTED_COLLECTORS = ["application-errors", "bugcheck-history", "clock-calibration", "config-snapshot", "diskio-trace", "dpcisr-trace", "driver-inventory", "presentmon-frames", "reliability-records", "rf-survey", "session-bracket", "tdr-events", "whea-errors"]
 
 # Commands that change the machine, reach the network, prompt, handle credentials, or run text
 # as code. A read only collector has no use for any of them.
@@ -312,4 +312,22 @@ def test_diskio_trace_sources_and_privacy_rules_are_documented_and_kept():
     """Both diskio-trace source ids, its table and its pseudonym forms appear in the README."""
     readme = (COLLECTOR_DIR / "README.md").read_text(encoding="utf-8")
     for term in ("`wpr_trace`", "`diskio_aggregate`", "`diskio_activity`", "`<profile>`", "dir-", "image-", "The diskio-trace sources"):
+        assert term in readme, term
+
+
+def test_session_bracket_sources_and_guard_are_documented_and_kept():
+    """Every session-bracket source id appears in the README, the game guard runs first, and the process read names its properties."""
+    readme = (COLLECTOR_DIR / "README.md").read_text(encoding="utf-8")
+    script = (COLLECTOR_DIR / "session-bracket.ps1").read_text(encoding="ascii")
+    ids = re.findall(r"^\s+Id\s+=\s+'([a-z_]+)'", script, re.MULTILINE)
+    assert ids[0] == "game_guard", "the guard is the first source, so nothing else reads beside a game"
+    assert set(ids) == {"game_guard", "boot", "process_io", "disk_totals", "memory_paging", "config_readback", "power_active_scheme", "event_counts", "session_delta"}
+    for source_id in ids:
+        assert f"`{source_id}`" in readme, source_id
+    # The process list is read with named properties only: never the command line, the path or the owner.
+    for token in ("CommandLine", "ExecutablePath", "GetOwner", "Get-Process"):
+        assert token not in "\n".join(l for l in script.splitlines() if not l.lstrip().startswith("#")), token
+    # The logon task is described here but never named by path: nothing under collectors/ points at
+    # the change area (tests/test_changes_area.py).
+    for term in ("The session-bracket sources", "gap code", "ToEvidenceFolder", "logon task"):
         assert term in readme, term

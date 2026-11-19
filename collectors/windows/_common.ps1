@@ -4616,12 +4616,18 @@ function Get-WfConsoleOutputEncoding {
 }
 
 function Get-WfKnownFolderPath {
-    # ProgramData through the documented special folder, never a hard coded
-    # drive letter.
+    # ProgramData, Program Files and the running account's Desktop through
+    # the documented special folders, never a hard coded drive letter or
+    # profile path:
+    # https://learn.microsoft.com/dotnet/api/system.environment.specialfolder
+    # DesktopDirectory is "the directory used to physically store file
+    # objects on the desktop", which follows a redirected Desktop (README
+    # verification list).
     param([string]$Name)
     $path = $null
     if ($Name -eq 'ProgramData') { $path = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::CommonApplicationData) }
     elseif ($Name -eq 'ProgramFiles') { $path = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::ProgramFiles) }
+    elseif ($Name -eq 'Desktop') { $path = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::DesktopDirectory) }
     else { throw ('unknown folder name: ' + $Name) }
     # The collectors read Windows folders. A host that answers no path, or a
     # path that is not rooted at a drive (not Windows), makes a source built

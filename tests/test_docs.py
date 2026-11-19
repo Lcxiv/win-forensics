@@ -16,7 +16,8 @@ FINDING_TOKENS = ["nvlddmkm", "0x133", "97.7", "8,512", "8512", "SearchIndexer",
 
 
 def prose_files(repo_root: Path) -> list[Path]:
-    files = [repo_root / "README.md", *(repo_root / "docs").rglob("*.md"), *(repo_root / "collectors").rglob("*.md")]
+    files = [repo_root / "README.md", *(repo_root / "docs").rglob("*.md"), *(repo_root / "collectors").rglob("*.md"),
+             *(repo_root / "changes").rglob("*.md")]
     return [f for f in files if f.exists()]
 
 
@@ -28,6 +29,7 @@ def guarded_files(repo_root: Path) -> list[Path]:
     out += list((repo_root / "scripts").glob("*.sh"))
     out += list((repo_root / "collectors").rglob("*.ps1"))
     out += list((repo_root / "collectors").rglob("*.psd1"))
+    out += list((repo_root / "changes").rglob("*.ps1"))
     out += list((repo_root / "tests").glob("*.py"))
     out += list((repo_root / ".github").rglob("*.yml"))
     return out

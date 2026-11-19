@@ -66,6 +66,10 @@ ALLOWED_WPR = {
     "cancel": ["-cancel"] + INSTANCE,
 }
 
+# The session bracket's reads behind its game guard, and the rung 1 gap codes of its process delta.
+SESSION_BRACKET_READS = ("boot", "process_io", "disk_totals", "memory_paging", "config_readback", "power_active_scheme", "event_counts")
+GAP_CODES = range(0, 7)
+
 # What each committed case is there to show: summary status and the status of every source.
 EXPECTED = {
     "application-errors": ("ok", {"application_error_events": "observed"}),
@@ -127,6 +131,16 @@ EXPECTED = {
     "presentmon-frames-lost-events": ("failed", {"presentmon_frames": "capture_failed"}),
     "presentmon-frames-overflow": ("failed", {"presentmon_frames": "capture_failed"}),
     "presentmon-frames-access-denied": ("failed", {"presentmon_frames": "not_collected"}),
+    "session-bracket": ("ok", {**{source: "observed" for source in SESSION_BRACKET_READS}, "game_guard": "observed_zero"}),
+    "session-bracket-game-running": ("partial", {**{source: "not_collected" for source in SESSION_BRACKET_READS}, "game_guard": "observed"}),
+    "session-bracket-guard-failed": ("failed", {**{source: "not_collected" for source in SESSION_BRACKET_READS}, "game_guard": "not_collected"}),
+    "session-bracket-after": ("ok", {**{source: "observed" for source in SESSION_BRACKET_READS}, "game_guard": "observed_zero", "session_delta": "observed"}),
+    "session-bracket-after-reboot": ("partial", {**{source: "observed" for source in SESSION_BRACKET_READS}, "game_guard": "observed_zero",
+                                                 "session_delta": "not_collected"}),
+    "session-bracket-after-log-wrapped": ("partial", {**{source: "observed" for source in SESSION_BRACKET_READS}, "game_guard": "observed_zero",
+                                                      "event_counts": "capture_failed", "session_delta": "observed"}),
+    "session-bracket-after-no-baseline": ("partial", {**{source: "observed" for source in SESSION_BRACKET_READS}, "game_guard": "observed_zero",
+                                                      "session_delta": "not_collected"}),
 }
 
 
@@ -285,6 +299,8 @@ def test_status_and_evidence_stay_separate(case):
             assert "-OperationTimeoutSec" in collector["command"] and "-Property" in collector["command"]
             if collector["requested"]["options"]["time_property"]:
                 assert "-Filter" in collector["command"] and collector["requested"]["options"]["filter"].startswith("TimeGenerated >= '")
+        elif collector["command"][0] == "session-bracket":
+            check_session_bracket_source(case, collector, primary)
         elif collector["kind"] == "presentmon":
             assert ALLOWED_PRESENTMON.fullmatch(" ".join(collector["command"][1:])), collector["command"]
             assert collector["command"][0] == collector["requested"]["options"]["tool"]
@@ -441,6 +457,69 @@ def test_the_powercfg_allowlist_rejects_every_verb_that_writes_or_reports():
         assert not ALLOWED_POWERCFG.fullmatch(forbidden), forbidden
     for allowed in ("/list", "/getactivescheme", "/aliases", "/query", "/qh"):
         assert ALLOWED_POWERCFG.fullmatch(allowed), allowed
+
+
+def check_session_bracket_source(case: str, collector: dict, primary: list) -> None:
+    """The session bracket's own sources: the guard, the skipped reads, the counts and the delta."""
+    verb = collector["command"][1]
+    raw = BUNDLES / case / "raw" / collector["id"]
+    if verb == "skipped":
+        # The guard stopped this read: a status with its reason and a plan of what would have been read, no export.
+        assert collector["command"] == ["session-bracket", "skipped", collector["id"]]
+        assert collector["status"] == "not_collected" and "game" in collector["status_reason"] and primary == []
+        assert collector["preflight"]["ok"] is False and collector["preflight"]["checks"][0]["name"] == "game_guard"
+        assert sorted(p.name for p in raw.iterdir()) == ["query.json"]
+    elif verb == "game_guard":
+        options = collector["requested"]["options"]
+        assert options["class"] == "Win32_Process" and options["properties"] == ["Name"], "the guard reads image names only"
+        assert options["game_process_names"] == ["Overwatch.exe", "FortniteClient-Win64-Shipping.exe"]
+        if collector["status"] in OBSERVED:
+            found = json.loads((raw / "matches.json").read_text(encoding="utf-8"))
+            assert [m["name"] for m in found] == collector["enabled"]["options"]["games_found"]
+            assert collector["enabled"]["options"]["guard_blocks_read"] is (collector["status"] == "observed")
+    elif verb == "event_counts":
+        assert collector["command"][2:] == ["EventLogReader", "System", "Application"]
+        assert collector["requested"]["options"]["since_boot_utc"], "the counts start at the observed boot"
+        if collector["status"] in OBSERVED:
+            for row in json.loads((raw / "counts.json").read_text(encoding="utf-8")):
+                assert sorted(row) == ["channel", "count", "event_id", "level", "provider_name"], "counts only, never a message or event data"
+                assert row["count"] > 0
+            assert collector["raw_time_range"]["start"] == collector["requested"]["options"]["since_boot_utc"]
+    else:
+        assert verb == "session_delta", collector["command"]
+        selection = json.loads((raw / "selection.json").read_text(encoding="utf-8"))
+        if collector["status"] in OBSERVED:
+            assert selection["refused"] is None and selection["baseline_boot_utc"] == selection["boot_utc"]
+            rows = json.loads((raw / "process_delta.json").read_text(encoding="utf-8"))
+            assert {row["gap_code"] for row in rows} <= set(GAP_CODES)
+            for row in rows:
+                assert sorted(row) == ["after_name", "after_start_utc", "before_start_utc", "delta_write_bytes", "delta_write_operations",
+                                       "gap", "gap_code", "name", "process_id"], "process names and numbers only"
+                assert (row["delta_write_bytes"] is None) is (row["gap_code"] != 0)
+            csv = (raw / "delta.csv").read_text(encoding="utf-8").splitlines()
+            assert csv[0] == "name,process_id,before_start_utc,after_start_utc,delta_write_bytes,delta_write_operations,gap_code"
+            assert len(csv) == len(rows) + 1
+        else:
+            assert selection["refused"] == collector["status_reason"]
+
+
+def test_the_session_delta_names_every_gap_and_never_subtracts_across_a_reboot():
+    rows = json.loads((BUNDLES / "session-bracket-after" / "raw" / "session_delta" / "process_delta.json").read_text(encoding="utf-8"))
+    by_name = {row["name"]: row for row in rows}
+    assert {row["gap_code"] for row in rows} == set(GAP_CODES), "the after case shows every gap code"
+    # A count above 2^32 is subtracted exactly.
+    assert by_name["example-launcher.exe"]["delta_write_bytes"] == 9100000000 - 4100000000
+    assert by_name["example-updater.exe"]["gap_code"] == 2 and by_name["example-overlay.exe"]["gap_code"] == 3
+    selection = json.loads((BUNDLES / "session-bracket-after" / "raw" / "session_delta" / "selection.json").read_text(encoding="utf-8"))
+    assert [p["folder"] for p in selection["passed_over"]] == ["session-bracket-guard-failed", "session-bracket-game-running"]
+    system = json.loads((BUNDLES / "session-bracket-after" / "raw" / "session_delta" / "system_delta.json").read_text(encoding="utf-8"))
+    assert system["baseline_folder"] == "session-bracket" and all(c["same"] for c in system["config"])
+    assert {(e["provider_name"], e["event_id"]): e["delta"] for e in system["events"]}[("Display", 4101)] == 1
+    wrapped = json.loads((BUNDLES / "session-bracket-after-log-wrapped" / "raw" / "session_delta" / "system_delta.json").read_text(encoding="utf-8"))
+    assert wrapped["events"] is None and "event_counts" in wrapped["not_compared"]
+    reboot = load_manifest("session-bracket-after-reboot")
+    delta = next(c for c in reboot["collectors"] if c["id"] == "session_delta")
+    assert "another boot" in delta["status_reason"] and not (BUNDLES / "session-bracket-after-reboot" / "raw" / "session_delta" / "process_delta.json").exists()
 
 
 @pytest.mark.parametrize("case", CASES)
