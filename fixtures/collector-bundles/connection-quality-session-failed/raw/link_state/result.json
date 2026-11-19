@@ -11,6 +11,7 @@
   "session_start_qpc": 27345678971284,
   "session_stop_qpc": null,
   "qpc_frequency_hz": 10000000,
+  "boot_time_utc": "2026-02-27T12:00:00.0000000Z",
   "samples_kept": false,
   "failure": "the session failed: an exception of type System.InvalidOperationException",
   "link": {

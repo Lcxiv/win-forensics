@@ -338,6 +338,6 @@ def test_connection_quality_sources_and_privacy_rule_are_documented():
         assert term in readme, term
     script = (COLLECTOR_DIR / "connection-quality.ps1").read_text(encoding="ascii")
     code = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
-    assert sorted(set(re.findall(r"\b\d{1,3}(?:\.\d{1,3}){3}\b", code))) == ["1.1.1.1", "8.8.8.8"]
+    assert sorted(set(re.findall(r"\b\d{1,3}(?:\.\d{1,3}){3}\b", code))) == ["0.0.0.0", "1.1.1.1", "8.8.8.8"], "the default route prefix and the two public constants only"
     for token in ("Test-Connection", "Set-Dns", "Clear-DnsClientCache", "Set-Net", "New-Net", "Remove-Net", "Restart-NetAdapter", "ipconfig", "netsh"):
         assert token not in code, token

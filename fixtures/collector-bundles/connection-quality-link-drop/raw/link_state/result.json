@@ -13,6 +13,7 @@
   "session_start_qpc": 27345678971284,
   "session_stop_qpc": 27345979050484,
   "qpc_frequency_hz": 10000000,
+  "boot_time_utc": "2026-02-27T12:00:00.0000000Z",
   "samples_kept": true,
   "failure": null,
   "link": {

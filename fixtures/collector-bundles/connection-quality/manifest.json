@@ -162,8 +162,8 @@
         },
         {
           "path": "raw/gateway_probes/result.json",
-          "bytes": 604,
-          "sha256": "c6da3c27bf16770d5b2ed2b59c9b45140c8fd048c2a0e64e8a5e0d3ec09d5a9b",
+          "bytes": 655,
+          "sha256": "f2f347fc3ab9c560a06f49d17ae9cc1b37d3c3857fde2615bbe08080e3079c7e",
           "role": "report"
         },
         {
@@ -288,8 +288,8 @@
         },
         {
           "path": "raw/public_probes/result.json",
-          "bytes": 710,
-          "sha256": "9520315a0e2f044682459d85b75aad6529de753e6585a51e5fcb3077fc8d8efb",
+          "bytes": 761,
+          "sha256": "a5f9ee7126e8ad852725f9b8dcc3e9520cc5cd1092d3a76713fee5bd4522a583",
           "role": "report"
         },
         {
@@ -415,8 +415,8 @@
         },
         {
           "path": "raw/link_state/result.json",
-          "bytes": 534,
-          "sha256": "e6fd393a553ce8f9fd836e7b8f53f1026a4774579642ada0317dee2651a4fd4e",
+          "bytes": 585,
+          "sha256": "fd0199c8629a58be85f619633059ec336678a846ec8fc9b285e165d51d661c9b",
           "role": "report"
         },
         {

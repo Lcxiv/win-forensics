@@ -26,6 +26,8 @@ A third live capture, `diskio-trace`, answers what reads from and writes to disk
 
 The same directory holds `clock-calibration`, the clock session collector: for a bounded session it records the calibration triples the timestamp contract asks for (performance counter, system time, performance counter, at the start, every 5 s and at the stop), and it gives the person at the PC a mark command for a second console that stamps "I felt it here" with the same counter the kernel trace uses, without touching the game. `scripts/decode_clock.py` fits the contract's piecewise model on the Mac, writes the `clock_pairs`, `clock_segments` and `operator_marks` tables, and is the library a correlator uses to place a system time stamp on the master clock with its error bound and to refuse a join the calibration cannot support. Method, the deviation from the contract's named precise time API and the limits are in [docs/clock-calibration.md](docs/clock-calibration.md).
 
+It also holds `connection-quality`, a bounded live session that asks whether the connection from the PC drops or slows down, and where: every second an ICMP echo to the default gateway and to two public resolvers, every 10 seconds a DNS query to the gateway and to one resolver, and the link state and speed of the adapter behind the default route, each probe stamped on the performance counter so a loss can be lined up against frames, driver delays and disk activity. The gateway is the label `gateway` and the resolvers `cloudflare` and `google`; no local, gateway or hardware address, network name or DNS answer reaches a bundle. The probes are packets the PC sends and change no setting; inbox cmdlets and .NET only. A slot the PC reached late is a sampling gap, never a loss. Whether it runs while a game is played waits for the owner's word. `scripts/decode_net_quality.py` decodes it into the `net_quality` and `net_quality_bursts` tables ([collectors/windows/README.md](collectors/windows/README.md), "The connection-quality sources").
+
 The same directory holds `rf-survey`, a read only survey of the 2.4 GHz band around the desk for a PC that is on Ethernet but drives a wireless mouse and headset: which adapter carries the traffic, which networks are on the air on which channels, where the receivers sit on the USB tree, and which radios are on. Network names and hardware addresses are pseudonymised before anything is written. `scripts/decode_rf_survey.py` decodes it into five typed tables and `scripts/analyze_rf_survey.py` writes evidence rows and a plain language report with a cited recommendation for the router channel, the receiver ports and the unused radios. The method, its limits (a packet capture cannot see RF noise), and the before and after test the owner runs are in [docs/rf-survey.md](docs/rf-survey.md).
 
 It also holds `config-snapshot`, the first piece of the live latency capture: the machine configuration that confounds every run, read before and after a capture (`-Snapshot start`, `-Snapshot stop`). It records each PCI function's interrupt affinity policy and MSI mode as the registry holds them, read through the documented device key API (type and bytes, decoded alongside, never reconciled with the routing a trace shows), the GPU timeout detection values, the CPU counts and caches with the SMT sibling map from `GetLogicalProcessorInformationEx`, the active power scheme with the AC and DC processor and idle settings, and the state of two third party tuning tools (installed files with versions and hashes, running components by process name, protected copies of their configuration and journal, and a summary of the vendor log that carries none of its text). Two questions it cannot answer with a documented read only path (which power mode overlay is active, the current timer resolution) are recorded `not_collected` with their reasons rather than guessed. `scripts/decode_config_snapshot.py` decodes a bundle into `config_snapshot`, `powercfg` and `process_inventory`.
@@ -61,6 +63,7 @@ scripts/                 wf_schema.py (schema registry and validation), decode_d
                          decode_rf_survey.py and analyze_rf_survey.py (the RF survey tables, evidence rows and report),
                          decode_config_snapshot.py (config_snapshot, powercfg and process_inventory from a config-snapshot bundle),
                          decode_clock.py (the clock calibration tables, the fitted model, alignment and join refusal),
+                         decode_net_quality.py (the net_quality and net_quality_bursts tables from a connection-quality bundle),
                          verify_bundle.py (manifest, checksums, no unlisted raw file), fetch_pwsh.sh (PowerShell 7 into tools/),
                          make_procmon_pmc.py, procmon_facts.ps1 and procmon_facts_summarize.py (runner harness)
 fixtures/example-bundle/ one bundle laid out to the contract from two win-opt format fixtures
@@ -144,6 +147,14 @@ python scripts/decode_clock.py --bundle <bundle directory> [--align 2026-03-01T1
 ```
 
 which writes the three clock tables and prints the master clock, and with `--align` places a UTC stamp on it with its bound or says why it cannot.
+
+A `connection-quality` bundle is decoded with:
+
+```
+python scripts/decode_net_quality.py --bundle <bundle directory>
+```
+
+which checks the samples against the manifest and the collector's record and writes `decoded/net_quality.jsonl` (one row per probe) and `decoded/net_quality_bursts.jsonl` (runs of losses, failed queries, link down readings, route changes and sampling gaps) with their sidecars, whose checks summarise loss and round trip per target, or reports `not_collected` and writes nothing when no source was observed.
 
 A `config-snapshot` bundle is decoded with:
 

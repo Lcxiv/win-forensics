@@ -189,6 +189,8 @@ function Invoke-WfNetQualitySessionSource {
     # manifest entries (gateway_probes, public_probes, link_state).
     param($Source, [string]$BundleRoot, [int64]$MaxArtifactBytes, [int]$TimeoutSeconds, [System.Collections.Generic.List[string]]$Log, [System.Collections.Generic.List[string]]$Notes, $MachineInfo)
     $duration = [int]$Source['DurationSeconds']
+    $bootTimeUtc = $null
+    if ($null -ne $MachineInfo) { $bootTimeUtc = $MachineInfo['boot_time_utc'] }
     $interval = Get-WfNetIntervalSeconds
     $dnsEvery = Get-WfNetDnsEverySlots
     $pingTimeout = Get-WfNetPingTimeoutMilliseconds
@@ -538,6 +540,9 @@ function Invoke-WfNetQualitySessionSource {
             session_start_qpc  = $sessionStartQpc
             session_stop_qpc   = $sessionStopQpc
             qpc_frequency_hz   = $frequency
+            # The counter counts from system boot: a reader checks a join
+            # against this boot before placing a probe beside another source.
+            boot_time_utc      = $bootTimeUtc
             samples_kept       = ($entry.status -eq 'observed')
             failure            = $failure
         }
