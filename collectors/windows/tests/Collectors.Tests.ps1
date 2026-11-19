@@ -662,8 +662,8 @@ Describe 'collectors, end to end against the synthetic backend' {
             Get-WfSyntheticCases
         }) {
         Reset-WfSynthetic
-        & $Setup
         $out = Join-Path $TestDrive ('case-' + $Case)
+        & $Setup $out
         $run = Invoke-TestCollector -Collector $Collector -OutputDirectory $out -Arguments $Arguments
         $run.ExitCode | Should -Be $ExitCode
         $run.Pipeline.Count | Should -Be 0 -Because 'nothing but the summary line may reach stdout'
@@ -2852,5 +2852,424 @@ Describe 'dpcisr-trace against the synthetic backend' {
         $reportText | Should -Not -Match '02:aa:bb:cc:dd:01'
         $reportText | Should -Match 'mac-[0-9a-f]{12}'
         (Get-TraceSource -Run $run -Id 'dpcisr_report').enabled.options.mac_addresses_replaced | Should -Be 1
+    }
+}
+
+Describe 'clock-calibration against the synthetic backend' {
+    BeforeAll {
+        function Start-ClockCase {
+            param([string]$Case, [string]$OutputDirectory)
+            Reset-WfSynthetic
+            $selected = @(Get-WfSyntheticCases | Where-Object { $_['Case'] -eq $Case })[0]
+            & $selected['Setup'] $OutputDirectory
+            return $selected
+        }
+        function Get-ClockSource {
+            param($Run, [string]$Id)
+            return @($Run.Manifest.collectors | Where-Object { $_.id -eq $Id })[0]
+        }
+        function Invoke-Mark {
+            # The mark command as the person at the PC runs it; returns its exit code and its one stdout line.
+            param([string]$OutputDirectory, [string]$Label)
+            $before = $global:WfSynthetic.Stdout.Count
+            & (Join-Path $script:CollectorRoot 'clock-calibration.ps1') -OutputDirectory $OutputDirectory -Mark $Label
+            $exit = $LASTEXITCODE
+            $lines = @($global:WfSynthetic.Stdout.ToArray())[$before..($global:WfSynthetic.Stdout.Count - 1)]
+            return [pscustomobject]@{ ExitCode = $exit; Lines = @($lines); Parsed = ($lines[-1] | ConvertFrom-Json) }
+        }
+        function New-OpenSession {
+            # A directory that looks like a running session: the live marks file and a session.json with a deadline.
+            param([string]$OutputDirectory, [datetime]$AcceptsUntil)
+            $null = New-Item -ItemType Directory -Force -Path (Join-Path $OutputDirectory 'raw/operator_marks')
+            $null = New-Item -ItemType Directory -Force -Path (Join-Path $OutputDirectory 'raw/clock_calibration')
+            Write-WfTextFile -Path (Join-Path $OutputDirectory 'raw/operator_marks/marks.open.jsonl') -Text ''
+            Write-WfJsonFile -Path (Join-Path $OutputDirectory 'raw/clock_calibration/session.json') -Object ([ordered]@{ accepts_marks_until_utc = (ConvertTo-WfUtcString -Value $AcceptsUntil) })
+        }
+    }
+
+    It 'takes the pairs the contract asks for at the edges of the system clock, and writes them to the manifest and the samples file alike' {
+        $out = Join-Path $TestDrive 'clock-ok'
+        $null = Start-ClockCase -Case 'clock-calibration' -OutputDirectory $out
+        $run = Invoke-TestCollector -Collector 'clock-calibration' -OutputDirectory $out -Arguments @{ DurationSeconds = 60 }
+        $run.ExitCode | Should -Be 0
+        $clock = Get-ClockSource -Run $run -Id 'clock_calibration'
+        $clock.status | Should -BeExactly 'observed'
+        $clock.command | Should -Be @('Stopwatch.GetTimestamp', 'DateTime.UtcNow.ToFileTimeUtc', 'Stopwatch.GetTimestamp')
+        $pairs = @($run.Manifest.calibration.pairs)
+        $pairs.Count | Should -Be 13
+        $run.Manifest.calibration.expected_pairs | Should -Be 13
+        $run.Manifest.calibration.missing_pairs | Should -Be 0
+        $run.Manifest.calibration.status | Should -BeExactly 'observed'
+        $run.Manifest.calibration.qpc_frequency_hz | Should -Be 10000000
+        $run.Manifest.calibration.time_adjustment.start | Should -BeNullOrEmpty
+        $run.Manifest.calibration.time_adjustment.stop | Should -BeNullOrEmpty
+        $run.Manifest.scenario.requested_duration_s | Should -Be 60
+        @($pairs | ForEach-Object { $_.phase }) | Should -Be (@('start') + @(1..11 | ForEach-Object { 'interval' }) + @('stop'))
+        @($pairs | ForEach-Object { $_.seq }) | Should -Be @(0..12)
+        foreach ($pair in $pairs) {
+            $pair.qpc_after | Should -BeGreaterThan $pair.qpc_before
+            # The bracket runs from the counter read before the last unchanged clock reading to the one after the
+            # changed reading: five synthetic reads of 50 x 100 ns.
+            ($pair.qpc_after - $pair.qpc_before) | Should -Be 250
+            # An edge pair's file time is a whole clock increment (1 ms here).
+            ($pair.filetime_utc_100ns % 10000) | Should -Be 0
+        }
+        for ($i = 1; $i -lt $pairs.Count; $i++) {
+            $qpcSpan = $pairs[$i].qpc_before - $pairs[$i - 1].qpc_before
+            $qpcSpan | Should -BeGreaterOrEqual 49990000
+            $qpcSpan | Should -BeLessThan 50020000
+        }
+        # The system clock runs 50 ppm fast: 60 s of counter are 60.003 s of system time, read exactly at its edges.
+        ($pairs[12].filetime_utc_100ns - $pairs[0].filetime_utc_100ns) | Should -BeGreaterOrEqual 600020000
+        ($pairs[12].filetime_utc_100ns - $pairs[0].filetime_utc_100ns) | Should -BeLessOrEqual 600040000
+        $samples = @((Get-Content -LiteralPath (Join-Path $out 'raw/clock_calibration/samples.jsonl')) | Where-Object { $_ } | ForEach-Object { $_ | ConvertFrom-Json })
+        $samples.Count | Should -Be 13
+        for ($i = 0; $i -lt 13; $i++) {
+            $samples[$i].seq | Should -Be $pairs[$i].seq
+            $samples[$i].qpc_before | Should -Be $pairs[$i].qpc_before
+            $samples[$i].filetime_utc_100ns | Should -Be $pairs[$i].filetime_utc_100ns
+            $samples[$i].edge | Should -BeTrue
+            $samples[$i].step_100ns | Should -Be 10000
+            # Each wait is rounded up to a whole millisecond and the edge wait adds up to one increment, so a pair
+            # lands within 2 ms of its slot.
+            $samples[$i].late_ticks | Should -BeLessThan 20000
+        }
+        $clock.enabled.options.edge_pairs | Should -Be 13
+        $clock.enabled.options.largest_step_100ns | Should -Be 10000
+        $clock.enabled.options.qpc_high_resolution | Should -BeTrue
+        $clock.expectation.met | Should -BeTrue
+        @($clock.artifacts | ForEach-Object { $_.role } | Sort-Object) | Should -Be @('config', 'primary', 'report')
+        $session = Get-Content -LiteralPath (Join-Path $out 'raw/clock_calibration/session.json') -Raw | ConvertFrom-Json
+        (Get-TestUtcText $session.accepts_marks_until_utc) | Should -BeGreaterThan (Get-TestUtcText $session.started_utc)
+    }
+
+    It 'records the marks dropped from the second console with their own counter bracket and closes the file at the stop' {
+        $out = Join-Path $TestDrive 'clock-marks'
+        $null = Start-ClockCase -Case 'clock-calibration' -OutputDirectory $out
+        $run = Invoke-TestCollector -Collector 'clock-calibration' -OutputDirectory $out -Arguments @{ DurationSeconds = 60 }
+        $run.ExitCode | Should -Be 0
+        $run.Stdout.Count | Should -Be 1 -Because 'the mark commands print on their own stdout, not the session''s'
+        $marks = Get-ClockSource -Run $run -Id 'operator_marks'
+        $marks.status | Should -BeExactly 'observed'
+        $marks.enabled.options.marks | Should -Be 2
+        $marks.enabled.options.closed | Should -BeTrue
+        @($run.Manifest.scenario.marks | ForEach-Object { $_.label }) | Should -Be @('felt a stutter', 'second stutter, shorter')
+        $first = $run.Manifest.scenario.marks[0]
+        # 17.3 s of true time after the synthetic clock's reset, on the counter the mark process read itself.
+        ($first.qpc - $global:WfSynthetic.Clock.StartQpc) | Should -BeGreaterOrEqual 173000000
+        ($first.qpc - $global:WfSynthetic.Clock.StartQpc) | Should -BeLessThan 173001000
+        (Get-TestUtcText $first.at_utc) | Should -BeExactly '2026-03-01T12:00:17.3000000Z'
+        Test-Path -LiteralPath (Join-Path $out 'raw/operator_marks/marks.jsonl') | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $out 'raw/operator_marks/marks.open.jsonl') | Should -BeFalse -Because 'the live file is renamed right after the stop pair'
+        $lines = @(Get-Content -LiteralPath (Join-Path $out 'raw/operator_marks/marks.jsonl') | Where-Object { $_ })
+        $lines.Count | Should -Be 2
+        $record = $lines[0] | ConvertFrom-Json
+        @($record.PSObject.Properties.Name) | Should -Be @('label', 'qpc_before', 'filetime_utc_100ns', 'qpc_after', 'at_utc', 'process_id')
+        $record.process_id | Should -Be 4242
+        $instructions = Get-Content -LiteralPath (Join-Path $out 'raw/operator_marks/instructions.json') -Raw | ConvertFrom-Json
+        $instructions.how_to_mark | Should -Match '-ExecutionPolicy Bypass -File'
+        # A mark after the stop is refused and leaves nothing behind.
+        $late = Invoke-Mark -OutputDirectory $out -Label 'too late'
+        $late.ExitCode | Should -Be 1
+        $late.Parsed.error | Should -Match 'finished'
+        (Get-Content -LiteralPath (Join-Path $out 'raw/operator_marks/marks.jsonl') | Where-Object { $_ }).Count | Should -Be 2
+        @(Get-ChildItem -LiteralPath (Join-Path $out 'raw/operator_marks') -File | ForEach-Object { $_.Name } | Sort-Object) | Should -Be @('instructions.json', 'marks.jsonl', 'result.json')
+    }
+
+    It 'refuses a mark when no session is running, when the label is empty or too long, and never creates a marks file' {
+        Reset-WfSynthetic
+        $out = Join-Path $TestDrive 'clock-nosession'
+        $null = New-Item -ItemType Directory -Force -Path (Join-Path $out 'raw/operator_marks')
+        $none = Invoke-Mark -OutputDirectory $out -Label 'stutter'
+        $none.ExitCode | Should -Be 1
+        $none.Lines.Count | Should -Be 1
+        $none.Parsed.error | Should -Match 'no clock-calibration session is accepting marks'
+        Test-Path -LiteralPath (Join-Path $out 'raw/operator_marks/marks.open.jsonl') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $out 'raw/operator_marks/marks.jsonl') | Should -BeFalse
+        $missing = Invoke-Mark -OutputDirectory (Join-Path $TestDrive 'clock-nowhere') -Label 'stutter'
+        $missing.ExitCode | Should -Be 1
+        # A live file exists, but the label is unusable.
+        New-OpenSession -OutputDirectory $out -AcceptsUntil $global:WfSynthetic.Now.AddHours(1)
+        (Invoke-Mark -OutputDirectory $out -Label '   ').ExitCode | Should -Be 1
+        $empty = Invoke-Mark -OutputDirectory $out -Label ''
+        $empty.ExitCode | Should -Be 1
+        $empty.Lines.Count | Should -Be 1
+        $empty.Parsed.error | Should -Match 'the mark label is empty'
+        Test-Path -LiteralPath (Join-Path $out 'manifest.json') | Should -BeFalse
+        (Invoke-Mark -OutputDirectory $out -Label ('x' * 81)).ExitCode | Should -Be 1
+        (Invoke-Mark -OutputDirectory $out -Label "tab`there").ExitCode | Should -Be 1
+        (Get-Content -LiteralPath (Join-Path $out 'raw/operator_marks/marks.open.jsonl') -Raw) | Should -BeNullOrEmpty
+        $ok = Invoke-Mark -OutputDirectory $out -Label ('y' * 80)
+        $ok.ExitCode | Should -Be 0
+        $ok.Parsed.file | Should -BeExactly 'raw/operator_marks/marks.open.jsonl'
+        $ok.Parsed.qpc | Should -BeGreaterThan 0
+    }
+
+    It 'refuses a mark into a session that passed its deadline without finishing, or that has no session.json' {
+        Reset-WfSynthetic
+        $out = Join-Path $TestDrive 'clock-killed'
+        # The session started long ago and never wrote a manifest: it was killed. Its live file still exists.
+        New-OpenSession -OutputDirectory $out -AcceptsUntil $global:WfSynthetic.Now.AddHours(-2)
+        $late = Invoke-Mark -OutputDirectory $out -Label 'stutter'
+        $late.ExitCode | Should -Be 1
+        $late.Parsed.error | Should -Match 'passed its deadline'
+        (Get-Content -LiteralPath (Join-Path $out 'raw/operator_marks/marks.open.jsonl') -Raw) | Should -BeNullOrEmpty
+        Remove-Item -LiteralPath (Join-Path $out 'raw/clock_calibration/session.json')
+        $none = Invoke-Mark -OutputDirectory $out -Label 'stutter'
+        $none.ExitCode | Should -Be 1
+        $none.Parsed.error | Should -Match 'session.json'
+    }
+
+    It 'keeps every mark when several mark commands append at once, and holds the cap' {
+        # Eight real processes append through the real mark command (the Windows adapters, not the synthetic
+        # ones: the counter is Stopwatch on this host too) into one live file at the same time.
+        $out = Join-Path $TestDrive 'clock-concurrent'
+        New-OpenSession -OutputDirectory $out -AcceptsUntil ([datetime]::UtcNow.AddHours(1))
+        $live = Join-Path $out 'raw/operator_marks/marks.open.jsonl'
+        $barrier = Join-Path $TestDrive 'clock-concurrent-go'
+        if (Test-Path -LiteralPath $barrier) { Remove-Item -LiteralPath $barrier }
+        $collector = Join-Path $script:CollectorRoot 'clock-calibration.ps1'
+        $worker = Join-Path $TestDrive 'mark-worker.ps1'
+        Write-WfTextFile -Path $worker -Text @"
+param([string]`$Barrier, [string]`$Directory, [string]`$Worker, [int]`$Count)
+while (-not (Test-Path -LiteralPath `$Barrier)) { Start-Sleep -Milliseconds 5 }
+`$failed = 0
+for (`$i = 1; `$i -le `$Count; `$i++) {
+    `$null = & '$collector' -OutputDirectory `$Directory -Mark ('w' + `$Worker + '-' + `$i) 2>&1
+    if (`$LASTEXITCODE -ne 0) { `$failed += 1 }
+}
+[Console]::Out.WriteLine('failed=' + `$failed)
+"@
+        $pwsh = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+        $processes = @()
+        foreach ($w in 1..8) {
+            $info = New-Object System.Diagnostics.ProcessStartInfo
+            $info.FileName = $pwsh
+            $info.Arguments = ('-NoProfile -NonInteractive -File "{0}" -Barrier "{1}" -Directory "{2}" -Worker {3} -Count 40' -f $worker, $barrier, $out, $w)
+            $info.UseShellExecute = $false
+            $info.RedirectStandardOutput = $true
+            $processes += [System.Diagnostics.Process]::Start($info)
+        }
+        Start-Sleep -Milliseconds 500
+        Write-WfTextFile -Path $barrier -Text 'go'
+        $failed = 0
+        foreach ($process in $processes) {
+            $process.WaitForExit(120000) | Should -BeTrue
+            # The mark command prints its own JSON line per mark; the worker's last line is its count of failures.
+            $last = @($process.StandardOutput.ReadToEnd().Trim() -split "`n")[-1].Trim()
+            $last | Should -Match '^failed=\d+$'
+            $failed += [int]($last.Substring(7))
+            $process.Dispose()
+        }
+        $lines = @(Get-Content -LiteralPath $live | Where-Object { $_ })
+        $shape = '^\{"label":"w\d-\d+","qpc_before":\d+,"filetime_utc_100ns":\d+,"qpc_after":\d+,"at_utc":"[^"]+","process_id":\d+\}$'
+        # Every acknowledged append survives exactly once, whole, and nothing else is in the file.
+        @($lines | Where-Object { $_ -notmatch $shape }).Count | Should -Be 0
+        $lines.Count | Should -Be (320 - $failed)
+        @($lines | ForEach-Object { ($_ | ConvertFrom-Json).label } | Sort-Object -Unique).Count | Should -Be $lines.Count
+        $failed | Should -BeLessThan 320
+        # The cap holds under concurrency: fill the file to just under the smallest cap and let eight writers race.
+        $cap = Join-Path $TestDrive 'clock-cap'
+        New-OpenSession -OutputDirectory $cap -AcceptsUntil ([datetime]::UtcNow.AddHours(1))
+        $capLive = Join-Path $cap 'raw/operator_marks/marks.open.jsonl'
+        $filler = '{"label":"' + ('f' * 60) + '","qpc_before":1,"filetime_utc_100ns":134168400000000000,"qpc_after":2,"at_utc":"2026-03-01T12:00:00.0000000Z","process_id":1}'
+        $builder = New-Object System.Text.StringBuilder
+        while ($builder.Length -lt (1048576 - 2 * ($filler.Length + 1))) { $null = $builder.Append($filler).Append("`n") }
+        Write-WfTextFile -Path $capLive -Text $builder.ToString()
+        $before = (Get-Item -LiteralPath $capLive).Length
+        $processes = @()
+        $capBarrier = Join-Path $TestDrive 'clock-cap-go'
+        foreach ($w in 1..8) {
+            $info = New-Object System.Diagnostics.ProcessStartInfo
+            $info.FileName = $pwsh
+            $info.Arguments = ('-NoProfile -NonInteractive -Command "& ''{0}'' -OutputDirectory ''{1}'' -Mark ''cap{2}'' -MaxArtifactBytes 1048576; exit $LASTEXITCODE"' -f $collector, $cap, $w)
+            $info.UseShellExecute = $false
+            $processes += [System.Diagnostics.Process]::Start($info)
+        }
+        $succeeded = 0
+        foreach ($process in $processes) {
+            $process.WaitForExit(120000) | Should -BeTrue
+            if ($process.ExitCode -eq 0) { $succeeded += 1 }
+            $process.Dispose()
+        }
+        (Get-Item -LiteralPath $capLive).Length | Should -BeLessOrEqual 1048576
+        $capLines = @(Get-Content -LiteralPath $capLive | Where-Object { $_ -like '{"label":"cap*' })
+        $capLines.Count | Should -Be $succeeded
+        $succeeded | Should -BeLessOrEqual 1 -Because 'room was left for at most one more mark'
+        (Get-Item -LiteralPath $capLive).Length | Should -BeGreaterOrEqual $before
+    }
+
+    It 'treats a line that is not a mark as a lost mark: the source is capture_failed and the file is kept as written' {
+        $out = Join-Path $TestDrive 'clock-malformed'
+        $null = Start-ClockCase -Case 'clock-calibration-missed-slot' -OutputDirectory $out
+        # Something else writes into the live file during the session: a plain line and a mark with an escape the writer never produces.
+        $global:WfSynthetic.Clock.Marks = @(@{ AtElapsed100ns = 150000000; Label = 'real mark' })
+        $global:WfSynthetic.Clock.OvershootMs = @{}
+        $hook = Join-Path $out 'raw/operator_marks/marks.open.jsonl'
+        $original = ${function:Invoke-WfSyntheticMark}
+        try {
+            function Invoke-WfSyntheticMark {
+                param([string]$Label, [string]$OutputDirectory)
+                & $original -Label $Label -OutputDirectory $OutputDirectory
+                $forged = '{"label":"bad \q escape","qpc_before":1,"filetime_utc_100ns":134168400000000000,"qpc_after":2,"at_utc":"2026-03-01T12:00:00.0000000Z","process_id":1}'
+                [System.IO.File]::AppendAllText($hook, "not a mark`n" + $forged + "`n", (New-Object System.Text.UTF8Encoding($false)))
+            }
+            $run = Invoke-TestCollector -Collector 'clock-calibration' -OutputDirectory $out -Arguments @{ DurationSeconds = 30 }
+        } finally {
+            ${function:Invoke-WfSyntheticMark} = $original
+        }
+        $run.ExitCode | Should -Be 0
+        ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'partial'
+        $marks = Get-ClockSource -Run $run -Id 'operator_marks'
+        $marks.status | Should -BeExactly 'capture_failed'
+        $marks.status_reason | Should -Match '2 line\(s\) of the marks file are not marks'
+        $marks.expectation.met | Should -BeFalse
+        @($marks.artifacts | Where-Object { $_.role -eq 'primary' }).Count | Should -Be 1 -Because 'the file is kept so nothing is lost, and the status says it is incomplete'
+        @($run.Manifest.scenario.marks).Count | Should -Be 1
+        (Get-ClockSource -Run $run -Id 'clock_calibration').status | Should -BeExactly 'observed'
+    }
+
+    It 'refuses the whole session when the managed timer is not the high resolution counter' {
+        Reset-WfSynthetic
+        $global:WfSynthetic.Clock = New-WfSyntheticClock -HighResolution $false
+        $out = Join-Path $TestDrive 'clock-noqpc'
+        $run = Invoke-TestCollector -Collector 'clock-calibration' -OutputDirectory $out -Arguments @{ DurationSeconds = 20 }
+        $run.ExitCode | Should -Be 1
+        ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'failed'
+        $clock = Get-ClockSource -Run $run -Id 'clock_calibration'
+        $clock.status | Should -BeExactly 'unsupported'
+        $clock.status_reason | Should -Match 'IsHighResolution'
+        $clock.preflight.ok | Should -BeFalse
+        (Get-ClockSource -Run $run -Id 'operator_marks').status | Should -BeExactly 'unsupported'
+        $run.Manifest.calibration.status | Should -BeExactly 'unsupported'
+        $run.Manifest.calibration.pairs.Count | Should -Be 0
+        $run.Manifest.calibration.missing_pairs | Should -Be $run.Manifest.calibration.expected_pairs
+        @(Get-ChildItem -LiteralPath (Join-Path $out 'raw') -File -Recurse | ForEach-Object { $_.Name } | Sort-Object) | Should -Be @('instructions.json', 'result.json', 'result.json', 'session.json')
+        # And a mark is refused too.
+        Reset-WfSynthetic
+        $global:WfSynthetic.Clock = New-WfSyntheticClock -HighResolution $false
+        $dir = Join-Path $TestDrive 'clock-noqpc-mark'
+        New-OpenSession -OutputDirectory $dir -AcceptsUntil $global:WfSynthetic.Now.AddHours(1)
+        $mark = Invoke-Mark -OutputDirectory $dir -Label 'stutter'
+        $mark.ExitCode | Should -Be 1
+        $mark.Parsed.error | Should -Match 'high resolution'
+    }
+
+    It 'keeps the pairs taken when a counter read fails after two of them, counts the stop pair missing, and closes the marks file' {
+        $out = Join-Path $TestDrive 'clock-readfail'
+        $null = Start-ClockCase -Case 'clock-calibration-read-failed' -OutputDirectory $out
+        $run = Invoke-TestCollector -Collector 'clock-calibration' -OutputDirectory $out -Arguments @{ DurationSeconds = 20 }
+        $run.ExitCode | Should -Be 0
+        ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'ok'
+        $clock = Get-ClockSource -Run $run -Id 'clock_calibration'
+        $clock.status | Should -BeExactly 'observed'
+        $clock.status_reason | Should -BeNullOrEmpty
+        $clock.expectation.met | Should -BeFalse
+        $clock.expectation.detail | Should -Match 'performance counter read failed'
+        $clock.expectation.detail | Should -Match 'stop pair taken: False'
+        $clock.enabled.options.failure | Should -Match 'performance counter read failed'
+        Test-Path -LiteralPath (Join-Path $out 'raw/clock_calibration/samples.jsonl') | Should -BeTrue
+        $run.Manifest.calibration.status | Should -BeExactly 'observed'
+        $run.Manifest.calibration.pairs.Count | Should -Be 4
+        $run.Manifest.calibration.expected_pairs | Should -Be 5
+        $run.Manifest.calibration.missing_pairs | Should -Be 1
+        @($run.Manifest.calibration.pairs | ForEach-Object { $_.phase }) | Should -Be @('start', 'interval', 'interval', 'interval')
+        $run.Stderr | Should -Contain ('source clock_calibration: the session failed: synthetic backend: the performance counter read failed; the 4 pairs taken are kept and the 1 pairs not taken (the stop pair included) are counted in missing_pairs; timestamps after the last pair are unaligned')
+        $marks = Get-ClockSource -Run $run -Id 'operator_marks'
+        $marks.status | Should -BeExactly 'observed_zero'
+        $marks.enabled.options.closed | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $out 'raw/operator_marks/marks.jsonl') | Should -BeTrue
+    }
+
+    It 'is capture_failed with no samples file when a read fails before two pairs exist' {
+        Reset-WfSynthetic
+        # The first counter read after the start pair throws: one pair is not a calibration.
+        $global:WfSynthetic.Clock = New-WfSyntheticClock -Increment100ns 10000 -ThrowAtElapsed100ns 20000000
+        $out = Join-Path $TestDrive 'clock-onepair'
+        $run = Invoke-TestCollector -Collector 'clock-calibration' -OutputDirectory $out -Arguments @{ DurationSeconds = 20 }
+        $run.ExitCode | Should -Be 0
+        ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'partial'
+        $clock = Get-ClockSource -Run $run -Id 'clock_calibration'
+        $clock.status | Should -BeExactly 'capture_failed'
+        $clock.status_reason | Should -Match '1 pair had been taken and is not kept'
+        Test-Path -LiteralPath (Join-Path $out 'raw/clock_calibration/samples.jsonl') | Should -BeFalse
+        $run.Manifest.calibration.pairs.Count | Should -Be 0
+        $run.Manifest.calibration.missing_pairs | Should -Be 5
+        (Get-ClockSource -Run $run -Id 'operator_marks').status | Should -BeExactly 'observed_zero'
+    }
+
+    It 'records a slot reached more than one interval late as missing, not as a late pair' {
+        $out = Join-Path $TestDrive 'clock-missed'
+        $null = Start-ClockCase -Case 'clock-calibration-missed-slot' -OutputDirectory $out
+        $run = Invoke-TestCollector -Collector 'clock-calibration' -OutputDirectory $out -Arguments @{ DurationSeconds = 30 }
+        $run.ExitCode | Should -Be 0
+        $clock = Get-ClockSource -Run $run -Id 'clock_calibration'
+        $clock.status | Should -BeExactly 'observed'
+        $clock.expectation.met | Should -BeFalse -Because 'the expectation is the full count (timestamps.md section 3, the clock calibration exception)'
+        $clock.expectation.detail | Should -Match '1 missing'
+        $run.Manifest.calibration.missing_pairs | Should -Be 1
+        $run.Manifest.calibration.expected_pairs | Should -Be 7
+        @($run.Manifest.calibration.pairs | ForEach-Object { $_.seq }) | Should -Be @(0, 1, 3, 4, 5, 6)
+        $report = Get-Content -LiteralPath (Join-Path $out 'raw/clock_calibration/result.json') -Raw | ConvertFrom-Json
+        @($report.missed_slots).Count | Should -Be 1
+        $report.missed_slots[0].seq | Should -Be 2
+        $report.largest_step_100ns | Should -Be 156250
+        $run.Stderr | Should -Contain ('source clock_calibration: 1 of 7 expected pairs are missing (interval slots the session reached more than one interval late); the calibration is usable over longer segments, see docs/contracts/timestamps.md section 4.5')
+    }
+
+    It 'fails the session at its deadline instead of running past the dispatcher' {
+        Reset-WfSynthetic
+        # The first wait overruns by 90 s: a 20 s session with an 80 s deadline hits it before its first interval
+        # slot, with only the start pair taken.
+        $global:WfSynthetic.Clock = New-WfSyntheticClock -OvershootMs @{ 1 = 90000 }
+        $out = Join-Path $TestDrive 'clock-deadline'
+        $run = Invoke-TestCollector -Collector 'clock-calibration' -OutputDirectory $out -Arguments @{ DurationSeconds = 20 }
+        $run.ExitCode | Should -Be 0
+        $clock = Get-ClockSource -Run $run -Id 'clock_calibration'
+        $clock.status | Should -BeExactly 'capture_failed'
+        $clock.status_reason | Should -Match 'passed its deadline of 80 s before slot 1'
+        Test-Path -LiteralPath (Join-Path $out 'raw/clock_calibration/samples.jsonl') | Should -BeFalse
+        (Get-ClockSource -Run $run -Id 'operator_marks').enabled.options.closed | Should -BeTrue
+        # The same overrun after two pairs keeps them and counts the rest missing.
+        Reset-WfSynthetic
+        $global:WfSynthetic.Clock = New-WfSyntheticClock -OvershootMs @{ 2 = 90000 }
+        $out2 = Join-Path $TestDrive 'clock-deadline-2'
+        $run2 = Invoke-TestCollector -Collector 'clock-calibration' -OutputDirectory $out2 -Arguments @{ DurationSeconds = 20 }
+        $clock2 = Get-ClockSource -Run $run2 -Id 'clock_calibration'
+        $clock2.status | Should -BeExactly 'observed'
+        $clock2.expectation.met | Should -BeFalse
+        $clock2.enabled.options.failure | Should -Match 'passed its deadline of 80 s before slot 2'
+        $run2.Manifest.calibration.pairs.Count | Should -Be 2
+        $run2.Manifest.calibration.missing_pairs | Should -Be 3
+    }
+
+    It 'rejects a duration outside its range with a failed summary and no bundle' {
+        Reset-WfSynthetic
+        foreach ($arguments in @(@{ DurationSeconds = 5 }, @{ DurationSeconds = 9 }, @{ DurationSeconds = 841 })) {
+            $out = Join-Path $TestDrive ('clock-range-' + [guid]::NewGuid().ToString('N').Substring(0, 6))
+            $run = Invoke-TestCollector -Collector 'clock-calibration' -OutputDirectory $out -Arguments $arguments
+            $run.ExitCode | Should -Be 1
+            $run.Stdout.Count | Should -Be 1
+            ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'failed'
+            Test-Path -LiteralPath $out | Should -BeFalse
+        }
+    }
+
+    It 'is dispatched like every other collector: one summary line, the bundle is the directory given' {
+        $out = Join-Path $TestDrive 'clock-seam'
+        $null = Start-ClockCase -Case 'clock-calibration-clock-step' -OutputDirectory $out
+        $run = Invoke-TestCollector -Collector 'clock-calibration' -OutputDirectory $out -Arguments @{ DurationSeconds = 30 }
+        $run.Pipeline.Count | Should -Be 0
+        $run.Stdout.Count | Should -Be 1
+        $summary = $run.Stdout[0] | ConvertFrom-Json
+        $summary.collector | Should -BeExactly 'clock-calibration'
+        $summary.bundle | Should -BeExactly $out
+        $summary.artifacts | Should -Be 6
+        $run.Manifest.scenario.id | Should -BeExactly 'clock_calibration'
+        # The collector records the pairs as they are; the step is the Mac side fit's business.
+        $pairs = @($run.Manifest.calibration.pairs)
+        ($pairs[3].filetime_utc_100ns - $pairs[2].filetime_utc_100ns) | Should -BeGreaterOrEqual 52490000
+        ($pairs[3].filetime_utc_100ns - $pairs[2].filetime_utc_100ns) | Should -BeLessOrEqual 52510000
+        ($pairs[3].qpc_before - $pairs[2].qpc_before) | Should -BeLessThan 50020000
     }
 }

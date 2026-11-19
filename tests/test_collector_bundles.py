@@ -48,6 +48,10 @@ EXPECTED = {
     "application-errors": ("ok", {"application_error_events": "observed"}),
     "bugcheck-history": ("ok", {"system_restart_events": "observed"}),
     "bugcheck-history-access-denied": ("failed", {"system_restart_events": "not_collected"}),
+    "clock-calibration": ("ok", {"clock_calibration": "observed", "operator_marks": "observed"}),
+    "clock-calibration-clock-step": ("ok", {"clock_calibration": "observed", "operator_marks": "observed"}),
+    "clock-calibration-missed-slot": ("ok", {"clock_calibration": "observed", "operator_marks": "observed_zero"}),
+    "clock-calibration-read-failed": ("ok", {"clock_calibration": "observed", "operator_marks": "observed_zero"}),
     "driver-inventory": ("ok", {"pnp_signed_drivers": "observed", "system_drivers": "observed"}),
     "reliability-records": ("ok", {"reliability_records": "observed", "reliability_stability_metrics": "observed"}),
     "rf-survey": ("ok", {"net_adapters": "observed", "default_routes": "observed", "wlan_interfaces": "observed", "wlan_drivers": "observed",
@@ -152,9 +156,22 @@ def test_manifest_identifies_the_collector(case):
         assert manifest["capture"]["elevated"] is (case != "dpcisr-trace-not-elevated")
         assert manifest["calibration"]["status"] == "not_collected" and manifest["calibration"]["pairs"] == []
         assert manifest["scenario"]["requested_duration_s"] == 10
+    elif name == "clock-calibration":
+        assert manifest["capture"]["elevated"] is False, "the clock collector runs as a standard account"
+        clock = next(c for c in manifest["collectors"] if c["id"] == "clock_calibration")
+        assert manifest["calibration"]["status"] == clock["status"], "the calibration section carries the clock source's own status"
+        assert manifest["calibration"]["qpc_frequency_hz"] == manifest["machine"]["cpu"]["qpc_frequency_hz"]
+        assert manifest["calibration"]["time_adjustment"] == {"start": None, "stop": None}, "GetSystemTimeAdjustment is not reachable without compiling code"
+        assert manifest["scenario"]["requested_duration_s"] == clock["requested"]["options"]["duration_seconds"]
+        if clock["status"] == "observed":
+            assert len(manifest["calibration"]["pairs"]) == clock["enabled"]["options"]["pairs_taken"] >= 2
+            assert manifest["calibration"]["expected_pairs"] == len(manifest["calibration"]["pairs"]) + manifest["calibration"]["missing_pairs"]
+        else:
+            assert manifest["calibration"]["pairs"] == [] and manifest["calibration"]["missing_pairs"] == manifest["calibration"]["expected_pairs"]
     else:
         assert manifest["capture"]["elevated"] is False, "the history collectors run as a standard account"
         assert manifest["calibration"]["status"] == "not_applicable" and manifest["calibration"]["pairs"] == []
+        assert manifest["scenario"]["marks"] == []
     assert manifest["machine"]["hostname"] == "SYNTHETIC-PC", "fixtures never carry a real host name"
     tool_names = [t["name"] for t in manifest["tools"]]
     base = ["powershell", "wevtutil", f"collector:{name}", "collector-helper:_common.ps1"]
@@ -189,7 +206,12 @@ def test_status_and_evidence_stay_separate(case):
         if collector["status"] in OBSERVED:
             assert collector["status_reason"] is None and len(primary) == 1
             assert collector["preflight"]["ok"] is True
-            assert collector["expectation"]["met"] is True
+            if collector["kind"] == "clock":
+                # The clock calibration exception (timestamps.md section 3, measurement-status.md section 2): two or more
+                # pairs are observed even when pairs are missing; the expectation is the full count and says so.
+                assert collector["expectation"]["met"] is (manifest["calibration"]["missing_pairs"] == 0)
+            else:
+                assert collector["expectation"]["met"] is True
             assert collector["raw_time_range"] is not None, "an observation states the range it covers"
         else:
             assert collector["status_reason"]
@@ -310,6 +332,22 @@ def test_status_and_evidence_stay_separate(case):
                 assert ("-tle" in collector["command"]) is (collector["status"] == "capture_failed"), "tolerate lost events only after a loss, and then the report inherits the failure"
             else:
                 assert primary == []
+        elif collector["kind"] == "clock":
+            assert collector["command"] == ["Stopwatch.GetTimestamp", "DateTime.UtcNow.ToFileTimeUtc", "Stopwatch.GetTimestamp"], "the contract's read order"
+            options = collector["requested"]["options"]
+            assert options["interval_seconds"] == 5 and 10 <= options["duration_seconds"] <= 840
+            assert options["timeout_seconds"] == options["duration_seconds"] + 60
+            if collector["status"] in OBSERVED:
+                assert primary[0]["path"].endswith("/samples.jsonl")
+                assert collector["enabled"]["options"]["qpc_high_resolution"] is True
+                assert collector["enabled"]["options"]["pairs_taken"] >= 2
+                assert collector["enabled"]["options"]["stop_pair_taken"] is (manifest["calibration"]["missing_pairs"] == 0 or case == "clock-calibration-missed-slot")
+            else:
+                assert "fewer than two" in collector["status_reason"] or "not kept" in collector["status_reason"]
+        elif collector["id"] == "operator_marks":
+            assert collector["command"][0] == "clock-calibration.ps1" and "-Mark" in collector["command"]
+            if collector["status"] in OBSERVED:
+                assert primary[0]["path"].endswith("/marks.jsonl") and collector["enabled"]["options"]["closed"] is True
         else:
             assert "Win32_PnPEntity" in collector["command"] and "Get-PnpDeviceProperty" in collector["command"]
         config = [a for a in collector["artifacts"] if a["role"] == "config"]
@@ -370,6 +408,14 @@ def test_observed_zero_is_an_empty_export_inside_a_covered_range(case):
             assert "Lost" in text, "the summary carries the final loss figures"
         elif primary[0]["path"].endswith("/dpcisr.txt"):
             assert "DPC Info" in text and "Interrupt Info" in text
+        elif primary[0]["path"].endswith(".jsonl"):
+            # JSON lines (the clock collector): one object per line, zero lines for observed_zero.
+            lines = [json.loads(line) for line in text.splitlines() if line.strip()]
+            assert all(isinstance(line, dict) for line in lines)
+            if collector["status"] == "observed_zero":
+                assert lines == [] and text == ""
+            if collector["status"] == "observed":
+                assert lines
         else:
             # A netsh output: text, kept whole, never empty.
             assert text.strip(), "a text primary is never empty"

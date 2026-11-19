@@ -12,7 +12,7 @@ COLLECTOR_NAME = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 HELPER = "_common.ps1"
 SHIPPED = sorted(COLLECTOR_DIR.glob("*.ps1"))
 COLLECTORS = [p for p in SHIPPED if p.name != HELPER]
-EXPECTED_COLLECTORS = ["application-errors", "bugcheck-history", "config-snapshot", "dpcisr-trace", "driver-inventory", "reliability-records", "rf-survey", "tdr-events", "whea-errors"]
+EXPECTED_COLLECTORS = ["application-errors", "bugcheck-history", "clock-calibration", "config-snapshot", "dpcisr-trace", "driver-inventory", "reliability-records", "rf-survey", "tdr-events", "whea-errors"]
 
 # Commands that change the machine, reach the network, prompt, handle credentials, or run text
 # as code. A read only collector has no use for any of them.
@@ -162,12 +162,16 @@ def test_shipped_scripts_are_read_only(path):
     # The only deletions are of the collector's own exports inside the output directory: a failed or
     # over-cap .evtx, and a primary export that must not be left behind ($Path is the primary passed to
     # Remove-WfPrimaryUnlessKept; the others are the primaries of the event, WMI, netsh, file, device,
-    # registry, directory, trace and report sources).
+    # registry, directory, trace and report sources, and the clock collector's samples and marks files).
     removals = [line.strip() for line in code.splitlines() if "Remove-Item" in line]
     own = ("-LiteralPath $evtxPath", "-LiteralPath $recordsPath", "-LiteralPath $eventsPath", "-LiteralPath $outputPath",
            "-LiteralPath $primaryPath", "-LiteralPath $devicesPath", "-LiteralPath $keysPath", "-LiteralPath $listingPath",
            "-LiteralPath $topologyPath", "-LiteralPath $summaryPath", "-LiteralPath $Path -Force",
-           "-LiteralPath $reportPath -Force", "-LiteralPath $privateDir -Recurse -Force")
+           "-LiteralPath $reportPath -Force", "-LiteralPath $privateDir -Recurse -Force",
+           "-LiteralPath $samplesPath", "-LiteralPath $finalPath", "-LiteralPath $livePath")
+    # The only rename is the clock collector closing its live marks file inside raw/operator_marks.
+    moves = [line.strip() for line in code.splitlines() if "::Move(" in line]
+    assert all("$LivePath, $FinalPath" in m for m in moves), moves
     assert all(any(marker in r for marker in own) for r in removals), removals
     # The only process runner is the helper's: wevtutil with the export verb, netsh and powercfg (checked on
     # what the runs record, test_collector_bundles and the Pester suite), the inbox wpr and a pinned xperf
@@ -293,3 +297,10 @@ def test_read_only_guard_reaches_into_and_past_the_native_blocks(mutation, token
     assert token in forbidden_tokens(code, True), mutation
     if mutation == "add_type_after_last_function":
         assert native_boundary_errors(code), mutation
+
+
+def test_clock_calibration_sources_are_documented():
+    """Both clock-calibration source ids appear in the README."""
+    readme = (COLLECTOR_DIR / "README.md").read_text(encoding="utf-8")
+    for source_id in ("clock_calibration", "operator_marks"):
+        assert f"`{source_id}`" in readme, source_id

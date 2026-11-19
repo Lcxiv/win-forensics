@@ -25,9 +25,13 @@
 # device key API), topology (the logical processor map through the documented
 # API), pnp (present Plug and Play devices with their parent chain),
 # unavailable (a question the collector cannot answer with a documented read
-# only path, recorded as a status with its reason), and script (a source the
+# only path, recorded as a status with its reason), script (a source the
 # collector implements itself with a scriptblock, used by the live capture
-# collector dpcisr-trace, which keeps its session control local).
+# collector dpcisr-trace, which keeps its session control local), and custom
+# (a function the collector script itself defines, named in the definition;
+# it receives the bundle root and returns its manifest entries, and may fill
+# the manifest's calibration section and the scenario marks;
+# clock-calibration uses it).
 #
 # Target: Windows PowerShell 5.1 as a standard account in Event Log Readers.
 # Contracts: docs/contracts/bundle.md, docs/contracts/measurement-status.md,
@@ -3743,6 +3747,11 @@ function Invoke-WfCollector {
     $context = @{ Salt = (New-WfPseudonymSalt); Ssids = (New-Object 'System.Collections.Generic.List[string]'); Tools = (New-Object 'System.Collections.Generic.List[object]') }
     $protects = $false
     $copies = $false
+    # A custom source may hand back the calibration section, the operator
+    # marks and the session length; the manifest below uses them when present.
+    $calibration = $null
+    $marks = @()
+    $requestedDuration = $null
     # A definition may name a Cleanup scriptblock that runs after the last
     # source, and on the way out of a failure, before anything is listed or
     # written: the live capture uses it to remove the kernel trace, which
@@ -3753,6 +3762,19 @@ function Invoke-WfCollector {
     try {
     foreach ($source in $sources) {
         $type = [string]$source['Type']
+        if ($type -eq 'custom') {
+            $invoke = [string]$source['Invoke']
+            if (-not $invoke -or -not (Get-Command -Name $invoke -CommandType Function -ErrorAction SilentlyContinue)) {
+                throw ('custom source ' + [string]$source['Id'] + ' names no function the collector defines: ' + $invoke)
+            }
+            $result = & $invoke -Source $source -BundleRoot $bundleRoot -MaxArtifactBytes $MaxArtifactBytes `
+                -TimeoutSeconds $TimeoutSeconds -Log $log -Notes $notes -MachineInfo $machineInfo
+            if ($result.Contains('Calibration') -and $null -ne $result['Calibration']) { $calibration = $result['Calibration'] }
+            if ($result.Contains('Marks') -and $null -ne $result['Marks']) { $marks = @($result['Marks']) }
+            if ($result.Contains('RequestedDurationSeconds') -and $null -ne $result['RequestedDurationSeconds']) { $requestedDuration = $result['RequestedDurationSeconds'] }
+            if ($result.Contains('Entries')) { foreach ($extra in @($result['Entries'])) { $entries.Add($extra) } }
+            continue
+        }
         if ($type -eq 'eventlog') {
             if ($source['Protect']) { $protects = $true }
             $result = Invoke-WfEventSource -Source $source -BundleRoot $bundleRoot -WindowDays $WindowDays -MaxEvents $MaxEvents `
@@ -3836,22 +3858,28 @@ function Invoke-WfCollector {
     if ($context['Tools'].Count -gt 0) { $tools = @($tools) + @($context['Tools'].ToArray()) }
 
     # A live capture collector states its own calibration section and the
-    # duration it was asked for; history collectors keep the defaults below.
-    $calibration = [ordered]@{
-        status           = 'not_applicable'
-        method           = 'none: this collector reads historical records that carry their own UTC system time, so there is no QPC session to calibrate'
-        qpc_frequency_hz = $machineInfo['qpc_frequency_hz']
-        expected_pairs   = 0
-        pairs            = @()
-        missing_pairs    = 0
-        time_adjustment  = [ordered]@{ start = $null; stop = $null }
-        boot_time_utc    = $machineInfo['boot_time_utc']
+    # duration it was asked for (a custom source handed them back above);
+    # history collectors keep the defaults below.
+    if ($null -eq $calibration) {
+        $calibration = [ordered]@{
+            status           = 'not_applicable'
+            method           = 'none: this collector reads historical records that carry their own UTC system time, so there is no QPC session to calibrate'
+            qpc_frequency_hz = $machineInfo['qpc_frequency_hz']
+            expected_pairs   = 0
+            pairs            = @()
+            missing_pairs    = 0
+            time_adjustment  = [ordered]@{ start = $null; stop = $null }
+            boot_time_utc    = $machineInfo['boot_time_utc']
+        }
+        if ($Definition['Calibration']) {
+            foreach ($key in @('status', 'method')) { if ($Definition['Calibration'].Contains($key)) { $calibration[$key] = [string]$Definition['Calibration'][$key] } }
+        }
     }
-    if ($Definition['Calibration']) {
-        foreach ($key in @('status', 'method')) { if ($Definition['Calibration'].Contains($key)) { $calibration[$key] = [string]$Definition['Calibration'][$key] } }
+    if ($null -ne $requestedDuration) { $requestedDuration = [int64]$requestedDuration }
+    else {
+        $requestedDuration = $(if ($windowed) { [int64]$WindowDays * 86400 } else { 0 })
+        if ($Definition['RequestedDurationSeconds']) { $requestedDuration = [int64]$Definition['RequestedDurationSeconds'] }
     }
-    $requestedDuration = $(if ($windowed) { [int64]$WindowDays * 86400 } else { 0 })
-    if ($Definition['RequestedDurationSeconds']) { $requestedDuration = [int64]$Definition['RequestedDurationSeconds'] }
 
     $allNotes = New-Object 'System.Collections.Generic.List[string]'
     $allNotes.Add(('Read only collector {0} version {1}: {2}' -f $name, [string]$Definition['Version'], [string]$Definition['Question']))
@@ -3878,7 +3906,7 @@ function Invoke-WfCollector {
             version              = [string]$Definition['Version']
             requested_duration_s = $requestedDuration
             target_process       = $null
-            marks                = @()
+            marks                = @($marks)
         }
         capture            = [ordered]@{
             start_utc            = ConvertTo-WfUtcString -Value $start
@@ -3969,6 +3997,49 @@ function Invoke-WfCollectorScript {
 
 function Get-WfUtcNow {
     return [datetime]::UtcNow
+}
+
+# Clock reads for the clock-calibration collector. Microsoft documents that
+# the managed Stopwatch class "uses QPC as its precise time basis" and that
+# its Frequency field and GetTimestamp method "can be used in place of the
+# unmanaged Windows APIs QueryPerformanceFrequency and QueryPerformanceCounter":
+# https://learn.microsoft.com/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
+# https://learn.microsoft.com/dotnet/api/system.diagnostics.stopwatch
+# IsHighResolution says whether that is the case on this machine:
+# https://learn.microsoft.com/dotnet/api/system.diagnostics.stopwatch.ishighresolution
+# The system time is [DateTime]::UtcNow as a Windows file time (100 ns since
+# 1601-01-01 UTC): https://learn.microsoft.com/dotnet/api/system.datetime.tofiletimeutc
+# Its resolution "depends on the system timer ... between 0.5 and 15
+# milliseconds": https://learn.microsoft.com/dotnet/api/system.datetime.utcnow
+# GetSystemTimePreciseAsFileTime is not reachable from Windows PowerShell 5.1
+# without compiling a P/Invoke declaration, which the collectors never do, so
+# the collector measures the increment of this clock at run time instead.
+function Get-WfQpcTimestamp {
+    return [int64][System.Diagnostics.Stopwatch]::GetTimestamp()
+}
+
+function Get-WfQpcFrequency {
+    return [int64][System.Diagnostics.Stopwatch]::Frequency
+}
+
+function Test-WfQpcHighResolution {
+    return [bool][System.Diagnostics.Stopwatch]::IsHighResolution
+}
+
+function Get-WfSystemFileTimeUtc {
+    return [int64][datetime]::UtcNow.ToFileTimeUtc()
+}
+
+function Wait-WfMilliseconds {
+    # Start-Sleep -Milliseconds:
+    # https://learn.microsoft.com/powershell/module/microsoft.powershell.utility/start-sleep?view=powershell-5.1
+    param([int]$Milliseconds)
+    if ($Milliseconds -gt 0) { Start-Sleep -Milliseconds $Milliseconds }
+}
+
+function Get-WfProcessId {
+    # $PID, the current process id (about_Automatic_Variables).
+    return [int]$PID
 }
 
 function Write-WfStdoutLine {
@@ -4831,7 +4902,7 @@ function Get-WfLogicalProcessorInformation {
     # in-memory assembly that lives in this process only; whether the Windows
     # PowerShell 5.1 compiler starts a compiler process or writes temporary
     # files while it does so is not documented on Learn and is unverified
-    # (README verification item 36). The declaration names one function and
+    # (README verification item 41). The declaration names one function and
     # nothing else, and the static test pins it. The call reads; it has no
     # setter.
     # The first call with a null buffer asks for the size (ERROR_INSUFFICIENT_BUFFER,
@@ -4895,7 +4966,7 @@ function New-WfDeviceKeyNative {
     # Microsoft documents that Add-Type compiles the source and generates an
     # in-memory assembly; whether the Windows PowerShell 5.1 compiler starts a
     # compiler process or writes temporary files while it does so is not
-    # documented on Learn and is unverified (README verification item 36):
+    # documented on Learn and is unverified (README verification item 41):
     # https://learn.microsoft.com/powershell/module/microsoft.powershell.utility/add-type?view=powershell-5.1
     $result = @{ Ok = $false; Error = $null; Api = $null }
     $typeName = 'WfNative.WfDeviceKey'

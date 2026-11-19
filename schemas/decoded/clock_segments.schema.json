@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/clock_segments.schema.json",
+  "title": "clock_segments: the piecewise affine model between consecutive calibration pairs",
+  "description": "One row per pair of consecutive calibration pairs, fitted the way docs/contracts/timestamps.md section 4.3 describes for system_time sources: rate from the two pairs, the error bound from their half widths plus the system clock's increment term for pairs not taken at a clock edge, and the clock step flag when the rate is more than 1000 ppm off nominal beyond what the two pairs' own uncertainty can explain, with the bound then the larger of the file time span and the elapsed counter span. The bound here is the calibration's own; a source adds its own resolution. See docs/contracts/decoded-tables.md section 5.18.",
+  "x-schema-version": "1.0.0",
+  "x-decoded-table": "clock_segments",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "segment",
+    "seq_from",
+    "seq_to",
+    "phase_from",
+    "phase_to",
+    "qpc_from",
+    "qpc_to",
+    "filetime_from_100ns",
+    "filetime_to_100ns",
+    "span_100ns",
+    "qpc_span_ticks",
+    "qpc_span_100ns",
+    "qpc_frequency_hz",
+    "epoch_qpc",
+    "epoch_source",
+    "rate_ticks_per_100ns",
+    "nominal_rate_ticks_per_100ns",
+    "rate_deviation_ppm",
+    "quantisation_limit_ppm",
+    "clock_step",
+    "step_kind",
+    "ambiguous_from_100ns",
+    "ambiguous_to_100ns",
+    "anchor_filetime_100ns",
+    "anchor_master_100ns",
+    "rate",
+    "offset_100ns",
+    "half_width_max_100ns",
+    "system_time_increment_100ns",
+    "residual_max_100ns",
+    "error_bound_100ns",
+    "provenance"
+  ],
+  "properties": {
+    "segment": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "seq_from": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "seq_to": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "phase_from": {
+      "type": "string",
+      "enum": [
+        "start",
+        "interval",
+        "stop"
+      ]
+    },
+    "phase_to": {
+      "type": "string",
+      "enum": [
+        "start",
+        "interval",
+        "stop"
+      ]
+    },
+    "qpc_from": {
+      "type": "integer",
+      "description": "qpc_mid of the earlier pair."
+    },
+    "qpc_to": {
+      "type": "integer",
+      "description": "qpc_mid of the later pair."
+    },
+    "filetime_from_100ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "filetime_to_100ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "span_100ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "filetime_to_100ns - filetime_from_100ns, the segment's length on the system clock."
+    },
+    "qpc_span_ticks": {
+      "type": "integer",
+      "description": "qpc_to - qpc_from."
+    },
+    "qpc_span_100ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "qpc_span_ticks * 10^7 / qpc_frequency_hz, rounded up: the segment's length on the master clock."
+    },
+    "qpc_frequency_hz": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "epoch_qpc": {
+      "type": "integer",
+      "description": "The master epoch: the counter value master time counts from (timestamps.md section 4.1): the first pair's qpc_before."
+    },
+    "epoch_source": {
+      "type": "string",
+      "enum": [
+        "first_calibration_pair",
+        "etl_header"
+      ]
+    },
+    "rate_ticks_per_100ns": {
+      "type": "number",
+      "description": "qpc_span_ticks / span_100ns, the contract's rate_S for a system_time source over this segment."
+    },
+    "nominal_rate_ticks_per_100ns": {
+      "type": "number",
+      "description": "qpc_frequency_hz / 10^7."
+    },
+    "rate_deviation_ppm": {
+      "type": "number",
+      "description": "|rate / nominal - 1| in parts per million."
+    },
+    "quantisation_limit_ppm": {
+      "type": "number",
+      "description": "2 * (system_time_increment_100ns + half_width_max_100ns) / span_100ns in parts per million: the rate deviation the two pairs' own uncertainty (the increment term and the half widths) can produce over this segment. The clock step rule allows for it; above 1000 a clock step smaller than this allowance is not flagged."
+    },
+    "clock_step": {
+      "type": "boolean",
+      "description": "True when rate_deviation_ppm exceeds 1000 plus quantisation_limit_ppm, that is, by more than 1000 parts per million beyond what the two pairs' own uncertainty can explain; the bound is then the larger of span_100ns and qpc_span_100ns plus the ordinary terms (timestamps.md section 4.3)."
+    },
+    "step_kind": {
+      "type": "string",
+      "enum": [
+        "none",
+        "forward",
+        "backward"
+      ],
+      "description": "For a clock step: forward when the system clock gained time against the counter (span_100ns > qpc_span_100ns), backward when it lost time (the clock went back or stood still), none otherwise."
+    },
+    "ambiguous_from_100ns": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "description": "For a backward step: the first file time the system clock may have shown twice, filetime_from_100ns - (qpc_span_100ns - span_100ns), less the segment's own uncertainty (half_width_max_100ns plus system_time_increment_100ns). A stamp in [ambiguous_from_100ns, ambiguous_to_100ns] that falls into another segment is unaligned; inside this segment it carries this segment's wide bound. Null otherwise."
+    },
+    "ambiguous_to_100ns": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "description": "For a backward step: filetime_from_100ns + qpc_span_100ns, plus the segment's own uncertainty (half_width_max_100ns plus system_time_increment_100ns), the last file time the clock may have shown twice. Null otherwise."
+    },
+    "anchor_filetime_100ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Equal to filetime_from_100ns: the source time the model is anchored at."
+    },
+    "anchor_master_100ns": {
+      "type": "integer",
+      "description": "Master time of the anchor: (qpc_from - epoch_qpc) * 10^7 / qpc_frequency_hz, remainder discarded."
+    },
+    "rate": {
+      "type": "number",
+      "description": "Master 100 ns units per source 100 ns unit: rate_ticks_per_100ns / nominal_rate_ticks_per_100ns. t_master = anchor_master_100ns + rate * (t_S - anchor_filetime_100ns)."
+    },
+    "offset_100ns": {
+      "type": "integer",
+      "description": "The contract's offset_S for t_master = offset_S + rate * t_S, rounded to an integer; the anchor form above is exact."
+    },
+    "half_width_max_100ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The larger of the two pairs' half widths."
+    },
+    "system_time_increment_100ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The increment term added to the bound: zero when both pairs were taken at a clock edge; otherwise the larger of the largest clock step the collector observed in the session and 156250 (the 15.625 ms period of the 64 Hz PC real time clock in Microsoft's clock table), because the increment can change during a session."
+    },
+    "residual_max_100ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Largest residual of an interior pair against the segment's line; zero for a segment between consecutive pairs, which has none."
+    },
+    "error_bound_100ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "half_width_max_100ns + system_time_increment_100ns + residual_max_100ns, plus max(span_100ns, qpc_span_100ns) when clock_step is true. A source adds its own resolution to get e_S."
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "decoded_table": {
+              "const": "clock_segments"
+            },
+            "schema_version": {
+              "const": "1.0.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

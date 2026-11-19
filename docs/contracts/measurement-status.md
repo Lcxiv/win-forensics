@@ -28,6 +28,7 @@ Rules:
 3. A collector's status is decided by its own `verify` step, before any decoder runs. A decoder cannot upgrade a collector from `capture_failed` to `observed` by finding some rows.
 4. When a status is anything other than `observed` or `observed_zero`, the entry carries `status_reason` text and, where a tool produced one, the tool's exit code or message verbatim.
 5. Required collectors that end in `not_collected`, `capture_failed`, or `unsupported` cause bundle validation to refuse the bundle (see [bundle.md](bundle.md)). Optional collectors in those states mark the bundle incomplete and their subsystems unobserved.
+6. Clock calibration exception: the `clock_calibration` source of the `clock-calibration` collector is `observed` with two or more calibration pairs even when its expectation (the full pair count) is not met, because [timestamps.md](timestamps.md) section 3 keeps a calibration with missing pairs usable and records the degradation in `calibration.missing_pairs`; its expectation stays the full count with `met` false, and the evidentiary adequacy check in [bundle.md](bundle.md) section 3 applies the scenario's tolerance. Fewer than two pairs are `capture_failed`. No other source uses this reading of `observed`.
 
 ## 3. Adequate coverage and the absence rule
 
