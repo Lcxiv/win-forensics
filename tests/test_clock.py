@@ -220,7 +220,7 @@ def test_a_backward_step_smaller_than_the_interval_never_passes_a_tight_join():
     join = decode_clock.check_join("j", "eventlog", "wpr", 100_000, placed, model.align_qpc(model.epoch_qpc))
     assert join["aligned"] is False and join["achieved_bound_100ns"] == 50_000_053
     # The file times the clock may have shown twice: from ft_a minus the lost 4.999 s up to ft_a plus the counter span,
-    # each end carrying the edge pair's half width.
+    # each end carrying the larger half width of the two edge pairs.
     assert step.ambiguous_range == (FT0 + 50_000_000 - 49_990_000 - 51, FT0 + 50_000_000 + 50_000_000 + 51)
     assert not model.align(FT0 + 30_000_000).aligned, "a stamp in the first segment that the clock re-showed after the step is ambiguous"
 
@@ -289,6 +289,38 @@ def test_a_backward_step_after_a_pair_not_taken_at_an_edge_widens_the_re_shown_r
     assert not model.align(FT0 + 20_000_000 - uncertainty).aligned, "the lower end carries the same uncertainty"
     beyond = model.align(FT0 + 100_000_000 + uncertainty + 1)
     assert beyond.aligned and not beyond.clock_step and beyond.segment == 2 and beyond.error_bound_100ns == 51
+
+
+def test_a_backward_step_closed_by_a_pair_with_a_wide_bracket_widens_the_re_shown_range_by_that_bracket():
+    """Pairs at 0, 5, 10, 15, 20 s of true time, all at clock edges; the clock steps back 3 s at 9 s; the pair at 10 s was preempted for 30 ms.
+
+    Where inside that 30 ms bracket the clock changed is unknown, so the lost time and the latest moment
+    of the step are only known to the bracket's half width: file times that far outside ft_a minus the lost
+    time and ft_a plus the counter span may have been shown twice too.
+    """
+    pairs = []
+    for seq, t in enumerate([0, 5, 10, 15, 20]):
+        ft = FT0 + t * 10_000_000 - (30_000_000 if t >= 9 else 0)
+        qpc = 1_000_000_000 + t * FREQ
+        pairs.append({"seq": seq, "phase": "start" if seq == 0 else ("stop" if seq == 4 else "interval"), "qpc_before": qpc,
+                      "qpc_after": qpc + (300_000 if seq == 2 else 100), "filetime_utc_100ns": ft, "edge": True, "step_100ns": 10_000})
+    model = decode_clock.fit_pairs(pairs, FREQ)
+    assert model.aligned
+    assert [s.step_kind for s in model.segments] == ["none", "backward", "none", "none"]
+    step = model.segments[1]
+    assert step.increment_100ns == 0 and step.half_width_max_100ns == 150_001
+    assert step.qpc_span_100ns == 50_149_950 and step.span_100ns == 20_000_000
+    old_from, old_to = FT0 + 50_000_000 - 30_149_950, FT0 + 50_000_000 + 50_149_950
+    assert step.ambiguous_range == (old_from - 150_001, old_to + 150_001)
+    for stamp in (old_from - 52, old_from - 100_000, old_from - 150_001):
+        assert model.segment_for(stamp) is model.segments[0] and model.segments[0].error_bound_100ns == 51
+        event = model.align(stamp)
+        assert not event.aligned and "shown twice" in event.reason and "segment 1" in event.reason
+    assert not model.align(old_to + 150_001).aligned
+    below = model.align(old_from - 150_002)
+    assert below.aligned and not below.clock_step and below.segment == 0 and below.error_bound_100ns == 51
+    above = model.align(old_to + 150_002)
+    assert above.aligned and not above.clock_step and above.segment == 2 and above.error_bound_100ns == 150_001
 
 
 def test_a_backward_step_larger_than_the_interval_cannot_be_fitted():

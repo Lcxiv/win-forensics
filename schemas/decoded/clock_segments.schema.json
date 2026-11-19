@@ -149,14 +149,14 @@
         "integer",
         "null"
       ],
-      "description": "For a backward step: the first file time the system clock may have shown twice, filetime_from_100ns - (qpc_span_100ns - span_100ns), less the uncertainty of the segment's first pair (its half width, plus system_time_increment_100ns when that pair was not read at a clock edge). A stamp in [ambiguous_from_100ns, ambiguous_to_100ns] that falls into another segment is unaligned; inside this segment it carries this segment's wide bound. Null otherwise."
+      "description": "For a backward step: the first file time the system clock may have shown twice, filetime_from_100ns - (qpc_span_100ns - span_100ns), less the segment's own uncertainty (half_width_max_100ns plus system_time_increment_100ns). A stamp in [ambiguous_from_100ns, ambiguous_to_100ns] that falls into another segment is unaligned; inside this segment it carries this segment's wide bound. Null otherwise."
     },
     "ambiguous_to_100ns": {
       "type": [
         "integer",
         "null"
       ],
-      "description": "For a backward step: filetime_from_100ns + qpc_span_100ns, plus the uncertainty of the segment's first pair (its half width, plus system_time_increment_100ns when that pair was not read at a clock edge), the last file time the clock may have shown twice. Null otherwise."
+      "description": "For a backward step: filetime_from_100ns + qpc_span_100ns, plus the segment's own uncertainty (half_width_max_100ns plus system_time_increment_100ns), the last file time the clock may have shown twice. Null otherwise."
     },
     "anchor_filetime_100ns": {
       "type": "integer",
