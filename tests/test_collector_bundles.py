@@ -189,7 +189,7 @@ def test_status_and_evidence_stay_separate(case):
             assert options["window_end_utc"] > options["window_start_utc"]
             query = (BUNDLES / case / "raw" / collector["id"] / "query.xml").read_text(encoding="utf-8")
             # The interval is fixed, not relative to now, and it is written as two @SystemTime comparisons:
-            # the gaming PC rejected timediff(@SystemTime, <FILETIME>) at the first read (collectors/windows/README.md, item 23).
+            # the gaming PC rejected timediff(@SystemTime, <FILETIME>) at the first read (collectors/windows/README.md, item 35).
             assert "timediff" not in query, "the numeric timediff form fails on the PC at the first read"
             for select in ET.fromstring(query).iter("Select"):
                 bound = re.search(r"TimeCreated\[@SystemTime >= '([^']+)' and @SystemTime <= '([^']+)'\]", select.text)

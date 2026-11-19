@@ -338,7 +338,7 @@ function ConvertTo-WfXPathDateTime {
     # Get-WinEvent writes for its StartTime and EndTime keys (format "s", the
     # millisecond as three digits, "Z"; GetEventCommand.cs in the PowerShell
     # repository, SystemTimePeriodTemplate), and the PC session read records
-    # with it on 2026-11-18 (README, verification item 23). Seven digits are
+    # with it on 2026-11-18 (README, verification item 35). Seven digits are
     # not used because nothing has shown the query engine accepts them.
     param([datetime]$Value)
     return $Value.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ', [System.Globalization.CultureInfo]::InvariantCulture)
@@ -367,7 +367,7 @@ function Build-WfEventQueryXml {
     # not used: on the gaming PC (Windows 11 Pro 25H2 build 26200, Windows
     # PowerShell 5.1.26100) EventLogQuery accepted it and the first ReadEvent threw
     # EventLogInvalidDataException, "The data is invalid", on every channel,
-    # while this form read the same records (README, verification item 23).
+    # while this form read the same records (README, verification item 35).
     # The one argument form, timediff(@SystemTime) <= <ms>, works there too but
     # its window ends at evaluation time, not at a fixed instant.
     # -EndUtc must already be cut to the millisecond (ConvertTo-WfMillisecondFloor),

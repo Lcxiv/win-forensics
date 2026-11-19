@@ -265,7 +265,7 @@ function Open-WfEventReader {
         # with timediff(@SystemTime, <FILETIME number>) and the first
         # ReadEvent threw EventLogInvalidDataException, "The data is invalid",
         # before any record, on every channel. Reported by the PC session, not
-        # reproduced here; collectors/windows/README.md, verification item 23.
+        # reproduced here; collectors/windows/README.md, verification item 35.
         # Modelled so that the suite fails if a query ever carries that form again.
         $result.ReadNext = { param([timespan]$Remaining) throw 'Exception calling "ReadEvent" with "1" argument(s): "The data is invalid"' }
         $result.Ok = $true

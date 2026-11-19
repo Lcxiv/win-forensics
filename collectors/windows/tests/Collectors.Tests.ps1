@@ -188,7 +188,7 @@ Describe 'event query' {
         $selects[0].Path | Should -BeExactly 'Application'
         $selects[0].InnerText | Should -BeExactly "*[System[Provider[@Name='Application Error'] and (EventID=1000) and TimeCreated[@SystemTime >= '2026-01-30T12:00:00.000Z' and @SystemTime <= '2026-03-01T12:00:00.000Z']]]"
         $selects[1].InnerText | Should -BeExactly "*[System[(EventID=1002) and TimeCreated[@SystemTime >= '2026-01-30T12:00:00.000Z' and @SystemTime <= '2026-03-01T12:00:00.000Z']]]"
-        # The form the gaming PC rejected at the first read (README, verification item 23).
+        # The form the gaming PC rejected at the first read (README, verification item 35).
         $text | Should -Not -Match 'timediff'
         # Quotes stay as written, as in the query text Get-WinEvent builds (GetEventCommand.cs
         # in the PowerShell repository); only &, < and > are escaped.
@@ -302,7 +302,7 @@ Describe 'the event query time bound on the gaming PC' {
     # gaming PC with "The data is invalid"; the PC session isolated the cause
     # to timediff(@SystemTime, <FILETIME number>) in the query. The synthetic
     # reader models that behaviour, so these tests fail if the builder writes
-    # that form again (collectors/windows/README.md, verification item 23).
+    # that form again (collectors/windows/README.md, verification item 35).
     BeforeAll {
         function New-NumericTimediffQuery {
             # Build-WfEventQueryXml as it was before the fix.
