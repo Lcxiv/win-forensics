@@ -1679,7 +1679,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "62674b6b1df59db76ab3cfb99b42490b708905b56192630ac5a68e837c1a0f75"
+        "value": "eaa2ce595da75c3c8c6715b02d7757362bca7654cd8a4e28b29265a5f866e20d"
       },
       "filter_hash": null,
       "requested": {
@@ -1696,7 +1696,7 @@
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 50,
           "mode": "copy",
-          "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)",
+          "why": "the file is the owner's own configuration or journal; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)",
           "protection": {
             "mode": "copy",
             "user_pseudonym": "user-<first 12 hex of SHA-256(salt, name)>, every folder name after \\Users\\ in a path, except the standard folders Public, Default, Default User and All Users",
@@ -1734,14 +1734,14 @@
       "artifacts": [
         {
           "path": "raw/process_lasso_config/result.json",
-          "bytes": 700,
-          "sha256": "317f9e2ddbdb0c077ece9333e0a48c5ee11f87263233dea4ea2963c2af92d7ae",
+          "bytes": 704,
+          "sha256": "85a910a36102ee0e754e0c07717e8c12356e656db3198ee8c069cda5dd5187fd",
           "role": "report"
         },
         {
           "path": "raw/process_lasso_config/source.json",
-          "bytes": 1633,
-          "sha256": "62674b6b1df59db76ab3cfb99b42490b708905b56192630ac5a68e837c1a0f75",
+          "bytes": 1637,
+          "sha256": "eaa2ce595da75c3c8c6715b02d7757362bca7654cd8a4e28b29265a5f866e20d",
           "role": "config"
         }
       ],
@@ -1980,7 +1980,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "54ef363d271c933f3a9d0b91262e9c1b3e3a8100b3d6c35c45941a8c10c03462"
+        "value": "d98b048d84d7497f94e92d985ff6c14237cc2f5dffbcb32390c69560ee08cfc6"
       },
       "filter_hash": null,
       "requested": {
@@ -1997,7 +1997,7 @@
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 50,
           "mode": "copy",
-          "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)",
+          "why": "the file is the owner's own configuration or journal; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)",
           "protection": {
             "mode": "copy",
             "user_pseudonym": "user-<first 12 hex of SHA-256(salt, name)>, every folder name after \\Users\\ in a path, except the standard folders Public, Default, Default User and All Users",
@@ -2035,14 +2035,14 @@
       "artifacts": [
         {
           "path": "raw/stutter_guard_journal/result.json",
-          "bytes": 686,
-          "sha256": "a9e9f11d3729200d5a00c8fd5af136b1e28a14e96867c6b9625cd944587e3870",
+          "bytes": 690,
+          "sha256": "a328ae7ab9b923bdca9fe5bbfd4114e4b4ab33fc9743bff6f055182c7600e914",
           "role": "report"
         },
         {
           "path": "raw/stutter_guard_journal/source.json",
-          "bytes": 1619,
-          "sha256": "54ef363d271c933f3a9d0b91262e9c1b3e3a8100b3d6c35c45941a8c10c03462",
+          "bytes": 1623,
+          "sha256": "d98b048d84d7497f94e92d985ff6c14237cc2f5dffbcb32390c69560ee08cfc6",
           "role": "config"
         }
       ],

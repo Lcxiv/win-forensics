@@ -7,7 +7,7 @@
   "max_artifact_bytes": 67108864,
   "timeout_seconds": 50,
   "mode": "copy",
-  "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)",
+  "why": "the file is the owner's own configuration or journal; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)",
   "protection": {
     "mode": "copy",
     "user_pseudonym": "user-<first 12 hex of SHA-256(salt, name)>, every folder name after \\Users\\ in a path, except the standard folders Public, Default, Default User and All Users",

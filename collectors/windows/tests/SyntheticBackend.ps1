@@ -737,11 +737,6 @@ function New-WfDeviceKeyNative {
         $dataLength.Value = [uint32]$bytes.Length
         return 0
     }
-    $api | Add-Member -MemberType ScriptMethod -Name 'RegQueryValueExW' -Value {
-        param($key, $name, $reserved, $type, $data, $dataLength)
-        $this.Record('RegQueryValueExW', @($key, $name))
-        return 2
-    }
     $api | Add-Member -MemberType ScriptMethod -Name 'RegCloseKey' -Value {
         param($key)
         $this.Record('RegCloseKey', @($key))

@@ -34,7 +34,7 @@ NATIVE_BLOCKS = {
     "New-WfDeviceKeyNative": {
         ("setupapi.dll", "SetupDiCreateDeviceInfoList"), ("setupapi.dll", "SetupDiOpenDeviceInfoW"), ("setupapi.dll", "SetupDiOpenDevRegKey"),
         ("setupapi.dll", "SetupDiDestroyDeviceInfoList"), ("advapi32.dll", "RegOpenKeyExW"), ("advapi32.dll", "RegEnumValueW"),
-        ("advapi32.dll", "RegQueryValueExW"), ("advapi32.dll", "RegCloseKey"),
+        ("advapi32.dll", "RegCloseKey"),
     },
     "Get-WfLogicalProcessorInformation": {("kernel32.dll", "GetLogicalProcessorInformationEx")},
 }

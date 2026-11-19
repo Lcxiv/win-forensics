@@ -1712,7 +1712,6 @@ Describe 'config-snapshot sources against the synthetic backend' {
         @($relative | ForEach-Object { $_['Arguments'][1] }) | Should -Be @('Interrupt Management', $script:Affinity, $script:Msi)
         foreach ($call in $relative) { $call['Arguments'][2] | Should -Be 0; $call['Arguments'][3] | Should -Be 131097 }
         @($global:WfSynthetic.NativeCalls | ForEach-Object { $_['Call'] } | Sort-Object -Unique) | Should -Be @('RegCloseKey', 'RegEnumValueW', 'RegOpenKeyExW', 'SetupDiCreateDeviceInfoList', 'SetupDiDestroyDeviceInfoList', 'SetupDiOpenDeviceInfoW', 'SetupDiOpenDevRegKey')
-        (Get-NativeCalls -Name 'RegQueryValueExW').Count | Should -Be 0
         (Get-NativeCalls -Name 'SetupDiDestroyDeviceInfoList').Count | Should -Be 1
         $global:WfSynthetic.NativeHandles.Count | Should -Be 0 -Because 'every key was closed and the set destroyed'
     }

@@ -1880,7 +1880,7 @@ function Invoke-WfFileSource {
         if ([string]$Source['SummaryReason']) { $summaryReason = [string]$Source['SummaryReason'] }
         $why = $summaryReason + ', so only its size, times, hash, line count and address token count are recorded'
         if ($mode -eq 'copy') {
-            $why = 'the file is the owner''s own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)'
+            $why = 'the file is the owner''s own configuration or journal; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)'
             $protection = Get-WfCopiedTextProtectionDescription
         }
         $config = [ordered]@{
@@ -4875,7 +4875,7 @@ function Get-WfLogicalProcessorInformation {
 }
 
 function New-WfDeviceKeyNative {
-    # The native boundary for the device hardware key reads: eight imports,
+    # The native boundary for the device hardware key reads: seven imports,
     # bound to the system directory (DefaultDllImportSearchPaths System32,
     # https://learn.microsoft.com/dotnet/fundamentals/code-analysis/quality-rules/ca5392),
     # compiled once per process with Add-Type from the literal below and
@@ -4889,7 +4889,6 @@ function New-WfDeviceKeyNative {
     # https://learn.microsoft.com/windows/win32/api/setupapi/nf-setupapi-setupdidestroydeviceinfolist
     # https://learn.microsoft.com/windows/win32/api/winreg/nf-winreg-regopenkeyexw
     # https://learn.microsoft.com/windows/win32/api/winreg/nf-winreg-regenumvaluew
-    # https://learn.microsoft.com/windows/win32/api/winreg/nf-winreg-regqueryvalueexw
     # https://learn.microsoft.com/windows/win32/api/winreg/nf-winreg-regclosekey
     # Microsoft documents that Add-Type compiles the source and generates an
     # in-memory assembly; whether the Windows PowerShell 5.1 compiler starts a
@@ -4908,7 +4907,6 @@ function New-WfDeviceKeyNative {
 [DefaultDllImportSearchPaths(DllImportSearchPath.System32)] [DllImport("setupapi.dll", SetLastError = true)] public static extern bool SetupDiDestroyDeviceInfoList(IntPtr DeviceInfoSet);
 [DefaultDllImportSearchPaths(DllImportSearchPath.System32)] [DllImport("advapi32.dll", CharSet = CharSet.Unicode)] public static extern int RegOpenKeyExW(IntPtr hKey, string lpSubKey, uint ulOptions, uint samDesired, out IntPtr phkResult);
 [DefaultDllImportSearchPaths(DllImportSearchPath.System32)] [DllImport("advapi32.dll", CharSet = CharSet.Unicode)] public static extern int RegEnumValueW(IntPtr hKey, uint dwIndex, System.Text.StringBuilder lpValueName, ref uint lpcchValueName, IntPtr lpReserved, out uint lpType, byte[] lpData, ref uint lpcbData);
-[DefaultDllImportSearchPaths(DllImportSearchPath.System32)] [DllImport("advapi32.dll", CharSet = CharSet.Unicode)] public static extern int RegQueryValueExW(IntPtr hKey, string lpValueName, IntPtr lpReserved, out uint lpType, byte[] lpData, ref uint lpcbData);
 [DefaultDllImportSearchPaths(DllImportSearchPath.System32)] [DllImport("advapi32.dll")] public static extern int RegCloseKey(IntPtr hKey);
 '@
             Add-Type -MemberDefinition $declaration -Name 'WfDeviceKey' -Namespace 'WfNative' -UsingNamespace 'System.Runtime.InteropServices' -ErrorAction Stop
@@ -4926,7 +4924,6 @@ function New-WfDeviceKeyNative {
         $api | Add-Member -MemberType ScriptMethod -Name 'SetupDiDestroyDeviceInfoList' -Value { param($set) return [WfNative.WfDeviceKey]::SetupDiDestroyDeviceInfoList($set) }
         $api | Add-Member -MemberType ScriptMethod -Name 'RegOpenKeyExW' -Value { param($key, $subkey, $options, $access, $handle) return [WfNative.WfDeviceKey]::RegOpenKeyExW($key, $subkey, $options, $access, $handle) }
         $api | Add-Member -MemberType ScriptMethod -Name 'RegEnumValueW' -Value { param($key, $index, $name, $nameLength, $reserved, $type, $data, $dataLength) return [WfNative.WfDeviceKey]::RegEnumValueW($key, $index, $name, $nameLength, $reserved, $type, $data, $dataLength) }
-        $api | Add-Member -MemberType ScriptMethod -Name 'RegQueryValueExW' -Value { param($key, $name, $reserved, $type, $data, $dataLength) return [WfNative.WfDeviceKey]::RegQueryValueExW($key, $name, $reserved, $type, $data, $dataLength) }
         $api | Add-Member -MemberType ScriptMethod -Name 'RegCloseKey' -Value { param($key) return [WfNative.WfDeviceKey]::RegCloseKey($key) }
         $result.Api = $api
         $result.Ok = $true

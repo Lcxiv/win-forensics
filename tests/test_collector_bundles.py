@@ -31,7 +31,7 @@ ALLOWED_NETSH = re.compile(r"^wlan show (interfaces|drivers|networks mode=bssid|
 # The only powercfg verbs a collector may run: the five listings. Everything else on the powercfg
 # page changes a setting, a scheme, or writes a report file outside the bundle.
 ALLOWED_POWERCFG = re.compile(r"^/(list|getactivescheme|aliases|query|qh)$")
-# The configuration snapshot's three questions without a documented read only path.
+# The configuration snapshot's two questions without a documented read only path.
 UNAVAILABLE = {"power_mode", "timer_resolution"}
 # The only wpr verbs the live capture collector may use: read the status, enumerate the profile file,
 # start the one session it owns, stop it, cancel it. No boot trace, no marker, no configuration change.
