@@ -17,7 +17,7 @@ Microsoft documents a keyboard initiated crash for USB and PS/2 keyboards ([Forc
 
 Both are set: Microsoft suggests both where a machine may use either driver (its example is a laptop with a PS/2 built in keyboard and an external HID keyboard), and its freeze troubleshooting guide sets both ([keyboard crash][kbd], [freeze troubleshooting][freeze]). The Hyper-V keyboard key (`hyperkbd`) is not touched; this is a physical PC. Nothing else changes: no service, no driver, no dump setting, no page file.
 
-**It works only after a restart.** Microsoft: "You must restart the system for these settings to take effect" ([keyboard crash][kbd]). The script never restarts anything; `-Plan`, `-Apply` and `-Readback` all say so, and `-Readback` reports whether the PC has booted since the newest apply.
+**It works only after a restart.** Microsoft: "You must restart the system for these settings to take effect" ([keyboard crash][kbd]). The script never restarts anything; `-Plan`, `-Apply` and `-Readback` all say so, and `-Readback` reports whether the PC has booted since the newest apply or undo that reached its writes (a refused run does not count).
 
 A dump is written only if crash dumps are on: "If you want a crash dump file to be written, you must enable such dump files" ([keyboard crash][kbd]). `CrashDumpEnabled` 0 means no dump ([recovery options][recovery]); the script refuses when it is 0 or missing. Whether the dump fits this PC's page file is a separate question that only a stop error answers; see "What it cannot do".
 
