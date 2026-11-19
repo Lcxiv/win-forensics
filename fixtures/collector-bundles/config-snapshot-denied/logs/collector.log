@@ -1,0 +1,21 @@
+2026-03-01T12:00:01.0000000Z collector config-snapshot version 1.0.0, helper version 1.2.0, no time window (snapshot), 50 s per source
+source interrupt_policy: status not_collected, 2 artifacts
+source graphics_tdr: status not_collected, 2 artifacts
+source processors: status not_collected, 1 artifacts
+source cpu_caches: status not_collected, 1 artifacts
+source logical_processor_map: status not_collected, 2 artifacts
+source power_active_scheme: status not_collected, 2 artifacts
+source power_schemes: status not_collected, 2 artifacts
+source power_aliases: status not_collected, 2 artifacts
+source power_settings: status not_collected, 2 artifacts
+source power_settings_hidden: status not_collected, 2 artifacts
+source power_mode: status not_collected, 1 artifacts
+source timer_resolution: status not_collected, 1 artifacts
+source processes: status not_collected, 1 artifacts
+source timer_helper_process: status not_collected, 1 artifacts
+source process_lasso_install: status not_collected, 2 artifacts
+source process_lasso_config: status not_collected, 2 artifacts
+source process_lasso_log: status not_collected, 2 artifacts
+source stutter_guard_install: status not_collected, 2 artifacts
+source stutter_guard_journal: status not_collected, 2 artifacts
+2026-03-01T12:01:27.0000000Z manifest written: bundle 20260301T120001Z_config_snapshot_ae3a76a9, status failed, 32 artifacts

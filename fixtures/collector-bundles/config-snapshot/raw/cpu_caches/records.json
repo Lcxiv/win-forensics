@@ -1,0 +1,5 @@
+[
+{"DeviceID":"Cache Memory 0","Purpose":"L1 Cache","Level":3,"CacheType":5,"Associativity":7,"InstalledSize":384,"MaxCacheSize":384,"BlockSize":64,"NumberOfBlocks":6144,"LineSize":64,"CacheSpeed":null,"Location":0,"Status":"OK","ErrorCorrectType":5,"WritePolicy":3},
+{"DeviceID":"Cache Memory 1","Purpose":"L2 Cache","Level":4,"CacheType":5,"Associativity":7,"InstalledSize":6144,"MaxCacheSize":6144,"BlockSize":64,"NumberOfBlocks":98304,"LineSize":64,"CacheSpeed":null,"Location":0,"Status":"OK","ErrorCorrectType":5,"WritePolicy":3},
+{"DeviceID":"Cache Memory 2","Purpose":"L3 Cache","Level":5,"CacheType":5,"Associativity":8,"InstalledSize":32768,"MaxCacheSize":32768,"BlockSize":64,"NumberOfBlocks":524288,"LineSize":64,"CacheSpeed":null,"Location":0,"Status":"OK","ErrorCorrectType":5,"WritePolicy":3}
+]

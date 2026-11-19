@@ -1,8 +1,20 @@
 {
   "path": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html",
+  "path_candidates": [
+    "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html"
+  ],
   "exists": false,
   "readable": false,
   "error": "the file does not exist",
   "source_bytes": null,
-  "summarised": false
+  "source_sha256": null,
+  "last_write_time_utc": null,
+  "mode": "summary",
+  "why": "the file is free text that can name networks the current run never saw, so only its size, times, hash, line count and address token count are recorded",
+  "summarised": false,
+  "copied": false,
+  "source_encoding": null,
+  "source_byte_order_mark": null,
+  "copy_is_verbatim": null,
+  "protection": null
 }

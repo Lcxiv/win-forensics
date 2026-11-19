@@ -1,0 +1,15 @@
+{
+  "path": "C:\\ProgramData\\ProcessLasso\\logs\\processlasso.log",
+  "path_candidates": [
+    "C:\\ProgramData\\ProcessLasso\\logs\\processlasso.log",
+    "C:\\ProgramData\\ProcessLasso\\logs\\prolasso.log",
+    "C:\\ProgramData\\ProcessLasso\\prolasso.log"
+  ],
+  "path_documented": false,
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 50,
+  "mode": "summary",
+  "why": "the vendor log is history whose lines can carry process command line arguments, whatever IncludeCommandLines says now, and no shape rule reliably removes them, so only its size, times, hash, line count and address token count are recorded",
+  "protection": null,
+  "sharing": "the file is opened for reading with writers allowed to continue; a file being appended may be read mid line, and the hash is of the bytes read"
+}

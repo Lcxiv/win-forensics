@@ -1,0 +1,153 @@
+{
+  "started_utc": "2026-03-01T12:00:58.0000000Z",
+  "stopped_utc": "2026-03-01T12:01:01.0000000Z",
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_ms": 7,
+  "stdout_bytes": 1149,
+  "stdout_bytes_read": 1168,
+  "diagnostic": null,
+  "stderr": "",
+  "records": 4,
+  "records_meaning": "lines carrying a GUID (the scheme, each subgroup, each setting)",
+  "protection": {
+    "mac_addresses_replaced": 0,
+    "network_names_replaced": 0
+  },
+  "profiles": null,
+  "fields": [
+    {
+      "line": 1,
+      "block": 0,
+      "indent": 0,
+      "label": "GUID des Energieschemas",
+      "value": "381b4222-f694-41f0-9685-ff5bb260df2e  (Ausbalanciert)"
+    },
+    {
+      "line": 2,
+      "block": 0,
+      "indent": 2,
+      "label": "GUID der Untergruppe",
+      "value": "54533251-82be-4824-96c1-47b60b740d00  (Prozessorenergieverwaltung)"
+    },
+    {
+      "line": 3,
+      "block": 0,
+      "indent": 4,
+      "label": "GUID-Alias",
+      "value": "SUB_PROCESSOR"
+    },
+    {
+      "line": 4,
+      "block": 0,
+      "indent": 4,
+      "label": "GUID der Energieeinstellung",
+      "value": "893dee8e-2bef-41e0-89c6-b55d0929964c  (Minimaler Leistungszustand des Prozessors)"
+    },
+    {
+      "line": 5,
+      "block": 0,
+      "indent": 6,
+      "label": "GUID-Alias",
+      "value": "PROCTHROTTLEMIN"
+    },
+    {
+      "line": 6,
+      "block": 0,
+      "indent": 6,
+      "label": "Minimale moegliche Einstellung",
+      "value": "0x00000000"
+    },
+    {
+      "line": 7,
+      "block": 0,
+      "indent": 6,
+      "label": "Maximale moegliche Einstellung",
+      "value": "0x00000064"
+    },
+    {
+      "line": 8,
+      "block": 0,
+      "indent": 6,
+      "label": "Schrittweite der moeglichen Einstellungen",
+      "value": "0x00000001"
+    },
+    {
+      "line": 9,
+      "block": 0,
+      "indent": 6,
+      "label": "Einheiten der moeglichen Einstellungen",
+      "value": "%"
+    },
+    {
+      "line": 10,
+      "block": 0,
+      "indent": 4,
+      "label": "Aktueller Index der Netzbetriebseinstellung",
+      "value": "0x00000005"
+    },
+    {
+      "line": 11,
+      "block": 0,
+      "indent": 4,
+      "label": "Aktueller Index der Akkubetriebseinstellung",
+      "value": "0x00000005"
+    },
+    {
+      "line": 13,
+      "block": 0,
+      "indent": 4,
+      "label": "GUID der Energieeinstellung",
+      "value": "be337238-0d82-4146-a960-4f3749d470c7  (Modus zur Leistungssteigerung des Prozessors)"
+    },
+    {
+      "line": 14,
+      "block": 0,
+      "indent": 6,
+      "label": "GUID-Alias",
+      "value": "PERFBOOSTMODE"
+    },
+    {
+      "line": 15,
+      "block": 0,
+      "indent": 6,
+      "label": "Index der moeglichen Einstellung",
+      "value": "000"
+    },
+    {
+      "line": 16,
+      "block": 0,
+      "indent": 6,
+      "label": "Anzeigename der moeglichen Einstellung",
+      "value": "Deaktiviert"
+    },
+    {
+      "line": 17,
+      "block": 0,
+      "indent": 6,
+      "label": "Index der moeglichen Einstellung",
+      "value": "001"
+    },
+    {
+      "line": 18,
+      "block": 0,
+      "indent": 6,
+      "label": "Anzeigename der moeglichen Einstellung",
+      "value": "Aktiviert"
+    },
+    {
+      "line": 19,
+      "block": 0,
+      "indent": 4,
+      "label": "Aktueller Index der Netzbetriebseinstellung",
+      "value": "0x00000001"
+    },
+    {
+      "line": 20,
+      "block": 0,
+      "indent": 4,
+      "label": "Aktueller Index der Akkubetriebseinstellung",
+      "value": "0x00000001"
+    }
+  ]
+}

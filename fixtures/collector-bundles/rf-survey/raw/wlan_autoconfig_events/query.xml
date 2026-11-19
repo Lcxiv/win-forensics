@@ -1,5 +1,5 @@
 <QueryList>
   <Query Id="0" Path="Microsoft-Windows-WLAN-AutoConfig/Operational">
-    <Select Path="Microsoft-Windows-WLAN-AutoConfig/Operational">*[System[Provider[@Name='Microsoft-Windows-WLAN-AutoConfig'] and TimeCreated[@SystemTime &gt;= '2026-01-30T12:00:43.000Z' and @SystemTime &lt;= '2026-03-01T12:00:43.000Z']]]</Select>
+    <Select Path="Microsoft-Windows-WLAN-AutoConfig/Operational">*[System[Provider[@Name='Microsoft-Windows-WLAN-AutoConfig'] and TimeCreated[@SystemTime &gt;= '2026-01-30T12:00:44.000Z' and @SystemTime &lt;= '2026-03-01T12:00:44.000Z']]]</Select>
   </Query>
 </QueryList>

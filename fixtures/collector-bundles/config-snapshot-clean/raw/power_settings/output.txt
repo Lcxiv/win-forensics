@@ -1,0 +1,21 @@
+GUID des Energieschemas: 381b4222-f694-41f0-9685-ff5bb260df2e  (Ausbalanciert)
+  GUID der Untergruppe: 54533251-82be-4824-96c1-47b60b740d00  (Prozessorenergieverwaltung)
+    GUID-Alias: SUB_PROCESSOR
+    GUID der Energieeinstellung: 893dee8e-2bef-41e0-89c6-b55d0929964c  (Minimaler Leistungszustand des Prozessors)
+      GUID-Alias: PROCTHROTTLEMIN
+      Minimale moegliche Einstellung: 0x00000000
+      Maximale moegliche Einstellung: 0x00000064
+      Schrittweite der moeglichen Einstellungen: 0x00000001
+      Einheiten der moeglichen Einstellungen: %
+    Aktueller Index der Netzbetriebseinstellung: 0x00000005
+    Aktueller Index der Akkubetriebseinstellung: 0x00000005
+
+    GUID der Energieeinstellung: be337238-0d82-4146-a960-4f3749d470c7  (Modus zur Leistungssteigerung des Prozessors)
+      GUID-Alias: PERFBOOSTMODE
+      Index der moeglichen Einstellung: 000
+      Anzeigename der moeglichen Einstellung: Deaktiviert
+      Index der moeglichen Einstellung: 001
+      Anzeigename der moeglichen Einstellung: Aktiviert
+    Aktueller Index der Netzbetriebseinstellung: 0x00000001
+    Aktueller Index der Akkubetriebseinstellung: 0x00000001
+

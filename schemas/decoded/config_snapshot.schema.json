@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/config_snapshot.schema.json",
   "title": "config_snapshot row",
-  "description": "One row per configuration setting captured at capture time (interrupt affinity, MSI mode, HAGS, MMCSS, power, parking, driver and BIOS versions).",
-  "x-schema-version": "1.0.0",
+  "description": "One row per configuration setting captured at capture time: interrupt affinity policy and MSI mode per device, timeout detection and recovery, CPU topology, power scheme, processor power and core parking settings, driver and BIOS versions, and the state of third party tuning tools. 1.1.0 adds categories and optional columns for the registry type and bytes of a value, whether it is present, a decoded reading, the citation that names the value, and the device's status and problem code.",
+  "x-schema-version": "1.1.0",
   "x-decoded-table": "config_snapshot",
   "type": "object",
   "additionalProperties": false,
@@ -24,7 +24,13 @@
         "hags",
         "mmcss",
         "power_scheme",
+        "processor_power",
         "core_parking",
+        "tdr",
+        "cpu_topology",
+        "timer",
+        "process_lasso",
+        "stutter_guard",
         "driver",
         "bios",
         "os",
@@ -81,11 +87,66 @@
               "const": "config_snapshot"
             },
             "schema_version": {
-              "const": "1.0.0"
+              "const": "1.1.0"
             }
           }
         }
       ]
+    },
+    "present": {
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "description": "True when the value or file or program exists; false only when the read answered that it is not there (for a device key value: the API reported the hardware key, the subkey or the value missing under a key it opened and enumerated completely); null when it could not be looked at, when the derivation is unverified, or when presence is not what the row is about."
+    },
+    "registry_value_kind": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The registry kind of the value as read: the REG_ name from its numeric type code for a value read through the device key API (REG_DWORD, REG_QWORD, REG_BINARY, REG_SZ and the rest), or the RegistryValueKind name for a fixed key read through the registry provider (DWord, QWord, Binary, String, ExpandString, MultiString, None, Unknown)."
+    },
+    "raw_bytes_hex": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^([0-9a-f]{2})*$",
+      "description": "The bytes the registry holds for the value, lower case hex, in registry order (little endian for the numeric kinds)."
+    },
+    "decoded": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "The decoder's reading of the raw value where Microsoft documents its meaning (a policy name, the processors in a mask, a boolean); null when the value has no documented meaning or is absent."
+    },
+    "documented_by": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The Microsoft or vendor page that names the key, value or class this row reads; null when the value is recorded verbatim because no page documents it."
+    },
+    "device_status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "device_problem_code": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "source_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The collector source (manifest collectors[].id) the row came from."
     }
   }
 }

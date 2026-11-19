@@ -1,0 +1,22 @@
+{
+  "path": "C:\\ProgramData\\ProcessLasso\\prolasso.log",
+  "path_candidates": [
+    "C:\\ProgramData\\ProcessLasso\\logs\\processlasso.log",
+    "C:\\ProgramData\\ProcessLasso\\logs\\prolasso.log",
+    "C:\\ProgramData\\ProcessLasso\\prolasso.log"
+  ],
+  "exists": false,
+  "readable": false,
+  "error": "the file does not exist",
+  "source_bytes": null,
+  "source_sha256": null,
+  "last_write_time_utc": null,
+  "mode": "summary",
+  "why": "the vendor log is history whose lines can carry process command line arguments, whatever IncludeCommandLines says now, and no shape rule reliably removes them, so only its size, times, hash, line count and address token count are recorded",
+  "summarised": false,
+  "copied": false,
+  "source_encoding": null,
+  "source_byte_order_mark": null,
+  "copy_is_verbatim": null,
+  "protection": null
+}

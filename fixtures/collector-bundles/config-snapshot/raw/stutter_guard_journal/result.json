@@ -1,0 +1,25 @@
+{
+  "path": "C:\\ProgramData\\Stutter Guard\\journal.json",
+  "path_candidates": [
+    "C:\\ProgramData\\Stutter Guard\\journal.json"
+  ],
+  "exists": true,
+  "readable": true,
+  "error": null,
+  "source_bytes": 560,
+  "source_sha256": "0ba93cb109ea4eec1adf4f60cb995ee4782e30f84016f4e2562aab3addf1ded3",
+  "last_write_time_utc": "2026-02-28T12:00:00.0000000Z",
+  "mode": "copy",
+  "why": "the file is the owner's own configuration or journal; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)",
+  "summarised": false,
+  "copied": true,
+  "source_encoding": "utf-8",
+  "source_byte_order_mark": false,
+  "copy_is_verbatim": false,
+  "protection": {
+    "user_profile_names_replaced": 1,
+    "email_addresses_replaced": 0,
+    "unc_hosts_replaced": 0,
+    "mac_addresses_replaced": 0
+  }
+}

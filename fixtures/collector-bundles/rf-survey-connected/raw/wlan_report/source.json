@@ -1,7 +1,13 @@
 {
   "path": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html",
+  "path_candidates": [
+    "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html"
+  ],
   "path_documented": false,
   "max_artifact_bytes": 67108864,
+  "timeout_seconds": 80,
   "mode": "summary",
-  "why_no_copy": "the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded"
+  "why": "the file is free text that can name networks the current run never saw, so only its size, times, hash, line count and address token count are recorded",
+  "protection": null,
+  "sharing": "the file is opened for reading with writers allowed to continue; a file being appended may be read mid line, and the hash is of the bytes read"
 }

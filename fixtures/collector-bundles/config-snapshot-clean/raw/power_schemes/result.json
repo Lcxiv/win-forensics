@@ -1,0 +1,41 @@
+{
+  "started_utc": "2026-03-01T12:00:48.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:51.0000000Z",
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_ms": 7,
+  "stdout_bytes": 318,
+  "stdout_bytes_read": 323,
+  "diagnostic": null,
+  "stderr": "",
+  "records": 3,
+  "records_meaning": "lines carrying a GUID (one per scheme)",
+  "protection": {
+    "mac_addresses_replaced": 0,
+    "network_names_replaced": 0
+  },
+  "profiles": null,
+  "fields": [
+    {
+      "line": 4,
+      "block": 0,
+      "indent": 0,
+      "label": "GUID des Energieschemas",
+      "value": "381b4222-f694-41f0-9685-ff5bb260df2e  (Ausbalanciert) *"
+    },
+    {
+      "line": 5,
+      "block": 1,
+      "indent": 0,
+      "label": "GUID des Energieschemas",
+      "value": "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (Hoechstleistung)"
+    },
+    {
+      "line": 6,
+      "block": 2,
+      "indent": 0,
+      "label": "GUID des Energieschemas",
+      "value": "a1841308-3541-4fab-bc81-f71556f20b4a  (Energiesparmodus)"
+    }
+  ]
+}

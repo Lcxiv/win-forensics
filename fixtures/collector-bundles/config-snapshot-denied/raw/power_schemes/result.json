@@ -1,0 +1,19 @@
+{
+  "started_utc": "2026-03-01T12:00:35.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:37.0000000Z",
+  "exit_code": null,
+  "timed_out": false,
+  "duration_ms": null,
+  "stdout_bytes": 0,
+  "stdout_bytes_read": null,
+  "diagnostic": null,
+  "stderr": null,
+  "records": 0,
+  "records_meaning": "lines carrying a GUID (one per scheme)",
+  "protection": {
+    "mac_addresses_replaced": 0,
+    "network_names_replaced": 0
+  },
+  "profiles": null,
+  "fields": []
+}

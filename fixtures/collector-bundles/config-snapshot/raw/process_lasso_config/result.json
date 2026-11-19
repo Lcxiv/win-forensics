@@ -1,0 +1,25 @@
+{
+  "path": "C:\\ProgramData\\ProcessLasso\\config\\prolasso.ini",
+  "path_candidates": [
+    "C:\\ProgramData\\ProcessLasso\\config\\prolasso.ini"
+  ],
+  "exists": true,
+  "readable": true,
+  "error": null,
+  "source_bytes": 504,
+  "source_sha256": "8b5885e1859ed96f4d15c7ff9dad9e1ca71eea33204f4d3f5605db4abaf37886",
+  "last_write_time_utc": "2026-02-28T12:00:00.0000000Z",
+  "mode": "copy",
+  "why": "the file is the owner's own configuration or journal; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)",
+  "summarised": false,
+  "copied": true,
+  "source_encoding": "utf-8",
+  "source_byte_order_mark": false,
+  "copy_is_verbatim": false,
+  "protection": {
+    "user_profile_names_replaced": 2,
+    "email_addresses_replaced": 1,
+    "unc_hosts_replaced": 1,
+    "mac_addresses_replaced": 0
+  }
+}

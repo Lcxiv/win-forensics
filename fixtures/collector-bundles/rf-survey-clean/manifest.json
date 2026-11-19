@@ -808,7 +808,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "532e25a15517349423864451a282b39c72f24199a39bfd5e6adfb0b8f3311318"
+        "value": "4e18c8bb26d66c745e8e0922b55e6c66809d297e89573b294bf5a26b79ee4eec"
       },
       "filter_hash": null,
       "requested": {
@@ -818,10 +818,16 @@
         "counters": [],
         "options": {
           "path": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html",
+          "path_candidates": [
+            "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html"
+          ],
           "path_documented": false,
           "max_artifact_bytes": 67108864,
+          "timeout_seconds": 80,
           "mode": "summary",
-          "why_no_copy": "the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded"
+          "why": "the file is free text that can name networks the current run never saw, so only its size, times, hash, line count and address token count are recorded",
+          "protection": null,
+          "sharing": "the file is opened for reading with writers allowed to continue; a file being appended may be read mid line, and the hash is of the bytes read"
         }
       },
       "enabled": {
@@ -830,11 +836,15 @@
         "stack_walk": [],
         "counters": [],
         "options": {
+          "path": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html",
           "exists": false,
           "readable": false,
           "source_bytes": null,
+          "source_sha256": null,
           "last_write_time_utc": null,
-          "content_kept": false
+          "mode": "summary",
+          "content_kept": false,
+          "copy_is_verbatim": null
         },
         "verified_by": "the source size, time and hash are in the summary artifact; the text itself is not in the bundle"
       },
@@ -844,14 +854,14 @@
       "artifacts": [
         {
           "path": "raw/wlan_report/result.json",
-          "bytes": 214,
-          "sha256": "95683e8603e188acae30319cd04a558b924b834ef0359cee45930d90ff568a13",
+          "bytes": 691,
+          "sha256": "81204cee314ef83d5b2eb15ec4fb1f7339ca76a681d3ecac607eaa809e5a4e53",
           "role": "report"
         },
         {
           "path": "raw/wlan_report/source.json",
-          "bytes": 323,
-          "sha256": "532e25a15517349423864451a282b39c72f24199a39bfd5e6adfb0b8f3311318",
+          "bytes": 648,
+          "sha256": "4e18c8bb26d66c745e8e0922b55e6c66809d297e89573b294bf5a26b79ee4eec",
           "role": "config"
         }
       ],

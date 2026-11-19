@@ -1632,6 +1632,665 @@ Describe 'rf-survey sources against the synthetic backend' {
     }
 }
 
+Describe 'config-snapshot sources against the synthetic backend' {
+    BeforeAll {
+        function Start-ConfigCase {
+            param([string]$Case = 'config-snapshot')
+            Reset-WfSynthetic
+            $selected = @(Get-WfSyntheticCases | Where-Object { $_['Case'] -eq $Case })[0]
+            & $selected['Setup']
+        }
+        function Get-ConfigSource {
+            param($Run, [string]$Id)
+            return @($Run.Manifest.collectors | Where-Object { $_.id -eq $Id })[0]
+        }
+        function Get-NativeCalls {
+            # Wrapped so one match stays an array of one, and no match an empty array.
+            param([string]$Name)
+            return , @($global:WfSynthetic.NativeCalls | Where-Object { $_['Call'] -eq $Name })
+        }
+        $script:Gpu = 'PCI\VEN_FFFF&DEV_0001\4&1a2b3c4d&0&0008'
+        $script:Affinity = 'Interrupt Management\Affinity Policy'
+        $script:Msi = 'Interrupt Management\MessageSignaledInterruptProperties'
+    }
+
+    It 'turns a raw registry value into its type name, bytes and scalar, and omits string typed text' {
+        $dword = ConvertFrom-WfRawRegistryValue -Name 'DevicePolicy' -Type 4 -Bytes ([byte[]](4, 0, 0, 0))
+        $dword['kind'] | Should -BeExactly 'REG_DWORD'
+        $dword['data'] | Should -Be 4
+        $dword['bytes_hex'] | Should -BeExactly '04000000'
+        $high = ConvertFrom-WfRawRegistryValue -Name 'x' -Type 4 -Bytes ([byte[]](0xFF, 0xFF, 0xFF, 0xFF))
+        $high['data'] | Should -Be 4294967295
+        $qword = ConvertFrom-WfRawRegistryValue -Name 'AssignmentSetOverride' -Type 11 -Bytes ([byte[]](1, 0, 0, 0, 0, 0, 0, 0x80))
+        $qword['kind'] | Should -BeExactly 'REG_QWORD'
+        $qword['data'] | Should -BeExactly '9223372036854775809' -Because 'a QWORD above int64 stays exact as text'
+        $qword['bytes_hex'] | Should -BeExactly '0100000000000080'
+        $binary = ConvertFrom-WfRawRegistryValue -Name 'AssignmentSetOverride' -Type 3 -Bytes ([byte[]](0x40, 0, 0, 0, 0, 0, 0, 0))
+        $binary['kind'] | Should -BeExactly 'REG_BINARY'
+        $binary['data'] | Should -BeExactly '4000000000000000'
+        $zero = ConvertFrom-WfRawRegistryValue -Name 'MSISupported' -Type 4 -Bytes ([byte[]](0, 0, 0, 0))
+        $zero['present'] | Should -BeTrue
+        $zero['data'] | Should -Be 0
+        $text = ConvertFrom-WfRawRegistryValue -Name 'Comment' -Type 1 -Bytes ([System.Text.Encoding]::Unicode.GetBytes('Jane Doe'))
+        $text['data'] | Should -BeNullOrEmpty
+        $text['bytes_hex'] | Should -BeNullOrEmpty
+        $text['byte_count'] | Should -Be 16
+        $text['omitted_reason'] | Should -Match 'free text'
+        (ConvertTo-WfJson -Value $text) | Should -Not -Match '4a0061006e'
+        $empty = ConvertFrom-WfRawRegistryValue -Name 'Empty' -Type 3 -Bytes ([byte[]]@())
+        $empty['bytes_hex'] | Should -BeExactly ''
+        $empty['byte_count'] | Should -Be 0
+    }
+
+    It 'opens the hardware key through the documented API with global scope, DIREG_DEV and KEY_READ, and relative read only subkeys' {
+        Start-ConfigCase
+        $r = Get-WfDeviceInterruptPolicy -InstanceId $script:Gpu -MaxValues 64 -MaxBytes 1048576
+        $r['Ok'] | Should -BeTrue
+        $r['Stage'] | Should -BeExactly 'read'
+        $r['HardwareKey']['exists'] | Should -BeTrue
+        $r['InterruptManagement']['exists'] | Should -BeTrue
+        $leaves = @($r['Leaves'])
+        $leaves.Count | Should -Be 2
+        @($leaves[0]['values'] | ForEach-Object { $_['name'] }) | Should -Be @('DevicePolicy', 'AssignmentSetOverride', 'DevicePriority')
+        @($leaves[0]['values'] | Where-Object { $_['name'] -eq 'AssignmentSetOverride' })[0]['bytes_hex'] | Should -BeExactly '2000000000000000'
+        @($leaves[0]['values'] | Where-Object { $_['name'] -eq 'AssignmentSetOverride' })[0]['kind'] | Should -BeExactly 'REG_BINARY'
+        $leaves[0]['enumeration_complete'] | Should -BeTrue
+        # The recorder saw exactly the documented sequence and flags.
+        $creates = Get-NativeCalls -Name 'SetupDiCreateDeviceInfoList'
+        $creates.Count | Should -Be 1
+        $creates[0]['Arguments'] | Should -Be @([IntPtr]::Zero, [IntPtr]::Zero)
+        $opens = Get-NativeCalls -Name 'SetupDiOpenDeviceInfoW'
+        $opens[0]['Arguments'][1] | Should -BeExactly $script:Gpu
+        $opens[0]['Arguments'][3] | Should -Be 0 -Because 'OpenFlags 0, never DIOD_CANCEL_REMOVE'
+        $keys = Get-NativeCalls -Name 'SetupDiOpenDevRegKey'
+        $keys.Count | Should -Be 1
+        $keys[0]['Arguments'][2] | Should -Be 1 -Because 'DICS_FLAG_GLOBAL'
+        $keys[0]['Arguments'][3] | Should -Be 0 -Because 'HwProfile 0'
+        $keys[0]['Arguments'][4] | Should -Be 1 -Because 'DIREG_DEV'
+        $keys[0]['Arguments'][5] | Should -Be 131097 -Because 'KEY_READ, 0x20019'
+        $relative = Get-NativeCalls -Name 'RegOpenKeyExW'
+        @($relative | ForEach-Object { $_['Arguments'][1] }) | Should -Be @('Interrupt Management', $script:Affinity, $script:Msi)
+        foreach ($call in $relative) { $call['Arguments'][2] | Should -Be 0; $call['Arguments'][3] | Should -Be 131097 }
+        @($global:WfSynthetic.NativeCalls | ForEach-Object { $_['Call'] } | Sort-Object -Unique) | Should -Be @('RegCloseKey', 'RegEnumValueW', 'RegOpenKeyExW', 'SetupDiCreateDeviceInfoList', 'SetupDiDestroyDeviceInfoList', 'SetupDiOpenDeviceInfoW', 'SetupDiOpenDevRegKey')
+        (Get-NativeCalls -Name 'SetupDiDestroyDeviceInfoList').Count | Should -Be 1
+        $global:WfSynthetic.NativeHandles.Count | Should -Be 0 -Because 'every key was closed and the set destroyed'
+    }
+
+    It 'tells a missing hardware key, a missing leaf, a missing value, a denied key and a gone device apart, and cleans up after each' {
+        Start-ConfigCase
+        # Missing hardware key: positively absent, both leaves absent, nothing opened under it.
+        $global:WfSynthetic.DeviceKeys['PCI\M'] = @{ HardwareKey = 'missing' }
+        $missing = Get-WfDeviceInterruptPolicy -InstanceId 'PCI\M'
+        $missing['Ok'] | Should -BeTrue
+        $missing['HardwareKey']['exists'] | Should -BeFalse
+        $missing['HardwareKey']['error_code'] | Should -Be 3758096900
+        @($missing['Leaves'] | ForEach-Object { $_['exists'] }) | Should -Be @($false, $false)
+        (Get-NativeCalls -Name 'RegOpenKeyExW').Count | Should -Be 0
+        $global:WfSynthetic.NativeHandles.Count | Should -Be 0
+        # Missing leaf under an existing Interrupt Management: that leaf absent, the other read.
+        $global:WfSynthetic.NativeCalls.Clear()
+        $global:WfSynthetic.DeviceKeys['PCI\L'] = @{ HardwareKey = 'exists'; Subkeys = @{ $script:Msi = @{ Values = @(@{ Name = 'MSISupported'; Type = 4; Bytes = [byte[]](1, 0, 0, 0) }) } } }
+        $leaf = Get-WfDeviceInterruptPolicy -InstanceId 'PCI\L'
+        $leaf['Ok'] | Should -BeTrue
+        $leaf['InterruptManagement']['exists'] | Should -BeTrue
+        $leaf['Leaves'][0]['exists'] | Should -BeFalse
+        $leaf['Leaves'][1]['exists'] | Should -BeTrue
+        @($leaf['Leaves'][1]['values']).Count | Should -Be 1
+        # Missing Interrupt Management: both leaves absent without opening them.
+        $global:WfSynthetic.NativeCalls.Clear()
+        $global:WfSynthetic.DeviceKeys['PCI\N'] = @{ HardwareKey = 'exists'; Subkeys = @{} }
+        $none = Get-WfDeviceInterruptPolicy -InstanceId 'PCI\N'
+        $none['Ok'] | Should -BeTrue
+        $none['InterruptManagement']['exists'] | Should -BeFalse
+        @($none['Leaves'] | ForEach-Object { $_['exists'] }) | Should -Be @($false, $false)
+        (Get-NativeCalls -Name 'RegOpenKeyExW').Count | Should -Be 1
+        # Denied hardware key: unknown, not absent, nothing under it touched, no stale handle.
+        $global:WfSynthetic.NativeCalls.Clear()
+        $global:WfSynthetic.DeviceKeys['PCI\D'] = @{ HardwareKey = 'denied' }
+        $denied = Get-WfDeviceInterruptPolicy -InstanceId 'PCI\D'
+        $denied['Ok'] | Should -BeFalse
+        $denied['Stage'] | Should -BeExactly 'open_hardware_key'
+        $denied['ErrorCode'] | Should -Be 5
+        $denied['HardwareKey']['exists'] | Should -BeNullOrEmpty
+        @($denied['Leaves'] | ForEach-Object { $_['exists'] }) | Should -Be @($null, $null)
+        (Get-NativeCalls -Name 'RegOpenKeyExW').Count | Should -Be 0
+        (Get-NativeCalls -Name 'SetupDiDestroyDeviceInfoList').Count | Should -Be 1
+        $global:WfSynthetic.NativeHandles.Count | Should -Be 0
+        # Denied leaf among readable ones: that leaf unknown with its code, the other read.
+        $global:WfSynthetic.DeviceKeys['PCI\DL'] = @{ HardwareKey = 'exists'; Subkeys = @{ $script:Affinity = @{ Values = @(); Denied = $true }; $script:Msi = @{ Values = @(@{ Name = 'MSISupported'; Type = 4; Bytes = [byte[]](1, 0, 0, 0) }) } } }
+        $deniedLeaf = Get-WfDeviceInterruptPolicy -InstanceId 'PCI\DL'
+        $deniedLeaf['Ok'] | Should -BeTrue
+        $deniedLeaf['Leaves'][0]['exists'] | Should -BeNullOrEmpty
+        $deniedLeaf['Leaves'][0]['error_code'] | Should -Be 5
+        $deniedLeaf['Leaves'][1]['exists'] | Should -BeTrue
+        $global:WfSynthetic.NativeHandles.Count | Should -Be 0
+        # A device that is gone: unknown at the open stage.
+        $gone = Get-WfDeviceInterruptPolicy -InstanceId 'PCI\NOPE'
+        $gone['Ok'] | Should -BeFalse
+        $gone['Stage'] | Should -BeExactly 'open_device'
+        $gone['ErrorCode'] | Should -Be 3758096907
+        $gone['DeviceOpened'] | Should -BeFalse
+        $global:WfSynthetic.NativeHandles.Count | Should -Be 0
+        # An empty id never opens the root device.
+        $empty = Get-WfDeviceInterruptPolicy -InstanceId ''
+        $empty['Stage'] | Should -BeExactly 'argument'
+        $opened = Get-NativeCalls -Name 'SetupDiOpenDeviceInfoW'
+        @($opened | Where-Object { -not $_['Arguments'][1] }).Count | Should -Be 0
+        # A declaration that does not compile: unknown at the compile stage, no native call at all.
+        $global:WfSynthetic.NativeCalls.Clear()
+        $global:WfSynthetic.DeviceKeyCompile = 'fail'
+        $compile = Get-WfDeviceInterruptPolicy -InstanceId $script:Gpu
+        $compile['Ok'] | Should -BeFalse
+        $compile['Stage'] | Should -BeExactly 'compile'
+        $global:WfSynthetic.NativeCalls.Count | Should -Be 0
+    }
+
+    It 'grows the buffer on ERROR_MORE_DATA, stops at the value cap and at the deadline, and never calls unvisited values absent' {
+        Start-ConfigCase
+        $nic = 'PCI\VEN_FFF0&DEV_8125\4&3a2b1c0d&0&00E0'
+        $r = Get-WfDeviceInterruptPolicy -InstanceId $nic -MaxValues 64 -MaxBytes 1048576
+        $r['Leaves'][0]['enumeration_complete'] | Should -BeTrue
+        @($r['Leaves'][0]['values']).Count | Should -Be 2
+        $enumerations = Get-NativeCalls -Name 'RegEnumValueW'
+        @($enumerations | Where-Object { $_['Arguments'][1] -eq 0 }).Count | Should -BeGreaterThan 1 -Because 'the first value was asked for twice, once with a larger buffer'
+        # A value above the byte cap stops the enumeration and says so (the recorder answers ERROR_MORE_DATA once per value per reset).
+        $global:WfSynthetic.NativeMoreDataSeen.Clear()
+        $capped = Get-WfDeviceInterruptPolicy -InstanceId $nic -MaxValues 64 -MaxBytes 4096
+        $capped['Leaves'][0]['enumeration_complete'] | Should -BeFalse
+        $capped['Leaves'][0]['error'] | Should -Match 'above the cap'
+        # The value cap.
+        $few = Get-WfDeviceInterruptPolicy -InstanceId $script:Gpu -MaxValues 1 -MaxBytes 1048576
+        $few['Leaves'][0]['enumeration_complete'] | Should -BeFalse
+        @($few['Leaves'][0]['values']).Count | Should -Be 1
+        $few['Leaves'][0]['error'] | Should -Match 'cap of 1 values'
+        # The deadline, passing while values are enumerated.
+        $global:WfSynthetic.DeviceKeys[$script:Gpu]['Subkeys'][$script:Affinity]['SecondsPerValue'] = 30
+        $slow = Get-WfDeviceInterruptPolicy -InstanceId $script:Gpu -MaxValues 64 -MaxBytes 1048576 -DeadlineUtc ((Get-WfUtcNow).AddSeconds(45))
+        $slow['Ok'] | Should -BeFalse
+        $slow['Stage'] | Should -BeExactly 'timeout'
+        $global:WfSynthetic.NativeHandles.Count | Should -Be 0 -Because 'the handles are released on the timeout path too'
+    }
+
+    It 'records every PCI function with its hardware key read through the API, absence as absence, and selects no codec or USB child' {
+        Start-ConfigCase
+        $keysBefore = $global:WfSynthetic.Registry.Count
+        $out = Join-Path $TestDrive 'policy'
+        $run = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out
+        $run.ExitCode | Should -Be 0
+        ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'partial' -Because 'two questions have no documented read only path'
+        $source = Get-ConfigSource -Run $run -Id 'interrupt_policy'
+        $source.status | Should -BeExactly 'observed'
+        $source.enabled.options.keys_read | Should -Be 8
+        $source.enabled.options.keys_absent | Should -Be 2
+        $source.enabled.options.keys_unknown | Should -Be 0
+        @($source.command) | Should -Contain 'SetupDiOpenDevRegKey'
+        ($source.requested.options | ConvertTo-Json -Depth 5) | Should -Not -Match 'Enum\\\\'
+        $devices = Get-Content -LiteralPath (Join-Path $out 'raw/interrupt_policy/keys.json') -Raw | ConvertFrom-Json
+        @($devices).Count | Should -Be 5
+        @($devices | ForEach-Object { $_.instance_id } | Where-Object { $_ -notlike 'PCI\*' }).Count | Should -Be 0
+        @($devices | ForEach-Object { $_.class } | Sort-Object -Unique) | Should -Be @('Display', 'Net', 'SCSIAdapter', 'System', 'USB')
+        $gpu = @($devices | Where-Object { $_.class -eq 'Display' })[0]
+        $gpu.device_key.resolver | Should -BeExactly 'SetupDiOpenDevRegKey'
+        $gpu.device_key.access | Should -BeExactly 'KEY_READ'
+        $gpu.stage | Should -BeExactly 'read'
+        $affinity = @($gpu.interrupt_keys | Where-Object { $_.subkey -like '*Affinity Policy' })[0]
+        $affinity.exists | Should -BeTrue
+        @($affinity.values | ForEach-Object { $_.name }) | Should -Be @('DevicePolicy', 'AssignmentSetOverride', 'DevicePriority')
+        @($affinity.values | Where-Object { $_.name -eq 'AssignmentSetOverride' })[0].bytes_hex | Should -BeExactly '2000000000000000'
+        @($affinity.values | Where-Object { $_.name -eq 'AssignmentSetOverride' })[0].kind | Should -BeExactly 'REG_BINARY'
+        $audio = @($devices | Where-Object { $_.service -eq 'HDAudBus' })[0]
+        $audio.problem_code | Should -Be 22
+        $audio.status | Should -BeExactly 'Error'
+        @($audio.interrupt_keys | Where-Object { $_.subkey -like '*Affinity Policy' })[0].exists | Should -BeFalse
+        @($audio.interrupt_keys | Where-Object { $_.subkey -like '*Affinity Policy' })[0].error_code | Should -BeNullOrEmpty -Because 'absent is not an error'
+        $xhci = @($devices | Where-Object { $_.service -eq 'USBXHCI' })[0]
+        $comment = @(@($xhci.interrupt_keys)[0].values | Where-Object { $_.name -eq 'Comment' })[0]
+        $comment.omitted_reason | Should -Match 'free text'
+        [System.IO.File]::ReadAllText((Join-Path $out 'raw/interrupt_policy/keys.json')) | Should -Not -Match 'Synthetic Owner|7300650074' -Because 'a string value leaves neither as text nor as hex'
+        $tdr = Get-Content -LiteralPath (Join-Path $out 'raw/graphics_tdr/keys.json') -Raw | ConvertFrom-Json
+        @($tdr).Count | Should -Be 1
+        @($tdr[0].values | Where-Object { $_.present }).Count | Should -Be 2
+        @($tdr[0].values | ForEach-Object { $_.name }) | Should -Not -Contain 'HwSchMode' -Because 'only the documented value names are read from a fixed key'
+        $global:WfSynthetic.Registry.Count | Should -Be $keysBefore
+        $global:WfSynthetic.NativeHandles.Count | Should -Be 0
+        @($global:WfSynthetic.NativeCalls | Where-Object { $_['Call'] -eq 'SetupDiOpenDevRegKey' }).Count | Should -Be 5
+    }
+
+    It 'never writes a Bluetooth peer name or address in clear, even when such a device is selected' {
+        Start-ConfigCase
+        $earbuds = 'BTHENUM\{0000110b-0000-1000-8000-00805f9b34fb}_VID&0001004c_PID&200e\7&1a2b3c4d&0&F0F1F2000001_C00000000'
+        $out = Join-Path $TestDrive 'bt-excluded'
+        $run = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out
+        foreach ($file in @(Get-ChildItem -LiteralPath $out -File -Recurse)) {
+            $text = [System.IO.File]::ReadAllText($file.FullName)
+            $text.Contains('Jane Doe') | Should -BeFalse -Because ($file.Name + ' must not carry the peer name')
+            $text.Contains('F0F1F2000001') | Should -BeFalse -Because ($file.Name + ' must not carry the peer address')
+        }
+        # Force the selection to include the peer (a definition that selected class MEDIA would): the row leaves protected.
+        $global:WfSynthetic.DeviceKeys[$earbuds] = @{ HardwareKey = 'exists'; Subkeys = @{} }
+        $definition = @{ Name = 'config-snapshot'; Version = '0.0.0'; Question = 'test'; Sources = @(
+                @{ Id = 'interrupt_policy'; Type = 'registry'; Mode = 'devices'; Kind = 'config_snapshot'; Required = $true; InstancePrefixes = @('PCI\'); Classes = @('MEDIA'); Expectation = 'test' }
+            ) }
+        $out2 = Join-Path $TestDrive 'bt-selected'
+        $null = Invoke-WfCollectorScript -Definition $definition -OutputDirectory $out2
+        $text = [System.IO.File]::ReadAllText((Join-Path $out2 'raw/interrupt_policy/keys.json'))
+        $text | Should -Not -Match 'Jane Doe|F0F1F2000001'
+        $rows = Get-Content -LiteralPath (Join-Path $out2 'raw/interrupt_policy/keys.json') -Raw | ConvertFrom-Json
+        $peer = @($rows | Where-Object { $_.instance_id -like 'BTHENUM\*' })[0]
+        $peer.name | Should -Match '^name-[0-9a-f]{12}$'
+        $peer.instance_id | Should -Match 'mac-[0-9a-f]{12}'
+        (Get-Content -LiteralPath (Join-Path $out2 'raw/interrupt_policy/result.json') -Raw | ConvertFrom-Json).peer_nodes_pseudonymised | Should -Be 1
+        $manifest = Get-Content -LiteralPath (Join-Path $out2 'manifest.json') -Raw | ConvertFrom-Json
+        @($manifest.notes | Where-Object { $_ -match 'pseudonyms' }).Count | Should -Be 1
+    }
+
+    It 'records a denied hardware key among readable ones as unknown, and the whole source as not_collected when none opens' {
+        Start-ConfigCase 'config-snapshot-denied'
+        $out = Join-Path $TestDrive 'policy-denied'
+        $run = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out
+        $run.ExitCode | Should -Be 1
+        $source = Get-ConfigSource -Run $run -Id 'interrupt_policy'
+        $source.status | Should -BeExactly 'not_collected'
+        $source.status_reason | Should -Match 'none of the 5 selected devices could be read'
+        $source.status_reason | Should -Match 'ERROR_ACCESS_DENIED'
+        Test-Path -LiteralPath (Join-Path $out 'raw/interrupt_policy/keys.json') | Should -BeFalse
+        (Get-ConfigSource -Run $run -Id 'graphics_tdr').status | Should -BeExactly 'not_collected'
+        (Get-ConfigSource -Run $run -Id 'logical_processor_map').status | Should -BeExactly 'not_collected'
+        (Get-ConfigSource -Run $run -Id 'logical_processor_map').status_reason | Should -Match 'stage compile'
+        $global:WfSynthetic.NativeHandles.Count | Should -Be 0
+        Start-ConfigCase
+        $global:WfSynthetic.DeviceKeys[$script:Gpu] = @{ HardwareKey = 'denied' }
+        $out2 = Join-Path $TestDrive 'policy-one-denied'
+        $run2 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out2
+        $source2 = Get-ConfigSource -Run $run2 -Id 'interrupt_policy'
+        $source2.status | Should -BeExactly 'observed'
+        $source2.enabled.options.keys_unknown | Should -Be 2
+        $devices = Get-Content -LiteralPath (Join-Path $out2 'raw/interrupt_policy/keys.json') -Raw | ConvertFrom-Json
+        $denied = @($devices | Where-Object { $_.class -eq 'Display' })[0]
+        $denied.stage | Should -BeExactly 'open_hardware_key'
+        $denied.error_code | Should -Be 5
+        $denied.hardware_key_state.exists | Should -BeNullOrEmpty
+        @($denied.interrupt_keys | ForEach-Object { $_.exists }) | Should -Be @($null, $null) -Because 'nothing under an unreadable key is called absent'
+        @($run2.Manifest.notes | Where-Object { $_ -match 'could not be read' }).Count | Should -Be 1
+        # A declaration that does not compile makes the source not_collected at preflight, with no element written.
+        Start-ConfigCase
+        $global:WfSynthetic.DeviceKeyCompile = 'fail'
+        $run3 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory (Join-Path $TestDrive 'policy-compile')
+        (Get-ConfigSource -Run $run3 -Id 'interrupt_policy').status | Should -BeExactly 'not_collected'
+        (Get-ConfigSource -Run $run3 -Id 'interrupt_policy').status_reason | Should -Match 'compiled or loaded'
+        Test-Path -LiteralPath (Join-Path $TestDrive 'policy-compile/raw/interrupt_policy/keys.json') | Should -BeFalse
+    }
+
+    It 'parses a GetLogicalProcessorInformationEx buffer by the documented layouts, with interleaved siblings and two groups' {
+        $buffer = New-WfSyntheticLpiBuffer -Cores 6 -Groups 1 -Interleaved $true
+        $records = ConvertFrom-WfLogicalProcessorInformation -Bytes $buffer
+        @($records | Where-Object { $_['relationship'] -eq 0 }).Count | Should -Be 6
+        $core0 = @($records | Where-Object { $_['relationship'] -eq 0 })[0]
+        $core0['smt'] | Should -BeTrue
+        @($core0['group_masks'][0]['processors']) | Should -Be @(0, 6) -Because 'the siblings are interleaved, not adjacent'
+        $core0['group_masks'][0]['mask_hex'] | Should -BeExactly '0x41'
+        $l3 = @($records | Where-Object { $_['relationship'] -eq 2 -and $_['level'] -eq 3 })[0]
+        $l3['cache_size'] | Should -Be 33554432
+        $l3['cache_type_name'] | Should -BeExactly 'CacheUnified'
+        @($l3['group_masks'][0]['processors']).Count | Should -Be 12
+        $group = @($records | Where-Object { $_['relationship'] -eq 4 })[0]
+        $group['active_group_count'] | Should -Be 1
+        $group['groups'][0]['active_processor_count'] | Should -Be 12
+        $group['groups'][0]['active_mask_hex'] | Should -BeExactly '0xfff'
+        $two = ConvertFrom-WfLogicalProcessorInformation -Bytes (New-WfSyntheticLpiBuffer -Cores 2 -Groups 2 -Interleaved $false)
+        @($two | Where-Object { $_['relationship'] -eq 0 } | ForEach-Object { $_['group_masks'][0]['group'] }) | Should -Be @(0, 0, 1, 1)
+        @($two | Where-Object { $_['relationship'] -eq 0 })[0]['group_masks'][0]['processors'] | Should -Be @(0, 1)
+        @($two | Where-Object { $_['relationship'] -eq 4 })[0]['groups'].Count | Should -Be 2
+        # A record that runs past the buffer, or trailing bytes, is a parse failure, never a partial topology.
+        $cut = New-Object byte[] ($buffer.Length - 5)
+        [System.Array]::Copy($buffer, $cut, $cut.Length)
+        { ConvertFrom-WfLogicalProcessorInformation -Bytes $cut } | Should -Throw -ExpectedMessage '*does not fit the buffer*'
+        $padded = New-Object byte[] ($buffer.Length + 3)
+        [System.Array]::Copy($buffer, $padded, $buffer.Length)
+        { ConvertFrom-WfLogicalProcessorInformation -Bytes $padded } | Should -Throw -ExpectedMessage '*trailing bytes*'
+        # An unknown relationship is kept as bytes.
+        $odd = New-WfSyntheticLpiRecord -Relationship 8 -Body ([byte[]](1, 2, 3, 4))
+        $kept = ConvertFrom-WfLogicalProcessorInformation -Bytes $odd
+        $kept[0]['body_hex'] | Should -BeExactly '01020304'
+        $kept[0]['relationship_name'] | Should -BeExactly 'RelationProcessorSharedComputeUnit'
+    }
+
+    It 'writes the topology as an observed source, and fails closed on a bad call, a 32 bit host, a malformed buffer or no core record' {
+        Start-ConfigCase
+        $out = Join-Path $TestDrive 'topology'
+        $run = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out
+        $source = Get-ConfigSource -Run $run -Id 'logical_processor_map'
+        $source.status | Should -BeExactly 'observed'
+        $source.enabled.options.cores | Should -Be 6
+        $source.enabled.options.records | Should -Be 28
+        $records = Get-Content -LiteralPath (Join-Path $out 'raw/logical_processor_map/topology.json') -Raw | ConvertFrom-Json
+        @($records).Count | Should -Be 28
+        $report = Get-Content -LiteralPath (Join-Path $out 'raw/logical_processor_map/result.json') -Raw | ConvertFrom-Json
+        $report.buffer_hex.Length | Should -Be (2 * $report.byte_count)
+        $report.record_counts.RelationProcessorCore | Should -Be 6
+        Start-ConfigCase
+        $global:WfSynthetic.Topology = @{ Stage = 'read'; ErrorCode = 1450; ErrorMessage = 'the call returned FALSE' }
+        $run2 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory (Join-Path $TestDrive 'topology-fail')
+        (Get-ConfigSource -Run $run2 -Id 'logical_processor_map').status | Should -BeExactly 'capture_failed'
+        (Get-ConfigSource -Run $run2 -Id 'logical_processor_map').status_reason | Should -Match 'Win32 error 1450'
+        Test-Path -LiteralPath (Join-Path $TestDrive 'topology-fail/raw/logical_processor_map/topology.json') | Should -BeFalse
+        Start-ConfigCase
+        $global:WfSynthetic.Topology = @{ Bytes = (New-WfSyntheticLpiBuffer -Cores 2); PointerSize = 4 }
+        $run3 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory (Join-Path $TestDrive 'topology-32')
+        (Get-ConfigSource -Run $run3 -Id 'logical_processor_map').status | Should -BeExactly 'unsupported'
+        Start-ConfigCase
+        $global:WfSynthetic.Topology = @{ Bytes = [byte[]](0, 0, 0, 0, 200, 0, 0, 0) }
+        $run4 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory (Join-Path $TestDrive 'topology-bad')
+        (Get-ConfigSource -Run $run4 -Id 'logical_processor_map').status | Should -BeExactly 'capture_failed'
+        (Get-ConfigSource -Run $run4 -Id 'logical_processor_map').status_reason | Should -Match 'documented layout'
+        Start-ConfigCase
+        $global:WfSynthetic.Topology = @{ Bytes = (New-WfSyntheticLpiRecord -Relationship 4 -Body (New-Object byte[] 24)) }
+        $run5 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory (Join-Path $TestDrive 'topology-nocore')
+        (Get-ConfigSource -Run $run5 -Id 'logical_processor_map').status_reason | Should -Match 'no RelationProcessorCore record'
+    }
+
+    It 'replaces user profile folder names, e-mail shaped tokens, UNC hosts and addresses in copied text, and keeps the standard folders' {
+        $text = "a=C:\Users\Jane Doe\Games\x.exe`r`nb=C:\\Users\\Jane Doe\\Desktop`r`nc=C:\Users\Public\Desktop`r`nd=/Users/janedoe/x`r`nmail=jane.doe@example.test`r`nmac=02:11:22:33:44:55`r`nshare=\\DESKTOP-JANE01\share\x`r`njson=`"\\\\DESKTOP-JANE01\\share`"`r`nkey=HKLM\\SYSTEM\\CurrentControlSet\\Enum`r`n"
+        $r = Protect-WfCopiedText -Text $text -Salt 'test-salt'
+        $r['Text'] | Should -Not -Match 'Jane Doe|janedoe|jane\.doe@|02:11:22|DESKTOP-JANE01'
+        $r['Text'] | Should -Match 'a=C:\\Users\\user-[0-9a-f]{12}\\Games\\x\.exe'
+        $r['Text'] | Should -Match 'b=C:\\\\Users\\\\user-[0-9a-f]{12}\\\\Desktop'
+        $r['Text'] | Should -Match 'c=C:\\Users\\Public\\Desktop'
+        $r['Text'] | Should -Match 'mail=mail-[0-9a-f]{12}'
+        $r['Text'] | Should -Match 'mac=mac-[0-9a-f]{12}'
+        $r['Text'] | Should -Match 'share=\\\\host-[0-9a-f]{12}\\share\\x'
+        $r['Text'] | Should -Match 'json="\\\\\\\\host-[0-9a-f]{12}\\\\share"'
+        $r['Text'] | Should -Match 'key=HKLM\\\\SYSTEM\\\\CurrentControlSet\\\\Enum' -Because 'an escaped separator pair inside a path is not a UNC root'
+        $r['Text'] | Should -Match "`r`n" -Because 'line endings are kept as they are'
+        $r['UserCount'] | Should -Be 3
+        $r['MailCount'] | Should -Be 1
+        $r['HostCount'] | Should -Be 2
+        $r['MacCount'] | Should -Be 1
+        $one = ConvertTo-WfPseudonym -Kind 'user' -Value 'jane doe' -Salt 'test-salt'
+        @([regex]::Matches($r['Text'], [regex]::Escape($one))).Count | Should -Be 2
+    }
+
+    It 'replaces a profile folder name that ends at a character a folder name cannot hold' {
+        $cases = @('<p>C:\Users\alice</p>', 'a=C:\Users\alice|b', 'C:\Users\alice>out.txt', 'C:\Users\alice:stream', 'C:\Users\alice?', 'C:\Users\alice*', 'cannot write C:\\Users\\alice: access denied')
+        foreach ($case in $cases) {
+            $r = Protect-WfCopiedText -Text $case -Salt 'test-salt'
+            $r['Text'] | Should -Not -Match 'alice' -Because $case
+            $r['Text'] | Should -Match 'Users[\\]{1,2}user-[0-9a-f]{12}' -Because $case
+            $r['UserCount'] | Should -Be 1 -Because $case
+        }
+        $kept = Protect-WfCopiedText -Text '<p>C:\Users\Public</p> C:\Users\Default User|x C:\Users\All Users:y' -Salt 'test-salt'
+        $kept['UserCount'] | Should -Be 0
+        $kept['Text'] | Should -BeExactly '<p>C:\Users\Public</p> C:\Users\Default User|x C:\Users\All Users:y'
+    }
+
+    It 'decodes text by its byte order mark and says so' {
+        $utf16 = [byte[]](0xFF, 0xFE) + [System.Text.Encoding]::Unicode.GetBytes('x=1')
+        $d = ConvertFrom-WfTextBytes -Bytes $utf16
+        $d['Text'] | Should -BeExactly 'x=1'
+        $d['Encoding'] | Should -BeExactly 'utf-16le'
+        $d['HadByteOrderMark'] | Should -BeTrue
+        $plain = ConvertFrom-WfTextBytes -Bytes ([System.Text.Encoding]::ASCII.GetBytes('y=2'))
+        $plain['Encoding'] | Should -BeExactly 'utf-8'
+        $plain['HadByteOrderMark'] | Should -BeFalse
+    }
+
+    It 'writes a map with an entry named keys or values as plain members' {
+        (ConvertTo-WfJson -Value ([ordered]@{ keys = @(1); values = 'v'; count = 2 })) | Should -BeExactly '{"keys":[1],"values":"v","count":2}'
+    }
+
+    It 'protects the timer helper command line and image path at the collection boundary' {
+        Start-ConfigCase
+        $out = Join-Path $TestDrive 'helper'
+        $run = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out
+        foreach ($file in @(Get-ChildItem -LiteralPath $out -File -Recurse)) {
+            [System.IO.File]::ReadAllText($file.FullName).Contains('Synthetic Owner') | Should -BeFalse -Because ($file.Name + ' must not carry the profile name')
+        }
+        $records = Get-Content -LiteralPath (Join-Path $out 'raw/timer_helper_process/records.json') -Raw | ConvertFrom-Json
+        $records[0].CommandLine | Should -Match '^"C:\\Users\\user-[0-9a-f]{12}\\Downloads\\Stutter Guard\\DpcTimerRes\.exe" 10000$'
+        $records[0].ExecutablePath | Should -Match '^C:\\Users\\user-[0-9a-f]{12}\\Downloads\\Stutter Guard\\DpcTimerRes\.exe$'
+        $source = Get-ConfigSource -Run $run -Id 'timer_helper_process'
+        $source.requested.options.protected_properties | Should -Be @('CommandLine', 'ExecutablePath')
+        $source.enabled.options.protection.user_profile_names_replaced | Should -Be 2
+        @($run.Manifest.notes | Where-Object { $_ -match 'Copied text' }).Count | Should -Be 1
+    }
+
+    It 'copies the owner files with pseudonyms and the hash of the original, and keeps an unchanged file verbatim' {
+        Start-ConfigCase
+        $global:WfSynthetic.Files['C:\ProgramData\Stutter Guard\journal.json'] = @{ Text = '{"records":[]}' }
+        $out = Join-Path $TestDrive 'copies'
+        $run = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out
+        foreach ($file in @(Get-ChildItem -LiteralPath $out -File -Recurse)) {
+            $text = [System.IO.File]::ReadAllText($file.FullName)
+            $text.Contains('Synthetic Owner') | Should -BeFalse -Because ($file.Name + ' must not carry the user profile name')
+            $text.Contains('owner@example.test') | Should -BeFalse -Because ($file.Name + ' must not carry the e-mail address')
+            $text.Contains('DESKTOP-SYNTH01') | Should -BeFalse -Because ($file.Name + ' must not carry the computer name')
+        }
+        $ini = [System.IO.File]::ReadAllText((Join-Path $out 'raw/process_lasso_config/prolasso.ini'))
+        $ini | Should -Match 'ExcludedProcesses=C:\\Users\\user-[0-9a-f]{12}\\Games\\launcher\.exe'
+        $ini | Should -Match 'SupportContact=mail-[0-9a-f]{12}'
+        $ini | Should -Match 'ConfigPath=\\\\host-[0-9a-f]{12}\\ProcessLasso\\config'
+        $ini | Should -Match 'TargetPowerPlan=Synthetic Low Latency'
+        $report = Get-Content -LiteralPath (Join-Path $out 'raw/process_lasso_config/result.json') -Raw | ConvertFrom-Json
+        $report.protection.user_profile_names_replaced | Should -Be 2
+        $report.protection.email_addresses_replaced | Should -Be 1
+        $report.protection.unc_hosts_replaced | Should -Be 1
+        $report.copy_is_verbatim | Should -BeFalse
+        $report.source_sha256 | Should -BeExactly (Get-WfSha256OfText -Text $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\config\prolasso.ini']['Text'])
+        $source = Get-ConfigSource -Run $run -Id 'process_lasso_config'
+        $source.enabled.options.content_kept | Should -BeTrue
+        $source.requested.options.timeout_seconds | Should -Be 50
+        $journal = Get-Content -LiteralPath (Join-Path $out 'raw/stutter_guard_journal/result.json') -Raw | ConvertFrom-Json
+        $journal.copy_is_verbatim | Should -BeTrue
+        $journal.source_sha256 | Should -BeExactly (Get-TestSha256 -Path (Join-Path $out 'raw/stutter_guard_journal/journal.json'))
+        $log = Get-ConfigSource -Run $run -Id 'process_lasso_log'
+        @($log.requested.options.path_candidates).Count | Should -Be 3
+        $log.enabled.options.path | Should -BeExactly 'C:\ProgramData\ProcessLasso\logs\processlasso.log'
+        $log.requested.options.mode | Should -BeExactly 'summary'
+    }
+
+    It 'summarises the vendor log and lets no line of it into the bundle, whatever the INI says' {
+        $text = "-password=x`r`n'C:\a\game.exe' -token=abc`r`ngame.exe; -key s3cr3t`r`n"
+        foreach ($case in @(@{ Name = 'off'; Replace = 'IncludeCommandLines=false' }, @{ Name = 'on'; Replace = 'IncludeCommandLines=true' }, @{ Name = 'missing'; Replace = 'LogDisable=false' }, @{ Name = 'noini'; Replace = $null })) {
+            Start-ConfigCase
+            if ($null -eq $case['Replace']) {
+                $global:WfSynthetic.Files.Remove('C:\ProgramData\ProcessLasso\config\prolasso.ini')
+            } else {
+                $ini = $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\config\prolasso.ini']['Text']
+                $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\config\prolasso.ini'] = @{ Text = $ini.Replace('IncludeCommandLines=false', [string]$case['Replace']) }
+            }
+            $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\logs\processlasso.log'] = @{ Text = $text }
+            $out = Join-Path $TestDrive ('log-' + $case['Name'])
+            $run = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out
+            $log = Get-ConfigSource -Run $run -Id 'process_lasso_log'
+            $log.status | Should -BeExactly 'observed' -Because $case['Name']
+            $log.requested.options.mode | Should -BeExactly 'summary'
+            $log.requested.options.PSObject.Properties.Name | Should -Not -Contain 'copy_gate'
+            $log.requested.options.protection | Should -BeNullOrEmpty
+            $log.enabled.options.content_kept | Should -BeFalse
+            foreach ($file in @(Get-ChildItem -LiteralPath $out -File -Recurse)) {
+                $content = [System.IO.File]::ReadAllText($file.FullName)
+                foreach ($secret in @('password', 'token=abc', 's3cr3t')) {
+                    $content.Contains($secret) | Should -BeFalse -Because ($file.Name + ' must not carry ' + $secret)
+                }
+            }
+            @(Get-ChildItem -LiteralPath (Join-Path $out 'raw/process_lasso_log') -File | ForEach-Object { $_.Name } | Sort-Object) | Should -Be @('log-summary.json', 'result.json', 'source.json')
+            $summary = Get-Content -LiteralPath (Join-Path $out 'raw/process_lasso_log/log-summary.json') -Raw | ConvertFrom-Json
+            @($summary.PSObject.Properties.Name | Sort-Object) | Should -Be @('address_tokens', 'bytes', 'content_kept', 'creation_time_utc', 'last_write_time_utc', 'lines', 'path', 'sha256')
+            $summary.content_kept | Should -BeFalse
+            $summary.bytes | Should -Be $text.Length
+            $summary.lines | Should -Be 4
+            $summary.sha256 | Should -BeExactly (Get-WfSha256OfText -Text $text)
+            $summary.creation_time_utc | Should -Not -BeNullOrEmpty
+            $summary.last_write_time_utc | Should -Not -BeNullOrEmpty
+            $report = Get-Content -LiteralPath (Join-Path $out 'raw/process_lasso_log/result.json') -Raw | ConvertFrom-Json
+            $report.summarised | Should -BeTrue
+            $report.copied | Should -BeFalse
+            $report.protection | Should -BeNullOrEmpty
+            $report.why | Should -Match 'command line arguments'
+            @($run.Manifest.notes | Where-Object { $_ -match 'process_lasso_log' -and $_ -match 'summarised, not copied' }).Count | Should -Be 1
+        }
+    }
+
+    It 'finds the log at an alternate candidate and reports a missing file with every candidate tried' {
+        Start-ConfigCase
+        $text = $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\logs\processlasso.log']
+        $global:WfSynthetic.Files.Remove('C:\ProgramData\ProcessLasso\logs\processlasso.log')
+        $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\logs\prolasso.log'] = $text
+        $out = Join-Path $TestDrive 'alternate'
+        $run = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out
+        $log = Get-ConfigSource -Run $run -Id 'process_lasso_log'
+        $log.status | Should -BeExactly 'observed'
+        $log.enabled.options.path | Should -BeExactly 'C:\ProgramData\ProcessLasso\logs\prolasso.log'
+        Test-Path -LiteralPath (Join-Path $out 'raw/process_lasso_log/log-summary.json') | Should -BeTrue -Because 'the primary keeps the definition''s file name'
+        Start-ConfigCase 'config-snapshot-clean'
+        $run2 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory (Join-Path $TestDrive 'no-log')
+        $missing = Get-ConfigSource -Run $run2 -Id 'process_lasso_log'
+        $missing.status | Should -BeExactly 'not_collected'
+        $missing.status_reason | Should -Match 'processlasso\.log or .*prolasso\.log or .*prolasso\.log'
+        $missing.status_reason | Should -Match 'Configure Startup'
+    }
+
+    It 'enforces the per source deadline on a slow file, a slow last folder entry and a slow fixed key, and keeps no primary' {
+        Start-ConfigCase
+        $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\config\prolasso.ini']['SecondsToRead'] = 120
+        $out = Join-Path $TestDrive 'slow-file'
+        $run = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out
+        $slow = Get-ConfigSource -Run $run -Id 'process_lasso_config'
+        $slow.status | Should -BeExactly 'capture_failed'
+        $slow.status_reason | Should -Match 'timed out'
+        Test-Path -LiteralPath (Join-Path $out 'raw/process_lasso_config/prolasso.ini') | Should -BeFalse
+        Start-ConfigCase
+        $global:WfSynthetic.Directories['C:\Program Files\Stutter Guard']['SecondsPerFile'] = 40
+        $run2 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory (Join-Path $TestDrive 'slow-folder')
+        $folder = Get-ConfigSource -Run $run2 -Id 'stutter_guard_install'
+        $folder.status | Should -BeExactly 'capture_failed'
+        $folder.status_reason | Should -Match 'timed out'
+        Test-Path -LiteralPath (Join-Path $TestDrive 'slow-folder/raw/stutter_guard_install/listing.json') | Should -BeFalse
+        Start-ConfigCase
+        $global:WfSynthetic.Registry['HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers']['SecondsToRead'] = 120
+        $run3 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory (Join-Path $TestDrive 'slow-key')
+        $key = Get-ConfigSource -Run $run3 -Id 'graphics_tdr'
+        $key.status | Should -BeExactly 'capture_failed'
+        $key.status_reason | Should -Match 'timed out'
+        Test-Path -LiteralPath (Join-Path $TestDrive 'slow-key/raw/graphics_tdr/keys.json') | Should -BeFalse
+    }
+
+    It 'lists install folders as arrays without copying and calls a missing folder an observation' {
+        Start-ConfigCase
+        $out = Join-Path $TestDrive 'installs'
+        $run = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out
+        $source = Get-ConfigSource -Run $run -Id 'process_lasso_install'
+        $source.status | Should -BeExactly 'observed'
+        $files = Get-Content -LiteralPath (Join-Path $out 'raw/process_lasso_install/listing.json') -Raw | ConvertFrom-Json
+        @($files | ForEach-Object { $_.name }) | Should -Contain 'ProcessGovernor.exe'
+        @($files | Where-Object { $_.name -eq 'ProcessLasso.exe' })[0].file_version | Should -BeExactly '19.0.0.94'
+        $report = Get-Content -LiteralPath (Join-Path $out 'raw/process_lasso_install/result.json') -Raw | ConvertFrom-Json
+        $report.exists | Should -BeTrue
+        $report.parent_exists | Should -BeTrue
+        $report.file_count | Should -Be 6
+        @(Get-ChildItem -LiteralPath $out -File -Recurse | Where-Object { $_.Extension -eq '.exe' }).Count | Should -Be 0
+        Start-ConfigCase 'config-snapshot-clean'
+        $out2 = Join-Path $TestDrive 'no-installs'
+        $run2 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out2
+        $absent = Get-ConfigSource -Run $run2 -Id 'stutter_guard_install'
+        $absent.status | Should -BeExactly 'observed_zero'
+        $absent.raw_time_range | Should -Not -BeNullOrEmpty
+        (Get-Content -LiteralPath (Join-Path $out2 'raw/stutter_guard_install/listing.json') -Raw).Trim() | Should -BeExactly '[]'
+        (Get-Content -LiteralPath (Join-Path $out2 'raw/stutter_guard_install/result.json') -Raw | ConvertFrom-Json).exists | Should -BeFalse
+        @($run2.Manifest.notes | Where-Object { $_ -match 'nothing is installed at' }).Count | Should -Be 2
+        Start-ConfigCase
+        $global:WfSynthetic.Directories['C:\Program Files\Stutter Guard'] = @{ ErrorKind = 'access_denied'; ErrorMessage = 'Access to the path is denied.' }
+        $run3 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory (Join-Path $TestDrive 'denied-folder')
+        (Get-ConfigSource -Run $run3 -Id 'stutter_guard_install').status | Should -BeExactly 'not_collected'
+        Start-ConfigCase
+        $run4 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory (Join-Path $TestDrive 'capped-folder') -Arguments @{ MaxEvents = 3 }
+        $capped = Get-ConfigSource -Run $run4 -Id 'process_lasso_install'
+        $capped.status | Should -BeExactly 'capture_failed'
+        $capped.status_reason | Should -Match 'cap of 3 files'
+    }
+
+    It 'runs only the powercfg listings, records a failing one, and a missing tool as not_collected' {
+        Start-ConfigCase
+        $out = Join-Path $TestDrive 'power'
+        $run = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out
+        $powercfg = @($global:WfSynthetic.Processes | Where-Object { $_['FilePath'] -like '*powercfg.exe' } | ForEach-Object { $_['Arguments'] })
+        @($powercfg | Sort-Object) | Should -Be @('/aliases', '/getactivescheme', '/list', '/qh', '/query')
+        @($global:WfSynthetic.Processes | Where-Object { $_['FilePath'] -notlike '*powercfg.exe' }).Count | Should -Be 0
+        (Get-ConfigSource -Run $run -Id 'power_settings').enabled.options.records | Should -Be 7
+        (Get-ConfigSource -Run $run -Id 'power_active_scheme').enabled.options.records | Should -Be 1
+        [System.IO.File]::ReadAllText((Join-Path $out 'raw/power_settings/output.txt')) | Should -Match 'Current AC Power Setting Index: 0x00000064'
+        Start-ConfigCase 'config-snapshot-clean'
+        $run2 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory (Join-Path $TestDrive 'power-de')
+        $hidden = Get-ConfigSource -Run $run2 -Id 'power_settings_hidden'
+        $hidden.status | Should -BeExactly 'capture_failed'
+        $hidden.status_reason | Should -Match 'exited with code 1'
+        (Get-ConfigSource -Run $run2 -Id 'power_settings').status | Should -BeExactly 'observed'
+        Start-ConfigCase
+        $global:WfSynthetic.Commands['/query'] = @{ ExitCode = 0; StdOut = "No GUID here`r`n"; StdErr = '' }
+        $run3 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory (Join-Path $TestDrive 'power-empty')
+        $empty = Get-ConfigSource -Run $run3 -Id 'power_settings'
+        $empty.status | Should -BeExactly 'capture_failed'
+        $empty.status_reason | Should -Match 'zero records: powercfg exited with code 0 and printed no line with a GUID'
+        Start-ConfigCase
+        $global:WfSynthetic.PowercfgPresent = $false
+        $run4 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory (Join-Path $TestDrive 'power-missing')
+        (Get-ConfigSource -Run $run4 -Id 'power_active_scheme').status | Should -BeExactly 'not_collected'
+        (Get-ConfigSource -Run $run4 -Id 'power_active_scheme').status_reason | Should -Match 'powercfg\.exe'
+    }
+
+    It 'records the two questions without a documented read as not_collected with their reasons and no primary' {
+        Start-ConfigCase
+        $out = Join-Path $TestDrive 'unavailable'
+        $run = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out
+        foreach ($id in @('power_mode', 'timer_resolution')) {
+            $source = Get-ConfigSource -Run $run -Id $id
+            $source.status | Should -BeExactly 'not_collected'
+            $source.preflight.ok | Should -BeFalse
+            $source.raw_time_range | Should -BeNullOrEmpty
+            @($source.artifacts | ForEach-Object { $_.role }) | Should -Be @('config')
+            $reason = Get-Content -LiteralPath (Join-Path $out ('raw/' + $id + '/reason.json')) -Raw | ConvertFrom-Json
+            @($reason.documented_paths).Count | Should -BeGreaterThan 0
+            $reason.follow_up | Should -Not -BeNullOrEmpty
+        }
+        (Get-ConfigSource -Run $run -Id 'timer_resolution').status_reason | Should -Match 'timeGetDevCaps'
+        (Get-ConfigSource -Run $run -Id 'timer_resolution').status_reason | Should -Match 'Nothing here requests a timer period'
+        (Get-ConfigSource -Run $run -Id 'timer_resolution').status_reason | Should -Not -Match 'Administrator'
+    }
+
+    It 'reads the process list without command lines, the timer helper with its protected command line, and labels the snapshot' {
+        Start-ConfigCase
+        $out = Join-Path $TestDrive 'processes'
+        $run = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out -Arguments @{ Snapshot = 'stop' }
+        $processes = Get-ConfigSource -Run $run -Id 'processes'
+        $processes.requested.options.snapshot | Should -BeExactly 'stop'
+        $processes.enabled.options.snapshot | Should -BeExactly 'stop'
+        $processes.kind | Should -BeExactly 'process_inventory'
+        $records = Get-Content -LiteralPath (Join-Path $out 'raw/processes/records.json') -Raw | ConvertFrom-Json
+        @($records).Count | Should -Be 7
+        @($records[0].PSObject.Properties.Name) | Should -Not -Contain 'CommandLine'
+        @($records[0].PSObject.Properties.Name) | Should -Not -Contain 'ExecutablePath'
+        $helper = Get-ConfigSource -Run $run -Id 'timer_helper_process'
+        $helper.status | Should -BeExactly 'observed'
+        $helperRecords = Get-Content -LiteralPath (Join-Path $out 'raw/timer_helper_process/records.json') -Raw | ConvertFrom-Json
+        @($helperRecords).Count | Should -Be 1
+        $helperRecords[0].CommandLine | Should -Match 'DpcTimerRes\.exe" 10000$'
+        Start-ConfigCase 'config-snapshot-clean'
+        $run2 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory (Join-Path $TestDrive 'no-helper')
+        (Get-ConfigSource -Run $run2 -Id 'timer_helper_process').status | Should -BeExactly 'observed_zero'
+        (Get-Content -LiteralPath (Join-Path $TestDrive 'no-helper/raw/timer_helper_process/records.json') -Raw).Trim() | Should -BeExactly '[]'
+        $run3 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory (Join-Path $TestDrive 'bad-snapshot') -Arguments @{ Snapshot = 'middle' }
+        $run3.ExitCode | Should -Be 1
+        $run3.Pipeline.Count | Should -Be 0
+        Test-Path -LiteralPath (Join-Path $TestDrive 'bad-snapshot') | Should -BeFalse -Because 'the check runs before the helper is loaded, so nothing is written (the one failed line goes to the real stdout, like a missing -OutputDirectory)'
+    }
+
+    It 'loads the helper twice without redefining the native boundary or printing anything' {
+        $output = @(. (Join-Path $script:CollectorRoot '_common.ps1'))
+        $output.Count | Should -Be 0
+        (Get-Command -Name 'New-WfDeviceKeyNative').ScriptBlock.ToString() | Should -Match 'synthetic' -Because 'the load once guard keeps the recorder in place'
+    }
+}
+
 Describe 'presentmon-frames against the synthetic backend' {
     BeforeAll {
         function Start-PmCase {

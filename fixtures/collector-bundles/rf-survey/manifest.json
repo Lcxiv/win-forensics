@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.1.0",
   "bundle_id": "20260301T120001Z_rf_survey_ae3a76a9",
-  "created_utc": "2026-03-01T12:01:27.0000000Z",
+  "created_utc": "2026-03-01T12:01:28.0000000Z",
   "scenario": {
     "id": "rf_survey",
     "version": "1.0.0",
@@ -11,7 +11,7 @@
   },
   "capture": {
     "start_utc": "2026-03-01T12:00:01.0000000Z",
-    "stop_utc": "2026-03-01T12:01:27.0000000Z",
+    "stop_utc": "2026-03-01T12:01:28.0000000Z",
     "orchestrator": "wf-collector:rf-survey",
     "orchestrator_version": "1.2.0",
     "elevated": false,
@@ -785,7 +785,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:39.0000000Z",
+        "at_utc": "2026-03-01T12:00:40.0000000Z",
         "checks": [
           {
             "name": "file_exists",
@@ -804,11 +804,11 @@
         "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html"
       ],
       "started_utc": "2026-03-01T12:00:38.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:41.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:42.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "532e25a15517349423864451a282b39c72f24199a39bfd5e6adfb0b8f3311318"
+        "value": "4e18c8bb26d66c745e8e0922b55e6c66809d297e89573b294bf5a26b79ee4eec"
       },
       "filter_hash": null,
       "requested": {
@@ -818,10 +818,16 @@
         "counters": [],
         "options": {
           "path": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html",
+          "path_candidates": [
+            "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html"
+          ],
           "path_documented": false,
           "max_artifact_bytes": 67108864,
+          "timeout_seconds": 80,
           "mode": "summary",
-          "why_no_copy": "the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded"
+          "why": "the file is free text that can name networks the current run never saw, so only its size, times, hash, line count and address token count are recorded",
+          "protection": null,
+          "sharing": "the file is opened for reading with writers allowed to continue; a file being appended may be read mid line, and the hash is of the bytes read"
         }
       },
       "enabled": {
@@ -830,11 +836,15 @@
         "stack_walk": [],
         "counters": [],
         "options": {
+          "path": "C:\\ProgramData\\Microsoft\\Windows\\WlanReport\\wlan-report-latest.html",
           "exists": true,
           "readable": true,
           "source_bytes": 854,
+          "source_sha256": "992b5acee5ef2843ac8ec39cec5e43408825b769c61a8045521c1e0a74bced42",
           "last_write_time_utc": "2026-02-28T12:00:00.0000000Z",
-          "content_kept": false
+          "mode": "summary",
+          "content_kept": false,
+          "copy_is_verbatim": null
         },
         "verified_by": "the source size, time and hash are in the summary artifact; the text itself is not in the bundle"
       },
@@ -844,26 +854,26 @@
       "artifacts": [
         {
           "path": "raw/wlan_report/report-summary.json",
-          "bytes": 305,
-          "sha256": "5911ff60c224ad50f63450a4ecf5779242fc44da86d5d3b04d9a02288e135777",
+          "bytes": 360,
+          "sha256": "aa9690e36dca3765cc6d1a7f3130b7d509692dafa0af646e0781f7453d8a21ce",
           "role": "primary"
         },
         {
           "path": "raw/wlan_report/result.json",
-          "bytes": 189,
-          "sha256": "e2e570ca0d71de479263bcc9a72bb8eff419bfd3e96d4bfa0c5c76f7dc6b4c2a",
+          "bytes": 754,
+          "sha256": "2f20ada51ff5f033a2ae4cedb65225e4445dd312be99cf3b6ca347c502b0ab27",
           "role": "report"
         },
         {
           "path": "raw/wlan_report/source.json",
-          "bytes": 323,
-          "sha256": "532e25a15517349423864451a282b39c72f24199a39bfd5e6adfb0b8f3311318",
+          "bytes": 648,
+          "sha256": "4e18c8bb26d66c745e8e0922b55e6c66809d297e89573b294bf5a26b79ee4eec",
           "role": "config"
         }
       ],
       "raw_time_range": {
         "start": "2026-03-01T12:00:38.0000000Z",
-        "end": "2026-03-01T12:00:40.0000000Z",
+        "end": "2026-03-01T12:00:41.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -882,7 +892,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:50.0000000Z",
+        "at_utc": "2026-03-01T12:00:51.0000000Z",
         "checks": [
           {
             "name": "channel_found",
@@ -901,12 +911,12 @@
         "Microsoft-Windows-WLAN-AutoConfig/Operational",
         "raw/wlan_autoconfig_events/query.xml"
       ],
-      "started_utc": "2026-03-01T12:00:42.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:51.0000000Z",
+      "started_utc": "2026-03-01T12:00:43.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:52.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "8507d5d63f28302fa88feb930c18e4a863ab2ca08713724ce7edf678bae4770e"
+        "value": "13dfc44624a4a1db42b0ee32777cbf1bbf0d5463344523c0953d0562bddec17e"
       },
       "filter_hash": null,
       "requested": {
@@ -920,12 +930,12 @@
           "channel": "Microsoft-Windows-WLAN-AutoConfig/Operational",
           "event_ids": [],
           "window_days": 30,
-          "window_start_utc": "2026-01-30T12:00:43.0000000Z",
-          "window_end_utc": "2026-03-01T12:00:43.0000000Z",
+          "window_start_utc": "2026-01-30T12:00:44.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:44.0000000Z",
           "max_events": 5000,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 80,
-          "query_sha256": "8507d5d63f28302fa88feb930c18e4a863ab2ca08713724ce7edf678bae4770e"
+          "query_sha256": "13dfc44624a4a1db42b0ee32777cbf1bbf0d5463344523c0953d0562bddec17e"
         }
       },
       "enabled": {
@@ -938,8 +948,8 @@
         "options": {
           "channel": "Microsoft-Windows-WLAN-AutoConfig/Operational",
           "query_accepted": true,
-          "window_start_utc": "2026-01-30T12:00:43.0000000Z",
-          "window_end_utc": "2026-03-01T12:00:43.0000000Z",
+          "window_start_utc": "2026-01-30T12:00:44.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:44.0000000Z",
           "records_read": 2,
           "records_exported": 2,
           "truncated": false,
@@ -958,7 +968,7 @@
         {
           "path": "raw/wlan_autoconfig_events/channel_state.json",
           "bytes": 862,
-          "sha256": "808ffcebf156dda6c29ee022d3a9b2bdf45a7ffe2f8558f757586281532efc7f",
+          "sha256": "510b6adf22d14fa7644f61cf877ec081d1b9de1f4a206dfaf60a89a4a30ab244",
           "role": "report"
         },
         {
@@ -970,20 +980,20 @@
         {
           "path": "raw/wlan_autoconfig_events/query.xml",
           "bytes": 354,
-          "sha256": "8507d5d63f28302fa88feb930c18e4a863ab2ca08713724ce7edf678bae4770e",
+          "sha256": "13dfc44624a4a1db42b0ee32777cbf1bbf0d5463344523c0953d0562bddec17e",
           "role": "config"
         }
       ],
       "raw_time_range": {
-        "start": "2026-01-30T12:00:43.0000000Z",
-        "end": "2026-03-01T12:00:43.0000000Z",
+        "start": "2026-01-30T12:00:44.0000000Z",
+        "end": "2026-03-01T12:00:44.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
         "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
         "met": true,
-        "detail": "2 records read; requested window 2026-01-30T12:00:43.0000000Z to 2026-03-01T12:00:43.0000000Z; covered range starts 2026-01-30T12:00:43.0000000Z"
+        "detail": "2 records read; requested window 2026-01-30T12:00:44.0000000Z to 2026-03-01T12:00:44.0000000Z; covered range starts 2026-01-30T12:00:44.0000000Z"
       },
       "target_process": null
     },
@@ -995,7 +1005,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:54.0000000Z",
+        "at_utc": "2026-03-01T12:00:55.0000000Z",
         "checks": [
           {
             "name": "devices_enumerated",
@@ -1014,8 +1024,8 @@
         "-KeyName",
         "DEVPKEY_Device_Parent,DEVPKEY_Device_LocationPaths,DEVPKEY_Device_LocationInfo,DEVPKEY_Device_Address,DEVPKEY_Device_ContainerId,DEVPKEY_Device_BusReportedDeviceDesc,DEVPKEY_Device_EnumeratorName"
       ],
-      "started_utc": "2026-03-01T12:00:52.0000000Z",
-      "stopped_utc": "2026-03-01T12:01:13.0000000Z",
+      "started_utc": "2026-03-01T12:00:53.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:14.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -1089,13 +1099,13 @@
         {
           "path": "raw/usb_device_tree/result.json",
           "bytes": 287,
-          "sha256": "8994fd0f2b2496ea94be3a328598a4383ca7e9e12bb246ae4b885accedc0fad6",
+          "sha256": "18a4d62ca76bbd0910bac55aaac95676833ff03549551d6bf65cf7bc03ea1504",
           "role": "report"
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:00:52.0000000Z",
-        "end": "2026-03-01T12:01:12.0000000Z",
+        "start": "2026-03-01T12:00:53.0000000Z",
+        "end": "2026-03-01T12:01:13.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -1114,7 +1124,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:01:16.0000000Z",
+        "at_utc": "2026-03-01T12:01:17.0000000Z",
         "checks": [
           {
             "name": "devices_enumerated",
@@ -1133,8 +1143,8 @@
         "-KeyName",
         "DEVPKEY_Device_Parent,DEVPKEY_Device_LocationPaths,DEVPKEY_Device_LocationInfo,DEVPKEY_Device_Address,DEVPKEY_Device_ContainerId,DEVPKEY_Device_BusReportedDeviceDesc,DEVPKEY_Device_EnumeratorName"
       ],
-      "started_utc": "2026-03-01T12:01:14.0000000Z",
-      "stopped_utc": "2026-03-01T12:01:26.0000000Z",
+      "started_utc": "2026-03-01T12:01:15.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:27.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -1203,13 +1213,13 @@
         {
           "path": "raw/bluetooth_devices/result.json",
           "bytes": 285,
-          "sha256": "5f94eb7fb936c88024f7e4800f7c4c6886d7e1d40349a4027d02711ff62a8dd5",
+          "sha256": "c71e9fb0e965c5eb025297dbc41b480ef586e4c0ce56a232d8229e1569e56c78",
           "role": "report"
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:01:14.0000000Z",
-        "end": "2026-03-01T12:01:25.0000000Z",
+        "start": "2026-03-01T12:01:15.0000000Z",
+        "end": "2026-03-01T12:01:26.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -1273,6 +1283,6 @@
     "Each event log query selects a fixed interval, window_end_utc minus the window to window_end_utc, so records raised while the query ran are not part of the result.",
     "Network names, hardware addresses and Bluetooth peer names are pseudonyms (ssid-<12 hex>, mac-<12 hex>, name-<12 hex>) keyed with a random salt that was not stored: the same value maps to the same pseudonym inside this bundle and to nothing outside it. The saved Wi-Fi profiles of this PC are the exception: they are the owner's own networks and stay readable, each with its pseudonym, so an explicit owner selection can be matched at analysis time.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
-    "source wlan_report: the file exists and was summarised, not copied; its text can name networks the current run never saw"
+    "source wlan_report: the file exists and was summarised, not copied; the file is free text that can name networks the current run never saw"
   ]
 }

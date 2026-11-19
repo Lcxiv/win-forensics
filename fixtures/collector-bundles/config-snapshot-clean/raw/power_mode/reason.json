@@ -1,0 +1,17 @@
+{
+  "question": "Which Windows power mode (performance power slider overlay) is active?",
+  "reason": "Microsoft documents the power mode (performance power slider) overlays and their GUIDs (https://learn.microsoft.com/windows-hardware/customize/desktop/customize-power-slider) and that \"powercfg /q\" without arguments enumerates the active overlay scheme when one is active (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options), but no command that prints the active overlay by itself; the decoder compares the scheme GUID printed by /query (power_settings) with /getactivescheme (power_active_scheme) and names a documented overlay GUID when they differ, which is an interpretation of that sentence, not a direct read",
+  "documented_paths": [
+    {
+      "path": "powercfg /q (no arguments)",
+      "citation": "https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options",
+      "why_not_used": "read by the power_settings source; Microsoft says it enumerates the active overlay when one is active, so the decoder derives the overlay from the GUID it prints, which is marked as derived"
+    },
+    {
+      "path": "overlay GUIDs",
+      "citation": "https://learn.microsoft.com/windows-hardware/customize/desktop/customize-power-slider",
+      "why_not_used": "documents the overlay GUIDs, not a command that prints the active one"
+    }
+  ],
+  "follow_up": "a documented direct read of the active overlay, if Microsoft publishes one"
+}
