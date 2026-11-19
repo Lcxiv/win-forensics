@@ -335,6 +335,18 @@ def test_an_inventory_table_that_failed_or_was_altered_is_refused(bundles):
     refuse(dpc, inv, "is decode_failed")
 
 
+def test_a_schema_valid_edit_of_the_inventory_table_is_refused(bundles):
+    inv, dpc = bundles
+    decode_driver_inventory.decode(inv, DECODED_AT)
+    rows = rows_of(inv, "driver_service_class")
+    nic = next(r for r in rows if r["driver_file"] == "synthnic.sys")
+    assert nic["driver_class"] == "network"
+    nic["driver_class"] = "gpu"
+    assert not wf_schema.validate_rows(rows, "decoded/driver_service_class.schema.json")
+    wf_schema.write_jsonl(inv / "decoded" / "driver_service_class.jsonl", rows)
+    refuse(dpc, inv, "differs from the rows its hash checked raw exports give")
+
+
 def test_a_bundle_that_is_not_an_inventory_is_refused(bundles):
     _, dpc = bundles
     other = dpc.parent / "other"

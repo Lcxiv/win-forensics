@@ -53,6 +53,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import decode_driver_inventory  # noqa: E402
 import driver_classes  # noqa: E402
 import wf_schema  # noqa: E402
 
@@ -129,12 +130,35 @@ INVENTORY_TABLE = "driver_service_class"
 INVENTORY_SOURCES = ("system_drivers", "pnp_device_services")
 
 
+def derive_inventory_rows(inventory: Path, manifest: dict[str, Any], bundle_id: str) -> list[dict[str, Any]]:
+    """The ``driver_service_class`` rows the inventory's raw exports give, after checking each export against its manifest SHA-256."""
+    entries = {c["id"]: c for c in manifest["collectors"]}
+    for source in INVENTORY_SOURCES:
+        for artifact in entries[source]["artifacts"]:
+            if artifact["role"] != "primary":
+                continue
+            path = inventory / artifact["path"]
+            if not path.is_file() or wf_schema.sha256_of(path) != artifact.get("sha256"):
+                raise DecodeError(f"inventory: {bundle_id} {artifact['path']}: missing or its sha256 differs from the manifest")
+    try:
+        services_source, services = decode_driver_inventory.read_primary_array(inventory, entries[INVENTORY_SOURCES[0]])
+        _, devices = decode_driver_inventory.read_primary_array(inventory, entries[INVENTORY_SOURCES[1]])
+        rows, _ = decode_driver_inventory.build_rows(services, services_source, devices)
+    except decode_driver_inventory.DecodeError as exc:
+        raise DecodeError(f"inventory: {bundle_id} {INVENTORY_TABLE}: {exc}") from exc
+    errors = wf_schema.validate_rows(rows, f"decoded/{INVENTORY_TABLE}.schema.json")
+    if errors:
+        raise DecodeError(f"inventory: {bundle_id} {INVENTORY_TABLE}: {'; '.join(errors[:3])}")
+    return rows
+
+
 def load_inventory(bundle: Path, inventory: Path | None) -> tuple[driver_classes.InventoryIndex | None, dict[str, Any]]:
     """The inventory index to classify with, and the ``driver_inventory_join`` check that says what was used.
 
     Raises DecodeError for an inventory that must not be used or skipped silently:
     another machine, an unreadable bundle, sources observed but no decoded table, a
-    table that failed to decode, or rows that fail their schema.
+    table that failed to decode, or a table that differs from the rows the inventory's
+    hash checked raw exports give. The rows used are the ones derived from those exports.
     """
     if inventory is None:
         return None, {"name": "driver_inventory_join", "ok": True,
@@ -167,11 +191,10 @@ def load_inventory(bundle: Path, inventory: Path | None) -> tuple[driver_classes
         raise DecodeError(f"inventory: {exc}") from exc
     if meta.get("status") not in OBSERVED:
         raise DecodeError(f"inventory: {bundle_id} {INVENTORY_TABLE} is {meta.get('status')}: {meta.get('status_reason')}")
-    if meta.get("schema_version") != wf_schema.table_schema_version(INVENTORY_TABLE) or len(rows) != meta.get("row_count"):
-        raise DecodeError(f"inventory: {bundle_id} {INVENTORY_TABLE} is schema {meta.get('schema_version')} with {len(rows)} rows for a row count of {meta.get('row_count')}")
-    errors = wf_schema.validate_rows(rows, f"decoded/{INVENTORY_TABLE}.schema.json")
-    if errors:
-        raise DecodeError(f"inventory: {bundle_id} {INVENTORY_TABLE}: {'; '.join(errors[:3])}")
+    rows_derived = derive_inventory_rows(inventory, manifest, bundle_id)
+    if rows != rows_derived:
+        raise DecodeError(f"inventory: {bundle_id} {INVENTORY_TABLE} differs from the rows its hash checked raw exports give; decode it again with scripts/decode_driver_inventory.py")
+    rows = rows_derived
     index = driver_classes.InventoryIndex(rows, f"{bundle_id}/decoded/{INVENTORY_TABLE}.jsonl#")
     classed = sum(1 for r in rows if r["driver_class"])
     captured = (manifest.get("capture") or {}).get("start_utc")
