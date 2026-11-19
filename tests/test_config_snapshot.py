@@ -477,6 +477,45 @@ def test_denied_bundle_decodes_to_no_table_and_a_status(bundle_copy):
     assert "CurrentControlSet\\Enum" not in json.dumps(manifest), "no physical Enum path is named anywhere"
 
 
+def keep_only(bundle: Path, kept: set[str]) -> None:
+    path = bundle / "manifest.json"
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    for collector in manifest["collectors"]:
+        if collector["id"] not in kept:
+            collector["status"], collector["status_reason"] = "not_collected", "not read in this test"
+            collector["artifacts"] = [a for a in collector["artifacts"] if a["role"] != "primary"]
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def test_only_a_powercfg_listing_without_a_derived_row_is_observed_zero_and_never_an_abort(bundle_copy):
+    bundle = bundle_copy("config-snapshot")
+    keep_only(bundle, {"power_aliases"})
+    result = decoded(bundle)
+    table = result["tables"]["config_snapshot"]
+    assert table["status"] == "observed_zero" and "only powercfg listings without a derived row" in table["reason"]
+    assert rows(bundle, "config_snapshot") == []
+    sidecar = meta(bundle, "config_snapshot")
+    assert wf_schema.validate_object(sidecar, "decoded/table_meta.schema.json") == []
+    assert [f["path"] for f in sidecar["source_files"]] == [f["path"] for f in meta(bundle, "powercfg")["source_files"]] != []
+    assert sidecar["status"] == "observed_zero" and sidecar["row_count"] == 0
+    assert result["tables"]["powercfg"]["status"] == "observed"
+    assert rows(bundle, "powercfg") and {r["source_id"] for r in rows(bundle, "powercfg")} == {"power_aliases"}
+    assert result["tables"]["process_inventory"]["status"] == "not_collected"
+
+
+def test_a_powercfg_listing_that_fails_to_decode_fails_the_table_derived_from_it(bundle_copy):
+    bundle = bundle_copy("config-snapshot")
+    keep_only(bundle, {"power_aliases"})
+    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+    aliases = next(c for c in manifest["collectors"] if c["id"] == "power_aliases")
+    (bundle / next(a["path"] for a in aliases["artifacts"] if a["role"] == "primary")).unlink()
+    result = decoded(bundle)
+    assert result["status"] == "decode_failed"
+    table = result["tables"]["config_snapshot"]
+    assert table["status"] == "decode_failed" and "powercfg listings" in table["reason"]
+    assert not (bundle / "decoded" / "config_snapshot.jsonl").exists(), "nothing on disk can be named, so nothing is written"
+
+
 def test_decoder_refuses_a_foreign_bundle_and_a_missing_primary(bundle_copy, tmp_path):
     foreign = bundle_copy("config-snapshot")
     manifest = json.loads((foreign / "manifest.json").read_text(encoding="utf-8"))

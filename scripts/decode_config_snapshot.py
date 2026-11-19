@@ -25,7 +25,9 @@ A table whose sources were all unreadable is reported ``not_collected`` and
 not written: an absent input is never decoded into an empty table. The two
 sources the collector records ``not_collected`` by design (the power mode, the
 timer resolution) produce no row, and neither does any source that failed: a
-status is never turned into evidence.
+status is never turned into evidence. When the only observed sources of
+``config_snapshot`` are powercfg listings that yield no derived row, the table
+is written ``observed_zero`` with the listings that were read as its sources.
 
 Provenance names the file that carries the fact: a device element or a
 topology record by ``index:<n>`` in its JSON array, a file of an install
@@ -1072,6 +1074,12 @@ def decode(bundle: Path, decoded_at: str | None = None) -> dict[str, Any]:
                 if sid in observed and primary_of(observed[sid]) not in sources and any(r["source_id"] == sid for r in derived):
                     sources.append(primary_of(observed[sid]) or "")
             checks.append({"name": "power_rows", "ok": True, "detail": f"{len(derived)} rows derived from the powercfg table"})
+        only_power = not sources
+        if only_power:
+            listed = [sid for sid in TABLE_SOURCES["powercfg"] if sid in TABLE_SOURCES["config_snapshot"] and sid in observed]
+            if listed and power_status == "decode_failed":
+                raise DecodeError(f"the powercfg listings this table derives its rows from failed to decode: {power_reason}")
+            sources = [s for s in (primary_of(observed[sid]) for sid in listed) if s and s in power_sources]
         for sid in ("power_mode", "timer_resolution"):
             if sid in entries:
                 checks.append({"name": sid, "ok": True, "detail": f"status {entries[sid]['status']}: no row, a status is never turned into evidence"})
@@ -1082,7 +1090,8 @@ def decode(bundle: Path, decoded_at: str | None = None) -> dict[str, Any]:
         if errors:
             status, reason, rows = "decode_failed", "; ".join(errors[:3]), []
         elif sources and not rows:
-            status, reason = "observed_zero", "every source was empty"
+            status, reason = "observed_zero", ("the observed sources carry no config_snapshot setting (only powercfg listings without a derived row)"
+                                               if only_power else "every source was empty")
     except DecodeError as exc:
         status, reason, rows = "decode_failed", str(exc), []
         checks.append({"name": "read", "ok": False, "detail": str(exc)})

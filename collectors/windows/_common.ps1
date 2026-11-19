@@ -2522,7 +2522,7 @@ function Read-WfRegistryKeyRecord {
 # The two subkeys read under it are the ones the interrupt pages name:
 # https://learn.microsoft.com/windows-hardware/drivers/kernel/interrupt-affinity-and-priority
 # https://learn.microsoft.com/windows-hardware/drivers/kernel/enabling-message-signaled-interrupts-in-the-registry
-# The sequencing below is plain PowerShell over eight native calls exposed by
+# The sequencing below is plain PowerShell over seven native calls exposed by
 # New-WfDeviceKeyNative (the real one compiles one literal declaration; the
 # test suite substitutes a recorder), so every branch runs under Pester: a
 # missing hardware key, a missing leaf, a denied key, a device that is gone, a
@@ -3482,7 +3482,7 @@ function Invoke-WfTopologySource {
     #                  relationship, and the buffer itself as hex (role report)
     #   topology.json  one element per record, decoded by the documented
     #                  layouts (role primary)
-    # The read is the one native call this collector set makes; the adapter
+    # The read is the one native call of the second audited block; the adapter
     # compiles its declaration once per process (see Get-WfLogicalProcessorInformation
     # and the README). A compiler that is not available is not_collected
     # (preflight); a call that fails, a buffer that does not parse, or a buffer
@@ -4933,7 +4933,8 @@ function Get-WfDirectoryListing {
 }
 
 function Get-WfLogicalProcessorInformation {
-    # The one native call in this collector set: GetLogicalProcessorInformationEx
+    # The second of the two audited blocks (eight native imports in all, seven
+    # in New-WfDeviceKeyNative and this one): GetLogicalProcessorInformationEx
     # with RelationAll, which returns the processor core, cache, group, package
     # and NUMA relationships Microsoft documents:
     # https://learn.microsoft.com/windows/win32/api/sysinfoapi/nf-sysinfoapi-getlogicalprocessorinformationex
