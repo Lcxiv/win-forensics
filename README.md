@@ -14,11 +14,13 @@ Bundles captured from a real machine are never committed here; only schemas, cod
 
 ## Where this repository is in the build
 
-This is phase 0a of the build order in the captain's implementation plan (kept outside this repository under `firstmate/data/win-opt-framework/implementation-plan.md`, with the research and review history in `plan.md` next to it). Phase 0a writes the four contracts everything else depends on, settles three Process Monitor facts with committed runner fixtures, and lays out one example bundle. Apart from the one live capture described below, there are no live capture collectors, analyzers, or correlator yet; those are phases 1 to 4. The only CI job is the Process Monitor fact finding workflow.
+This is phase 0a of the build order in the captain's implementation plan (kept outside this repository under `firstmate/data/win-opt-framework/implementation-plan.md`, with the research and review history in `plan.md` next to it). Phase 0a writes the four contracts everything else depends on, settles three Process Monitor facts with committed runner fixtures, and lays out one example bundle. Apart from the live capture and the clock calibration session described below, there are no live capture collectors, analyzers, or correlator yet; those are phases 1 to 4. The only CI job is the Process Monitor fact finding workflow.
 
 One set of collectors exists ahead of that order, because the captain's plan for reaching the gaming PC over SSH needs it: `collectors/windows/` holds named, read only PowerShell collectors that read history the machine already keeps (bug check and restart events, hardware error events, application crashes and hangs, GPU driver timeouts, reliability records, the driver inventory) as a standard account in Event Log Readers. Each writes a bundle to this contract with every source's measurement status, and `scripts/decode_eventlog.py` decodes the event exports into the `eventlog_events` table. [collectors/windows/README.md](collectors/windows/README.md) records what has run on the PC so far, lists what is still to be verified there, and names what needs Administrator and is therefore left for a later elevated task.
 
 It also holds the first live capture, `dpcisr-trace`: one bounded Windows Performance Recorder session from a committed profile (kernel Interrupt, DPC and Loader events, no stacks, no process or thread events), under its own WPR instance name, stopped and confirmed on every exit path, with the final events lost and buffers lost read from the saved trace by the inbox `tracerpt` and, when the operator names a hash pinned `xperf.exe`, the `xperf -a dpcisr` report that `scripts/decode_dpcisr.py` turns into the per CPU, per module tables. The trace itself never leaves the PC: a kernel trace carries the machine's hardware and network addresses in its configuration events, so it is read on the machine and removed. `scripts/decode_tracestats.py` decodes the status text and the summary into the `tracestats` table so the loss is readable without the tools' wording, and null never becomes zero. Kernel tracing needs an elevated account, so the collector refuses the front door's standard account and says so; the report half that needs the Windows Performance Toolkit on the PC waits for a decision on which build to pin ([collectors/windows/README.md](collectors/windows/README.md), "The dpcisr-trace sources").
+
+The same directory holds `clock-calibration`, the clock session collector: for a bounded session it records the calibration triples the timestamp contract asks for (performance counter, system time, performance counter, at the start, every 5 s and at the stop), and it gives the person at the PC a mark command for a second console that stamps "I felt it here" with the same counter the kernel trace uses, without touching the game. `scripts/decode_clock.py` fits the contract's piecewise model on the Mac, writes the `clock_pairs`, `clock_segments` and `operator_marks` tables, and is the library a correlator uses to place a system time stamp on the master clock with its error bound and to refuse a join the calibration cannot support. Method, the deviation from the contract's named precise time API and the limits are in [docs/clock-calibration.md](docs/clock-calibration.md).
 
 The same directory holds `rf-survey`, a read only survey of the 2.4 GHz band around the desk for a PC that is on Ethernet but drives a wireless mouse and headset: which adapter carries the traffic, which networks are on the air on which channels, where the receivers sit on the USB tree, and which radios are on. Network names and hardware addresses are pseudonymised before anything is written. `scripts/decode_rf_survey.py` decodes it into five typed tables and `scripts/analyze_rf_survey.py` writes evidence rows and a plain language report with a cited recommendation for the router channel, the receiver ports and the unused radios. The method, its limits (a packet capture cannot see RF noise), and the before and after test the owner runs are in [docs/rf-survey.md](docs/rf-survey.md).
 
@@ -38,6 +40,7 @@ Process Monitor facts settled on the GitHub hosted Windows runner, with the fixt
 ```
 docs/contracts/          the contracts above plus procmon-facts.md
 docs/rf-survey.md        the RF survey: method, limits, citations, and the before and after test
+docs/clock-calibration.md  the clock calibration session and operator marks: how the clocks are read, the fit, the limits
 schemas/                 JSON Schema (draft 2020-12), one file per table, plus manifest, evidence, verdict, common,
                          and analysis/ for an analyzer's structured result
 collectors/windows/      read only PowerShell collectors for the PC, their shared helper _common.ps1, and README.md;
@@ -45,6 +48,7 @@ collectors/windows/      read only PowerShell collectors for the PC, their share
 scripts/                 wf_schema.py (schema registry and validation), decode_dpcisr.py, decode_pdh.py, decode_eventlog.py,
                          decode_tracestats.py (trace loss from the recorder's status text and the tracerpt summary),
                          decode_rf_survey.py and analyze_rf_survey.py (the RF survey tables, evidence rows and report),
+                         decode_clock.py (the clock calibration tables, the fitted model, alignment and join refusal),
                          verify_bundle.py (manifest, checksums, no unlisted raw file), fetch_pwsh.sh (PowerShell 7 into tools/),
                          make_procmon_pmc.py, procmon_facts.ps1 and procmon_facts_summarize.py (runner harness)
 fixtures/example-bundle/ one bundle laid out to the contract from two win-opt format fixtures
@@ -100,6 +104,14 @@ python scripts/analyze_rf_survey.py --bundle <bundle directory> [--own-network <
 ```
 
 The result is `reports/rf-survey.md` inside the bundle, with its evidence rows in `evidence.jsonl`. Without `--own-network` the report describes the airspace and recommends nothing about the router, because the analysis never guesses which network is yours; with it, every access point of that network is aggregated and a channel is recommended.
+
+A `clock-calibration` bundle is fitted with:
+
+```
+python scripts/decode_clock.py --bundle <bundle directory> [--align 2026-03-01T12:00:17Z --source-resolution-100ns 10000 --tolerance-100ns 100000]
+```
+
+which writes the three clock tables and prints the master clock, and with `--align` places a UTC stamp on it with its bound or says why it cannot.
 
 The collector checks that need PowerShell (PSScriptAnalyzer with the Windows PowerShell 5.1 compatibility rules, the Pester suite, fixture freshness) run from `tests/test_collectors_pwsh.py` and skip when no `pwsh` is found. `scripts/fetch_pwsh.sh` fetches a pinned PowerShell 7 and the two modules into `tools/`, which git ignores.
 

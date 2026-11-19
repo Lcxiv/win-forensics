@@ -26,7 +26,9 @@ foreach ($case in @(Get-WfSyntheticCases)) {
     $resolved = Resolve-WfBundleRoot -OutputDirectory $target
     if (Test-Path -LiteralPath $resolved) { Remove-Item -LiteralPath $resolved -Recurse -Force }
     Reset-WfSynthetic
-    & $case['Setup']
+    # The output directory is passed so a scenario can address the session
+    # from outside (the clock cases drop operator marks into it).
+    & $case['Setup'] $target
     $arguments = @{ OutputDirectory = $target }
     foreach ($key in $case['Arguments'].Keys) { $arguments[$key] = $case['Arguments'][$key] }
     & (Join-Path $collectorRoot ($case['Collector'] + '.ps1')) @arguments

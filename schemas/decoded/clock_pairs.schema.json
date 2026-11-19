@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/clock_pairs.schema.json",
+  "title": "clock_pairs: one calibration pair of the clock-calibration collector",
+  "description": "One row per line of raw/clock_calibration/samples.jsonl: the performance counter bracket around one system time reading, kept verbatim, with the pair's own half width. See docs/contracts/decoded-tables.md section 5.17 and docs/contracts/timestamps.md section 3.",
+  "x-schema-version": "1.0.0",
+  "x-decoded-table": "clock_pairs",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "seq",
+    "phase",
+    "qpc_before",
+    "qpc_after",
+    "filetime_utc_100ns",
+    "filetime_utc",
+    "qpc_mid",
+    "bracket_ticks",
+    "half_width_100ns",
+    "edge",
+    "system_time_step_100ns",
+    "provenance"
+  ],
+  "properties": {
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Sequence number the collector gave the pair; a missed slot leaves a gap."
+    },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "start",
+        "interval",
+        "stop"
+      ]
+    },
+    "qpc_before": {
+      "type": "integer",
+      "description": "Verbatim: the performance counter read before the system time (for an edge pair, before the last reading that still showed the old value)."
+    },
+    "qpc_after": {
+      "type": "integer",
+      "description": "Verbatim: the performance counter read after the system time reading that showed the new value."
+    },
+    "filetime_utc_100ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Verbatim: the system time as a Windows file time, 100 ns units since 1601-01-01 UTC."
+    },
+    "filetime_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+      "description": "Derived: filetime_utc_100ns as ISO 8601 UTC with seven fractional digits."
+    },
+    "qpc_mid": {
+      "type": "integer",
+      "description": "Derived: floor((qpc_before + qpc_after) / 2), the counter value the pair stands for."
+    },
+    "bracket_ticks": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Derived: qpc_after - qpc_before."
+    },
+    "half_width_100ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Derived: ceil((bracket_ticks / 2 + 1 tick) * 10^7 / qpc_frequency_hz), the pair's uncertainty from the counter bracket alone (timestamps.md section 3)."
+    },
+    "edge": {
+      "type": "boolean",
+      "description": "Verbatim: true when the collector took the pair at the instant the system clock changed value, so the bracket holds that instant and the clock's increment does not enter the bound; false for a plain reading, to which the fit adds the increment term."
+    },
+    "system_time_step_100ns": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "description": "Verbatim: the size of the change the system clock made at this edge pair (its increment at that moment); null for a pair that was not taken at an edge."
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "decoded_table": {
+              "const": "clock_pairs"
+            },
+            "schema_version": {
+              "const": "1.0.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

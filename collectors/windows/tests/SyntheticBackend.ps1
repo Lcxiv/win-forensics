@@ -45,6 +45,11 @@
 #              from disk, so the fixtures stay reproducible)
 #   PinnedTools  tool name -> list of @{ Version; Sha256; Source } the helper reports as pinned
 #   Xperf      @{ ExitCode; StdOut; StdErr; Stuck } for the synthetic xperf report
+#   Clock      the invented performance counter and system clock behind the
+#              clock-calibration collector (New-WfSyntheticClock): a true
+#              elapsed time that every read and every wait advances, a QPC
+#              derived from it, and a system time with a quantisation step,
+#              a drift and optional steps; marks fire during a wait
 #   Stdout     list that receives what a collector prints on stdout
 #   Stderr     list that receives what a collector prints on stderr
 
@@ -70,9 +75,75 @@ function Reset-WfSynthetic {
         Tools        = @{}
         PinnedTools  = @{}
         Xperf        = @{ ExitCode = 0; StdOut = ''; StdErr = ''; Stuck = $false }
+        Clock        = $null
         Stdout       = New-Object 'System.Collections.Generic.List[string]'
         Stderr       = New-Object 'System.Collections.Generic.List[string]'
     }
+    $global:WfSynthetic.Clock = New-WfSyntheticClock
+}
+
+function New-WfSyntheticClock {
+    # The invented clocks. True time is Elapsed100ns since the reset; every
+    # read of either clock and every wait advances it. The counter is
+    # StartQpc + Elapsed * Frequency / 1e7. The system time is StartFileTime
+    # + Elapsed * (1 + DriftPpm / 1e6) + the steps whose moment has passed,
+    # quantised down to a multiple of Increment100ns (the clock interrupt).
+    #   -DriftPpm        the system clock runs fast (positive) or slow by this much
+    #   -Increment100ns  the system timer increment (10000 is 1 ms)
+    #   -Steps           @(@{ AtElapsed100ns = <n>; Delta100ns = <n> }) applied once true time passes At
+    #   -Marks           @(@{ AtElapsed100ns = <n>; Label = <text> }) fired during the wait that crosses At
+    #   -ThrowAtElapsed100ns  a counter read at or after this true time throws (0: never)
+    #   -OvershootMs     @{ <1-based wait index> = <extra milliseconds the wait takes> }
+    param(
+        [int64]$Frequency = 10000000, [bool]$HighResolution = $true, [double]$DriftPpm = 0, [int64]$Increment100ns = 10000,
+        $Steps = @(), $Marks = @(), [int64]$ThrowAtElapsed100ns = 0, $OvershootMs = @{}, [int64]$ReadCost100ns = 50
+    )
+    return @{
+        Frequency       = $Frequency
+        HighResolution  = $HighResolution
+        StartQpc        = [int64]27345678901234
+        StartFileTime   = [int64]$global:WfSynthetic.Now.ToFileTimeUtc()
+        Elapsed100ns    = [int64]0
+        ReadCost100ns   = $ReadCost100ns
+        DriftPpm        = $DriftPpm
+        Increment100ns  = $Increment100ns
+        Steps           = @($Steps)
+        Marks           = @($Marks)
+        MarksFired      = 0
+        QpcReads        = 0
+        ThrowAtElapsed100ns = $ThrowAtElapsed100ns
+        Waits           = 0
+        OvershootMs     = $OvershootMs
+        MarkDirectory   = $null
+    }
+}
+
+function Get-WfSyntheticTrueQpc {
+    $clock = $global:WfSynthetic.Clock
+    return [int64]($clock.StartQpc + [int64][math]::Floor([double]$clock.Elapsed100ns * $clock.Frequency / 10000000.0))
+}
+
+function Get-WfSyntheticTrueFileTime {
+    $clock = $global:WfSynthetic.Clock
+    $value = [int64]$clock.StartFileTime + [int64]$clock.Elapsed100ns + [int64][math]::Floor([double]$clock.Elapsed100ns * $clock.DriftPpm / 1000000.0)
+    foreach ($step in @($clock.Steps)) { if ($clock.Elapsed100ns -ge [int64]$step['AtElapsed100ns']) { $value += [int64]$step['Delta100ns'] } }
+    if ($clock.Increment100ns -gt 1) { $value = [int64][math]::Floor([double]$value / $clock.Increment100ns) * $clock.Increment100ns }
+    return $value
+}
+
+function Invoke-WfSyntheticMark {
+    # Stands in for the person at the PC: runs the collector's mark mode in
+    # this process against the session directory, then takes its stdout line
+    # back out so the collector run still prints exactly one line.
+    param([string]$Label, [string]$OutputDirectory)
+    $collector = Join-Path (Split-Path -Parent $PSScriptRoot) 'clock-calibration.ps1'
+    $before = $global:WfSynthetic.Stdout.Count
+    & $collector -OutputDirectory $OutputDirectory -Mark $Label
+    $exit = $LASTEXITCODE
+    if ($global:WfSynthetic.Stdout.Count -ne $before + 1) { throw 'synthetic mark: the mark mode did not print exactly one line' }
+    $line = $global:WfSynthetic.Stdout[$before]
+    $global:WfSynthetic.Stdout.RemoveAt($before)
+    if ($exit -ne 0) { throw ('synthetic mark failed: ' + $line) }
 }
 
 function New-WfSyntheticChannelState {
@@ -186,6 +257,55 @@ function Test-WfSyntheticInsideBound {
 function Get-WfUtcNow {
     $global:WfSynthetic.Ticks += 1
     return $global:WfSynthetic.Now.AddSeconds($global:WfSynthetic.Ticks)
+}
+
+function Get-WfQpcTimestamp {
+    $clock = $global:WfSynthetic.Clock
+    $clock.QpcReads += 1
+    $clock.Elapsed100ns += $clock.ReadCost100ns
+    if ($clock.ThrowAtElapsed100ns -gt 0 -and $clock.Elapsed100ns -ge $clock.ThrowAtElapsed100ns) { throw 'synthetic backend: the performance counter read failed' }
+    return (Get-WfSyntheticTrueQpc)
+}
+
+function Get-WfQpcFrequency {
+    return [int64]$global:WfSynthetic.Clock.Frequency
+}
+
+function Get-WfProcessId {
+    return 4242
+}
+
+function Test-WfQpcHighResolution {
+    return [bool]$global:WfSynthetic.Clock.HighResolution
+}
+
+function Get-WfSystemFileTimeUtc {
+    $clock = $global:WfSynthetic.Clock
+    $clock.Elapsed100ns += $clock.ReadCost100ns
+    return (Get-WfSyntheticTrueFileTime)
+}
+
+function Wait-WfMilliseconds {
+    # Advances true time instead of sleeping, with the configured overshoot,
+    # and fires every mark whose moment falls inside the wait at exactly
+    # that moment.
+    param([int]$Milliseconds)
+    $clock = $global:WfSynthetic.Clock
+    $clock.Waits += 1
+    $extra = 0
+    if ($clock.OvershootMs.ContainsKey($clock.Waits)) { $extra = [int]$clock.OvershootMs[$clock.Waits] }
+    $before = [int64]$clock.Elapsed100ns
+    $after = $before + [int64]($Milliseconds + $extra) * 10000
+    foreach ($mark in @($clock.Marks)) {
+        $at = [int64]$mark['AtElapsed100ns']
+        if ($at -le $before -or $at -gt $after) { continue }
+        if ($clock.MarkDirectory) {
+            $clock.Elapsed100ns = $at
+            Invoke-WfSyntheticMark -Label ([string]$mark['Label']) -OutputDirectory $clock.MarkDirectory
+            $clock.MarksFired += 1
+        }
+    }
+    $clock.Elapsed100ns = $after
 }
 
 function Write-WfStdoutLine {

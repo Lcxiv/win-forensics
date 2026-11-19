@@ -225,6 +225,74 @@ function Get-WfSyntheticCases {
             Setup = { New-WfSyntheticTraceMachine -EventsLost 0 -Xperf 'pinned'; $global:WfSynthetic.Elevated = $false }
         })
 
+    # The clock calibration session. Each Setup takes the output directory so
+    # the synthetic clock can fire operator marks into the running session
+    # (Invoke-WfSyntheticMark runs the collector's own mark mode). Every
+    # counter value and clock error below is invented.
+
+    # A 60 s session at the contract's 5 s cadence: start, eleven interval
+    # pairs strictly inside, stop (13 pairs). The system clock runs 50 ppm
+    # fast against the counter and steps once per millisecond; every pair is
+    # taken at one of those steps; two marks are dropped from the second
+    # console. Status ok.
+    $cases.Add(@{
+            Case = 'clock-calibration'; Collector = 'clock-calibration'; ExitCode = 0; Arguments = @{ DurationSeconds = 60 }
+            Setup = {
+                param([string]$OutputDirectory)
+                $global:WfSynthetic.Clock = New-WfSyntheticClock -DriftPpm 50 -Increment100ns 10000 -Marks @(
+                    @{ AtElapsed100ns = 173000000; Label = 'felt a stutter' },
+                    @{ AtElapsed100ns = 410500000; Label = 'second stutter, shorter' }
+                )
+                $global:WfSynthetic.Clock.MarkDirectory = $OutputDirectory
+            }
+        })
+
+    # A 30 s session during which the system clock jumps 250 ms forward at
+    # 12.5 s (what a time synchronisation does): the collector records the
+    # pairs as they are and one mark; the fit on the Mac flags the segment
+    # that holds the step. Status ok.
+    $cases.Add(@{
+            Case = 'clock-calibration-clock-step'; Collector = 'clock-calibration'; ExitCode = 0; Arguments = @{ DurationSeconds = 30 }
+            Setup = {
+                param([string]$OutputDirectory)
+                $global:WfSynthetic.Clock = New-WfSyntheticClock -Increment100ns 10000 -Steps @(@{ AtElapsed100ns = 125000000; Delta100ns = 2500000 }) -Marks @(
+                    @{ AtElapsed100ns = 201000000; Label = 'after the jump' }
+                )
+                $global:WfSynthetic.Clock.MarkDirectory = $OutputDirectory
+            }
+        })
+
+    # A 30 s session in which one wait overruns by six seconds (the process
+    # was starved), so the slot at 10 s is reached more than an interval
+    # late and is recorded as missing rather than taken late. The system
+    # timer runs at the coarse 15.625 ms increment. Observed with
+    # missing_pairs 1 and expectation not met (timestamps.md section 3, the
+    # clock calibration exception); status ok; no marks.
+    $cases.Add(@{
+            Case = 'clock-calibration-missed-slot'; Collector = 'clock-calibration'; ExitCode = 0; Arguments = @{ DurationSeconds = 30 }
+            Setup = {
+                param([string]$OutputDirectory)
+                $global:WfSynthetic.Clock = New-WfSyntheticClock -Increment100ns 156250 -OvershootMs @{ 2 = 6000 }
+                $global:WfSynthetic.Clock.MarkDirectory = $OutputDirectory
+            }
+        })
+
+    # The counter read fails at the stop pair: the four pairs taken are kept
+    # (two or more pairs are a calibration), the stop pair is counted as
+    # missing so file times after the last pair are unaligned, and the marks
+    # file, open the whole time, holds no mark. clock_calibration observed
+    # with expectation not met, operator_marks observed_zero, status ok.
+    $cases.Add(@{
+            Case = 'clock-calibration-read-failed'; Collector = 'clock-calibration'; ExitCode = 0; Arguments = @{ DurationSeconds = 20 }
+            Setup = {
+                param([string]$OutputDirectory)
+                # The first counter read at or after 20 s of true time throws: that is the read the
+                # stop pair's scheduling loop makes, so the stop pair is never taken.
+                $global:WfSynthetic.Clock = New-WfSyntheticClock -Increment100ns 10000 -ThrowAtElapsed100ns 200000000
+                $global:WfSynthetic.Clock.MarkDirectory = $OutputDirectory
+            }
+        })
+
     return $cases.ToArray()
 }
 
