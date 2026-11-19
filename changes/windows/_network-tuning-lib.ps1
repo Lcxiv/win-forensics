@@ -4,7 +4,10 @@
 #
 # Which settings are in the script, and why every other candidate is not, is
 # argued with sources in docs/changes/network-tuning-research.md. The table in
-# Get-WfNtSettings holds only settings with an include verdict there.
+# Get-WfNtSettings holds the settings with an include verdict there (the
+# default set) and, opt in only, the reset power properties the research
+# rates measure first: each runs only when named alone with -Only, as a
+# guarded experiment with the same save, Undo and Readback.
 #
 # The file has two halves. The first half is portable logic and is what the
 # Pester suite in tests/ exercises off Windows. The second half, at the
@@ -26,9 +29,20 @@ if (Get-Command -Name 'Invoke-WfNtMain' -CommandType Function -ErrorAction Silen
 
 function Get-WfNtChangeName { return 'network-tuning' }
 
-# The settings with an include verdict in the research document. Each is one
-# NDIS advanced property of the adapter, written only as the driver exposes
-# it (keyword, current value and valid values read live at Plan time).
+# The settings table. Each entry is one NDIS advanced property of the
+# adapter, written only as the driver exposes it (keyword, current value and
+# valid values read live at Plan time). Fields:
+#   Name      the -Only name.
+#   Keyword   the registry keyword to match, or '' to match DisplayName.
+#   Display   the driver's display name to match when Keyword is ''. The
+#             Realtek names are taken from the PC's 19 Nov transcription,
+#             which did not record their keywords; the live keyword is read
+#             and saved, and every write uses it.
+#   Proposed  the value to write, or '' for the driver's own off value: the
+#             one valid value whose display text is OffDisplay, read live.
+#   Default   $true: in the default set. $false: opt in, only when named
+#             alone with -Only.
+#   Verdict   'include' or 'measure-first' (the research document's verdict).
 #
 # *IdleRestriction: NetAdapterCx standardized keyword, 0 (default) "No
 # restriction", 1 "Only idle when user isn't present"; it decides when the
@@ -37,17 +51,100 @@ function Get-WfNtChangeName { return 'network-tuning' }
 # A device in Dx has a resume delay before it can transfer packets again
 # (packet filter wake: at most 10 ms by Microsoft's guideline).
 # https://learn.microsoft.com/windows-hardware/drivers/netcx/configuring-power-management
+#
+# The measure first entries have no cited latency case either way: Realtek
+# documents none of its own properties, and *FlowControl's client default is
+# Rx and Tx enabled (3).
+# https://learn.microsoft.com/windows-hardware/drivers/network/enumeration-keywords
 function Get-WfNtSettings {
+    $research = 'docs/changes/network-tuning-research.md (measure first; no cited latency case)'
     return @(
         [pscustomobject]@{
-            Name     = 'idle-restriction'
-            Keyword  = '*IdleRestriction'
-            Proposed = '1'
-            Reason   = 'stops the adapter powering down to save energy while someone is using the PC; a powered down adapter must wake before it passes packets again (Microsoft guideline: up to 10 ms), and the driver install of 19 Nov reset this to the default 0'
-            Restart  = 'adapter'
-            Source   = 'https://learn.microsoft.com/windows-hardware/drivers/network/standardized-inf-keywords-for-power-management'
+            Name       = 'idle-restriction'
+            Keyword    = '*IdleRestriction'
+            Display    = ''
+            Proposed   = '1'
+            OffDisplay = ''
+            Default    = $true
+            Verdict    = 'include'
+            Reason     = 'stops the adapter powering down to save energy while someone is using the PC; a powered down adapter must wake before it passes packets again (Microsoft guideline: up to 10 ms), and the driver install of 19 Nov reset this to the default 0'
+            Restart    = 'adapter'
+            Source     = 'https://learn.microsoft.com/windows-hardware/drivers/network/standardized-inf-keywords-for-power-management'
+        },
+        [pscustomobject]@{
+            Name       = 'green-ethernet'
+            Keyword    = ''
+            Display    = 'Green Ethernet'
+            Proposed   = ''
+            OffDisplay = 'Disabled'
+            Default    = $false
+            Verdict    = 'measure-first'
+            Reason     = 'a Realtek power saving property the 19 Nov install enabled; Realtek documents no effect on latency, so this is an experiment: turn it off alone and compare'
+            Restart    = 'adapter'
+            Source     = $research
+        },
+        [pscustomobject]@{
+            Name       = 'power-saving-mode'
+            Keyword    = ''
+            Display    = 'Power Saving Mode'
+            Proposed   = ''
+            OffDisplay = 'Disabled'
+            Default    = $false
+            Verdict    = 'measure-first'
+            Reason     = 'a Realtek power saving property the 19 Nov install enabled; Realtek documents no effect on latency, so this is an experiment: turn it off alone and compare'
+            Restart    = 'adapter'
+            Source     = $research
+        },
+        [pscustomobject]@{
+            Name       = 'gigabit-lite'
+            Keyword    = ''
+            Display    = 'Gigabit Lite'
+            Proposed   = ''
+            OffDisplay = 'Disabled'
+            Default    = $false
+            Verdict    = 'measure-first'
+            Reason     = 'a Realtek property the 19 Nov install enabled; Realtek documents no effect on latency, so this is an experiment: turn it off alone and compare'
+            Restart    = 'adapter'
+            Source     = $research
+        },
+        [pscustomobject]@{
+            Name       = 'ltr-obff'
+            Keyword    = 'LTROBFF'
+            Display    = ''
+            Proposed   = ''
+            OffDisplay = 'Disabled'
+            Default    = $false
+            Verdict    = 'measure-first'
+            Reason     = 'a Realtek property the 19 Nov install moved from 0 to 4; Realtek documents neither value, so this is an experiment, and only when the driver shows it with an off value'
+            Restart    = 'adapter'
+            Source     = $research
+        },
+        [pscustomobject]@{
+            Name       = 'flow-control'
+            Keyword    = '*FlowControl'
+            Display    = ''
+            Proposed   = ''
+            OffDisplay = 'Disabled'
+            Default    = $false
+            Verdict    = 'measure-first'
+            Reason     = 'pause frames, at the Microsoft client default Rx and Tx (3); no cited latency case, so this is an experiment: turn it off alone and compare'
+            Restart    = 'adapter'
+            Source     = $research
         }
     )
+}
+
+function Get-WfNtSettingMatchText {
+    # How a setting is found among the driver's properties, for messages.
+    param($Setting)
+    if ($Setting.Keyword) { return $Setting.Keyword }
+    return ('the property shown as "' + $Setting.Display + '"')
+}
+
+function Get-WfNtVerdictText {
+    param($Setting)
+    if ($Setting.Verdict -eq 'include') { return 'include (cited case; see the research document)' }
+    return 'measure first, no cited latency case (opt in: named alone with -Only)'
 }
 
 # The adapter the script may touch: the one wired Realtek adapter bound to
@@ -164,7 +261,7 @@ function Resolve-WfNtSelection {
             if ($p) { $names += $p }
         }
     }
-    if ($names.Count -eq 0) { return [pscustomobject]@{ Ok = $true; Settings = $all; Reason = '' } }
+    if ($names.Count -eq 0) { return [pscustomobject]@{ Ok = $true; Settings = @($all | Where-Object { $_.Default }); Reason = '' } }
     $known = @($all | ForEach-Object { $_.Name })
     $unknown = @($names | Where-Object { $known -notcontains $_ })
     if ($unknown.Count -gt 0) {
@@ -172,6 +269,10 @@ function Resolve-WfNtSelection {
         return [pscustomobject]@{ Ok = $false; Settings = @(); Reason = ('-Only names a setting this script does not have: ' + ($shown -join ', ') + '. Known: ' + ($known -join ', ')) }
     }
     $picked = @($all | Where-Object { $names -contains $_.Name })
+    $optIn = @($picked | Where-Object { -not $_.Default })
+    if ($optIn.Count -gt 0 -and $picked.Count -gt 1) {
+        return [pscustomobject]@{ Ok = $false; Settings = @(); Reason = ('a measure first setting runs alone, one experiment at a time: name only one of ' + (@($picked | ForEach-Object { $_.Name }) -join ', ')) }
+    }
     return [pscustomobject]@{ Ok = $true; Settings = $picked; Reason = '' }
 }
 
@@ -249,28 +350,45 @@ function Format-WfNtValue {
 
 function Test-WfNtSetting {
     # Every precondition for one setting against the properties the driver
-    # exposes. Returns @{ Setting; Ok; Action; Live; Property; Checks }, Action
-    # being 'change' or 'none' (already at the proposed value).
+    # exposes. Returns @{ Setting; Ok; Action; Live; Keyword; Proposed;
+    # Property; Checks }, Action being 'change' or 'none' (already at the
+    # proposed value), Keyword the live keyword and Proposed the value to
+    # write (the table's, or the driver's off value read live).
     # Property fields: MSFT_NetAdapterAdvancedPropertySettingData; displayed
     # parameters are stored as REG_SZ (RegistryDataType 1) and only they have
     # ValidRegistryValues.
     # https://learn.microsoft.com/windows/win32/fwp/wmi/netadaptercimprov/msft-netadapteradvancedpropertysettingdata
     param($Setting, $Properties)
     $checks = @()
-    $result = [pscustomobject]@{ Setting = $Setting; Ok = $false; Action = ''; Live = ''; Property = $null; Checks = $null }
-    $matching = @($Properties | Where-Object { $_.RegistryKeyword -ceq $Setting.Keyword })
+    $result = [pscustomobject]@{ Setting = $Setting; Ok = $false; Action = ''; Live = ''; Keyword = ''; Proposed = ''; Property = $null; Checks = $null }
+    $what = Get-WfNtSettingMatchText -Setting $Setting
+    if ($Setting.Keyword) {
+        $matching = @($Properties | Where-Object { $_.RegistryKeyword -ceq $Setting.Keyword })
+    } else {
+        $matching = @($Properties | Where-Object { $_.DisplayName -and $_.DisplayName -eq $Setting.Display })
+    }
     if ($matching.Count -ne 1) {
-        $text = 'the installed driver does not expose ' + $Setting.Keyword
-        if ($matching.Count -gt 1) { $text = 'the driver exposes ' + $Setting.Keyword + ' ' + [string]$matching.Count + ' times' }
+        $text = 'the installed driver does not expose ' + $what
+        if ($matching.Count -gt 1) { $text = 'the driver exposes ' + $what + ' ' + [string]$matching.Count + ' times' }
         $checks += (New-WfNtCheck -Id 'exposed' -Ok $false -Text $text)
         $result.Checks = $checks
         return $result
     }
     $p = $matching[0]
     $result.Property = $p
-    $checks += (New-WfNtCheck -Id 'exposed' -Ok $true -Text ('the driver exposes ' + $Setting.Keyword))
+    $result.Keyword = [string]$p.RegistryKeyword
+    if ($result.Keyword -notmatch '^\*?[A-Za-z0-9_]+$') {
+        $checks += (New-WfNtCheck -Id 'exposed' -Ok $false -Text ('the driver''s keyword for ' + $what + ' is not a plain name'))
+        $result.Checks = $checks
+        return $result
+    }
+    $exposed = 'the driver exposes ' + $what
+    if (-not $Setting.Keyword) { $exposed += ' as ' + $result.Keyword }
+    $checks += (New-WfNtCheck -Id 'exposed' -Ok $true -Text $exposed)
     if (-not $p.DisplayName) {
-        $checks += (New-WfNtCheck -Id 'displayed' -Ok $false -Text 'it is a hidden property, so the driver lists no valid values for it')
+        $hidden = 'it is a hidden property, so the driver lists no valid values for it'
+        if (-not $Setting.Proposed) { $hidden += ' and no off value can be read' }
+        $checks += (New-WfNtCheck -Id 'displayed' -Ok $false -Text $hidden)
         $result.Checks = $checks
         return $result
     }
@@ -301,14 +419,27 @@ function Test-WfNtSetting {
         $result.Checks = $checks
         return $result
     }
-    if ($valid -notcontains $Setting.Proposed) {
-        $checks += (New-WfNtCheck -Id 'valid' -Ok $false -Text ('the proposed value ' + $Setting.Proposed + ' is not among the driver''s valid values (' + ($valid -join ', ') + ')'))
+    $proposed = [string]$Setting.Proposed
+    if (-not $proposed) {
+        $off = @()
+        foreach ($v in $valid) { if ((Get-WfNtDisplayFor -Property $p -Value $v) -eq $Setting.OffDisplay) { $off += $v } }
+        if ($off.Count -ne 1 -or -not (Test-WfNtValueText -Text $off[0])) {
+            $checks += (New-WfNtCheck -Id 'off-value' -Ok $false -Text ('the driver shows ' + [string]$off.Count + ' valid values as "' + $Setting.OffDisplay + '", not exactly one, so its off value cannot be read'))
+            $result.Checks = $checks
+            return $result
+        }
+        $proposed = $off[0]
+        $checks += (New-WfNtCheck -Id 'off-value' -Ok $true -Text ('the driver''s own off value is ' + (Format-WfNtValue -Property $p -Value $proposed)))
+    }
+    $result.Proposed = $proposed
+    if ($valid -notcontains $proposed) {
+        $checks += (New-WfNtCheck -Id 'valid' -Ok $false -Text ('the proposed value ' + $proposed + ' is not among the driver''s valid values (' + ($valid -join ', ') + ')'))
         $result.Checks = $checks
         return $result
     }
     $checks += (New-WfNtCheck -Id 'valid' -Ok $true -Text ('valid values ' + ($valid -join ', ') + ' include the current and the proposed value'))
     $result.Ok = $true
-    if ($live -eq $Setting.Proposed) { $result.Action = 'none' } else { $result.Action = 'change' }
+    if ($live -eq $proposed) { $result.Action = 'none' } else { $result.Action = 'change' }
     $result.Checks = $checks
     return $result
 }
@@ -385,14 +516,14 @@ function Get-WfNtPlanLines {
     foreach ($r in $Plan.Settings) {
         $s = $r.Setting
         $lines += ''
-        $lines += ('Setting ' + $s.Name + ' (' + $s.Keyword + ')')
-        if ($null -ne $r.Property -and $r.Live) {
-            $lines += ('  live:     ' + (Format-WfNtValue -Property $r.Property -Value $r.Live))
-            $lines += ('  proposed: ' + (Format-WfNtValue -Property $r.Property -Value $s.Proposed))
-        } else {
-            $lines += '  live:     unknown'
-            $lines += ('  proposed: ' + $s.Proposed)
-        }
+        $label = $r.Keyword
+        if (-not $label) { $label = Get-WfNtSettingMatchText -Setting $s }
+        $lines += ('Setting ' + $s.Name + ' (' + $label + ')')
+        $lines += ('  verdict:  ' + (Get-WfNtVerdictText -Setting $s))
+        if ($null -ne $r.Property -and $r.Live) { $lines += ('  live:     ' + (Format-WfNtValue -Property $r.Property -Value $r.Live)) } else { $lines += '  live:     unknown' }
+        if ($null -ne $r.Property -and $r.Proposed) { $lines += ('  proposed: ' + (Format-WfNtValue -Property $r.Property -Value $r.Proposed)) }
+        elseif ($s.Proposed) { $lines += ('  proposed: ' + $s.Proposed) }
+        else { $lines += ('  proposed: the driver''s value shown as "' + $s.OffDisplay + '" (not readable, see below)') }
         $lines += ('  why:      ' + $s.Reason)
         $lines += '  restart:  adapter restart or PC restart before it takes effect (see Restart below)'
         $lines += ('  source:   ' + $s.Source)
@@ -400,14 +531,20 @@ function Get-WfNtPlanLines {
         foreach ($c in $r.Checks) { $lines += ('  ' + (Format-WfNtCheck -Check $c)) }
         if (-not $r.Ok) { $lines += '  => REFUSED for this setting (above).' }
         elseif ($r.Action -eq 'none') { $lines += '  => already at the proposed value; nothing to do.' }
-        else { $lines += ('  => would change ' + $r.Live + ' to ' + $s.Proposed + '.') }
+        else { $lines += ('  => would change ' + $r.Live + ' to ' + $r.Proposed + '.') }
     }
     if ($null -ne $Plan.Adapter) {
-        $skip = @($Plan.Settings | ForEach-Object { $_.Setting.Keyword })
+        $skip = @($Plan.Settings | Where-Object { $_.Keyword } | ForEach-Object { $_.Keyword })
         $lines += ''
-        $lines += 'Reported, never changed by this script (the research document gives each a verdict):'
+        $lines += 'Other displayed properties, reported only in this run (the research document gives each a verdict):'
         $lines += (Get-WfNtReportedLines -Properties $Plan.Properties -Skip $skip)
         $lines += ('  Allow the computer to turn off this device = ' + $Plan.AllowTurnOff + ' (Device Manager only; not scripted)')
+    }
+    $selectedNames = @($Plan.Settings | ForEach-Object { $_.Setting.Name })
+    $others = @((Get-WfNtSettings) | Where-Object { -not $_.Default -and $selectedNames -notcontains $_.Name } | ForEach-Object { $_.Name })
+    if ($others.Count -gt 0) {
+        $lines += ''
+        $lines += ('Opt in experiments, measure first, no cited latency case (not selected; name one alone with -Only): ' + ($others -join ', '))
     }
     $lines += ''
     $lines += (Get-WfNtRestartLines)
@@ -433,8 +570,8 @@ function ConvertTo-WfNtBeforeCsv {
     $rows = @(((Get-WfNtCsvColumns) | ForEach-Object { ConvertTo-WfNtCsvField -Text $_ }) -join ',')
     foreach ($r in $Plan.Settings) {
         $fields = @(
-            $r.Setting.Name, $r.Setting.Keyword, [string]$r.Property.DisplayName, $r.Live,
-            (Get-WfNtDisplayFor -Property $r.Property -Value $r.Live), $r.Setting.Proposed, $r.Action,
+            $r.Setting.Name, $r.Keyword, [string]$r.Property.DisplayName, $r.Live,
+            (Get-WfNtDisplayFor -Property $r.Property -Value $r.Live), $r.Proposed, $r.Action,
             ((@($r.Property.ValidRegistryValues) | ForEach-Object { [string]$_ }) -join ';'),
             $Plan.DeviceSha256, [string]$Plan.Adapter.DriverFileName, [string]$Plan.Adapter.DriverVersion
         )
@@ -625,7 +762,7 @@ function Invoke-WfNtApply {
     $moved = @()
     foreach ($r in $plan.Settings) {
         $now = ''
-        try { $now = Read-WfNtLiveValue -Name $name -Keyword $r.Setting.Keyword } catch { $now = '' }
+        try { $now = Read-WfNtLiveValue -Name $name -Keyword $r.Keyword } catch { $now = '' }
         if ($now -ne $r.Live) { $moved += ($r.Setting.Name + ' is now ' + $now + ', saved ' + $r.Live) }
     }
     if ($moved.Count -gt 0) {
@@ -636,8 +773,8 @@ function Invoke-WfNtApply {
     foreach ($r in $plan.Settings) {
         if ($r.Action -ne 'change') { continue }
         try {
-            Set-WfNtAdvancedProperty -Name $name -Keyword $r.Setting.Keyword -Value $r.Setting.Proposed
-            Write-WfNtReport -Lines @(('Wrote ' + $r.Setting.Name + ': ' + $r.Live + ' to ' + $r.Setting.Proposed + ' (no adapter restart).')) -Secrets $secrets
+            Set-WfNtAdvancedProperty -Name $name -Keyword $r.Keyword -Value $r.Proposed
+            Write-WfNtReport -Lines @(('Wrote ' + $r.Setting.Name + ': ' + $r.Live + ' to ' + $r.Proposed + ' (no adapter restart).')) -Secrets $secrets
         } catch {
             $writeFailed = $true
             Write-WfNtReport -Lines @(('WRITE FAILED for ' + $r.Setting.Name + ' (' + $_.Exception.GetType().Name + '); later settings were not written.')) -Secrets $secrets
@@ -753,14 +890,23 @@ function Invoke-WfNtReadback {
             $lines += ('Compared with evidence folder ' + $stamp + ' (PASS means the applied value is in place).')
         }
     }
+    $unresolved = @()
     if ($rows.Count -eq 0) {
         $lines += 'No usable evidence folder; compared with the proposed values (PASS means the proposed value is in place).'
+        $properties = @(Get-WfNtAdvancedProperties -Name $found.Adapter.Name)
         foreach ($s in $Selected) {
-            $rows += [pscustomobject]@{ setting = $s.Name; keyword = $s.Keyword; before_value = ''; proposed_value = $s.Proposed }
+            $r = Test-WfNtSetting -Setting $s -Properties $properties
+            if ($r.Keyword -and $r.Proposed) {
+                $rows += [pscustomobject]@{ setting = $s.Name; keyword = $r.Keyword; before_value = ''; proposed_value = $r.Proposed }
+            } else {
+                $why = @($r.Checks | Where-Object { -not $_.Ok } | ForEach-Object { $_.Text })
+                $unresolved += ('  FAIL ' + $s.Name + ': the proposed value cannot be told (' + ($why -join '; ') + ')')
+            }
         }
     }
     $check = Get-WfNtReadbackLines -Name $found.Adapter.Name -Rows $rows -Expect 'proposed'
     $lines += $check.Lines
+    $lines += $unresolved
     if ($stamp) {
         $applied = [datetime]::ParseExact($stamp, 'yyyyMMddTHHmmssZ', [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AdjustToUniversal -bor [System.Globalization.DateTimeStyles]::AssumeUniversal)
         $boot = Get-WfNtLastBootUtc
@@ -769,7 +915,7 @@ function Invoke-WfNtReadback {
         }
     }
     Write-WfNtReport -Lines $lines -Secrets $secrets
-    if ($check.Ok) { return 0 }
+    if ($check.Ok -and $unresolved.Count -eq 0) { return 0 }
     return 1
 }
 

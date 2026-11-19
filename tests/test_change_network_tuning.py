@@ -64,14 +64,22 @@ def test_reg_exe_only_exports():
 
 
 def test_settings_table_matches_the_research_verdicts():
-    code = code_lines(LIB)
-    names = re.findall(r"Name\s+=\s+'([a-z0-9-]+)'", function_bodies(code)["Get-WfNtSettings"])
-    keywords = re.findall(r"Keyword\s+=\s+'([^']+)'", function_bodies(code)["Get-WfNtSettings"])
-    assert names == ["idle-restriction"]
+    body = function_bodies(code_lines(LIB))["Get-WfNtSettings"]
+    entries = re.findall(r"Name\s+=\s+'([a-z0-9-]+)'.*?Default\s+=\s+\$(true|false)\s+Verdict\s+=\s+'([a-z-]+)'", body, re.S)
+    assert [(n, d, v) for n, d, v in entries] == [
+        ("idle-restriction", "true", "include"),
+        ("green-ethernet", "false", "measure-first"),
+        ("power-saving-mode", "false", "measure-first"),
+        ("gigabit-lite", "false", "measure-first"),
+        ("ltr-obff", "false", "measure-first"),
+        ("flow-control", "false", "measure-first"),
+    ]
     research = RESEARCH.read_text(encoding="utf-8")
-    for name, keyword in zip(names, keywords):
-        assert f"`{name}`" in research
-        assert re.search(rf"\| `{re.escape(keyword)}`[^\n]*\| \*\*include\*\* \|", research), keyword
+    assert re.search(r"\| `\*IdleRestriction`[^\n]*\| \*\*include\*\* \|", research)
+    for name, default, verdict in entries:
+        assert f"`{name}`" in research, name
+        if verdict == "measure-first":
+            assert re.search(rf"\*\*measure first, opt in\*\*:[^\n|]*`{name}`", research), name
 
 
 def test_research_covers_every_topic_in_the_brief():
@@ -92,9 +100,10 @@ def test_operator_page_exists_and_is_linked():
     assert "docs/changes/network-tuning.md" in readme
     assert "docs/changes/network-tuning-research.md" in readme
     text = OPERATOR.read_text(encoding="utf-8")
-    for section in ("## What it changes", "## When to run", "## The sequence", "## What to record", "## Undo"):
+    for section in ("## What it changes", "## When to run", "## The sequence", "## Experiments", "## What to record", "## Undo"):
         assert section in text, section
     assert "-Only" in text and "cannot" in text
+    assert "Allow the computer to turn off this device to save power" in text and "Record the before value" in text
 
 
 def test_documents_copy_no_address():

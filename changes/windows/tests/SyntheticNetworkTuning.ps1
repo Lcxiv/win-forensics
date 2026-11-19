@@ -53,6 +53,9 @@ function New-WfNtSyntheticMachine {
     $props.Add((New-WfNtSyntheticProperty -Keyword '*FlowControl' -Value '3' -DisplayName 'Flow Control' -Valid @('0', '3') -Shown @('Disabled', 'Rx & Tx Enabled')))
     $props.Add((New-WfNtSyntheticProperty -Keyword '*UDPChecksumOffloadIPv4' -Value '3' -DisplayName 'UDP Checksum Offload (IPv4)' -Valid @('0', '1', '2', '3') -Shown @('Disabled', 'Tx Enabled', 'Rx Enabled', 'Rx & Tx Enabled')))
     $props.Add((New-WfNtSyntheticProperty -Keyword 'InventedGreenKeyword' -Value '1' -DisplayName 'Green Ethernet' -Valid @('0', '1') -Shown @('Disabled', 'Enabled')))
+    $props.Add((New-WfNtSyntheticProperty -Keyword 'InventedPowerSavingKeyword' -Value '1' -DisplayName 'Power Saving Mode' -Valid @('0', '1') -Shown @('Disabled', 'Enabled')))
+    $props.Add((New-WfNtSyntheticProperty -Keyword 'InventedGigaLiteKeyword' -Value '1' -DisplayName 'Gigabit Lite' -Valid @('0', '1') -Shown @('Disabled', 'Enabled')))
+    $props.Add((New-WfNtSyntheticProperty -Keyword 'LTROBFF' -Value '4'))
     $props.Add((New-WfNtSyntheticProperty -Keyword 'NetworkAddress' -Value '020000000001' -DisplayName 'Network Address' -Type 1))
     $props.Add((New-WfNtSyntheticProperty -Keyword 'InventedHiddenKeyword' -Value '0'))
     $global:WfNtSynthetic.Properties['Ethernet 2'] = $props

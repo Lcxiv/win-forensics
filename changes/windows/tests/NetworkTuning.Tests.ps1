@@ -47,14 +47,28 @@ Describe 'network-tuning' {
     }
 
     Describe 'the settings table' {
-        It 'holds only the include verdicts, each with a keyword, a value, a reason and a Learn source' {
-            $s = @(Get-WfNtSettings)
+        It 'holds the include verdicts as the default set, each with a keyword, a value, a reason and a Learn source' {
+            $s = @(Get-WfNtSettings | Where-Object { $_.Default })
             @($s | ForEach-Object { $_.Name }) | Should -Be @('idle-restriction')
             foreach ($x in $s) {
+                $x.Verdict | Should -Be 'include'
                 $x.Keyword | Should -Match '^\*?[A-Za-z]+$'
                 $x.Proposed | Should -Match '^[0-9]+$'
                 $x.Reason | Should -Not -BeNullOrEmpty
                 $x.Source | Should -Match '^https://learn\.microsoft\.com/'
+            }
+        }
+
+        It 'holds the measure first entries as opt in, each proposing the driver''s off value read live' {
+            $s = @(Get-WfNtSettings | Where-Object { -not $_.Default })
+            @($s | ForEach-Object { $_.Name }) | Should -Be @('green-ethernet', 'power-saving-mode', 'gigabit-lite', 'ltr-obff', 'flow-control')
+            foreach ($x in $s) {
+                $x.Verdict | Should -Be 'measure-first'
+                $x.Proposed | Should -BeNullOrEmpty
+                $x.OffDisplay | Should -Be 'Disabled'
+                ($x.Keyword -or $x.Display) | Should -BeTrue
+                $x.Reason | Should -Not -BeNullOrEmpty
+                $x.Source | Should -Match 'network-tuning-research\.md'
             }
         }
     }
@@ -64,6 +78,9 @@ Describe 'network-tuning' {
             $r = Invoke-TestNt
             $r.ExitCode | Should -Be 0
             $r.Text | Should -Match 'Setting idle-restriction \(\*IdleRestriction\)'
+            $r.Text | Should -Match 'verdict:  include \(cited case'
+            $r.Text | Should -Match 'Opt in experiments, measure first, no cited latency case \(not selected; name one alone with -Only\): green-ethernet, power-saving-mode, gigabit-lite, ltr-obff, flow-control'
+            $r.Text | Should -Not -Match 'Setting green-ethernet'
             $r.Text | Should -Match 'live:     0 \(No Restriction\)'
             $r.Text | Should -Match 'proposed: 1 \(Only idle when user not present\)'
             $r.Text | Should -Match 'why:      stops the adapter powering down'
@@ -158,9 +175,9 @@ Describe 'network-tuning' {
         }
 
         It 'refuses an unknown -Only name and lists the known ones' {
-            $r = Invoke-TestNt -Extra @{ Only = @('idle-restriction,flow-control') }
+            $r = Invoke-TestNt -Extra @{ Only = @('idle-restriction,no-such-setting') }
             $r.ExitCode | Should -Be 2
-            $r.Text | Should -Match 'does not have: flow-control\. Known: idle-restriction'
+            $r.Text | Should -Match 'does not have: no-such-setting\. Known: idle-restriction, green-ethernet, power-saving-mode, gigabit-lite, ltr-obff, flow-control'
         }
 
         It 'accepts -Only as one comma separated string' {
@@ -415,12 +432,12 @@ Describe 'network-tuning' {
 
     Describe 'several settings (an invented second setting)' {
         BeforeEach {
-            # The real table has one setting; this invented second one proves
+            # The real default set has one setting; this invented second one proves
             # -Only, the write order and undo after a partial apply.
             function Get-WfNtSettings {
                 return @(
-                    [pscustomobject]@{ Name = 'idle-restriction'; Keyword = '*IdleRestriction'; Proposed = '1'; Reason = 'test'; Restart = 'adapter'; Source = 'https://learn.microsoft.com/x' },
-                    [pscustomobject]@{ Name = 'flow-control'; Keyword = '*FlowControl'; Proposed = '0'; Reason = 'test'; Restart = 'adapter'; Source = 'https://learn.microsoft.com/y' }
+                    [pscustomobject]@{ Name = 'idle-restriction'; Keyword = '*IdleRestriction'; Display = ''; Proposed = '1'; OffDisplay = ''; Default = $true; Verdict = 'include'; Reason = 'test'; Restart = 'adapter'; Source = 'https://learn.microsoft.com/x' },
+                    [pscustomobject]@{ Name = 'flow-control'; Keyword = '*FlowControl'; Display = ''; Proposed = '0'; OffDisplay = ''; Default = $true; Verdict = 'include'; Reason = 'test'; Restart = 'adapter'; Source = 'https://learn.microsoft.com/y' }
                 )
             }
         }
@@ -458,6 +475,126 @@ Describe 'network-tuning' {
             $global:WfNtSynthetic.Writes.Count | Should -Be 0
             $r = Invoke-TestNt -Verb @('Apply') -Extra @{ Only = @('idle-restriction') }
             $r.ExitCode | Should -Be 0
+        }
+    }
+
+    Describe 'opt in measure first experiments' {
+        It 'plans one named alone, labelled measure first, proposing the driver''s off value' {
+            $r = Invoke-TestNt -Extra @{ Only = @('green-ethernet') }
+            $r.ExitCode | Should -Be 0
+            $r.Text | Should -Match 'Setting green-ethernet \(InventedGreenKeyword\)'
+            $r.Text | Should -Match 'verdict:  measure first, no cited latency case'
+            $r.Text | Should -Match 'live:     1 \(Enabled\)'
+            $r.Text | Should -Match 'proposed: 0 \(Disabled\)'
+            $r.Text | Should -Match '\[ok    \] off-value: the driver''s own off value is 0 \(Disabled\)'
+            $r.Text | Should -Match 'would change 1 to 0'
+            $r.Text | Should -Not -Match 'Setting idle-restriction'
+            $r.Text | Should -Not -Match 'Green Ethernet = '
+            $global:WfNtSynthetic.Writes.Count | Should -Be 0
+        }
+
+        It 'applies, reads back, undoes and reads back <Name> with the live keyword' -ForEach @(
+            @{ Name = 'green-ethernet'; Keyword = 'InventedGreenKeyword'; Before = '1'; Off = '0' }
+            @{ Name = 'power-saving-mode'; Keyword = 'InventedPowerSavingKeyword'; Before = '1'; Off = '0' }
+            @{ Name = 'gigabit-lite'; Keyword = 'InventedGigaLiteKeyword'; Before = '1'; Off = '0' }
+            @{ Name = 'flow-control'; Keyword = '*FlowControl'; Before = '3'; Off = '0' }
+        ) {
+            $a = Invoke-TestNt -Verb @('Apply') -Extra @{ Only = @($Name) }
+            $a.ExitCode | Should -Be 0
+            @($global:WfNtSynthetic.Writes) | Should -Be @(('Ethernet 2|' + $Keyword + '=' + $Off))
+            Get-WfNtSyntheticLive -Keyword '*IdleRestriction' | Should -Be '0'
+            $csv = [System.IO.File]::ReadAllText((Join-Path (@(Get-TestEvidenceFolders)[0].FullName) 'before-values.csv'))
+            $csv | Should -Match ('"' + $Name + '","' + [regex]::Escape($Keyword) + '",')
+            $csv | Should -Not -Match 'idle-restriction'
+            $b = Invoke-TestNt -Verb @('Readback')
+            $b.ExitCode | Should -Be 0
+            $b.Text | Should -Match ('PASS ' + $Name)
+            $global:WfNtSynthetic.Writes.Clear()
+            $u = Invoke-TestNt -Verb @('Undo')
+            $u.ExitCode | Should -Be 0
+            @($global:WfNtSynthetic.Writes) | Should -Be @(('Ethernet 2|' + $Keyword + '=' + $Before))
+            Get-WfNtSyntheticLive -Keyword $Keyword | Should -Be $Before
+            Assert-TestPrivate -Text ($a.Text + $b.Text + $u.Text)
+        }
+
+        It 'refuses ltr-obff while the driver hides it, so no off value can be read' {
+            $r = Invoke-TestNt -Verb @('Apply') -Extra @{ Only = @('ltr-obff') }
+            $r.ExitCode | Should -Be 2
+            $r.Text | Should -Match 'hidden property, so the driver lists no valid values for it and no off value can be read'
+            $global:WfNtSynthetic.Writes.Count | Should -Be 0
+            Test-Path -LiteralPath $script:EvidenceRoot | Should -BeFalse
+        }
+
+        It 'refuses when the driver shows no value as Disabled' {
+            (Get-WfNtSyntheticProperty -Keyword 'InventedGreenKeyword').ValidDisplayValues = @('Off', 'On')
+            $r = Invoke-TestNt -Verb @('Apply') -Extra @{ Only = @('green-ethernet') }
+            $r.ExitCode | Should -Be 2
+            $r.Text | Should -Match 'shows 0 valid values as "Disabled", not exactly one, so its off value cannot be read'
+            $global:WfNtSynthetic.Writes.Count | Should -Be 0
+        }
+
+        It 'refuses when two values are shown as Disabled' {
+            $p = Get-WfNtSyntheticProperty -Keyword '*FlowControl'
+            $p.ValidRegistryValues = @('0', '1', '3')
+            $p.ValidDisplayValues = @('Disabled', 'Disabled', 'Rx & Tx Enabled')
+            $r = Invoke-TestNt -Extra @{ Only = @('flow-control') }
+            $r.ExitCode | Should -Be 2
+            $r.Text | Should -Match 'shows 2 valid values as "Disabled"'
+        }
+
+        It 'refuses when the display name matches twice' {
+            (Get-WfNtSyntheticProperty -Keyword 'InventedPowerSavingKeyword').DisplayName = 'Green Ethernet'
+            $r = Invoke-TestNt -Extra @{ Only = @('green-ethernet') }
+            $r.ExitCode | Should -Be 2
+            $r.Text | Should -Match 'exposes the property shown as "Green Ethernet" 2 times'
+        }
+
+        It 'refuses when the driver does not show the property' {
+            (Get-WfNtSyntheticProperty -Keyword 'InventedGigaLiteKeyword').DisplayName = 'Something Else'
+            $r = Invoke-TestNt -Extra @{ Only = @('gigabit-lite') }
+            $r.ExitCode | Should -Be 2
+            $r.Text | Should -Match 'does not expose the property shown as "Gigabit Lite"'
+        }
+
+        It 'reports nothing to do when it is already off' {
+            Set-WfNtSyntheticLive -Keyword 'InventedGreenKeyword' -Value '0'
+            $r = Invoke-TestNt -Verb @('Apply') -Extra @{ Only = @('green-ethernet') }
+            $r.ExitCode | Should -Be 2
+            $r.Text | Should -Match 'Nothing to change'
+        }
+
+        It 'refuses <Case>' -ForEach @(
+            @{ Case = 'two experiments in one run'; Only = @('green-ethernet,flow-control') }
+            @{ Case = 'an experiment together with the default setting'; Only = @('idle-restriction', 'gigabit-lite') }
+        ) {
+            $r = Invoke-TestNt -Verb @('Apply') -Extra @{ Only = $Only }
+            $r.ExitCode | Should -Be 2
+            $r.Text | Should -Match 'a measure first setting runs alone, one experiment at a time'
+            $global:WfNtSynthetic.Writes.Count | Should -Be 0
+        }
+
+        It 'reads back an experiment against the live off value when nothing was applied' {
+            $r = Invoke-TestNt -Verb @('Readback') -Extra @{ Only = @('green-ethernet') }
+            $r.ExitCode | Should -Be 1
+            $r.Text | Should -Match 'FAIL green-ethernet \(InventedGreenKeyword\): live 1, expected 0'
+        }
+
+        It 'reads back FAIL when the proposed value cannot be told' {
+            $r = Invoke-TestNt -Verb @('Readback') -Extra @{ Only = @('ltr-obff') }
+            $r.ExitCode | Should -Be 1
+            $r.Text | Should -Match 'FAIL ltr-obff: the proposed value cannot be told \(it is a hidden property'
+        }
+
+        It 'undoes an earlier experiment kept in place, by its folder' {
+            (Invoke-TestNt -Verb @('Apply') -Extra @{ Only = @('green-ethernet') }).ExitCode | Should -Be 0
+            $first = @(Get-TestEvidenceFolders)[0].Name
+            $global:WfNtSynthetic.NowUtc = $global:WfNtSynthetic.NowUtc.AddDays(3)
+            (Invoke-TestNt -Verb @('Apply') -Extra @{ Only = @('flow-control') }).ExitCode | Should -Be 0
+            $global:WfNtSynthetic.Writes.Clear()
+            $u = Invoke-TestNt -Verb @('Undo') -Extra @{ EvidenceFolder = $first }
+            $u.ExitCode | Should -Be 0
+            @($global:WfNtSynthetic.Writes) | Should -Be @('Ethernet 2|InventedGreenKeyword=1')
+            Get-WfNtSyntheticLive -Keyword '*FlowControl' | Should -Be '0'
         }
     }
 
