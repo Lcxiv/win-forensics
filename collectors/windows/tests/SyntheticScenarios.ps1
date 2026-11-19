@@ -1957,7 +1957,9 @@ function New-WfSyntheticDiskIoDump {
     # writes and exits, then another process started under the same id) and
     # 6000 (a process the trace first names by its end event, then a new
     # process under the same id); and a thread id, 7001, that writes before
-    # its first Thread event, ends, and is given to another process.
+    # its first Thread event, ends, and is given to another process; and a
+    # file object, ...9000, written before its first name event (its delete),
+    # whose address then names another file.
     param([string]$DropField = '', [string]$CollectorRoot = '', [switch]$NoDiskEvents, [switch]$PidReuse)
     $start = $global:WfSynthetic.Now.AddSeconds(7)
     $kernel = '{9e814aad-3204-11d2-9a82-006008a86939}'
@@ -2053,6 +2055,9 @@ function New-WfSyntheticDiskIoDump {
         & $thread 3 3.31 '1200' '7001'
         & $thread 2 3.50 '1200' '7001'
         & $thread 1 5.50 '2300' '7001'
+        & $disk 11 3.40 '1201' '0xffffa00000009000' 5120 '0x60a01' 600
+        & $add 'FileIo' 35 3.60 @('FileObject', '0xffffa00000009000', 'FileName', ($volume + '\ProgramData\SyntheticGame\Journal\Pending\entry.log'))
+        & $add 'FileIo' 32 5.60 @('FileObject', '0xffffa00000009000', 'FileName', ($volume + '\Windows\Temp\Scratch\other.tmp'))
     }
     # Hard faults: the game pages in code from its pack file.
     & $add 'PageFault' 32 0.40 @('InitialTime', '1000', 'ReadOffset', '4096', 'VirtualAddress', '0x00007ff600001000', 'FileObject', '0xffffa00000002000', 'TThreadId', '1201', 'ByteCount', '32768')

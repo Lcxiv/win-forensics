@@ -938,6 +938,7 @@ function Read-DiskIoDump {
     $processes = @{}
     $firstImages = @{}
     $names = @{}
+    $firstNames = @{}
     $groups = @{}
     $startTicks = [datetime]::FromFileTimeUtc($StartFileTime).Ticks
     $settings = New-Object System.Xml.XmlReaderSettings
@@ -967,6 +968,7 @@ function Read-DiskIoDump {
             if ($kind -eq 'name') {
                 $fo = ConvertTo-DiskIoNumber -Text ([string]$data['FileObject'])
                 if ($null -eq $fo -or -not $data.ContainsKey('FileName')) { $counts.malformed += 1; if ($null -eq $counts.malformed_first) { $counts.malformed_first = ('event:{0} FileIo name event without a FileObject or FileName' -f $index) }; continue }
+                if (-not $firstNames.ContainsKey(('{0:x}' -f $fo))) { $firstNames[('{0:x}' -f $fo)] = [string]$data['FileName'] }
                 $names[('{0:x}' -f $fo)] = [string]$data['FileName']
                 $counts.file_name += 1
                 continue
@@ -1040,7 +1042,9 @@ function Read-DiskIoDump {
     # that id, which is the next one after the request; a thread without a
     # Thread event takes the first process the trace gives that thread id
     # (an id cannot change hands before its End event) and the image that
-    # process had then. Then build the rows.
+    # process had then; a file object without a name event takes the first
+    # name the trace gives that object, whatever file the address names
+    # later. Then build the rows.
     $final = @{}
     $partsCache = @{}
     foreach ($group in $groups.Values) {
@@ -1059,7 +1063,7 @@ function Read-DiskIoDump {
         $fileToken = [string]$group['File']
         $fileName = $null
         if ($fileToken.StartsWith('n:')) { $fileName = $fileToken.Substring(2) }
-        elseif ($names.ContainsKey($fileToken.Substring(2))) { $fileName = [string]$names[$fileToken.Substring(2)] }
+        elseif ($firstNames.ContainsKey($fileToken.Substring(2))) { $fileName = [string]$firstNames[$fileToken.Substring(2)] }
         if ($null -eq $fileName) {
             $parts = [ordered]@{ volume = $null; directory = $null; extension = $null; path_class = 'unnamed' }
             $counts.unnamed_file += [int64]$group['Operations']

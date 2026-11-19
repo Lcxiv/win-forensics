@@ -4138,6 +4138,10 @@ Describe 'diskio-trace against the synthetic backend' {
         $early.Count | Should -Be 1
         $early[0].process_id | Should -Be 1200 -Because 'a request before its thread''s first Thread event belongs to the first process the trace gives that thread id, not to the one the id went to later'
         $early[0].process_image | Should -BeExactly 'SyntheticGame.exe'
+        $unnamedThen = @($rows | Where-Object { $_.transferred_bytes -eq 5120 })
+        $unnamedThen.Count | Should -Be 1
+        $unnamedThen[0].directory | Should -Match '^\\ProgramData\\SyntheticGame\\dir-[0-9a-f]{12}\\dir-[0-9a-f]{12}$' -Because 'a request before its file object''s first name event belongs to the first file the trace names by that object, not to the one the address named later'
+        $unnamedThen[0].extension | Should -BeExactly '.log'
     }
 
     It 'fails the run and keeps no aggregate when the recording cannot be confirmed removed' {
