@@ -1,7 +1,7 @@
 {
   "tool": "C:\\Windows\\System32\\wpr.exe",
   "tracerpt": "C:\\Windows\\System32\\tracerpt.exe",
-  "instance_name": "WfDpcIsrTrace-20260301T120010Z",
+  "instance_name": "WfDpcIsrTrace-20260301T120448Z",
   "profile_file": "raw/wpr_trace/dpcisr-trace.wprp",
   "profile_name": "WfDpcIsrTrace",
   "profile_id": "WfDpcIsrTrace.Verbose.File",
@@ -28,11 +28,11 @@
   ],
   "stop_arguments": [
     "<bundle>/private/trace.etl",
-    "win-forensics dpcisr-trace 20260301T120010Z",
+    "win-forensics dpcisr-trace 20260301T120448Z",
     "-skipPdbGen"
   ],
-  "session_started_utc": "2026-03-01T12:00:12.0000000Z",
-  "session_stop_issued_utc": "2026-03-01T12:01:12.0000000Z",
+  "session_started_utc": "2026-03-01T12:04:50.0000000Z",
+  "session_stop_issued_utc": "2026-03-01T12:05:50.0000000Z",
   "recording_seconds": 60,
   "stopped_early_at_cap": false,
   "temp_bytes_seen": 4096,
@@ -109,7 +109,7 @@
     {
       "tool": "wpr.exe",
       "verb": "start",
-      "arguments": "-start <bundle>/raw/wpr_trace/dpcisr-trace.wprp!WfDpcIsrTrace.Verbose -filemode -recordtempto <bundle>/private/temp -instancename WfDpcIsrTrace-20260301T120010Z",
+      "arguments": "-start <bundle>/raw/wpr_trace/dpcisr-trace.wprp!WfDpcIsrTrace.Verbose -filemode -recordtempto <bundle>/private/temp -instancename WfDpcIsrTrace-20260301T120448Z",
       "started": true,
       "exit_code": 0,
       "timed_out": false,
@@ -122,7 +122,7 @@
     {
       "tool": "wpr.exe",
       "verb": "status",
-      "arguments": "-status profiles collectors -details -instancename WfDpcIsrTrace-20260301T120010Z",
+      "arguments": "-status profiles collectors -details -instancename WfDpcIsrTrace-20260301T120448Z",
       "started": true,
       "exit_code": 0,
       "timed_out": false,
@@ -135,7 +135,7 @@
     {
       "tool": "wpr.exe",
       "verb": "stop",
-      "arguments": "-stop <bundle>/private/trace.etl \"win-forensics dpcisr-trace 20260301T120010Z\" -skipPdbGen -instancename WfDpcIsrTrace-20260301T120010Z",
+      "arguments": "-stop <bundle>/private/trace.etl \"win-forensics dpcisr-trace 20260301T120448Z\" -skipPdbGen -instancename WfDpcIsrTrace-20260301T120448Z",
       "started": true,
       "exit_code": 0,
       "timed_out": false,
@@ -148,7 +148,7 @@
     {
       "tool": "wpr.exe",
       "verb": "status",
-      "arguments": "-status -instancename WfDpcIsrTrace-20260301T120010Z",
+      "arguments": "-status -instancename WfDpcIsrTrace-20260301T120448Z",
       "started": true,
       "exit_code": 0,
       "timed_out": false,

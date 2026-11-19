@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.1.0",
-  "bundle_id": "20260301T120009Z_dpcisr_trace_ae3a76a9",
-  "created_utc": "2026-03-01T12:01:17.0000000Z",
+  "bundle_id": "20260301T120447Z_dpcisr_trace_ae3a76a9",
+  "created_utc": "2026-03-01T12:05:55.0000000Z",
   "scenario": {
     "id": "dpcisr_trace",
     "version": "1.1.0",
@@ -10,8 +10,8 @@
     "marks": []
   },
   "capture": {
-    "start_utc": "2026-03-01T12:00:09.0000000Z",
-    "stop_utc": "2026-03-01T12:01:17.0000000Z",
+    "start_utc": "2026-03-01T12:04:47.0000000Z",
+    "stop_utc": "2026-03-01T12:05:55.0000000Z",
     "orchestrator": "wf-collector:dpcisr-trace",
     "orchestrator_version": "1.2.0",
     "elevated": true,
@@ -68,7 +68,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:11.0000000Z",
+        "at_utc": "2026-03-01T12:04:49.0000000Z",
         "checks": [
           {
             "name": "tool_present",
@@ -105,10 +105,10 @@
         "-recordtempto",
         "<bundle>/private/temp",
         "-instancename",
-        "WfDpcIsrTrace-20260301T120010Z"
+        "WfDpcIsrTrace-20260301T120448Z"
       ],
-      "started_utc": "2026-03-01T12:00:10.0000000Z",
-      "stopped_utc": "2026-03-01T12:01:13.0000000Z",
+      "started_utc": "2026-03-01T12:04:48.0000000Z",
+      "stopped_utc": "2026-03-01T12:05:51.0000000Z",
       "exit_code": 0,
       "config_hash": {
         "algorithm": "sha256",
@@ -130,7 +130,7 @@
           "profile_name": "WfDpcIsrTrace",
           "profile_id": "WfDpcIsrTrace.Verbose.File",
           "logging_mode": "file",
-          "instance_name": "WfDpcIsrTrace-20260301T120010Z",
+          "instance_name": "WfDpcIsrTrace-20260301T120448Z",
           "buffer_size_kb": 1024,
           "buffer_count": 64,
           "duration_seconds": 60,
@@ -143,10 +143,10 @@
           "stop_arguments": [
             "-stop",
             "<bundle>/private/trace.etl",
-            "win-forensics dpcisr-trace 20260301T120010Z",
+            "win-forensics dpcisr-trace 20260301T120448Z",
             "-skipPdbGen",
             "-instancename",
-            "WfDpcIsrTrace-20260301T120010Z"
+            "WfDpcIsrTrace-20260301T120448Z"
           ],
           "tool_timeout_seconds": 120,
           "short_timeout_seconds": 30,
@@ -165,15 +165,15 @@
         "stack_walk": [],
         "counters": [],
         "options": {
-          "instance_name": "WfDpcIsrTrace-20260301T120010Z",
+          "instance_name": "WfDpcIsrTrace-20260301T120448Z",
           "dropped_events_after_start": 0,
           "events_lost_after_start": 0,
           "buffers_lost_listed_after_start": false,
           "logging_mode": "File",
           "final_events_lost": 0,
           "final_buffers_lost": 0,
-          "session_started_utc": "2026-03-01T12:00:12.0000000Z",
-          "session_stop_issued_utc": "2026-03-01T12:01:12.0000000Z",
+          "session_started_utc": "2026-03-01T12:04:50.0000000Z",
+          "session_stop_issued_utc": "2026-03-01T12:05:50.0000000Z",
           "recording_seconds": 60,
           "trace_bytes": 4096,
           "trace_sha256": "d7726ba3832ddd6c5cc7ea0c52b3076b551fce5a84c0c6f1022f502c91ed4987",
@@ -203,7 +203,7 @@
         {
           "path": "raw/wpr_trace/session.json",
           "bytes": 5669,
-          "sha256": "c4a945064b468682652d438293c894f5300ed62c06bc091ae5892db7742e0e15",
+          "sha256": "aedd600c61d6bcacb2cfaa369fff21fefa9305e4af0ba30b9e1eca167a00083b",
           "role": "report"
         },
         {
@@ -220,8 +220,8 @@
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:00:12.0000000Z",
-        "end": "2026-03-01T12:01:12.0000000Z",
+        "start": "2026-03-01T12:04:50.0000000Z",
+        "end": "2026-03-01T12:05:50.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -240,7 +240,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:01:15.0000000Z",
+        "at_utc": "2026-03-01T12:05:53.0000000Z",
         "checks": [
           {
             "name": "trace_present",
@@ -271,8 +271,8 @@
         "-a",
         "dpcisr"
       ],
-      "started_utc": "2026-03-01T12:01:14.0000000Z",
-      "stopped_utc": "2026-03-01T12:01:16.0000000Z",
+      "started_utc": "2026-03-01T12:05:52.0000000Z",
+      "stopped_utc": "2026-03-01T12:05:54.0000000Z",
       "exit_code": 0,
       "config_hash": {
         "algorithm": "sha256",
@@ -353,13 +353,13 @@
         {
           "path": "raw/dpcisr_report/result.json",
           "bytes": 916,
-          "sha256": "a9858d847b56420c1240020a5d222954293e954350035cf2927e8ff5bec591ac",
+          "sha256": "90060ec6937b1fd017487314292a403b7e96b62b2357851ecb929b4aa66ec5b1",
           "role": "report"
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:00:12.0000000Z",
-        "end": "2026-03-01T12:01:12.0000000Z",
+        "start": "2026-03-01T12:04:50.0000000Z",
+        "end": "2026-03-01T12:05:50.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -382,7 +382,7 @@
       "start": null,
       "stop": null
     },
-    "boot_time_utc": "2026-02-27T12:00:08.0000000Z"
+    "boot_time_utc": "2026-02-27T12:04:46.0000000Z"
   },
   "tools": [
     {

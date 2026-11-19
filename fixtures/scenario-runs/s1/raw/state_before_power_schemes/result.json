@@ -1,0 +1,48 @@
+{
+  "started_utc": "2026-03-01T12:01:29.0000000Z",
+  "stopped_utc": "2026-03-01T12:01:32.0000000Z",
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_ms": 7,
+  "stdout_bytes": 370,
+  "stdout_bytes_read": 376,
+  "diagnostic": null,
+  "stderr": "",
+  "records": 4,
+  "records_meaning": "lines carrying a GUID (one per scheme)",
+  "protection": {
+    "mac_addresses_replaced": 0,
+    "network_names_replaced": 0
+  },
+  "profiles": null,
+  "fields": [
+    {
+      "line": 4,
+      "block": 0,
+      "indent": 0,
+      "label": "Power Scheme GUID",
+      "value": "381b4222-f694-41f0-9685-ff5bb260df2e  (Balanced)"
+    },
+    {
+      "line": 5,
+      "block": 1,
+      "indent": 0,
+      "label": "Power Scheme GUID",
+      "value": "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (High performance)"
+    },
+    {
+      "line": 6,
+      "block": 2,
+      "indent": 0,
+      "label": "Power Scheme GUID",
+      "value": "a1841308-3541-4fab-bc81-f71556f20b4a  (Power saver)"
+    },
+    {
+      "line": 7,
+      "block": 3,
+      "indent": 0,
+      "label": "Power Scheme GUID",
+      "value": "11111111-2222-4333-8444-555555555555  (Synthetic Low Latency) *"
+    }
+  ]
+}

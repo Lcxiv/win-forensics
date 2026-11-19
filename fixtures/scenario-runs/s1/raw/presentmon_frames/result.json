@@ -99,8 +99,8 @@
       "error": null
     }
   },
-  "source_started_utc": "2026-03-01T12:01:23.0000000Z",
-  "source_stopped_utc": "2026-03-01T12:02:43.0000000Z",
+  "source_started_utc": "2026-03-01T12:06:01.0000000Z",
+  "source_stopped_utc": "2026-03-01T12:07:21.0000000Z",
   "csv": {
     "path": "raw/presentmon_frames/frames.csv",
     "present": true,

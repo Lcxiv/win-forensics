@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.1.0",
-  "bundle_id": "20260301T120423Z_whea_errors_ae3a76a9",
-  "created_utc": "2026-03-01T12:04:33.0000000Z",
+  "bundle_id": "20260301T120902Z_whea_errors_ae3a76a9",
+  "created_utc": "2026-03-01T12:09:12.0000000Z",
   "scenario": {
     "id": "whea_errors",
     "version": "1.0.0",
@@ -10,8 +10,8 @@
     "marks": []
   },
   "capture": {
-    "start_utc": "2026-03-01T12:04:23.0000000Z",
-    "stop_utc": "2026-03-01T12:04:33.0000000Z",
+    "start_utc": "2026-03-01T12:09:02.0000000Z",
+    "stop_utc": "2026-03-01T12:09:12.0000000Z",
     "orchestrator": "wf-collector:whea-errors",
     "orchestrator_version": "1.2.0",
     "elevated": false,
@@ -68,7 +68,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:04:30.0000000Z",
+        "at_utc": "2026-03-01T12:09:09.0000000Z",
         "checks": [
           {
             "name": "channel_found",
@@ -87,12 +87,12 @@
         "System",
         "raw/system_whea_events/query.xml"
       ],
-      "started_utc": "2026-03-01T12:04:24.0000000Z",
-      "stopped_utc": "2026-03-01T12:04:32.0000000Z",
+      "started_utc": "2026-03-01T12:09:03.0000000Z",
+      "stopped_utc": "2026-03-01T12:09:11.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "18adf23f138d8207d9703a9edb5dea6b06693c181989d88d0ea7acae0a264bb3"
+        "value": "d6e7b3ded4fedbda9bf2f9fe495f6183c8ad7814aea15497016c5ccd7e5ff159"
       },
       "filter_hash": null,
       "requested": {
@@ -106,12 +106,12 @@
           "channel": "System",
           "event_ids": [],
           "window_days": 30,
-          "window_start_utc": "2026-01-30T12:04:25.0000000Z",
-          "window_end_utc": "2026-03-01T12:04:25.0000000Z",
+          "window_start_utc": "2026-01-30T12:09:04.0000000Z",
+          "window_end_utc": "2026-03-01T12:09:04.0000000Z",
           "max_events": 5000,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 300,
-          "query_sha256": "18adf23f138d8207d9703a9edb5dea6b06693c181989d88d0ea7acae0a264bb3"
+          "query_sha256": "d6e7b3ded4fedbda9bf2f9fe495f6183c8ad7814aea15497016c5ccd7e5ff159"
         }
       },
       "enabled": {
@@ -124,8 +124,8 @@
         "options": {
           "channel": "System",
           "query_accepted": true,
-          "window_start_utc": "2026-01-30T12:04:25.0000000Z",
-          "window_end_utc": "2026-03-01T12:04:25.0000000Z",
+          "window_start_utc": "2026-01-30T12:09:04.0000000Z",
+          "window_end_utc": "2026-03-01T12:09:04.0000000Z",
           "records_read": 0,
           "records_exported": 0,
           "truncated": false,
@@ -144,7 +144,7 @@
         {
           "path": "raw/system_whea_events/channel_state.json",
           "bytes": 821,
-          "sha256": "4d8570426104cbc0906a8902376e66e2dd37e4d3b9406360cf76044c62fa55b5",
+          "sha256": "93173cad4fa8dca8615ee4714e7e57c407adb9280b45ce8249b0e105295cdc52",
           "role": "report"
         },
         {
@@ -156,20 +156,20 @@
         {
           "path": "raw/system_whea_events/query.xml",
           "bytes": 272,
-          "sha256": "18adf23f138d8207d9703a9edb5dea6b06693c181989d88d0ea7acae0a264bb3",
+          "sha256": "d6e7b3ded4fedbda9bf2f9fe495f6183c8ad7814aea15497016c5ccd7e5ff159",
           "role": "config"
         }
       ],
       "raw_time_range": {
-        "start": "2026-01-30T12:04:25.0000000Z",
-        "end": "2026-03-01T12:04:25.0000000Z",
+        "start": "2026-01-30T12:09:04.0000000Z",
+        "end": "2026-03-01T12:09:04.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
       "expectation": {
         "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
         "met": true,
-        "detail": "0 records read; requested window 2026-01-30T12:04:25.0000000Z to 2026-03-01T12:04:25.0000000Z; covered range starts 2026-01-30T12:04:25.0000000Z"
+        "detail": "0 records read; requested window 2026-01-30T12:09:04.0000000Z to 2026-03-01T12:09:04.0000000Z; covered range starts 2026-01-30T12:09:04.0000000Z"
       },
       "target_process": null
     }
@@ -185,7 +185,7 @@
       "start": null,
       "stop": null
     },
-    "boot_time_utc": "2026-02-27T12:04:22.0000000Z"
+    "boot_time_utc": "2026-02-27T12:09:01.0000000Z"
   },
   "tools": [
     {

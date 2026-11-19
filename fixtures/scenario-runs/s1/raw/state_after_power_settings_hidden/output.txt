@@ -1,0 +1,48 @@
+Power Scheme GUID: 11111111-2222-4333-8444-555555555555  (Synthetic Low Latency)
+  Subgroup GUID: 54533251-82be-4824-96c1-47b60b740d00  (Processor power management)
+    GUID Alias: SUB_PROCESSOR
+    Power Setting GUID: 0cc5b647-c1df-4637-891a-dec35c318583  (Processor performance core parking min cores)
+      GUID Alias: CPMINCORES
+      Minimum Possible Setting: 0x00000000
+      Maximum Possible Setting: 0x00000064
+      Possible Settings increment: 0x00000001
+      Possible Settings units: %
+    Current AC Power Setting Index: 0x00000064
+    Current DC Power Setting Index: 0x00000064
+
+    Power Setting GUID: ea062031-0e34-4ff1-9b6d-eb1059334028  (Processor performance core parking max cores)
+      GUID Alias: CPMAXCORES
+      Minimum Possible Setting: 0x00000000
+      Maximum Possible Setting: 0x00000064
+      Possible Settings increment: 0x00000001
+      Possible Settings units: %
+    Current AC Power Setting Index: 0x00000064
+    Current DC Power Setting Index: 0x00000064
+
+    Power Setting GUID: 5d76a2ca-e8c0-402f-a133-2158492d58ad  (Processor idle disable)
+      GUID Alias: IDLEDISABLE
+      Possible Setting Index: 000
+      Possible Setting Friendly Name: Enable idle
+      Possible Setting Index: 001
+      Possible Setting Friendly Name: Disable idle
+    Current AC Power Setting Index: 0x00000001
+    Current DC Power Setting Index: 0x00000000
+
+    Power Setting GUID: 893dee8e-2bef-41e0-89c6-b55d0929964c  (Minimum processor state)
+      GUID Alias: PROCTHROTTLEMIN
+      Minimum Possible Setting: 0x00000000
+      Maximum Possible Setting: 0x00000064
+      Possible Settings increment: 0x00000001
+      Possible Settings units: %
+    Current AC Power Setting Index: 0x00000064
+    Current DC Power Setting Index: 0x00000005
+
+    Power Setting GUID: 36687f9e-e3a5-4dbf-b1dc-15eb381c6863  (Processor energy performance preference policy)
+      GUID Alias: PERFEPP
+      Minimum Possible Setting: 0x00000000
+      Maximum Possible Setting: 0x00000064
+      Possible Settings increment: 0x00000001
+      Possible Settings units: %
+    Current AC Power Setting Index: 0x00000000
+    Current DC Power Setting Index: 0x00000032
+

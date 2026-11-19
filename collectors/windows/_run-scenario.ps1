@@ -17,8 +17,8 @@ param(
     [string]$OutputDirectory,
     # The scenario to run. s1 is the only one.
     [string]$Scenario = 's1',
-    # The window of each live capture (dpcisr-trace and presentmon-frames),
-    # in seconds (10 to 240).
+    # The window of each live capture (dpcisr-trace, presentmon-frames and
+    # diskio-trace), in seconds (10 to 240).
     [int]$DurationSeconds = 60,
     # One process name for PresentMon to keep (empty keeps every presenting
     # process). One only: a script started with -File cannot take an array
@@ -31,7 +31,16 @@ param(
     # source not_collected.
     [string]$XperfPath = '',
     # The artifact cap passed to every collector, in bytes (1 MiB to 1 GiB).
-    [long]$MaxArtifactBytes = 67108864
+    [long]$MaxArtifactBytes = 67108864,
+    # The game windows, in seconds (0 to 600): after the state snapshot taken
+    # before the captures, the runner asks on stderr for the game to be
+    # started and waits this long before the first live capture; after the
+    # last live capture it asks for the game and its anti-cheat to be closed
+    # and lets this long pass before the state snapshot taken after them. The
+    # snapshot runs with the game closed (README verification item 60). The
+    # runner reads no input and never checks the game.
+    [int]$GameStartSeconds = 120,
+    [int]$GameCloseSeconds = 60
 )
 
 Set-StrictMode -Version 2.0
@@ -47,6 +56,8 @@ if (-not $OutputDirectory) { $problems.Add('-OutputDirectory is required') }
 if (-not (Test-Path -LiteralPath $common) -or -not (Test-Path -LiteralPath $library)) { $problems.Add('the shared helper or the runner library is missing beside this script') }
 if ($DurationSeconds -lt 10 -or $DurationSeconds -gt 240) { $problems.Add('DurationSeconds must be between 10 and 240') }
 if ($MaxArtifactBytes -lt 1048576 -or $MaxArtifactBytes -gt 1073741824) { $problems.Add('MaxArtifactBytes must be between 1 MiB and 1 GiB') }
+if ($GameStartSeconds -lt 0 -or $GameStartSeconds -gt 600) { $problems.Add('GameStartSeconds must be between 0 and 600') }
+if ($GameCloseSeconds -lt 0 -or $GameCloseSeconds -gt 600) { $problems.Add('GameCloseSeconds must be between 0 and 600') }
 if ($problems.Count -eq 0) {
     . $common
     . $library
@@ -61,5 +72,6 @@ if ($problems.Count -gt 0) {
 }
 
 $exitCode = @(Invoke-WfScenarioScript -ScenarioId $Scenario -OutputDirectory $OutputDirectory -DurationSeconds $DurationSeconds -ProcessName $ProcessName `
-        -PresentMonPath $PresentMonPath -XperfPath $XperfPath -MaxArtifactBytes $MaxArtifactBytes -CollectorRoot $PSScriptRoot -RunnerPath $PSCommandPath)[-1]
+        -PresentMonPath $PresentMonPath -XperfPath $XperfPath -MaxArtifactBytes $MaxArtifactBytes -CollectorRoot $PSScriptRoot -RunnerPath $PSCommandPath `
+        -GameStartSeconds $GameStartSeconds -GameCloseSeconds $GameCloseSeconds)[-1]
 exit $exitCode

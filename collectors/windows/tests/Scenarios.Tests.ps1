@@ -42,6 +42,9 @@ BeforeAll {
         return @($Manifest['run']['steps'] | Where-Object { $_['step'] -eq $Step })[0]
     }
 
+    # The real registry, for a test that hides it behind a modified copy.
+    Set-Item -Path 'function:global:Get-WfTestFullRegistry' -Value ${function:Get-WfCollectorRegistry}
+
     function Get-TestCheck {
         param($Manifest, [string]$Name)
         return @($Manifest['preflight']['checks'] | Where-Object { $_['name'] -eq $Name })[0]
@@ -178,13 +181,34 @@ Describe 'runner helpers' {
         $fixtures = Join-Path $script:CollectorRoot '../../fixtures/collector-bundles'
         foreach ($entry in @(Get-WfCollectorRegistry)) {
             $bundle = @(Get-ChildItem -LiteralPath $fixtures -Directory | Where-Object { $_.Name -eq $entry['Name'] -or $_.Name -like ($entry['Name'] + '-*') } | Sort-Object Name)
-            if ($entry['Name'] -eq 'config-snapshot') { @($entry['Sources']).Count | Should -Be 0; continue }
             $manifest = Read-WfJsonFile -Path (Join-Path $bundle[0].FullName 'manifest.json')
             $declared = @($entry['Sources'] | ForEach-Object { '{0}|{1}|{2}' -f $_['Id'], $_['Kind'], $_['Required'] })
             $written = @($manifest['collectors'] | ForEach-Object { '{0}|{1}|{2}' -f $_['id'], $_['kind'], $_['required'] })
             $declared | Should -Be $written -Because $entry['Name']
             Test-Path -LiteralPath (Join-Path $script:CollectorRoot ($entry['Name'] + '.ps1')) | Should -BeTrue
         }
+    }
+
+    It 'holds the state snapshot to the deadline config-snapshot sets itself: its sources that read something times its default timeout' {
+        $entry = Get-WfRegistryEntry -Name 'config-snapshot'
+        $entry['Session'] | Should -BeNullOrEmpty
+        $entry['ReadyFile'] | Should -BeNullOrEmpty
+        @($entry['Tools']).Count | Should -Be 0
+        $text = [System.IO.File]::ReadAllText((Join-Path $script:CollectorRoot 'config-snapshot.ps1'))
+        $text | Should -Match '\[int\]\$TimeoutSeconds = 50\b'
+        $reading = @([regex]::Matches($text, "Type\s*=\s*'(\w+)'") | Where-Object { $_.Groups[1].Value -ne 'unavailable' }).Count
+        $reading | Should -Be 17
+        (& $entry['WorstCase'] ([ordered]@{ Snapshot = 'start' })) | Should -Be ($reading * 50)
+    }
+
+    It 'plans the clock session as 270 seconds plus three windows, capped at 840 above a 190 second window' {
+        $clock = { param($Window) @((Get-WfScenarioDefinition -Id 's1' -DurationSeconds $Window -ProcessName '')['Steps'] | Where-Object { $_['Step'] -eq 'clock' })[0]['Arguments']['DurationSeconds'] }
+        & $clock 60 | Should -Be 450
+        & $clock 160 | Should -Be 750
+        & $clock 189 | Should -Be 837
+        & $clock 190 | Should -Be 840
+        & $clock 191 | Should -Be 840
+        & $clock 240 | Should -Be 840
     }
 
     It 'gives every source of every scenario one id in the merged manifest' {
@@ -215,13 +239,46 @@ Describe 'the scenario runner' {
         $summary = ConvertFrom-WfJson -Text $run.Stdout[0]
         $summary['collector'] | Should -BeExactly 'scenario-runner'
         $summary['status'] | Should -BeExactly 'partial'
-        $run.Children | Should -Be @('clock-calibration', 'dpcisr-trace', 'presentmon-frames', 'diskio-trace', 'bugcheck-history', 'whea-errors', 'application-errors', 'tdr-events', 'reliability-records', 'driver-inventory')
+        $run.Children | Should -Be @('config-snapshot', 'clock-calibration', 'dpcisr-trace', 'presentmon-frames', 'diskio-trace', 'bugcheck-history', 'whea-errors', 'application-errors', 'tdr-events', 'reliability-records', 'driver-inventory', 'config-snapshot')
         $m = $run.Manifest
         $m['manifest_version'] | Should -BeExactly '1.2.0'
         $m['capture']['orchestrator'] | Should -BeExactly 'wf-runner:s1'
         $m['preflight']['ok'] | Should -BeTrue
         @($m['run']['steps'] | ForEach-Object { $_['step'] }) | Should -Be @('state_before', 'clock', 'dpcisr', 'frames', 'diskio', 'bugchecks', 'whea', 'app_errors', 'tdr', 'reliability', 'drivers', 'state_after')
-        (Get-TestStep $m 'state_before')['outcome'] | Should -BeExactly 'absent'
+        # The state snapshot runs before the first capture and after the last
+        # one, as a history read (no session), its sources prefixed and optional.
+        foreach ($pair in @(@('state_before', 'start'), @('state_after', 'stop'))) {
+            $step = Get-TestStep $m $pair[0]
+            $step['outcome'] | Should -BeExactly 'completed'
+            $step['phase'] | Should -BeExactly 'state'
+            $step['required'] | Should -BeFalse
+            $step['session_end'] | Should -BeNullOrEmpty
+            $step['deadline_seconds'] | Should -Be (850 + (Get-WfRunnerDeadlineMarginSeconds))
+            @($step['sources']).Count | Should -Be 19
+            $processes = Get-TestEntry $m ($pair[0] + '_processes')
+            $processes['status'] | Should -BeExactly 'observed'
+            $processes['required'] | Should -BeFalse
+            $processes['requested']['options']['snapshot'] | Should -BeExactly $pair[1]
+            @($processes['artifacts'] | Where-Object { -not $_['path'].StartsWith('raw/' + $pair[0] + '_processes/') }).Count | Should -Be 0
+            (Get-TestEntry $m ($pair[0] + '_power_mode'))['status'] | Should -BeExactly 'not_collected'
+        }
+        $snapshots = @($global:WfSynthetic.ChildRuns | Where-Object { $_['Name'] -eq 'config-snapshot' })
+        ($snapshots[0]['Arguments'] -join ' ') | Should -Match '-Snapshot start$'
+        ($snapshots[1]['Arguments'] -join ' ') | Should -Match '-Snapshot stop$'
+        # The game windows: the owner is asked to start the game after the
+        # first snapshot and to close it after the last capture, and the
+        # runner waits; the snapshot after is taken last of all.
+        $lastLive = @(@('dpcisr', 'frames', 'diskio') | ForEach-Object { [datetime](Get-TestStep $m $_)['stopped_utc'] } | Sort-Object)[-1]
+        ([datetime](Get-TestStep $m 'clock')['started_utc'] - [datetime](Get-TestStep $m 'state_before')['stopped_utc']).TotalSeconds | Should -BeGreaterOrEqual 120
+        ([datetime](Get-TestStep $m 'state_after')['started_utc'] - $lastLive).TotalSeconds | Should -BeGreaterOrEqual 60
+        foreach ($other in @($m['run']['steps'] | Where-Object { $_['step'] -ne 'state_after' })) {
+            ([datetime]$other['stopped_utc']) -le ([datetime](Get-TestStep $m 'state_after')['started_utc']) | Should -BeTrue -Because $other['step']
+        }
+        $start = @($run.Stderr | ForEach-Object { $_ } | Where-Object { $_ -match 'start the game now; the live captures start in 120 seconds' })
+        $close = @($run.Stderr | ForEach-Object { $_ } | Where-Object { $_ -match 'close the game and its anti-cheat now\. The next state snapshot starts in 60 seconds' })
+        $start.Count | Should -Be 1
+        $close.Count | Should -Be 1
+        @($m['notes'] | Where-Object { $_ -match 'does not check whether the game ran' }).Count | Should -Be 1
         (Get-TestStep $m 'clock')['ready'] | Should -BeTrue
         $m['run']['clock_brackets_live'] | Should -BeTrue
         (Get-TestEntry $m 'presentmon_frames')['status'] | Should -BeExactly 'observed'
@@ -240,13 +297,18 @@ Describe 'the scenario runner' {
         @($m['scenario']['marks']).Count | Should -Be 2
         @($m['machine']['drivers']).Count | Should -BeGreaterThan 0
         # The clock runs across the three captures; each capture gets the runner's window.
-        $clock = $global:WfSynthetic.ChildRuns[0]
+        $clock = @($global:WfSynthetic.ChildRuns | Where-Object { $_['Name'] -eq 'clock-calibration' })[0]
         $clockArguments = @($clock['Arguments'])
         $at = -1
         for ($i = 0; $i -lt $clockArguments.Count; $i++) { if ($clockArguments[$i] -eq '-DurationSeconds') { $at = $i } }
         $clockArguments[$at + 1] | Should -BeExactly '450'
-        foreach ($child in $global:WfSynthetic.ChildRuns) {
-            $child['Arguments'][1] | Should -BeExactly (Join-WfBundlePath -BundleRoot (Resolve-WfBundleRoot -OutputDirectory $script:out) -RelativePath ('logs/steps/' + @($m['run']['steps'] | Where-Object { $_['collector'] -eq $child['Name'] })[0]['step']))
+        # Each child, in the order the steps ran (config-snapshot twice), writes into its own step folder.
+        $ran = @($m['run']['steps'])
+        $global:WfSynthetic.ChildRuns.Count | Should -Be $ran.Count
+        for ($i = 0; $i -lt $ran.Count; $i++) {
+            $child = $global:WfSynthetic.ChildRuns[$i]
+            $child['Name'] | Should -BeExactly $ran[$i]['collector']
+            $child['Arguments'][1] | Should -BeExactly (Join-WfBundlePath -BundleRoot (Resolve-WfBundleRoot -OutputDirectory $script:out) -RelativePath ('logs/steps/' + $ran[$i]['step']))
         }
         # Every artifact is in place and hashes to what the manifest says.
         foreach ($entry in @($m['collectors'])) {
@@ -281,8 +343,11 @@ Describe 'the scenario runner' {
             $entry['status_reason'] | Should -Match 'refused to start'
             @($entry['artifacts']).Count | Should -Be 0
         }
-        @($m['collectors']).Count | Should -Be 16
-        @($m['run']['steps'] | Where-Object { $_['outcome'] -ne 'absent' } | ForEach-Object { $_['outcome'] } | Select-Object -Unique) | Should -Be @('not_started')
+        @($m['collectors']).Count | Should -Be 54
+        @($m['collectors'] | Where-Object { $_['id'].StartsWith('state_before_') }).Count | Should -Be 19
+        @($m['run']['steps'] | ForEach-Object { $_['outcome'] } | Select-Object -Unique) | Should -Be @('not_started')
+        # Nothing ran, so nobody was asked to start or close the game.
+        @($run.Stderr | ForEach-Object { $_ } | Where-Object { $_ -match 'the game' }).Count | Should -Be 0
         $m['calibration']['status'] | Should -BeExactly 'not_collected'
         @(Get-ChildItem -LiteralPath (Join-Path $script:out 'raw')).Count | Should -Be 0
     }
@@ -450,7 +515,7 @@ Describe 'the scenario runner' {
         $extra = & (Get-WfRegistryEntry -Name 'presentmon-frames')['DiskExtra'] ([int64]67108864)
         (2 * [int64]67108864 + $extra) | Should -Be (Get-WfPresentMonPeakBytesBound -MaxArtifactBytes 67108864)
         $run = Invoke-TestRun -OutputDirectory $script:out
-        $run.Manifest['run']['minimum_free_bytes'] | Should -Be 10118758400
+        $run.Manifest['run']['minimum_free_bytes'] | Should -Be 12937330688
     }
 
     It 'fails the run when a required capture lost events, and keeps what the collector said' {
@@ -500,9 +565,61 @@ Describe 'the scenario runner' {
     }
 
     It 'refuses its own bad parameters with one failed line and no directory' {
-        $global:WfSynthetic.Stdout.Clear()
-        $null = & (Join-Path $script:CollectorRoot '_run-scenario.ps1') -OutputDirectory $script:out -DurationSeconds 5
-        $LASTEXITCODE | Should -Be 1
-        Test-Path -LiteralPath $script:out | Should -BeFalse
+        foreach ($bad in @(@{ DurationSeconds = 5 }, @{ GameStartSeconds = 601 }, @{ GameCloseSeconds = -1 })) {
+            $null = & (Join-Path $script:CollectorRoot '_run-scenario.ps1') -OutputDirectory $script:out @bad
+            $LASTEXITCODE | Should -Be 1
+            Test-Path -LiteralPath $script:out | Should -BeFalse
+        }
+    }
+
+    It 'goes on, partial, when a state snapshot is refused, its sources optional and listed with their reasons' {
+        $global:WfSynthetic.Children['config-snapshot'] = @{ Case = 'config-snapshot-denied' }
+        $run = Invoke-TestRun -OutputDirectory $script:out
+        $run.ExitCode | Should -Be 0
+        (ConvertFrom-WfJson -Text $run.Stdout[0])['status'] | Should -BeExactly 'partial'
+        foreach ($prefix in @('state_before_', 'state_after_')) {
+            $entries = @($run.Manifest['collectors'] | Where-Object { $_['id'].StartsWith($prefix) })
+            $entries.Count | Should -Be 19
+            foreach ($entry in $entries) {
+                $entry['required'] | Should -BeFalse
+                $entry['status'] | Should -BeExactly 'not_collected'
+                $entry['status_reason'] | Should -Not -BeNullOrEmpty
+            }
+        }
+        (Get-TestStep $run.Manifest 'state_before')['summary_status'] | Should -BeExactly 'failed'
+        (Get-TestEntry $run.Manifest 'presentmon_frames')['status'] | Should -BeExactly 'observed'
+    }
+
+    It 'removes what a state snapshot stopped at its deadline left behind and ends no session for it' {
+        $global:WfSynthetic.Children['config-snapshot'] = @{ Case = 'config-snapshot'; Stuck = $true; Leftovers = @('raw/process_lasso_config/prolasso.ini') }
+        $global:WfSynthetic.Processes.Clear()
+        $run = Invoke-TestRun -OutputDirectory $script:out
+        $run.ExitCode | Should -Be 0
+        $step = Get-TestStep $run.Manifest 'state_before'
+        $step['outcome'] | Should -BeExactly 'timed_out'
+        $step['private_removed'] | Should -BeTrue
+        $step['session_end'] | Should -BeNullOrEmpty
+        Test-Path -LiteralPath (Join-Path $script:out 'logs/steps/state_before/raw') | Should -BeFalse
+        (Get-TestEntry $run.Manifest 'state_before_process_lasso_config')['status_reason'] | Should -Match 'timed_out'
+        @($global:WfSynthetic.Processes | Where-Object { $_['FilePath'] -like '*wpr.exe' }).Count | Should -Be 0
+    }
+
+    It 'keeps a step whose collector declares no sources as an absent slot, with nothing run or claimed' {
+        function Get-WfCollectorRegistry {
+            $all = @(Get-WfTestFullRegistry)
+            foreach ($entry in $all) { if ($entry['Name'] -eq 'config-snapshot') { $entry['Sources'] = @() } }
+            return $all
+        }
+        $run = Invoke-TestRun -OutputDirectory $script:out
+        $run.ExitCode | Should -Be 0
+        $run.Children | Should -Not -Contain 'config-snapshot'
+        foreach ($name in @('state_before', 'state_after')) {
+            $step = Get-TestStep $run.Manifest $name
+            $step['outcome'] | Should -BeExactly 'absent'
+            @($step['sources']).Count | Should -Be 0
+            $step['started_utc'] | Should -BeNullOrEmpty
+        }
+        @($run.Manifest['collectors'] | Where-Object { $_['id'].StartsWith('state_') }).Count | Should -Be 0
+        @($run.Manifest['run']['steps'] | ForEach-Object { $_['step'] }) | Should -Be @('state_before', 'clock', 'dpcisr', 'frames', 'diskio', 'bugchecks', 'whea', 'app_errors', 'tdr', 'reliability', 'drivers', 'state_after')
     }
 }

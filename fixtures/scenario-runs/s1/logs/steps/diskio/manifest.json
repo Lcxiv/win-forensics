@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.1.0",
-  "bundle_id": "20260301T120250Z_diskio_trace_ae3a76a9",
-  "created_utc": "2026-03-01T12:03:58.0000000Z",
+  "bundle_id": "20260301T120728Z_diskio_trace_ae3a76a9",
+  "created_utc": "2026-03-01T12:08:36.0000000Z",
   "scenario": {
     "id": "diskio_trace",
     "version": "1.0.0",
@@ -10,8 +10,8 @@
     "marks": []
   },
   "capture": {
-    "start_utc": "2026-03-01T12:02:50.0000000Z",
-    "stop_utc": "2026-03-01T12:03:58.0000000Z",
+    "start_utc": "2026-03-01T12:07:28.0000000Z",
+    "stop_utc": "2026-03-01T12:08:36.0000000Z",
     "orchestrator": "wf-collector:diskio-trace",
     "orchestrator_version": "1.2.0",
     "elevated": true,
@@ -68,7 +68,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:02:52.0000000Z",
+        "at_utc": "2026-03-01T12:07:30.0000000Z",
         "checks": [
           {
             "name": "tool_present",
@@ -110,10 +110,10 @@
         "-recordtempto",
         "<bundle>/private/temp",
         "-instancename",
-        "WfDiskIoTrace-20260301T120251Z"
+        "WfDiskIoTrace-20260301T120729Z"
       ],
-      "started_utc": "2026-03-01T12:02:51.0000000Z",
-      "stopped_utc": "2026-03-01T12:03:54.0000000Z",
+      "started_utc": "2026-03-01T12:07:29.0000000Z",
+      "stopped_utc": "2026-03-01T12:08:32.0000000Z",
       "exit_code": 0,
       "config_hash": {
         "algorithm": "sha256",
@@ -136,7 +136,7 @@
           "profile_name": "WfDiskIoTrace",
           "profile_id": "WfDiskIoTrace.Verbose.File",
           "logging_mode": "file",
-          "instance_name": "WfDiskIoTrace-20260301T120251Z",
+          "instance_name": "WfDiskIoTrace-20260301T120729Z",
           "buffer_size_kb": 1024,
           "buffer_count": 64,
           "duration_seconds": 60,
@@ -149,10 +149,10 @@
           "stop_arguments": [
             "-stop",
             "<bundle>/private/trace.etl",
-            "win-forensics diskio-trace 20260301T120251Z",
+            "win-forensics diskio-trace 20260301T120729Z",
             "-skipPdbGen",
             "-instancename",
-            "WfDiskIoTrace-20260301T120251Z"
+            "WfDiskIoTrace-20260301T120729Z"
           ],
           "tool_timeout_seconds": 120,
           "short_timeout_seconds": 30,
@@ -174,7 +174,7 @@
         "stack_walk": [],
         "counters": [],
         "options": {
-          "instance_name": "WfDiskIoTrace-20260301T120251Z",
+          "instance_name": "WfDiskIoTrace-20260301T120729Z",
           "dropped_events_after_start": 0,
           "events_lost_after_start": 0,
           "buffers_lost_listed_after_start": false,
@@ -186,11 +186,11 @@
           "perf_freq_hz": 10000000,
           "header_events_lost": 0,
           "header_buffers_lost": 0,
-          "session_started_utc": "2026-03-01T12:02:53.0000000Z",
-          "session_stop_issued_utc": "2026-03-01T12:03:53.0000000Z",
+          "session_started_utc": "2026-03-01T12:07:31.0000000Z",
+          "session_stop_issued_utc": "2026-03-01T12:08:31.0000000Z",
           "recording_seconds": 60,
           "trace_bytes": 4096,
-          "trace_sha256": "a3dbc203662e0f92d378b33fdf515bbcde249a57a0e865b330c418b79ef9ed40",
+          "trace_sha256": "9930e74dd6a6ac85fac29691989f064992e292c9da0398311e6efb245f0fb292",
           "trace_kept_in_bundle": false,
           "temp_bytes_seen": 4096,
           "stopped_early_at_cap": false,
@@ -218,7 +218,7 @@
         {
           "path": "raw/wpr_trace/session.json",
           "bytes": 6501,
-          "sha256": "14fd8617240bb6125cdca5e644a10317eac11c42a38e27d60b0d86a066a7a288",
+          "sha256": "4a615e7ab8361c2caa502a89909ab431d0766a9e79d288b84e60c91732f3bcc4",
           "role": "report"
         },
         {
@@ -235,8 +235,8 @@
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:02:56.0000000Z",
-        "end": "2026-03-01T12:03:17.0000000Z",
+        "start": "2026-03-01T12:07:34.0000000Z",
+        "end": "2026-03-01T12:07:55.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -255,7 +255,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:03:56.0000000Z",
+        "at_utc": "2026-03-01T12:08:34.0000000Z",
         "checks": [
           {
             "name": "trace_observed",
@@ -275,8 +275,8 @@
         "<bundle>/raw/wpr_trace/tracerpt-summary.txt",
         "-y"
       ],
-      "started_utc": "2026-03-01T12:03:55.0000000Z",
-      "stopped_utc": "2026-03-01T12:03:57.0000000Z",
+      "started_utc": "2026-03-01T12:08:33.0000000Z",
+      "stopped_utc": "2026-03-01T12:08:35.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -312,13 +312,13 @@
           "malformed_events": 0,
           "unresolved_thread_operations": 1,
           "unnamed_file_operations": 1,
-          "trace_sha256": "a3dbc203662e0f92d378b33fdf515bbcde249a57a0e865b330c418b79ef9ed40",
+          "trace_sha256": "9930e74dd6a6ac85fac29691989f064992e292c9da0398311e6efb245f0fb292",
           "dump_bytes": 29592,
-          "dump_sha256": "9b0f1d60a48c86320686915592d5e29c06fc88215006efdd6015ce2e040d8279",
+          "dump_sha256": "663254191d7d65bec02cb07722e2d7df48dff6b5dcdc31e03ce80491353c615f",
           "recording_and_dump_removed": true,
           "clock_type": "qpc",
           "perf_freq_hz": 10000000,
-          "trace_start_utc": "2026-03-01T12:02:56.0000000Z"
+          "trace_start_utc": "2026-03-01T12:07:34.0000000Z"
         },
         "verified_by": "the dump's event count against the tracerpt summary's events processed, every counted event read whole, and the removal of the trace and the dump checked on disk (result.json)"
       },
@@ -341,13 +341,13 @@
         {
           "path": "raw/diskio_aggregate/result.json",
           "bytes": 1569,
-          "sha256": "51f752e26b67b13145374e8fff35e6732eff3ef82dc0e8dd7fa45c14a3b74362",
+          "sha256": "44092980f3c461db35913f77bb5f9778fab6d961615e2e1b0b88685b057add79",
           "role": "report"
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:02:56.0000000Z",
-        "end": "2026-03-01T12:03:17.0000000Z",
+        "start": "2026-03-01T12:07:34.0000000Z",
+        "end": "2026-03-01T12:07:55.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -370,7 +370,7 @@
       "start": null,
       "stop": null
     },
-    "boot_time_utc": "2026-02-27T12:02:49.0000000Z"
+    "boot_time_utc": "2026-02-27T12:07:27.0000000Z"
   },
   "tools": [
     {

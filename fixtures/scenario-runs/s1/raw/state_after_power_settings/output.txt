@@ -1,0 +1,43 @@
+Power Scheme GUID: 11111111-2222-4333-8444-555555555555  (Synthetic Low Latency)
+  Subgroup GUID: 54533251-82be-4824-96c1-47b60b740d00  (Processor power management)
+    GUID Alias: SUB_PROCESSOR
+    Power Setting GUID: 893dee8e-2bef-41e0-89c6-b55d0929964c  (Minimum processor state)
+      GUID Alias: PROCTHROTTLEMIN
+      Minimum Possible Setting: 0x00000000
+      Maximum Possible Setting: 0x00000064
+      Possible Settings increment: 0x00000001
+      Possible Settings units: %
+    Current AC Power Setting Index: 0x00000064
+    Current DC Power Setting Index: 0x00000005
+
+    Power Setting GUID: bc5038f7-23e0-4960-96da-33abaf5935ec  (Maximum processor state)
+      GUID Alias: PROCTHROTTLEMAX
+      Minimum Possible Setting: 0x00000000
+      Maximum Possible Setting: 0x00000064
+      Possible Settings increment: 0x00000001
+      Possible Settings units: %
+    Current AC Power Setting Index: 0x00000064
+    Current DC Power Setting Index: 0x00000064
+
+    Power Setting GUID: be337238-0d82-4146-a960-4f3749d470c7  (Processor performance boost mode)
+      GUID Alias: PERFBOOSTMODE
+      Possible Setting Index: 000
+      Possible Setting Friendly Name: Disabled
+      Possible Setting Index: 001
+      Possible Setting Friendly Name: Enabled
+      Possible Setting Index: 002
+      Possible Setting Friendly Name: Aggressive
+    Current AC Power Setting Index: 0x00000002
+    Current DC Power Setting Index: 0x00000001
+
+  Subgroup GUID: 7516b95f-f776-4464-8c53-06167f40cc99  (Display)
+    GUID Alias: SUB_VIDEO
+    Power Setting GUID: 3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e  (Turn off display after)
+      GUID Alias: VIDEOIDLE
+      Minimum Possible Setting: 0x00000000
+      Maximum Possible Setting: 0xffffffff
+      Possible Settings increment: 0x00000001
+      Possible Settings units: Seconds
+    Current AC Power Setting Index: 0x00000000
+    Current DC Power Setting Index: 0x0000012c
+

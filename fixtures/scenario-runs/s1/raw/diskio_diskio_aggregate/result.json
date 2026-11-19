@@ -1,8 +1,8 @@
 {
-  "started_utc": "2026-03-01T12:03:55.0000000Z",
-  "stopped_utc": "2026-03-01T12:03:57.0000000Z",
+  "started_utc": "2026-03-01T12:08:33.0000000Z",
+  "stopped_utc": "2026-03-01T12:08:35.0000000Z",
   "trace": "<bundle>/private/trace.etl",
-  "trace_sha256": "a3dbc203662e0f92d378b33fdf515bbcde249a57a0e865b330c418b79ef9ed40",
+  "trace_sha256": "9930e74dd6a6ac85fac29691989f064992e292c9da0398311e6efb245f0fb292",
   "trace_bytes": 4096,
   "trace_header": {
     "found": true,
@@ -11,9 +11,9 @@
     "events_lost": 0,
     "buffers_lost": 0,
     "perf_freq_hz": 10000000,
-    "start_time_utc": "2026-03-01T12:02:56.0000000Z",
-    "start_filetime": 134168401760000000,
-    "end_time_utc": "2026-03-01T12:03:17.0000000Z",
+    "start_time_utc": "2026-03-01T12:07:34.0000000Z",
+    "start_filetime": 134168404540000000,
+    "end_time_utc": "2026-03-01T12:07:55.0000000Z",
     "reserved_flags": 1,
     "clock_type": "qpc",
     "error": null
@@ -21,7 +21,7 @@
   "trace_events_processed": 31,
   "dump": "<bundle>/private/dump.xml",
   "dump_bytes": 29592,
-  "dump_sha256": "9b0f1d60a48c86320686915592d5e29c06fc88215006efdd6015ce2e040d8279",
+  "dump_sha256": "663254191d7d65bec02cb07722e2d7df48dff6b5dcdc31e03ce80491353c615f",
   "dump_events": 31,
   "counts": {
     "events": 31,

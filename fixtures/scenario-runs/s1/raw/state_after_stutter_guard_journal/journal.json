@@ -1,0 +1,8 @@
+{
+  "version": 3,
+  "records": [
+    { "tweak": "interrupts", "kind": "registry", "target": "HKLM\\SYSTEM\\CurrentControlSet\\Enum\\PCI\\VEN_FFFF&DEV_0001\\4&1a2b3c4d&0&0008\\Device Parameters\\Interrupt Management\\Affinity Policy\\DevicePolicy", "old": null, "new": 4, "at": "2026-02-01T10:00:00Z" },
+    { "tweak": "boot-tasks", "kind": "task", "target": "Timer resolution", "old": null, "new": "enabled", "at": "2026-02-01T10:00:05Z" }
+  ],
+  "options": { "profile": "Full", "applyOnBattery": false, "exportedBy": "C:\\Users\\user-ad8e0223c1a7\\Desktop" }
+}

@@ -1,0 +1,37 @@
+{
+  "mode": "devices",
+  "classes": [],
+  "instance_prefixes": [
+    "PCI\\"
+  ],
+  "selection": "a present device is selected when its instance id starts with one of the prefixes or its class is one of the classes",
+  "resolver": {
+    "function": "SetupDiOpenDevRegKey",
+    "scope": "DICS_FLAG_GLOBAL",
+    "key_type": "DIREG_DEV",
+    "access": "KEY_READ (0x20019)",
+    "device": "SetupDiOpenDeviceInfoW on the instance id, OpenFlags 0, in a private device information set",
+    "subkeys": "RegOpenKeyExW relative to the returned handle, options 0, KEY_READ",
+    "values": "RegEnumValueW on the two leaves only"
+  },
+  "subkeys": [
+    "Interrupt Management\\Affinity Policy",
+    "Interrupt Management\\MessageSignaledInterruptProperties"
+  ],
+  "max_values_per_key": 64,
+  "key_list": [],
+  "citations": [
+    "https://learn.microsoft.com/windows-hardware/drivers/install/opening-a-device-s-hardware-key",
+    "https://learn.microsoft.com/windows/win32/api/setupapi/nf-setupapi-setupdiopendevregkey",
+    "https://learn.microsoft.com/windows-hardware/drivers/kernel/interrupt-affinity-and-priority",
+    "https://learn.microsoft.com/windows-hardware/drivers/kernel/enabling-message-signaled-interrupts-in-the-registry",
+    "https://learn.microsoft.com/windows-hardware/drivers/ddi/wdm/ne-wdm-_irq_device_policy",
+    "https://learn.microsoft.com/windows-hardware/drivers/audio/intel-s-hd-audio-architecture",
+    "https://learn.microsoft.com/windows-hardware/drivers/audio/low-latency-audio"
+  ],
+  "protection": "a Bluetooth peer node (any BTH enumerator other than the radio's own, or a Bluetooth service UUID in the id) has its name fields and twelve digit addresses replaced by name- and mac- pseudonyms before anything is written; string typed values are not kept (free text)",
+  "max_records": 5000,
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 50,
+  "read_only": "keys are opened for reading only (KEY_READ); a missing key is recorded as absent and never created; a key that could not be opened is recorded as unknown"
+}

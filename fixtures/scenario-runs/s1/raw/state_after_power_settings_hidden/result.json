@@ -1,0 +1,321 @@
+{
+  "started_utc": "2026-03-01T12:12:21.0000000Z",
+  "stopped_utc": "2026-03-01T12:12:24.0000000Z",
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_ms": 7,
+  "stdout_bytes": 2151,
+  "stdout_bytes_read": 2197,
+  "diagnostic": null,
+  "stderr": "",
+  "records": 7,
+  "records_meaning": "lines carrying a GUID (the scheme, each subgroup, each setting including the hidden ones)",
+  "protection": {
+    "mac_addresses_replaced": 0,
+    "network_names_replaced": 0
+  },
+  "profiles": null,
+  "fields": [
+    {
+      "line": 1,
+      "block": 0,
+      "indent": 0,
+      "label": "Power Scheme GUID",
+      "value": "11111111-2222-4333-8444-555555555555  (Synthetic Low Latency)"
+    },
+    {
+      "line": 2,
+      "block": 0,
+      "indent": 2,
+      "label": "Subgroup GUID",
+      "value": "54533251-82be-4824-96c1-47b60b740d00  (Processor power management)"
+    },
+    {
+      "line": 3,
+      "block": 0,
+      "indent": 4,
+      "label": "GUID Alias",
+      "value": "SUB_PROCESSOR"
+    },
+    {
+      "line": 4,
+      "block": 0,
+      "indent": 4,
+      "label": "Power Setting GUID",
+      "value": "0cc5b647-c1df-4637-891a-dec35c318583  (Processor performance core parking min cores)"
+    },
+    {
+      "line": 5,
+      "block": 0,
+      "indent": 6,
+      "label": "GUID Alias",
+      "value": "CPMINCORES"
+    },
+    {
+      "line": 6,
+      "block": 0,
+      "indent": 6,
+      "label": "Minimum Possible Setting",
+      "value": "0x00000000"
+    },
+    {
+      "line": 7,
+      "block": 0,
+      "indent": 6,
+      "label": "Maximum Possible Setting",
+      "value": "0x00000064"
+    },
+    {
+      "line": 8,
+      "block": 0,
+      "indent": 6,
+      "label": "Possible Settings increment",
+      "value": "0x00000001"
+    },
+    {
+      "line": 9,
+      "block": 0,
+      "indent": 6,
+      "label": "Possible Settings units",
+      "value": "%"
+    },
+    {
+      "line": 10,
+      "block": 0,
+      "indent": 4,
+      "label": "Current AC Power Setting Index",
+      "value": "0x00000064"
+    },
+    {
+      "line": 11,
+      "block": 0,
+      "indent": 4,
+      "label": "Current DC Power Setting Index",
+      "value": "0x00000064"
+    },
+    {
+      "line": 13,
+      "block": 0,
+      "indent": 4,
+      "label": "Power Setting GUID",
+      "value": "ea062031-0e34-4ff1-9b6d-eb1059334028  (Processor performance core parking max cores)"
+    },
+    {
+      "line": 14,
+      "block": 0,
+      "indent": 6,
+      "label": "GUID Alias",
+      "value": "CPMAXCORES"
+    },
+    {
+      "line": 15,
+      "block": 0,
+      "indent": 6,
+      "label": "Minimum Possible Setting",
+      "value": "0x00000000"
+    },
+    {
+      "line": 16,
+      "block": 0,
+      "indent": 6,
+      "label": "Maximum Possible Setting",
+      "value": "0x00000064"
+    },
+    {
+      "line": 17,
+      "block": 0,
+      "indent": 6,
+      "label": "Possible Settings increment",
+      "value": "0x00000001"
+    },
+    {
+      "line": 18,
+      "block": 0,
+      "indent": 6,
+      "label": "Possible Settings units",
+      "value": "%"
+    },
+    {
+      "line": 19,
+      "block": 0,
+      "indent": 4,
+      "label": "Current AC Power Setting Index",
+      "value": "0x00000064"
+    },
+    {
+      "line": 20,
+      "block": 0,
+      "indent": 4,
+      "label": "Current DC Power Setting Index",
+      "value": "0x00000064"
+    },
+    {
+      "line": 22,
+      "block": 0,
+      "indent": 4,
+      "label": "Power Setting GUID",
+      "value": "5d76a2ca-e8c0-402f-a133-2158492d58ad  (Processor idle disable)"
+    },
+    {
+      "line": 23,
+      "block": 0,
+      "indent": 6,
+      "label": "GUID Alias",
+      "value": "IDLEDISABLE"
+    },
+    {
+      "line": 24,
+      "block": 0,
+      "indent": 6,
+      "label": "Possible Setting Index",
+      "value": "000"
+    },
+    {
+      "line": 25,
+      "block": 0,
+      "indent": 6,
+      "label": "Possible Setting Friendly Name",
+      "value": "Enable idle"
+    },
+    {
+      "line": 26,
+      "block": 0,
+      "indent": 6,
+      "label": "Possible Setting Index",
+      "value": "001"
+    },
+    {
+      "line": 27,
+      "block": 0,
+      "indent": 6,
+      "label": "Possible Setting Friendly Name",
+      "value": "Disable idle"
+    },
+    {
+      "line": 28,
+      "block": 0,
+      "indent": 4,
+      "label": "Current AC Power Setting Index",
+      "value": "0x00000001"
+    },
+    {
+      "line": 29,
+      "block": 0,
+      "indent": 4,
+      "label": "Current DC Power Setting Index",
+      "value": "0x00000000"
+    },
+    {
+      "line": 31,
+      "block": 0,
+      "indent": 4,
+      "label": "Power Setting GUID",
+      "value": "893dee8e-2bef-41e0-89c6-b55d0929964c  (Minimum processor state)"
+    },
+    {
+      "line": 32,
+      "block": 0,
+      "indent": 6,
+      "label": "GUID Alias",
+      "value": "PROCTHROTTLEMIN"
+    },
+    {
+      "line": 33,
+      "block": 0,
+      "indent": 6,
+      "label": "Minimum Possible Setting",
+      "value": "0x00000000"
+    },
+    {
+      "line": 34,
+      "block": 0,
+      "indent": 6,
+      "label": "Maximum Possible Setting",
+      "value": "0x00000064"
+    },
+    {
+      "line": 35,
+      "block": 0,
+      "indent": 6,
+      "label": "Possible Settings increment",
+      "value": "0x00000001"
+    },
+    {
+      "line": 36,
+      "block": 0,
+      "indent": 6,
+      "label": "Possible Settings units",
+      "value": "%"
+    },
+    {
+      "line": 37,
+      "block": 0,
+      "indent": 4,
+      "label": "Current AC Power Setting Index",
+      "value": "0x00000064"
+    },
+    {
+      "line": 38,
+      "block": 0,
+      "indent": 4,
+      "label": "Current DC Power Setting Index",
+      "value": "0x00000005"
+    },
+    {
+      "line": 40,
+      "block": 0,
+      "indent": 4,
+      "label": "Power Setting GUID",
+      "value": "36687f9e-e3a5-4dbf-b1dc-15eb381c6863  (Processor energy performance preference policy)"
+    },
+    {
+      "line": 41,
+      "block": 0,
+      "indent": 6,
+      "label": "GUID Alias",
+      "value": "PERFEPP"
+    },
+    {
+      "line": 42,
+      "block": 0,
+      "indent": 6,
+      "label": "Minimum Possible Setting",
+      "value": "0x00000000"
+    },
+    {
+      "line": 43,
+      "block": 0,
+      "indent": 6,
+      "label": "Maximum Possible Setting",
+      "value": "0x00000064"
+    },
+    {
+      "line": 44,
+      "block": 0,
+      "indent": 6,
+      "label": "Possible Settings increment",
+      "value": "0x00000001"
+    },
+    {
+      "line": 45,
+      "block": 0,
+      "indent": 6,
+      "label": "Possible Settings units",
+      "value": "%"
+    },
+    {
+      "line": 46,
+      "block": 0,
+      "indent": 4,
+      "label": "Current AC Power Setting Index",
+      "value": "0x00000000"
+    },
+    {
+      "line": 47,
+      "block": 0,
+      "indent": 4,
+      "label": "Current DC Power Setting Index",
+      "value": "0x00000032"
+    }
+  ]
+}

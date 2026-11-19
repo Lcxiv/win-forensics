@@ -1,6 +1,6 @@
 {
-  "started_utc": "2026-03-01T12:00:07.0000000Z",
-  "stopped_utc": "2026-03-01T12:00:13.0000000Z",
+  "started_utc": "2026-03-01T12:04:45.0000000Z",
+  "stopped_utc": "2026-03-01T12:04:51.0000000Z",
   "status": "observed",
   "pairs_taken": 91,
   "expected_pairs": 91,

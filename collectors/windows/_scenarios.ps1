@@ -21,7 +21,7 @@
 if (Get-Command -Name 'Invoke-WfScenarioScript' -CommandType Function -ErrorAction SilentlyContinue) { return }
 
 function Get-WfRunnerName { return 'scenario-runner' }
-function Get-WfRunnerVersion { return '1.0.0' }
+function Get-WfRunnerVersion { return '1.1.0' }
 function Get-WfRunnerManifestVersion { return '1.2.0' }
 # Added to every collector's own worst case to make the runner's deadline:
 # the helper's machine inventory reads six WMI classes with a 60 second
@@ -126,13 +126,43 @@ function Get-WfCollectorRegistry {
             Sources = @([ordered]@{ Id = 'pnp_signed_drivers'; Kind = 'config_snapshot'; Required = $true }, [ordered]@{ Id = 'system_drivers'; Kind = 'config_snapshot'; Required = $true })
             WorstCase = { return 600 }
         },
-        # The state snapshot. The slot is reserved in S1 before and after;
-        # until this entry declares its sources the step is recorded as
-        # absent. Registering it is this entry: its sources and rights.
+        # The state snapshot, run twice in S1 (before the first capture and
+        # after the last one), with the game closed: README verification item
+        # 60, and the game windows of Invoke-WfScenario. It is a history read,
+        # not a live capture: no session, no ready file, no tool.
         [ordered]@{
-            Name = 'config-snapshot'; Rights = 'none'; DiskCaps = 0; DiskExtra = { return [int64]0 }; Tools = @(); ReadyFile = $null; Session = $null
-            Sources = @()
-            WorstCase = { return 900 }
+            Name = 'config-snapshot'; Rights = 'none'; Tools = @(); ReadyFile = $null; Session = $null
+            # Sixteen exports are held to -MaxArtifactBytes (the two keys.json,
+            # three WMI records.json and two process lists, topology.json, five
+            # powercfg output.txt, two listing.json and two protected copies),
+            # and each powercfg listing's result.json repeats its output line by
+            # line, counted as one more cap each.
+            DiskCaps = 21; DiskExtra = { return [int64]0 }
+            Sources = @(
+                [ordered]@{ Id = 'interrupt_policy'; Kind = 'config_snapshot'; Required = $true },
+                [ordered]@{ Id = 'graphics_tdr'; Kind = 'config_snapshot'; Required = $false },
+                [ordered]@{ Id = 'processors'; Kind = 'config_snapshot'; Required = $true },
+                [ordered]@{ Id = 'cpu_caches'; Kind = 'config_snapshot'; Required = $false },
+                [ordered]@{ Id = 'logical_processor_map'; Kind = 'config_snapshot'; Required = $true },
+                [ordered]@{ Id = 'power_active_scheme'; Kind = 'powercfg'; Required = $true },
+                [ordered]@{ Id = 'power_schemes'; Kind = 'powercfg'; Required = $false },
+                [ordered]@{ Id = 'power_aliases'; Kind = 'powercfg'; Required = $false },
+                [ordered]@{ Id = 'power_settings'; Kind = 'powercfg'; Required = $true },
+                [ordered]@{ Id = 'power_settings_hidden'; Kind = 'powercfg'; Required = $false },
+                [ordered]@{ Id = 'power_mode'; Kind = 'powercfg'; Required = $false },
+                [ordered]@{ Id = 'timer_resolution'; Kind = 'other'; Required = $false },
+                [ordered]@{ Id = 'processes'; Kind = 'process_inventory'; Required = $true },
+                [ordered]@{ Id = 'timer_helper_process'; Kind = 'process_inventory'; Required = $false },
+                [ordered]@{ Id = 'process_lasso_install'; Kind = 'config_snapshot'; Required = $false },
+                [ordered]@{ Id = 'process_lasso_config'; Kind = 'config_snapshot'; Required = $false },
+                [ordered]@{ Id = 'process_lasso_log'; Kind = 'config_snapshot'; Required = $false },
+                [ordered]@{ Id = 'stutter_guard_install'; Kind = 'config_snapshot'; Required = $false },
+                [ordered]@{ Id = 'stutter_guard_journal'; Kind = 'config_snapshot'; Required = $false }
+            )
+            # Seventeen of the nineteen sources read something (power_mode and
+            # timer_resolution are unavailable), each under the default
+            # -TimeoutSeconds 50 of config-snapshot.ps1.
+            WorstCase = { return (17 * 50) }
         }
     )
 }
@@ -166,7 +196,7 @@ function Get-WfScenarioDefinition {
     $clockSeconds = [math]::Min(840, 30 + ($DurationSeconds + 90) + ($DurationSeconds + 60) + ($DurationSeconds + 90))
     return [ordered]@{
         Id       = 's1'
-        Version  = '1.0.0'
+        Version  = '1.1.0'
         Question = 'One bounded latency session on the gaming PC: the state before, the DPC and interrupt trace, the frame recording and the disk activity trace one after another inside one clock calibration session, the history collectors, and the state after.'
         Steps    = @(
             [ordered]@{ Step = 'state_before'; Collector = 'config-snapshot'; Phase = 'state'; Required = $false; Background = $false; Prefix = 'state_before_'; Arguments = [ordered]@{ Snapshot = 'start' } },
@@ -642,6 +672,8 @@ function Invoke-WfScenario {
         [int64]$MaxArtifactBytes,
         [string]$CollectorRoot,
         [string]$RunnerPath,
+        [int]$GameStartSeconds,
+        [int]$GameCloseSeconds,
         [hashtable]$State
     )
     $bundleRoot = Resolve-WfBundleRoot -OutputDirectory $OutputDirectory
@@ -665,7 +697,9 @@ function Invoke-WfScenario {
         foreach ($key in $stepDefinition.Keys) { $step[$key] = $stepDefinition[$key] }
         $step['Entry'] = Get-WfRegistryEntry -Name $step['Collector']
         $step['ScriptPath'] = [System.IO.Path]::Combine($CollectorRoot, $step['Collector'] + '.ps1')
-        $step['Absent'] = ($step['Phase'] -eq 'state' -and @($step['Entry']['Sources']).Count -eq 0)
+        # A step whose registry entry declares no sources is a reserved slot:
+        # nothing runs and nothing is claimed for it.
+        $step['Absent'] = (@($step['Entry']['Sources']).Count -eq 0)
         $step['DeadlineSeconds'] = [int](& $step['Entry']['WorstCase'] $step['Arguments']) + (Get-WfRunnerDeadlineMarginSeconds)
         $steps.Add($step)
     }
@@ -682,6 +716,16 @@ function Invoke-WfScenario {
         $records.Add($record)
     }
 
+    # The game windows. The state snapshot is taken with the game and its
+    # anti-cheat closed (README verification item 60), and the live captures
+    # need the game running, so the runner asks the owner on stderr to start
+    # the game before the first live step and to close it after the last
+    # one, and waits a fixed time. It never checks whether the game runs;
+    # the snapshot's own process list records what was running.
+    $gameNotes = New-Object 'System.Collections.Generic.List[string]'
+    $liveStarted = $false
+    $closeAsked = $null
+
     if ($preflight['ok']) {
         $background = New-Object 'System.Collections.Generic.List[object]'
         $phase = $null
@@ -689,8 +733,28 @@ function Invoke-WfScenario {
             if ($step['Absent']) { continue }
             # Background collectors of a phase are waited for before the next phase starts.
             if ($phase -ne $step['Phase']) {
+                if ($phase -eq 'live') {
+                    $closeAsked = Get-WfMonotonicSeconds
+                    $at = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
+                    Write-WfStderrLine -Text ('{0}: the live captures are over; close the game and its anti-cheat now. The next state snapshot starts in {1} seconds or later.' -f (Get-WfRunnerName), $GameCloseSeconds)
+                    $log.Add(('{0} game window: asked the owner to close the game, {1} seconds before the next state snapshot' -f $at, $GameCloseSeconds))
+                    $gameNotes.Add(('At {0} the runner asked the owner on stderr to close the game and its anti-cheat and allowed {1} seconds before the next state snapshot.' -f $at, $GameCloseSeconds))
+                }
                 foreach ($running in $background) { Complete-WfScenarioStep -Step $running -Record $running['Record'] -Log $log }
                 $background.Clear()
+                if ($step['Phase'] -eq 'live' -and -not $liveStarted) {
+                    $liveStarted = $true
+                    $at = ConvertTo-WfUtcString -Value (Get-WfUtcNow)
+                    Write-WfStderrLine -Text ('{0}: start the game now; the live captures start in {1} seconds.' -f (Get-WfRunnerName), $GameStartSeconds)
+                    $log.Add(('{0} game window: asked the owner to start the game, {1} seconds before the first live step' -f $at, $GameStartSeconds))
+                    $gameNotes.Add(('At {0} the runner asked the owner on stderr to start the game and waited {1} seconds before the first live step.' -f $at, $GameStartSeconds))
+                    Start-WfSleep -Seconds $GameStartSeconds
+                }
+                if ($step['Phase'] -eq 'state' -and $null -ne $closeAsked) {
+                    $left = [int][math]::Ceiling([double]$GameCloseSeconds - ((Get-WfMonotonicSeconds) - [double]$closeAsked))
+                    if ($left -gt 0) { Start-WfSleep -Seconds $left }
+                    $closeAsked = $null
+                }
                 $phase = $step['Phase']
             }
             $record = $step['Record']
@@ -777,8 +841,10 @@ function Invoke-WfScenario {
     $notes = New-Object 'System.Collections.Generic.List[string]'
     $notes.Add(('Scenario runner {0}, scenario {1} version {2}: {3}' -f (Get-WfRunnerVersion), $definition['Id'], $definition['Version'], $definition['Question']))
     $notes.Add(('Ran as the collector account (its name is not recorded); elevated: {0}; member of Event Log Readers (S-1-5-32-573): {1}; member of Performance Log Users (S-1-5-32-559): {2}.' -f $account['elevated'], $account['event_log_readers'], $account['performance_log_users']))
-    $notes.Add('Each collector ran as its own Windows PowerShell process, one after another, except the clock session, which ran in the background across the live captures. Each collector''s own manifest, summary and log are kept under logs/steps/<step>/ with the profile folder written as <profile>, the account as <account> and this directory as <bundle>; raw/ holds every source the runner merged, under its own id or with the step''s prefix (state_before_, state_after_).')
-    $notes.Add('In this scenario the history steps are optional: their sources are listed with required false whatever the collector marked.')
+    $notes.Add('Each collector ran as its own Windows PowerShell process, one after another, except the clock session, which ran in the background across the live captures. Each collector''s own manifest, summary and log are kept under logs/steps/<step>/ with the profile folder written as <profile>, the account as <account> and this directory as <bundle>; raw/ holds every source the runner merged, under its own id or with the step''s prefix (state_before_, state_after_, diskio_).')
+    $notes.Add('In this scenario the history steps and the state snapshots are optional: their sources are listed with required false whatever the collector marked.')
+    foreach ($note in $gameNotes) { $notes.Add($note) }
+    if ($gameNotes.Count -gt 0) { $notes.Add('The runner does not check whether the game ran or was closed: the processes source of each state snapshot (state_before_processes, state_after_processes) lists what was running when it was taken.') }
     if (-not $preflight['ok']) { $notes.Add($refusal) }
     foreach ($record in $records) {
         $notes.Add(('Step {0} ({1}): {2}{3}' -f $record.step, $record.collector, $record.outcome, $(if ($record.detail) { '; ' + $record.detail } else { '' })))
@@ -848,14 +914,17 @@ function Invoke-WfScenarioScript {
         [string]$XperfPath,
         [int64]$MaxArtifactBytes,
         [string]$CollectorRoot,
-        [string]$RunnerPath
+        [string]$RunnerPath,
+        [int]$GameStartSeconds = 120,
+        [int]$GameCloseSeconds = 60
     )
     $state = @{}
     $exitCode = 1
     $line = $null
     try {
         $output = @(Invoke-WfScenario -ScenarioId $ScenarioId -OutputDirectory $OutputDirectory -DurationSeconds $DurationSeconds -ProcessName $ProcessName `
-                -PresentMonPath $PresentMonPath -XperfPath $XperfPath -MaxArtifactBytes $MaxArtifactBytes -CollectorRoot $CollectorRoot -RunnerPath $RunnerPath -State $state)
+                -PresentMonPath $PresentMonPath -XperfPath $XperfPath -MaxArtifactBytes $MaxArtifactBytes -CollectorRoot $CollectorRoot -RunnerPath $RunnerPath `
+                -GameStartSeconds $GameStartSeconds -GameCloseSeconds $GameCloseSeconds -State $state)
         $result = $output[$output.Count - 1]
         $line = [string]$result['SummaryLine']
         if ($result['Status'] -ne 'failed') { $exitCode = 0 }

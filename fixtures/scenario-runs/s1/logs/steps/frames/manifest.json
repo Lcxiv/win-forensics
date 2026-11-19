@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.1.0",
-  "bundle_id": "20260301T120122Z_presentmon_frames_ae3a76a9",
-  "created_utc": "2026-03-01T12:02:45.0000000Z",
+  "bundle_id": "20260301T120600Z_presentmon_frames_ae3a76a9",
+  "created_utc": "2026-03-01T12:07:23.0000000Z",
   "scenario": {
     "id": "presentmon_frames",
     "version": "2.1.0",
@@ -10,8 +10,8 @@
     "marks": []
   },
   "capture": {
-    "start_utc": "2026-03-01T12:01:22.0000000Z",
-    "stop_utc": "2026-03-01T12:02:45.0000000Z",
+    "start_utc": "2026-03-01T12:06:00.0000000Z",
+    "stop_utc": "2026-03-01T12:07:23.0000000Z",
     "orchestrator": "wf-collector:presentmon-frames",
     "orchestrator_version": "1.2.0",
     "elevated": false,
@@ -68,7 +68,7 @@
       "status_reason": null,
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:01:25.0000000Z",
+        "at_utc": "2026-03-01T12:06:03.0000000Z",
         "checks": [
           {
             "name": "binary_present",
@@ -104,8 +104,8 @@
         "--output_stdout",
         "--qpc_time"
       ],
-      "started_utc": "2026-03-01T12:01:23.0000000Z",
-      "stopped_utc": "2026-03-01T12:02:44.0000000Z",
+      "started_utc": "2026-03-01T12:06:01.0000000Z",
+      "stopped_utc": "2026-03-01T12:07:22.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -433,13 +433,13 @@
           },
           "buffers_lost": 0,
           "etl_bytes": 4096,
-          "etl_sha256": "fd0e275d4fe5b6fbe289dcea4c2b7ee460132e67f3344f339bf25065673de18b",
+          "etl_sha256": "ddcbe2f37dce3aedeb24e53a268b9edd3568037b648881cc2e113c0336680d95",
           "etl_kept": false,
           "etl_header_found": true,
           "clock_type": "qpc",
           "perf_freq_hz": 10000000,
-          "recording_start_utc": "2026-03-01T12:01:28.0000000Z",
-          "recording_end_utc": "2026-03-01T12:02:39.0000000Z",
+          "recording_start_utc": "2026-03-01T12:06:06.0000000Z",
+          "recording_end_utc": "2026-03-01T12:07:17.0000000Z",
           "presentmon_exit_code": 0,
           "presentmon_overflowed_presents": null,
           "presentmon_warnings": [],
@@ -530,19 +530,19 @@
         {
           "path": "raw/presentmon_frames/recording.json",
           "bytes": 4807,
-          "sha256": "d4472c56d973dfbb54a03533882313353cfc21f47b2bce7bd9118e3d1d9a8c9b",
+          "sha256": "c462ea70c9d5bd61a8c24eed72887c9a864fefc877c8b9aafffb87ae97ec6575",
           "role": "report"
         },
         {
           "path": "raw/presentmon_frames/result.json",
           "bytes": 3767,
-          "sha256": "6c0aad33eea9f2b04b9fe5858828d66c08d62dc14f8a262bd197fc6f70ab4a72",
+          "sha256": "e5f1d665d21e4032be46037b3cbde831a6329c8ccae6739e81643b99c4e64a8d",
           "role": "report"
         }
       ],
       "raw_time_range": {
-        "start": "2026-03-01T12:01:26.0000000Z",
-        "end": "2026-03-01T12:02:37.0000000Z",
+        "start": "2026-03-01T12:06:04.0000000Z",
+        "end": "2026-03-01T12:07:15.0000000Z",
         "domain": "system_time",
         "unit": "iso_utc"
       },
@@ -565,7 +565,7 @@
       "start": null,
       "stop": null
     },
-    "boot_time_utc": "2026-02-27T12:01:21.0000000Z"
+    "boot_time_utc": "2026-02-27T12:05:59.0000000Z"
   },
   "tools": [
     {

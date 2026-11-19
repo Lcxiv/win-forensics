@@ -1,0 +1,9 @@
+[
+{"Name":"System","ProcessId":4,"ParentProcessId":0,"SessionId":0,"CreationDate":"2026-03-01T09:10:42.0000000Z","Priority":8,"ThreadCount":240,"HandleCount":4100,"WorkingSetSize":122880,"PageFaults":1200,"KernelModeTime":912500000,"UserModeTime":0},
+{"Name":"explorer.exe","ProcessId":4120,"ParentProcessId":4000,"SessionId":1,"CreationDate":"2026-03-01T09:10:42.0000000Z","Priority":8,"ThreadCount":70,"HandleCount":2900,"WorkingSetSize":180355072,"PageFaults":540000,"KernelModeTime":150000000,"UserModeTime":310000000},
+{"Name":"dwm.exe","ProcessId":1500,"ParentProcessId":1420,"SessionId":1,"CreationDate":"2026-03-01T09:10:42.0000000Z","Priority":13,"ThreadCount":20,"HandleCount":1200,"WorkingSetSize":90112000,"PageFaults":220000,"KernelModeTime":400000000,"UserModeTime":900000000},
+{"Name":"ProcessLasso.exe","ProcessId":6100,"ParentProcessId":4120,"SessionId":1,"CreationDate":"2026-03-01T09:10:42.0000000Z","Priority":8,"ThreadCount":14,"HandleCount":600,"WorkingSetSize":40960000,"PageFaults":30000,"KernelModeTime":12000000,"UserModeTime":48000000},
+{"Name":"ProcessGovernor.exe","ProcessId":6140,"ParentProcessId":6100,"SessionId":1,"CreationDate":"2026-03-01T09:10:42.0000000Z","Priority":13,"ThreadCount":9,"HandleCount":450,"WorkingSetSize":20480000,"PageFaults":12000,"KernelModeTime":30000000,"UserModeTime":25000000},
+{"Name":"bitsumsessionagent.exe","ProcessId":6180,"ParentProcessId":1100,"SessionId":1,"CreationDate":"2026-03-01T09:10:42.0000000Z","Priority":8,"ThreadCount":3,"HandleCount":120,"WorkingSetSize":8192000,"PageFaults":3000,"KernelModeTime":1000000,"UserModeTime":500000},
+{"Name":"DpcTimerRes.exe","ProcessId":7000,"ParentProcessId":1100,"SessionId":0,"CreationDate":"2026-03-01T09:10:42.0000000Z","Priority":8,"ThreadCount":2,"HandleCount":60,"WorkingSetSize":4096000,"PageFaults":900,"KernelModeTime":500000,"UserModeTime":200000}
+]

@@ -1,7 +1,7 @@
 {
   "tool": "C:\\Windows\\System32\\wpr.exe",
   "tracerpt": "C:\\Windows\\System32\\tracerpt.exe",
-  "instance_name": "WfDiskIoTrace-20260301T120251Z",
+  "instance_name": "WfDiskIoTrace-20260301T120729Z",
   "profile_file": "raw/wpr_trace/diskio-trace.wprp",
   "profile_name": "WfDiskIoTrace",
   "profile_id": "WfDiskIoTrace.Verbose.File",
@@ -30,7 +30,7 @@
   ],
   "stop_arguments": [
     "<bundle>/private/trace.etl",
-    "win-forensics diskio-trace 20260301T120251Z",
+    "win-forensics diskio-trace 20260301T120729Z",
     "-skipPdbGen"
   ],
   "tracerpt_arguments": [
@@ -43,13 +43,13 @@
     "<bundle>/raw/wpr_trace/tracerpt-summary.txt",
     "-y"
   ],
-  "session_started_utc": "2026-03-01T12:02:53.0000000Z",
-  "session_stop_issued_utc": "2026-03-01T12:03:53.0000000Z",
+  "session_started_utc": "2026-03-01T12:07:31.0000000Z",
+  "session_stop_issued_utc": "2026-03-01T12:08:31.0000000Z",
   "recording_seconds": 60,
   "stopped_early_at_cap": false,
   "temp_bytes_seen": 4096,
   "trace_bytes": 4096,
-  "trace_sha256": "a3dbc203662e0f92d378b33fdf515bbcde249a57a0e865b330c418b79ef9ed40",
+  "trace_sha256": "9930e74dd6a6ac85fac29691989f064992e292c9da0398311e6efb245f0fb292",
   "trace_kept_in_bundle": false,
   "trace_removed_reason": "the trace holds full file paths, process command lines and user ids, and system configuration events with hardware and network addresses; it is read on the machine and never leaves it (collectors/windows/README.md, The diskio-trace sources)",
   "header": {
@@ -59,9 +59,9 @@
     "events_lost": 0,
     "buffers_lost": 0,
     "perf_freq_hz": 10000000,
-    "start_time_utc": "2026-03-01T12:02:56.0000000Z",
-    "start_filetime": 134168401760000000,
-    "end_time_utc": "2026-03-01T12:03:17.0000000Z",
+    "start_time_utc": "2026-03-01T12:07:34.0000000Z",
+    "start_filetime": 134168404540000000,
+    "end_time_utc": "2026-03-01T12:07:55.0000000Z",
     "reserved_flags": 1,
     "clock_type": "qpc",
     "error": null
@@ -135,7 +135,7 @@
     {
       "tool": "wpr.exe",
       "verb": "start",
-      "arguments": "-start <bundle>/raw/wpr_trace/diskio-trace.wprp!WfDiskIoTrace.Verbose -filemode -recordtempto <bundle>/private/temp -instancename WfDiskIoTrace-20260301T120251Z",
+      "arguments": "-start <bundle>/raw/wpr_trace/diskio-trace.wprp!WfDiskIoTrace.Verbose -filemode -recordtempto <bundle>/private/temp -instancename WfDiskIoTrace-20260301T120729Z",
       "started": true,
       "exit_code": 0,
       "timed_out": false,
@@ -148,7 +148,7 @@
     {
       "tool": "wpr.exe",
       "verb": "status",
-      "arguments": "-status profiles collectors -details -instancename WfDiskIoTrace-20260301T120251Z",
+      "arguments": "-status profiles collectors -details -instancename WfDiskIoTrace-20260301T120729Z",
       "started": true,
       "exit_code": 0,
       "timed_out": false,
@@ -161,7 +161,7 @@
     {
       "tool": "wpr.exe",
       "verb": "stop",
-      "arguments": "-stop <bundle>/private/trace.etl \"win-forensics diskio-trace 20260301T120251Z\" -skipPdbGen -instancename WfDiskIoTrace-20260301T120251Z",
+      "arguments": "-stop <bundle>/private/trace.etl \"win-forensics diskio-trace 20260301T120729Z\" -skipPdbGen -instancename WfDiskIoTrace-20260301T120729Z",
       "started": true,
       "exit_code": 0,
       "timed_out": false,
@@ -174,7 +174,7 @@
     {
       "tool": "wpr.exe",
       "verb": "status",
-      "arguments": "-status -instancename WfDiskIoTrace-20260301T120251Z",
+      "arguments": "-status -instancename WfDiskIoTrace-20260301T120729Z",
       "started": true,
       "exit_code": 0,
       "timed_out": false,

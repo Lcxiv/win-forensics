@@ -1,2 +1,2 @@
-{"label":"felt a stutter","qpc_before":27345851901284,"filetime_utc_100ns":134168400223000000,"qpc_after":27345851901384,"at_utc":"2026-03-01T12:00:22.3000000Z","process_id":4242}
-{"label":"second stutter, shorter","qpc_before":27346089401284,"filetime_utc_100ns":134168400460520000,"qpc_after":27346089401384,"at_utc":"2026-03-01T12:00:46.0520000Z","process_id":4242}
+{"label":"felt a stutter","qpc_before":27345851901284,"filetime_utc_100ns":134168403003000000,"qpc_after":27345851901384,"at_utc":"2026-03-01T12:05:00.3000000Z","process_id":4242}
+{"label":"second stutter, shorter","qpc_before":27346089401284,"filetime_utc_100ns":134168403240520000,"qpc_after":27346089401384,"at_utc":"2026-03-01T12:05:24.0520000Z","process_id":4242}

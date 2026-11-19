@@ -1,0 +1,22 @@
+{
+  "question": "What are the current, minimum and maximum timer resolutions, and which processes hold a request?",
+  "reason": "the current timer resolution has no documented read this collector can make: timeGetDevCaps (https://learn.microsoft.com/windows/win32/api/timeapi/nf-timeapi-timegetdevcaps) returns the minimum and maximum period only, and Microsoft documents no public query of the period in effect; \"powercfg /energy\" observes the system for 60 seconds by default and writes a report file, which Microsoft documents for an idle system with no open programs (https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options), so it is left to the elevated task, and whether its report names the timer resolution and its requesters is a verification item, not a fact asserted here. \"powercfg /requests\" lists power requests, not timer requests, and is not timer evidence. Nothing here requests a timer period",
+  "documented_paths": [
+    {
+      "path": "timeGetDevCaps (TIMECAPS wPeriodMin, wPeriodMax)",
+      "citation": "https://learn.microsoft.com/windows/win32/api/timeapi/nf-timeapi-timegetdevcaps",
+      "why_not_used": "native call; minimum and maximum only"
+    },
+    {
+      "path": "powercfg /energy /output <file> /duration <s>",
+      "citation": "https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options",
+      "why_not_used": "observes the system for 60 seconds and writes a report; Microsoft documents it for an idle system; left to the elevated task"
+    },
+    {
+      "path": "powercfg /requests",
+      "citation": "https://learn.microsoft.com/windows-hardware/design/device-experiences/powercfg-command-line-options",
+      "why_not_used": "lists power requests (display, system, away mode), which are not timer resolution requests"
+    }
+  ],
+  "follow_up": "the elevated task runs powercfg /energy into the bundle, or a later collector gets a documented native read; the timer helper process and its command line are recorded by timer_helper_process meanwhile"
+}

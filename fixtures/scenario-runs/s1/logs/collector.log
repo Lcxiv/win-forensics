@@ -1,30 +1,42 @@
-2026-03-01T12:00:01.0000000Z scenario-runner 1.0.0 started: scenario s1
+2026-03-01T12:00:01.0000000Z scenario-runner 1.1.0 started: scenario s1
 2026-03-01T12:00:02.0000000Z preflight: ok
-2026-03-01T12:00:03.0000000Z step clock: clock-calibration starts, deadline 930 s
+2026-03-01T12:00:03.0000000Z step state_before: config-snapshot starts, deadline 1270 s
+step state_before stderr: source process_lasso_config: the file was copied with 2 user profile folder names, 1 e-mail shaped tokens, 1 UNC host names and 0 hardware addresses replaced by pseudonyms; result.json holds the SHA-256 of the original bytes
+source process_lasso_log: the file exists and was summarised, not copied; the vendor log is history whose lines can carry process command line arguments, whatever IncludeCommandLines says now, and no shape rule reliably removes them
+source stutter_guard_journal: the file was copied with 1 user profile folder names, 0 e-mail shaped tokens, 0 UNC host names and 0 hardware addresses replaced by pseudonyms; result.json holds the SHA-256 of the original bytes
+2026-03-01T12:02:39.0000000Z step state_before: completed, exit code 0, status partial
+2026-03-01T12:02:40.0000000Z game window: asked the owner to start the game, 120 seconds before the first live step
+2026-03-01T12:04:41.0000000Z step clock: clock-calibration starts, deadline 930 s
 step clock: ready True
-2026-03-01T12:00:06.0000000Z step dpcisr: dpcisr-trace starts, deadline 1110 s
-2026-03-01T12:01:18.0000000Z step dpcisr: completed, exit code 0, status ok
-2026-03-01T12:01:19.0000000Z step frames: presentmon-frames starts, deadline 1260 s
-2026-03-01T12:02:46.0000000Z step frames: completed, exit code 0, status ok
-2026-03-01T12:02:47.0000000Z step diskio: diskio-trace starts, deadline 1110 s
-2026-03-01T12:03:59.0000000Z step diskio: completed, exit code 0, status ok
-2026-03-01T12:04:00.0000000Z step clock: completed, exit code 0, status ok
-2026-03-01T12:04:01.0000000Z step bugchecks: bugcheck-history starts, deadline 720 s
+2026-03-01T12:04:44.0000000Z step dpcisr: dpcisr-trace starts, deadline 1110 s
+2026-03-01T12:05:56.0000000Z step dpcisr: completed, exit code 0, status ok
+2026-03-01T12:05:57.0000000Z step frames: presentmon-frames starts, deadline 1260 s
+2026-03-01T12:07:24.0000000Z step frames: completed, exit code 0, status ok
+2026-03-01T12:07:25.0000000Z step diskio: diskio-trace starts, deadline 1110 s
+2026-03-01T12:08:37.0000000Z step diskio: completed, exit code 0, status ok
+2026-03-01T12:08:38.0000000Z game window: asked the owner to close the game, 60 seconds before the next state snapshot
+2026-03-01T12:08:39.0000000Z step clock: completed, exit code 0, status ok
+2026-03-01T12:08:40.0000000Z step bugchecks: bugcheck-history starts, deadline 720 s
 step bugchecks stderr: source system_restart_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record
-2026-03-01T12:04:19.0000000Z step bugchecks: completed, exit code 0, status ok
-2026-03-01T12:04:20.0000000Z step whea: whea-errors starts, deadline 720 s
+2026-03-01T12:08:58.0000000Z step bugchecks: completed, exit code 0, status ok
+2026-03-01T12:08:59.0000000Z step whea: whea-errors starts, deadline 720 s
 step whea stderr: source system_whea_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record
-2026-03-01T12:04:34.0000000Z step whea: completed, exit code 0, status ok
-2026-03-01T12:04:35.0000000Z step app_errors: application-errors starts, deadline 720 s
+2026-03-01T12:09:13.0000000Z step whea: completed, exit code 0, status ok
+2026-03-01T12:09:14.0000000Z step app_errors: application-errors starts, deadline 720 s
 step app_errors stderr: source application_error_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record
-source application_error_events: channel Application only holds records from 2026-02-20T12:04:37.0000000Z, later than the requested window start; nothing is claimed before that time
-2026-03-01T12:04:51.0000000Z step app_errors: completed, exit code 0, status ok
-2026-03-01T12:04:52.0000000Z step tdr: tdr-events starts, deadline 1020 s
+source application_error_events: channel Application only holds records from 2026-02-20T12:09:16.0000000Z, later than the requested window start; nothing is claimed before that time
+2026-03-01T12:09:30.0000000Z step app_errors: completed, exit code 0, status ok
+2026-03-01T12:09:31.0000000Z step tdr: tdr-events starts, deadline 1020 s
 step tdr stderr: source system_display_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record
 source system_bugcheck_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record
-2026-03-01T12:05:15.0000000Z step tdr: completed, exit code 0, status partial
-2026-03-01T12:05:16.0000000Z step reliability: reliability-records starts, deadline 1020 s
-2026-03-01T12:05:39.0000000Z step reliability: completed, exit code 0, status ok
-2026-03-01T12:05:40.0000000Z step drivers: driver-inventory starts, deadline 1020 s
-2026-03-01T12:06:00.0000000Z step drivers: completed, exit code 0, status ok
-2026-03-01T12:06:01.0000000Z manifest written: bundle 20260301T120001Z_s1_ae3a76a9, status partial, 48 artifacts
+2026-03-01T12:09:54.0000000Z step tdr: completed, exit code 0, status partial
+2026-03-01T12:09:55.0000000Z step reliability: reliability-records starts, deadline 1020 s
+2026-03-01T12:10:18.0000000Z step reliability: completed, exit code 0, status ok
+2026-03-01T12:10:19.0000000Z step drivers: driver-inventory starts, deadline 1020 s
+2026-03-01T12:10:39.0000000Z step drivers: completed, exit code 0, status ok
+2026-03-01T12:10:40.0000000Z step state_after: config-snapshot starts, deadline 1270 s
+step state_after stderr: source process_lasso_config: the file was copied with 2 user profile folder names, 1 e-mail shaped tokens, 1 UNC host names and 0 hardware addresses replaced by pseudonyms; result.json holds the SHA-256 of the original bytes
+source process_lasso_log: the file exists and was summarised, not copied; the vendor log is history whose lines can carry process command line arguments, whatever IncludeCommandLines says now, and no shape rule reliably removes them
+source stutter_guard_journal: the file was copied with 1 user profile folder names, 0 e-mail shaped tokens, 0 UNC host names and 0 hardware addresses replaced by pseudonyms; result.json holds the SHA-256 of the original bytes
+2026-03-01T12:13:16.0000000Z step state_after: completed, exit code 0, status partial
+2026-03-01T12:13:17.0000000Z manifest written: bundle 20260301T120001Z_s1_ae3a76a9, status partial, 146 artifacts

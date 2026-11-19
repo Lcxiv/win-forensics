@@ -61,8 +61,9 @@ def test_steps_keep_the_fixed_order_and_say_how_each_ended(case):
     assert required == {"clock", "dpcisr", "frames"}
     for step in steps:
         assert step["deadline_seconds"] > 0
-        if step["outcome"] == "absent":
-            assert step["collector"] == "config-snapshot" and step["sources"] == [] and step["started_utc"] is None
+        assert step["outcome"] != "absent", "S1 reserves no unregistered slot since config-snapshot was registered"
+        if step["collector"] == "config-snapshot":
+            assert step["phase"] == "state" and step["session_end"] is None and len(step["sources"]) == 19
         listed = {c["id"] for c in manifest["collectors"]}
         assert set(step["sources"]) <= listed, "every declared source has a collectors[] entry, run or not"
     ids = [c["id"] for c in manifest["collectors"]]
@@ -72,7 +73,7 @@ def test_steps_keep_the_fixed_order_and_say_how_each_ended(case):
 def test_s1_merges_each_collector_and_keeps_status_apart_from_evidence():
     manifest = load("s1")
     assert manifest["preflight"]["ok"] is True
-    assert {s["step"]: s["outcome"] for s in manifest["run"]["steps"] if s["outcome"] != "absent"} == {s: "completed" for s in S1_ORDER[1:-1]}
+    assert {s["step"]: s["outcome"] for s in manifest["run"]["steps"]} == {s: "completed" for s in S1_ORDER}
     status = {c["id"]: c for c in manifest["collectors"]}
     for source in ("clock_calibration", "wpr_trace", "presentmon_frames"):
         assert status[source]["status"] == "observed" and status[source]["required"] is True
@@ -80,8 +81,19 @@ def test_s1_merges_each_collector_and_keeps_status_apart_from_evidence():
     for source in ("diskio_wpr_trace", "diskio_diskio_aggregate"):
         assert status[source]["status"] == "observed" and status[source]["required"] is False
     for step in manifest["run"]["steps"]:
-        if step["phase"] == "history":
-            assert all(status[s]["required"] is False for s in step["sources"]), "history is optional in S1"
+        if step["phase"] in ("history", "state"):
+            assert all(status[s]["required"] is False for s in step["sources"]), "history and the state snapshots are optional in S1"
+    # The state snapshot runs before the first capture and after the last one, labelled start and stop.
+    steps = {s["step"]: s for s in manifest["run"]["steps"]}
+    live = [steps[s] for s in ("clock", "dpcisr", "frames", "diskio")]
+    assert steps["state_before"]["stopped_utc"] <= min(s["started_utc"] for s in live)
+    assert steps["state_after"]["started_utc"] >= max(s["stopped_utc"] for s in live + [steps[s] for s in S1_ORDER[5:-1]])
+    for prefix, label in (("state_before_", "start"), ("state_after_", "stop")):
+        processes = status[prefix + "processes"]
+        assert processes["status"] == "observed" and processes["requested"]["options"]["snapshot"] == label
+        assert status[prefix + "power_mode"]["status"] == "not_collected" and status[prefix + "power_mode"]["status_reason"]
+    assert any("asked the owner on stderr to start the game" in n for n in manifest["notes"])
+    assert any("asked the owner on stderr to close the game" in n for n in manifest["notes"])
     for entry in manifest["collectors"]:
         assert entry["status"] in OBSERVED or entry["status_reason"]
         for artifact in entry["artifacts"]:
@@ -104,9 +116,10 @@ def test_a_refused_run_starts_nothing_and_lists_every_declared_source():
     assert manifest["preflight"]["ok"] is False
     failed = [c["name"] for c in manifest["preflight"]["checks"] if not c["ok"]]
     assert "rights:dpcisr" in failed and "rights:dpcisr" in manifest["preflight"]["required"]
-    assert {s["outcome"] for s in manifest["run"]["steps"]} == {"not_started", "absent"}
+    assert {s["outcome"] for s in manifest["run"]["steps"]} == {"not_started"}
     assert all(c["status"] == "not_collected" and "refused to start" in c["status_reason"] and c["artifacts"] == [] for c in manifest["collectors"])
-    assert len(manifest["collectors"]) == 16
+    assert len(manifest["collectors"]) == 54
+    assert not any("the game" in n for n in manifest["notes"]), "nothing ran, so nobody was asked to start or close the game"
     assert list((RUNS / "s1-preflight-refused" / "raw").iterdir()) == [] if (RUNS / "s1-preflight-refused" / "raw").exists() else True
     assert not (RUNS / "s1-preflight-refused" / "logs" / "steps").exists()
     assert manifest["calibration"]["status"] == "not_collected" and manifest["calibration"]["pairs"] == []
@@ -119,7 +132,9 @@ def test_nothing_names_the_account_the_profile_or_a_machine_path(case):
             continue
         text = path.read_text(encoding="utf-8")
         assert "SYNTHETIC-PC\\\\wf-collector" not in text and "SYNTHETIC-PC\\wf-collector" not in text, path
-        assert not re.search(r"(?i)c:\\\\+users\\\\+", text), path
+        # A profile folder name appears only as the pseudonym the config-snapshot copy rules write
+        # (collectors/windows/README.md, "The config-snapshot sources"), never in clear.
+        assert not re.search(r"(?i)c:\\\\+users\\\\+(?!user-[0-9a-f]{12}(?![0-9a-z]))", text), path
         assert "/Users/" not in text and "/var/folders" not in text and "/tmp/" not in text, path
     for note in load(case)["notes"]:
         assert not note.startswith("Ran as ") or "its name is not recorded" in note
@@ -162,8 +177,6 @@ def test_the_registry_declares_what_each_collector_writes():
     assert len(names) == len(set(names))
     assert {"config-snapshot", "clock-calibration", "dpcisr-trace", "presentmon-frames", "diskio-trace"} <= set(names)
     for entry in registry:
-        if entry["name"] == "config-snapshot":
-            continue
         cases = sorted(d for d in BUNDLES.iterdir() if d.name == entry["name"] or d.name.startswith(entry["name"] + "-"))
         assert cases, entry["name"]
         bundle = json.loads((cases[0] / "manifest.json").read_text(encoding="utf-8"))
