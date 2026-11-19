@@ -1125,7 +1125,7 @@
                   "absent",
                   "not_started"
                 ],
-                "description": "completed: the collector exited before its deadline and wrote a manifest. no_manifest: it exited without one. timed_out: the runner stopped it at its deadline (or at the output cap). start_failed: the process did not start. absent: the collector script is not in this checkout (a reserved slot). not_started: the preflight refused the run."
+                "description": "completed: the collector exited before its deadline and wrote a manifest. no_manifest: it exited without one. timed_out: the runner stopped it at its deadline (or at the output cap). start_failed: the process did not start. absent: the collector is not registered with the runner yet (a reserved slot). not_started: the preflight refused the run."
               },
               "exit_code": {
                 "type": [
