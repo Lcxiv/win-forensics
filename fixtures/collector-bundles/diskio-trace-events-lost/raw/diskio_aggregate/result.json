@@ -1,6 +1,6 @@
 {
-  "started_utc": "2026-03-01T12:00:15.0000000Z",
-  "stopped_utc": "2026-03-01T12:00:17.0000000Z",
+  "started_utc": "2026-03-01T12:00:16.0000000Z",
+  "stopped_utc": "2026-03-01T12:00:18.0000000Z",
   "trace": "<bundle>/private/trace.etl",
   "trace_sha256": null,
   "trace_bytes": null,

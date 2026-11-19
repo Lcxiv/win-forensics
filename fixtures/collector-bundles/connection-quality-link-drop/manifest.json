@@ -487,7 +487,7 @@
   "checksum_algorithm": "sha256",
   "notes": [
     "Read only collector connection-quality version 1.0.0: Does the connection from this PC drop or slow down, and where: at the PC, at the router, or beyond it?",
-    "Ran as SYNTHETIC-PC\\wf-collector; elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "Ran as the collector account (its name is not recorded); elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
     "connection-quality: 5 of 30 slots were reached more than one interval late and are written as missed lines (sampling gaps, not losses)"

@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.1.0",
   "bundle_id": "20260301T120001Z_diskio_trace_ae3a76a9",
-  "created_utc": "2026-03-01T12:00:18.0000000Z",
+  "created_utc": "2026-03-01T12:00:19.0000000Z",
   "scenario": {
     "id": "diskio_trace",
     "version": "1.0.0",
@@ -11,7 +11,7 @@
   },
   "capture": {
     "start_utc": "2026-03-01T12:00:01.0000000Z",
-    "stop_utc": "2026-03-01T12:00:18.0000000Z",
+    "stop_utc": "2026-03-01T12:00:19.0000000Z",
     "orchestrator": "wf-collector:diskio-trace",
     "orchestrator_version": "1.2.0",
     "elevated": true,
@@ -68,7 +68,7 @@
       "status_reason": "the saved trace lost 544 events and 0 buffers (the scenario bound is 0 for both); no aggregate is made from it. Raise the buffer count in the profile or shorten the capture",
       "preflight": {
         "ok": true,
-        "at_utc": "2026-03-01T12:00:04.0000000Z",
+        "at_utc": "2026-03-01T12:00:03.0000000Z",
         "checks": [
           {
             "name": "tool_present",
@@ -113,7 +113,7 @@
         "WfDiskIoTrace-20260301T120002Z"
       ],
       "started_utc": "2026-03-01T12:00:02.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:14.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:15.0000000Z",
       "exit_code": 0,
       "config_hash": {
         "algorithm": "sha256",
@@ -186,8 +186,8 @@
           "perf_freq_hz": 10000000,
           "header_events_lost": 0,
           "header_buffers_lost": 0,
-          "session_started_utc": "2026-03-01T12:00:03.0000000Z",
-          "session_stop_issued_utc": "2026-03-01T12:00:13.0000000Z",
+          "session_started_utc": "2026-03-01T12:00:04.0000000Z",
+          "session_stop_issued_utc": "2026-03-01T12:00:14.0000000Z",
           "recording_seconds": 10,
           "trace_bytes": 4096,
           "trace_sha256": "53e27a449710f975a7c15321395dca8f467d760a3b73fc3e69892d771f8edde9",
@@ -218,7 +218,7 @@
         {
           "path": "raw/wpr_trace/session.json",
           "bytes": 6503,
-          "sha256": "14ead5c058b8d774455b720beb71244225101d686914c5a75c3c633b004608f2",
+          "sha256": "ebafb43bea22bcd8c94307f5fc7c81c1b00fbe0e81555abcb8ffd0c27e1607d4",
           "role": "report"
         },
         {
@@ -255,7 +255,7 @@
       "status_reason": "preflight failed, the source could not be opened: no complete trace to aggregate: the wpr_trace source is capture_failed; an aggregate is made only from a trace with zero loss whose end is confirmed, so none is presented as complete",
       "preflight": {
         "ok": false,
-        "at_utc": "2026-03-01T12:00:16.0000000Z",
+        "at_utc": "2026-03-01T12:00:17.0000000Z",
         "checks": [
           {
             "name": "trace_observed",
@@ -267,8 +267,8 @@
       "command": [
         "C:\\Windows\\System32\\tracerpt.exe"
       ],
-      "started_utc": "2026-03-01T12:00:15.0000000Z",
-      "stopped_utc": "2026-03-01T12:00:17.0000000Z",
+      "started_utc": "2026-03-01T12:00:16.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:18.0000000Z",
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
@@ -327,7 +327,7 @@
         {
           "path": "raw/diskio_aggregate/result.json",
           "bytes": 569,
-          "sha256": "b4cb38fbe1dd3b08ea54172855330e2a16bb62f885aae4f50e2e78dcc718406c",
+          "sha256": "d74bf5341b9081deb8374ab4742a468b6b2150769a951912c7bf41f316b2efee",
           "role": "report"
         }
       ],
@@ -399,7 +399,7 @@
   "checksum_algorithm": "sha256",
   "notes": [
     "Read only collector diskio-trace version 1.0.0: What reads from and writes to disk while the PC is in use, per process, per directory, per disk, in one second bins?",
-    "Ran as SYNTHETIC-PC\\wf-collector; elevated: True; member of Event Log Readers (S-1-5-32-573): True.",
+    "Ran as the collector account (its name is not recorded); elevated: True; member of Event Log Readers (S-1-5-32-573): True.",
     "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine."
   ]

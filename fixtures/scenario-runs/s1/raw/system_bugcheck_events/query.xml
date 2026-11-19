@@ -1,0 +1,5 @@
+<QueryList>
+  <Query Id="0" Path="System">
+    <Select Path="System">*[System[(EventID=41 or EventID=1001) and TimeCreated[@SystemTime &gt;= '2026-01-30T12:05:06.000Z' and @SystemTime &lt;= '2026-03-01T12:05:06.000Z']]]</Select>
+  </Query>
+</QueryList>
