@@ -31,6 +31,18 @@
 #   Pnp        @{ Devices = <list of device maps, each may carry Properties = @{ DEVPKEY -> value } > }
 #              or @{ ErrorKind; ErrorMessage }
 #   Salt       the pseudonym salt (fixed, so fixtures are reproducible)
+#   Elevated   whether the synthetic account is elevated (the live capture needs it)
+#   Wpr        the synthetic Windows Performance Recorder (New-WfSyntheticWpr lists the knobs):
+#              the default instance's State, one State per -instancename, the idle text, exit
+#              codes and hangs per verb, what the status lists (keywords, buffer size, early
+#              events lost, a lost buffers line), the bytes of the temporary recording and of
+#              the saved trace, and whether a stop or cancel leaves the session running
+#   Tracerpt   the synthetic tracerpt: Present, ExitCode, Stuck, EventsLost and BuffersLost of
+#              the saved trace, Labels ('english', 'missing' or 'nonnumeric')
+#   Tools      full path of an operator supplied tool -> @{ Sha256; Version } (nothing is read
+#              from disk, so the fixtures stay reproducible)
+#   PinnedTools  tool name -> list of @{ Version; Sha256; Source } the helper reports as pinned
+#   Xperf      @{ ExitCode; StdOut; StdErr; Stuck } for the synthetic xperf report
 #   Stdout     list that receives what a collector prints on stdout
 #   Stderr     list that receives what a collector prints on stderr
 
@@ -50,6 +62,12 @@ function Reset-WfSynthetic {
         Pnp          = @{ Devices = @() }
         Processes    = New-Object 'System.Collections.Generic.List[object]'
         Salt         = 'synthetic-salt-0001'
+        Elevated     = $false
+        Wpr          = New-WfSyntheticWpr
+        Tracerpt     = @{ Present = $true; ExitCode = 0; Stuck = $false; EventsLost = 0; BuffersLost = 0; Labels = 'english' }
+        Tools        = @{}
+        PinnedTools  = @{}
+        Xperf        = @{ ExitCode = 0; StdOut = ''; StdErr = ''; Stuck = $false }
         Stdout       = New-Object 'System.Collections.Generic.List[string]'
         Stderr       = New-Object 'System.Collections.Generic.List[string]'
     }
@@ -176,7 +194,7 @@ function Get-WfMachineInfo {
 }
 
 function Get-WfAccountInfo {
-    return [ordered]@{ name = 'SYNTHETIC-PC\wf-collector'; elevated = $false; event_log_readers = $true }
+    return [ordered]@{ name = 'SYNTHETIC-PC\wf-collector'; elevated = [bool]$global:WfSynthetic.Elevated; event_log_readers = $true }
 }
 
 function Get-WfToolInventory {
@@ -340,6 +358,8 @@ function Get-WfNetshPath {
 function Test-WfToolPresent {
     param([string]$Path)
     if ($Path -like '*netsh.exe') { return [bool]$global:WfSynthetic.NetshPresent }
+    if ($Path -like '*wpr.exe') { return [bool]$global:WfSynthetic.Wpr.Present }
+    if ($Path -like '*tracerpt.exe') { return [bool]$global:WfSynthetic.Tracerpt.Present }
     return $true
 }
 
@@ -354,8 +374,9 @@ function Get-WfKnownFolderPath {
 }
 
 function Invoke-WfProcess {
-    # netsh only: the collector never starts anything else through this seam
-    # in the test suite (the evtx export has its own replacement above).
+    # netsh, the synthetic wpr and the synthetic xperf: the collectors never
+    # start anything else through this seam in the test suite (the evtx export
+    # has its own replacement above).
     param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null, [int64]$MaxBytes = 0)
     $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Oversized = $false; Error = $null; DurationMs = $null; StdOutBytes = [int64]0; StdErrBytes = [int64]0; Diagnostic = $null }
     $global:WfSynthetic.Processes.Add(@{ FilePath = $FilePath; Arguments = $Arguments })
@@ -363,6 +384,9 @@ function Invoke-WfProcess {
         $result.Error = 'not started: the deadline had passed'
         return $result
     }
+    if ($FilePath -like '*wpr.exe') { return (Invoke-WfSyntheticWpr -Arguments $Arguments -TimeoutSeconds $TimeoutSeconds -Result $result) }
+    if ($FilePath -like '*xperf.exe') { return (Invoke-WfSyntheticXperf -Arguments $Arguments -TimeoutSeconds $TimeoutSeconds -Result $result -MaxBytes $MaxBytes) }
+    if ($FilePath -like '*tracerpt.exe') { return (Invoke-WfSyntheticTracerpt -Arguments $Arguments -TimeoutSeconds $TimeoutSeconds -Result $result) }
     $result.Started = $true
     $result.DurationMs = 7
     if (-not $global:WfSynthetic.Commands.ContainsKey($Arguments)) {
@@ -464,4 +488,343 @@ function Get-WfPnpDeviceProperties {
     }
     $result.ErrorMessage = 'synthetic backend: no device named ' + $InstanceId
     return $result
+}
+# --- adapters for the live capture collector ---------------------------------
+
+function New-WfSyntheticWpr {
+    # The default synthetic recorder: present, idle, starts and stops cleanly,
+    # loses nothing, and lists the three keywords dpcisr-trace asks for.
+    # Instances holds the state of every -instancename the collector used.
+    return @{
+        Present             = $true
+        State               = 'idle'
+        Instances           = @{}
+        IdleText            = "WPR is not recording`r`n"
+        ProfilesExitCode    = 0
+        StartExitCode       = 0
+        StartStdErr         = ''
+        StartStuck          = $false
+        StartLeavesRunning  = $false
+        StatusExitCode      = 0
+        StatusStdErr        = ''
+        StatusFailAfterCalls = 0
+        StatusCalls         = 0
+        StatusDelaySeconds  = 0
+        StopExitCode        = 0
+        StopStdErr          = ''
+        StopStuck           = $false
+        StopLeavesRunning   = $false
+        CancelLeavesRunning = $false
+        CollectorName       = 'NT Kernel Logger'
+        EventsLost          = 0
+        EventsLostText      = $null
+        BuffersLostLine     = $null
+        DroppedEvents       = 0
+        StatusLabels        = 'english'
+        Keywords            = @('Interrupt', 'DPC', 'Loader')
+        BufferSizeKb        = 1024
+        TempBytes           = 4096
+        EtlBytes            = 4096
+        TempDir             = $null
+    }
+}
+
+function Split-WfSyntheticArguments {
+    # The tokens of a command line as the collector built it: quoted
+    # arguments may hold spaces.
+    param([string]$Arguments)
+    $tokens = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($m in [regex]::Matches([string]$Arguments, '"([^"]*)"|(\S+)')) {
+        if ($m.Groups[1].Success) { $tokens.Add($m.Groups[1].Value) } else { $tokens.Add($m.Groups[2].Value) }
+    }
+    return , $tokens.ToArray()
+}
+
+function Get-WfSyntheticInstance {
+    # The -instancename of a command line, or '' for the default instance.
+    param([string[]]$Tokens)
+    for ($i = 0; $i -lt $Tokens.Count - 1; $i++) { if ($Tokens[$i] -eq '-instancename') { return [string]$Tokens[$i + 1] } }
+    return ''
+}
+
+function Get-WfSyntheticWprState {
+    param([string]$Instance)
+    $wpr = $global:WfSynthetic.Wpr
+    if ($Instance -eq '') { return [string]$wpr.State }
+    if ($wpr.Instances.ContainsKey($Instance)) { return [string]$wpr.Instances[$Instance] }
+    return 'idle'
+}
+
+function Set-WfSyntheticWprState {
+    param([string]$Instance, [string]$State)
+    $wpr = $global:WfSynthetic.Wpr
+    if ($Instance -eq '') { $wpr.State = $State } else { $wpr.Instances[$Instance] = $State }
+}
+
+function Write-WfSyntheticFiller {
+    # A file of the requested size whose content says what it is not.
+    param([string]$Path, [int64]$Bytes)
+    $parent = Split-Path -Parent $Path
+    if ($parent -and -not (Test-Path -LiteralPath $parent)) { $null = New-Item -ItemType Directory -Force -Path $parent }
+    $unit = [System.Text.Encoding]::ASCII.GetBytes("synthetic trace, not an event trace log`n")
+    $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write)
+    try {
+        $remaining = [int64]$Bytes
+        while ($remaining -gt 0) {
+            $count = [int][math]::Min($unit.Length, $remaining)
+            $stream.Write($unit, 0, $count)
+            $remaining -= $count
+        }
+    } finally { $stream.Dispose() }
+}
+
+function Get-WfSyntheticWprStatusText {
+    # The shape Microsoft documents for "wpr -status" and "-status profiles
+    # collectors": https://learn.microsoft.com/windows-hardware/test/wpt/wpr-command-line-options
+    param([bool]$Collectors)
+    $wpr = $global:WfSynthetic.Wpr
+    $nl = "`r`n"
+    $lines = New-Object 'System.Collections.Generic.List[string]'
+    $lines.Add('WPR recording is in progress...')
+    $lines.Add('')
+    $lines.Add('Time since start        : 00:00:01')
+    $lines.Add('')
+    if ($wpr.StatusLabels -eq 'english') { $lines.Add('Dropped event           : ' + [string]$wpr.DroppedEvents) }
+    else { $lines.Add('Verworfene Ereignisse   : ' + [string]$wpr.DroppedEvents) }
+    $lines.Add('')
+    $lines.Add('Logging mode            : File')
+    if ($Collectors) {
+        $lines.Add('')
+        $lines.Add('Recording system activity using the following set of profiles:')
+        $lines.Add('Profile                 : WfDpcIsrTrace.Verbose.File')
+        $lines.Add('')
+        $lines.Add('Actively recording collectors:')
+        if ($wpr.CollectorName) {
+            $lines.Add('Collector Name          : ' + [string]$wpr.CollectorName)
+            $lines.Add('Buffer Size (KB)        : ' + [string]$wpr.BufferSizeKb)
+            $lostText = $(if ($null -ne $wpr.EventsLostText) { [string]$wpr.EventsLostText } else { [string]$wpr.EventsLost })
+            if ($wpr.StatusLabels -eq 'english') { $lines.Add('Events Lost             : ' + $lostText) }
+            else { $lines.Add('Verlorene Ereignisse    : ' + $lostText) }
+            if ($null -ne $wpr.BuffersLostLine) { $lines.Add([string]$wpr.BuffersLostLine) }
+            $lines.Add('System Keywords')
+            foreach ($keyword in @($wpr.Keywords)) { $lines.Add($keyword) }
+            $lines.Add('System Stacks')
+        }
+    }
+    return (($lines.ToArray() -join $nl) + $nl)
+}
+
+function Invoke-WfSyntheticWpr {
+    param([string]$Arguments, [int]$TimeoutSeconds, $Result)
+    $wpr = $global:WfSynthetic.Wpr
+    $tokens = Split-WfSyntheticArguments -Arguments $Arguments
+    $verb = $(if ($tokens.Count -gt 0) { $tokens[0] } else { '' })
+    $instance = Get-WfSyntheticInstance -Tokens $tokens
+    $Result.Started = $true
+    $Result.DurationMs = 11
+    $Result.ExitCode = 0
+    switch ($verb) {
+        '-status' {
+            $wpr.StatusCalls = [int]$wpr.StatusCalls + 1
+            if ([int]$wpr.StatusDelaySeconds -gt 0) { $global:WfSynthetic.Ticks += [int]$wpr.StatusDelaySeconds }
+            if ([int]$wpr.StatusFailAfterCalls -gt 0 -and [int]$wpr.StatusCalls -gt [int]$wpr.StatusFailAfterCalls) {
+                $Result.ExitCode = 5
+                $Result.StdErr = "synthetic status error: access denied`r`n"
+            } elseif ([int]$wpr.StatusExitCode -ne 0) {
+                $Result.ExitCode = [int]$wpr.StatusExitCode
+                $Result.StdErr = [string]$wpr.StatusStdErr
+            } elseif ((Get-WfSyntheticWprState -Instance $instance) -eq 'recording') { $Result.StdOut = Get-WfSyntheticWprStatusText -Collectors ($tokens -contains 'collectors') }
+            else { $Result.StdOut = [string]$wpr.IdleText }
+        }
+        '-profiles' {
+            $Result.ExitCode = [int]$wpr.ProfilesExitCode
+            if ($Result.ExitCode -eq 0) { $Result.StdOut = "Profile                 : WfDpcIsrTrace.Verbose.File`r`nProfile                 : WfDpcIsrTrace.Verbose.Memory`r`n" }
+            else { $Result.StdErr = "synthetic wpr: the profile file is not valid`r`n" }
+        }
+        '-start' {
+            if ((Get-WfSyntheticWprState -Instance $instance) -eq 'recording') {
+                $Result.ExitCode = 1
+                $Result.StdErr = "synthetic wpr: an existing session is already running`r`n"
+            } elseif ($wpr.StartStuck) {
+                $global:WfSynthetic.Ticks += $TimeoutSeconds
+                $Result.TimedOut = $true
+                $Result.Error = ('the process did not finish within {0} seconds and was stopped' -f $TimeoutSeconds)
+                Set-WfSyntheticWprState -Instance $instance -State 'recording'
+            } elseif ([int]$wpr.StartExitCode -ne 0) {
+                $Result.ExitCode = [int]$wpr.StartExitCode
+                $Result.StdErr = [string]$wpr.StartStdErr
+                if ($wpr.StartLeavesRunning) { Set-WfSyntheticWprState -Instance $instance -State 'recording' }
+            } else {
+                Set-WfSyntheticWprState -Instance $instance -State 'recording'
+                for ($i = 0; $i -lt $tokens.Count - 1; $i++) {
+                    if ($tokens[$i] -eq '-recordtempto') {
+                        $wpr.TempDir = $tokens[$i + 1]
+                        Write-WfSyntheticFiller -Path (Join-Path $wpr.TempDir 'synthetic-temporary-recording.etl') -Bytes ([int64]$wpr.TempBytes)
+                    }
+                }
+                $Result.StdOut = "synthetic wpr: recording started`r`n"
+            }
+        }
+        '-stop' {
+            if ($wpr.StopStuck) {
+                $global:WfSynthetic.Ticks += $TimeoutSeconds
+                $Result.TimedOut = $true
+                $Result.Error = ('the process did not finish within {0} seconds and was stopped' -f $TimeoutSeconds)
+            } elseif ([int]$wpr.StopExitCode -ne 0) {
+                $Result.ExitCode = [int]$wpr.StopExitCode
+                $Result.StdErr = [string]$wpr.StopStdErr
+            } else {
+                if ($tokens.Count -gt 1) { Write-WfSyntheticFiller -Path $tokens[1] -Bytes ([int64]$wpr.EtlBytes) }
+                if ($wpr.TempDir -and (Test-Path -LiteralPath (Join-Path $wpr.TempDir 'synthetic-temporary-recording.etl'))) {
+                    Remove-Item -LiteralPath (Join-Path $wpr.TempDir 'synthetic-temporary-recording.etl') -Force
+                }
+                if (-not $wpr.StopLeavesRunning) { Set-WfSyntheticWprState -Instance $instance -State 'idle' }
+                $Result.StdOut = "synthetic wpr: trace saved`r`n"
+            }
+        }
+        '-cancel' {
+            if (-not $wpr.CancelLeavesRunning) { Set-WfSyntheticWprState -Instance $instance -State 'idle' }
+            if ($wpr.TempDir -and (Test-Path -LiteralPath (Join-Path $wpr.TempDir 'synthetic-temporary-recording.etl'))) {
+                Remove-Item -LiteralPath (Join-Path $wpr.TempDir 'synthetic-temporary-recording.etl') -Force
+            }
+            $Result.StdOut = "synthetic wpr: recording cancelled`r`n"
+        }
+        default {
+            $Result.ExitCode = 1
+            $Result.StdErr = 'synthetic wpr: unknown option ' + $verb
+        }
+    }
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    $Result.StdOutBytes = [int64]$utf8.GetByteCount([string]$Result.StdOut)
+    $Result.StdErrBytes = [int64]$utf8.GetByteCount([string]$Result.StdErr)
+    return $Result
+}
+
+function Invoke-WfSyntheticTracerpt {
+    # "tracerpt <trace> -summary <file> -y": writes an invented summary whose
+    # loss lines follow the Labels knob. The real tool's text is not
+    # documented and is a verification item in the README.
+    param([string]$Arguments, [int]$TimeoutSeconds, $Result)
+    $tracerpt = $global:WfSynthetic.Tracerpt
+    $tokens = Split-WfSyntheticArguments -Arguments $Arguments
+    $Result.Started = $true
+    $Result.DurationMs = 17
+    if ($tracerpt['Stuck']) {
+        $global:WfSynthetic.Ticks += $TimeoutSeconds
+        $Result.TimedOut = $true
+        $Result.Error = ('the process did not finish within {0} seconds and was stopped' -f $TimeoutSeconds)
+        return $Result
+    }
+    $trace = $(if ($tokens.Count -gt 0) { $tokens[0] } else { '' })
+    $summaryPath = $null
+    for ($i = 0; $i -lt $tokens.Count - 1; $i++) { if ($tokens[$i] -eq '-summary') { $summaryPath = $tokens[$i + 1] } }
+    if (-not $trace -or -not (Test-Path -LiteralPath $trace)) {
+        $Result.ExitCode = 1
+        $Result.StdErr = 'synthetic tracerpt: the trace file does not exist'
+        return $Result
+    }
+    $Result.ExitCode = [int]$tracerpt['ExitCode']
+    if ($Result.ExitCode -ne 0) {
+        $Result.StdErr = 'synthetic tracerpt: failed'
+        return $Result
+    }
+    $nl = "`r`n"
+    $lines = New-Object 'System.Collections.Generic.List[string]'
+    $lines.Add('Files Processed:')
+    $lines.Add("`t" + $trace)
+    $lines.Add('Total Buffers Processed 69')
+    $lines.Add('Total Events  Processed 107340')
+    switch ([string]$tracerpt['Labels']) {
+        'english' {
+            $lines.Add('Total Events  Lost      ' + [string]$tracerpt['EventsLost'])
+            $lines.Add('Total Buffers Lost      ' + [string]$tracerpt['BuffersLost'])
+        }
+        'nonnumeric' {
+            $lines.Add('Total Events  Lost      n/a')
+            $lines.Add('Total Buffers Lost      ' + [string]$tracerpt['BuffersLost'])
+        }
+        'events-only' {
+            $lines.Add('Total Events  Lost      ' + [string]$tracerpt['EventsLost'])
+        }
+        default { }
+    }
+    $lines.Add('Start Time              2026-03-01 12:00:04')
+    $lines.Add('End Time                2026-03-01 12:00:16')
+    $lines.Add('Elapsed Time            10 sec')
+    if ($summaryPath) { Write-WfTextFile -Path $summaryPath -Text (($lines.ToArray() -join $nl) + $nl) }
+    $Result.StdOut = ''
+    return $Result
+}
+
+function Invoke-WfSyntheticXperf {
+    param([string]$Arguments, [int]$TimeoutSeconds, $Result, [int64]$MaxBytes)
+    $xperf = $global:WfSynthetic.Xperf
+    $tokens = Split-WfSyntheticArguments -Arguments $Arguments
+    $Result.Started = $true
+    $Result.DurationMs = 13
+    if ($xperf['Stuck']) {
+        $global:WfSynthetic.Ticks += $TimeoutSeconds
+        $Result.TimedOut = $true
+        $Result.Error = ('the process did not finish within {0} seconds and was stopped' -f $TimeoutSeconds)
+        return $Result
+    }
+    $trace = $null
+    for ($i = 0; $i -lt $tokens.Count - 1; $i++) { if ($tokens[$i] -eq '-i') { $trace = $tokens[$i + 1] } }
+    if (-not $trace -or -not (Test-Path -LiteralPath $trace)) {
+        $Result.ExitCode = 1
+        $Result.StdErr = 'synthetic xperf: the trace file does not exist'
+        return $Result
+    }
+    $Result.ExitCode = [int]$xperf['ExitCode']
+    $Result.StdOut = [string]$xperf['StdOut']
+    $Result.StdErr = [string]$xperf['StdErr']
+    if ($xperf.ContainsKey('ChangeHashAfterRun') -and $xperf['ChangeHashAfterRun']) {
+        # The file is replaced while the tool runs: the hash read afterwards differs.
+        foreach ($path in @($global:WfSynthetic.Tools.Keys)) {
+            if ($path -like '*xperf.exe') { $global:WfSynthetic.Tools[$path] = @{ Sha256 = '0000000000000000000000000000000000000000000000000000000000000002'; Version = [string]$global:WfSynthetic.Tools[$path]['Version'] } }
+        }
+    }
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    $Result.StdOutBytes = [int64]$utf8.GetByteCount([string]$Result.StdOut)
+    if ($MaxBytes -gt 0 -and $Result.StdOutBytes -gt $MaxBytes) {
+        $Result.Oversized = $true
+        $Result.Error = ('the process printed more than the cap of {0} bytes on StdOut and was stopped; nothing above the cap was kept' -f $MaxBytes)
+        $Result.StdOut = ''
+    }
+    return $Result
+}
+
+function Get-WfWprPath {
+    return 'C:\Windows\System32\wpr.exe'
+}
+
+function Get-WfTracerptPath {
+    return 'C:\Windows\System32\tracerpt.exe'
+}
+
+function Get-WfMonotonicSeconds {
+    return [double]$global:WfSynthetic.Ticks
+}
+
+function Get-WfExternalToolInfo {
+    param([string]$Path)
+    $info = [ordered]@{ Exists = $false; Sha256 = $null; Version = $null; Error = $null }
+    if ($Path -and $global:WfSynthetic.Tools.ContainsKey($Path)) {
+        $entry = $global:WfSynthetic.Tools[$Path]
+        $info.Exists = $true
+        $info.Sha256 = [string]$entry['Sha256']
+        $info.Version = [string]$entry['Version']
+    }
+    return $info
+}
+
+function Get-WfPinnedToolBuilds {
+    param([string]$Name)
+    if ($global:WfSynthetic.PinnedTools.ContainsKey($Name)) { return , @($global:WfSynthetic.PinnedTools[$Name]) }
+    return , @()
+}
+
+function Start-WfSleep {
+    param([int]$Seconds)
+    $global:WfSynthetic.Ticks += [math]::Max(0, $Seconds)
 }

@@ -1,5 +1,5 @@
 {
-  "manifest_version": "1.0.0",
+  "manifest_version": "1.1.0",
   "bundle_id": "20260301T120001Z_driver_inventory_ae3a76a9",
   "created_utc": "2026-03-01T12:00:17.0000000Z",
   "scenario": {
@@ -13,7 +13,7 @@
     "start_utc": "2026-03-01T12:00:01.0000000Z",
     "stop_utc": "2026-03-01T12:00:17.0000000Z",
     "orchestrator": "wf-collector:driver-inventory",
-    "orchestrator_version": "1.1.0",
+    "orchestrator_version": "1.2.0",
     "elevated": false,
     "incomplete": false
   },
@@ -193,6 +193,7 @@
         "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -327,6 +328,7 @@
         "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -390,7 +392,7 @@
     },
     {
       "name": "collector-helper:_common.ps1",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "path": "<install directory>\\_common.ps1",
       "sha256": null
     }

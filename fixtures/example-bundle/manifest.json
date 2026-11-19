@@ -1,5 +1,5 @@
 {
-  "manifest_version": "1.0.0",
+  "manifest_version": "1.1.0",
   "bundle_id": "20260424T202347Z_format_fixture_winopt",
   "created_utc": "2026-09-03T00:00:00Z",
   "scenario": {
@@ -58,6 +58,7 @@
       "requested": {"providers": [], "keywords": [], "stack_walk": [], "counters": [], "options": {"action": "dpcisr"}},
       "enabled": {"providers": null, "keywords": null, "stack_walk": null, "counters": null, "options": null, "verified_by": null},
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {"path": "raw/dpcisr/xperf_analysis.txt", "bytes": 34119, "sha256": "6a602e4baff98aa8546d08010eb28116a80ee361a43002c497fd5aac977d582d", "role": "primary"}
@@ -82,6 +83,7 @@
       "requested": {"providers": [], "keywords": [], "stack_walk": [], "counters": [], "options": {}},
       "enabled": {"providers": null, "keywords": null, "stack_walk": null, "counters": null, "options": null, "verified_by": null},
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [],
       "raw_time_range": null,
@@ -104,6 +106,7 @@
       "requested": {"providers": [], "keywords": [], "stack_walk": [], "counters": ["\\Processor(*)\\% Processor Time", "\\Processor(*)\\% Interrupt Time", "\\Processor(*)\\% DPC Time"], "options": {"sample_interval_s": 1}},
       "enabled": {"providers": null, "keywords": null, "stack_walk": null, "counters": ["\\Processor(*)\\% Processor Time", "\\Processor(*)\\% Interrupt Time", "\\Processor(*)\\% DPC Time"], "options": null, "verified_by": "CSV header of raw/pdh/percpu_dpc_20260424_slow.csv"},
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {"path": "raw/pdh/percpu_dpc_20260424_slow.csv", "bytes": 24108, "sha256": "b397dc513447efbbe5ce3834edc3d3ae8943ef36f4c9b8996d6c647884945869", "role": "primary"}
@@ -128,6 +131,7 @@
       "requested": {"providers": [], "keywords": [], "stack_walk": [], "counters": [], "options": {"interval_s": 5}},
       "enabled": {"providers": null, "keywords": null, "stack_walk": null, "counters": null, "options": null, "verified_by": null},
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [],
       "raw_time_range": null,
@@ -150,6 +154,7 @@
       "requested": {"providers": [], "keywords": [], "stack_walk": [], "counters": [], "options": {}},
       "enabled": {"providers": null, "keywords": null, "stack_walk": null, "counters": null, "options": null, "verified_by": null},
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [],
       "raw_time_range": null,
@@ -172,6 +177,7 @@
       "requested": {"providers": [], "keywords": [], "stack_walk": [], "counters": [], "options": {}},
       "enabled": {"providers": null, "keywords": null, "stack_walk": null, "counters": null, "options": null, "verified_by": null},
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [],
       "raw_time_range": null,
@@ -194,6 +200,7 @@
       "requested": {"providers": [], "keywords": [], "stack_walk": [], "counters": [], "options": {}},
       "enabled": {"providers": null, "keywords": null, "stack_walk": null, "counters": null, "options": null, "verified_by": null},
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [],
       "raw_time_range": null,
@@ -216,6 +223,7 @@
       "requested": {"providers": [], "keywords": [], "stack_walk": [], "counters": [], "options": {}},
       "enabled": {"providers": null, "keywords": null, "stack_walk": null, "counters": null, "options": null, "verified_by": null},
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [],
       "raw_time_range": null,
@@ -238,6 +246,7 @@
       "requested": {"providers": [], "keywords": [], "stack_walk": [], "counters": [], "options": {}},
       "enabled": {"providers": null, "keywords": null, "stack_walk": null, "counters": null, "options": null, "verified_by": null},
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [],
       "raw_time_range": null,
@@ -260,6 +269,7 @@
       "requested": {"providers": [], "keywords": [], "stack_walk": [], "counters": [], "options": {}},
       "enabled": {"providers": null, "keywords": null, "stack_walk": null, "counters": null, "options": null, "verified_by": null},
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [],
       "raw_time_range": null,

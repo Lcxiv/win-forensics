@@ -3,7 +3,7 @@
   "$id": "https://github.com/Lcxiv/win-forensics/schemas/manifest.schema.json",
   "title": "Bundle manifest (manifest.json)",
   "description": "Written by the capture orchestrator when the privileged capture session closes. See docs/contracts/bundle.md.",
-  "x-schema-version": "1.0.0",
+  "x-schema-version": "1.1.0",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -409,6 +409,7 @@
           "requested",
           "enabled",
           "events_lost",
+          "buffers_lost",
           "buffers",
           "artifacts",
           "raw_time_range",
@@ -605,6 +606,14 @@
               "null"
             ],
             "minimum": 0
+          },
+          "buffers_lost": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Buffers the session could not write to its log (EVENT_TRACE_PROPERTIES LogBuffersLost, TRACE_LOGFILE_HEADER BuffersLost), as the collector read it from the tool's final statistics; null when unknown. A null or non zero value never supports an observed status."
           },
           "buffers": {
             "type": [

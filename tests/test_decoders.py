@@ -24,10 +24,16 @@ def copy_raw(example_bundle, tmp_path, source):
     return dst
 
 
+def copy_manifest(example_bundle, bundle):
+    (bundle / "manifest.json").write_bytes((example_bundle / "manifest.json").read_bytes())
+
+
 @pytest.fixture(scope="module")
 def dpcisr_out(example_bundle, tmp_path_factory):
     bundle = tmp_path_factory.mktemp("dpcisr")
     copy_raw(example_bundle, bundle, DPCISR_SOURCE)
+    # The manifest names the collector behind the report; the decoder records its status in the sidecar.
+    copy_manifest(example_bundle, bundle)
     result = decode_dpcisr.decode(bundle, DPCISR_SOURCE, decoded_at="2026-09-03T00:00:00Z")
     assert result["status"] == "observed", result
     return bundle
@@ -109,6 +115,7 @@ def test_dpcisr_sidecars_validate_and_report_checks(dpcisr_out):
 def test_dpcisr_broken_report_is_decode_failed(tmp_path, example_bundle):
     bundle = tmp_path
     dst = copy_raw(example_bundle, bundle, DPCISR_SOURCE)
+    copy_manifest(example_bundle, bundle)
     text = dst.read_text(encoding="utf-8-sig")
     dst.write_text(text.replace("EQUAL", "NOT EQUAL", 1), encoding="utf-8")
     result = decode_dpcisr.decode(bundle, DPCISR_SOURCE, decoded_at="2026-09-03T00:00:00Z")
@@ -120,10 +127,19 @@ def test_dpcisr_broken_report_is_decode_failed(tmp_path, example_bundle):
 
 def test_dpcisr_truncated_report_is_decode_failed(tmp_path, example_bundle):
     dst = copy_raw(example_bundle, tmp_path, DPCISR_SOURCE)
+    copy_manifest(example_bundle, tmp_path)
     lines = dst.read_text(encoding="utf-8-sig").splitlines()
     dst.write_text("\n".join(lines[:20]), encoding="utf-8")
     result = decode_dpcisr.decode(tmp_path, DPCISR_SOURCE, decoded_at="2026-09-03T00:00:00Z")
     assert result["status"] == "decode_failed"
+    assert (tmp_path / "decoded" / "dpcisr_module_cpu.meta.json").is_file(), "the report itself was read and failed"
+
+
+def test_dpcisr_without_a_manifest_is_decode_failed_and_writes_nothing(tmp_path, example_bundle):
+    copy_raw(example_bundle, tmp_path, DPCISR_SOURCE)
+    result = decode_dpcisr.decode(tmp_path, DPCISR_SOURCE, decoded_at="2026-09-03T00:00:00Z")
+    assert result["status"] == "decode_failed" and "no manifest.json" in result["reason"], result
+    assert result["tables"] == {} and not (tmp_path / "decoded").exists()
 
 
 # ---------------------------------------------------------------- pdh
