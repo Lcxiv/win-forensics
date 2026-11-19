@@ -198,7 +198,7 @@
               "null"
             ],
             "minimum": 0,
-            "description": "count over hours_played; set only when count_basis is complete, incident and play coverage are full, every session has a duration, and hours_played is above zero."
+            "description": "count over hours_played; set only when count_basis is complete, incident and play coverage are full, every session in or reaching into the period has a duration, and hours_played is above zero."
           },
           "withheld_reason": {
             "type": [
