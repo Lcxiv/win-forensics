@@ -7,14 +7,23 @@
 # interface, the artifact formats, and the facts still to be verified on a
 # real machine.
 #
-# Sources: two WMI classes in root\cimv2, read with Get-CimInstance. Both are
+# Sources: three WMI classes in root\cimv2, read with Get-CimInstance. All are
 # snapshots taken when the collector runs; there is no time window.
 #   Win32_PnPSignedDriver  one row per device driver: device, class, version,
 #                          date, provider, INF name, signer
 #   Win32_SystemDriver     one row per kernel and file system driver service:
 #                          name, path, state, start mode
+#   Win32_PnPEntity        one row per present Plug and Play device with only
+#                          two properties: Service (the service that supports
+#                          the device) and ClassGuid (its device setup class).
+#                          Joined on the service name to Win32_SystemDriver
+#                          it says which device class a driver file serves
+#                          (scripts/decode_driver_inventory.py); no device
+#                          instance path, name or hardware id is requested.
 # https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/aa394354(v=vs.85)
 # https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-systemdriver
+# https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-pnpentity
+# https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-systemdriverpnpentity
 # Only the documented properties named below are requested, under an
 # operation timeout, so a provider that does not answer cannot hold the
 # collector:
@@ -66,7 +75,7 @@ if (-not $OutputDirectory -or -not (Test-Path -LiteralPath $common)) {
 
 $definition = @{
     Name     = $collectorName
-    Version  = '1.0.0'
+    Version  = '1.1.0'
     Question = 'Which drivers are installed, in which versions, from which providers, and which kernel drivers are running?'
     Sources  = @(
         @{
@@ -85,6 +94,20 @@ $definition = @{
             Required  = $true
             ClassName = 'Win32_SystemDriver'
             Properties = @('Name', 'DisplayName', 'Description', 'PathName', 'ServiceType', 'StartMode', 'State', 'Started', 'Status', 'ErrorControl', 'ExitCode', 'AcceptStop', 'TagId')
+        },
+        @{
+            # Service and setup class of every present device, nothing else:
+            # DeviceID, PNPDeviceID, HardwareID and Name can carry serial
+            # numbers and adapter addresses, so they are not requested. A
+            # machine always has present devices, so an empty result is a
+            # failed read, never an observation.
+            Id         = 'pnp_device_services'
+            Type       = 'cim'
+            Kind       = 'config_snapshot'
+            Required   = $true
+            ClassName  = 'Win32_PnPEntity'
+            Properties = @('Service', 'ClassGuid')
+            Filter     = 'Present = TRUE'
         }
     )
 }

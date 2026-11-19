@@ -7,7 +7,7 @@ import pytest
 
 import wf_schema
 
-DECODED_TABLES = ["dpcisr_module_cpu", "dpcisr_interval", "pdh_counters"]
+DECODED_TABLES = ["dpcisr_module_cpu", "dpcisr_interval", "dpcisr_class_cpu", "pdh_counters"]
 
 
 @pytest.fixture(scope="module")

@@ -93,7 +93,31 @@ function Get-WfSyntheticCases {
                 }
                 $global:WfSynthetic.Cim['Win32_SystemDriver'] = @{ Rows = @(
                         [ordered]@{ AcceptPause = $false; AcceptStop = $true; Caption = 'Synthetic Display Driver'; CreationClassName = 'Win32_SystemDriver'; Description = 'Synthetic Display Driver'; DesktopInteract = $false; DisplayName = 'Synthetic Display Driver'; ErrorControl = 'Normal'; ExitCode = 0; InstallDate = $null; Name = 'synthdisp'; PathName = 'C:\Windows\System32\drivers\synthdisp.sys'; ServiceSpecificExitCode = 0; ServiceType = 'Kernel Driver'; Started = $true; StartMode = 'Manual'; StartName = $null; State = 'Running'; Status = 'OK'; SystemCreationClassName = 'Win32_ComputerSystem'; SystemName = 'SYNTHETIC-PC'; TagId = 0 },
-                        [ordered]@{ AcceptPause = $false; AcceptStop = $true; Caption = 'ACPI Driver'; CreationClassName = 'Win32_SystemDriver'; Description = 'ACPI Driver'; DesktopInteract = $false; DisplayName = 'Microsoft ACPI Driver'; ErrorControl = 'Critical'; ExitCode = 0; InstallDate = $null; Name = 'ACPI'; PathName = 'C:\Windows\System32\drivers\ACPI.sys'; ServiceSpecificExitCode = 0; ServiceType = 'Kernel Driver'; Started = $true; StartMode = 'Boot'; StartName = $null; State = 'Running'; Status = 'OK'; SystemCreationClassName = 'Win32_ComputerSystem'; SystemName = 'SYNTHETIC-PC'; TagId = 2 }
+                        [ordered]@{ AcceptPause = $false; AcceptStop = $true; Caption = 'ACPI Driver'; CreationClassName = 'Win32_SystemDriver'; Description = 'ACPI Driver'; DesktopInteract = $false; DisplayName = 'Microsoft ACPI Driver'; ErrorControl = 'Critical'; ExitCode = 0; InstallDate = $null; Name = 'ACPI'; PathName = 'C:\Windows\System32\drivers\ACPI.sys'; ServiceSpecificExitCode = 0; ServiceType = 'Kernel Driver'; Started = $true; StartMode = 'Boot'; StartName = $null; State = 'Running'; Status = 'OK'; SystemCreationClassName = 'Win32_ComputerSystem'; SystemName = 'SYNTHETIC-PC'; TagId = 2 },
+                        (New-WfSyntheticSystemDriver -Name 'synthgfx' -DisplayName 'Synthetic Graphics Driver' -PathName 'C:\Windows\System32\DriverStore\FileRepository\synthgfx.inf_amd64_0000000000000000\synthgfx.sys'),
+                        (New-WfSyntheticSystemDriver -Name 'synthnic' -DisplayName 'Synthetic Ethernet Adapter Driver' -PathName '\SystemRoot\System32\drivers\synthnic.sys'),
+                        (New-WfSyntheticSystemDriver -Name 'synthusb' -DisplayName 'Synthetic USB Host Controller Driver' -PathName 'System32\drivers\synthusb.sys'),
+                        (New-WfSyntheticSystemDriver -Name 'synthaudio' -DisplayName 'Synthetic Audio Driver' -PathName '\SystemRoot\system32\drivers\synthaudio.sys'),
+                        (New-WfSyntheticSystemDriver -Name 'synthbt' -DisplayName 'Synthetic Bluetooth Radio Driver' -PathName '\SystemRoot\System32\drivers\synthbt.sys'),
+                        (New-WfSyntheticSystemDriver -Name 'HDAudBus' -DisplayName 'Microsoft UAA Bus Driver for High Definition Audio' -PathName '\SystemRoot\System32\drivers\HDAudBus.sys')
+                    )
+                }
+                # Present devices of the services above, with the identifying
+                # properties a real instance has; the collector requests only
+                # Service and ClassGuid, so none of the rest may reach the bundle.
+                $global:WfSynthetic.Cim['Win32_PnPEntity'] = @{ Rows = @(
+                        (New-WfSyntheticPnpEntity -Service 'synthgfx' -ClassGuid '{4d36e968-e325-11ce-bfc1-08002be10318}' -PnpClass 'Display' -DeviceId 'PCI\VEN_FFFF&DEV_0001&SUBSYS_00000000&REV_01\4&2B1C3D4E&0&0008' -Name 'Synthetic Display Adapter'),
+                        (New-WfSyntheticPnpEntity -Service 'synthnic' -ClassGuid '{4D36E972-E325-11CE-BFC1-08002BE10318}' -PnpClass 'Net' -DeviceId 'PCI\VEN_FFFF&DEV_0002&SUBSYS_00000000&REV_15\01000000684CE00000' -Name 'Synthetic Ethernet Adapter'),
+                        (New-WfSyntheticPnpEntity -Service 'synthusb' -ClassGuid '{36fc9e60-c465-11cf-8056-444553540000}' -PnpClass 'USB' -DeviceId 'PCI\VEN_FFFF&DEV_0003&SUBSYS_00000000&REV_00\3&11583659&0&A0' -Name 'Synthetic USB 3.20 eXtensible Host Controller'),
+                        (New-WfSyntheticPnpEntity -Service 'synthusb' -ClassGuid '{36fc9e60-c465-11cf-8056-444553540000}' -PnpClass 'USB' -DeviceId 'USB\ROOT_HUB30\4&1A2B3C4D&0&0' -Name 'Synthetic USB Root Hub'),
+                        (New-WfSyntheticPnpEntity -Service 'synthaudio' -ClassGuid '{4d36e96c-e325-11ce-bfc1-08002be10318}' -PnpClass 'MEDIA' -DeviceId 'HDAUDIO\FUNC_01&VEN_FFFF&DEV_0004&SUBSYS_00000000&REV_1000\4&3C4D5E6F&0&0001' -Name 'Synthetic High Definition Audio'),
+                        (New-WfSyntheticPnpEntity -Service 'synthbt' -ClassGuid '{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}' -PnpClass 'Bluetooth' -DeviceId 'USB\VID_FFFF&PID_0005\5C4D3E2F1A0B' -Name 'Synthetic Bluetooth Radio'),
+                        (New-WfSyntheticPnpEntity -Service 'HDAudBus' -ClassGuid '{4d36e97d-e325-11ce-bfc1-08002be10318}' -PnpClass 'System' -DeviceId 'PCI\VEN_FFFF&DEV_0006&SUBSYS_00000000&REV_01\4&5E6F7A8B&0&0308' -Name 'High Definition Audio Controller'),
+                        (New-WfSyntheticPnpEntity -Service 'ACPI' -ClassGuid '{4d36e97d-e325-11ce-bfc1-08002be10318}' -PnpClass 'System' -DeviceId 'ACPI_HAL\PNP0C08\0' -Name 'Microsoft ACPI-Compliant System'),
+                        (New-WfSyntheticPnpEntity -Service 'synthumdf' -ClassGuid '{88bae032-5a81-49f0-bc3d-a4ff138216d6}' -PnpClass 'USBDevice' -DeviceId 'USB\VID_FFFF&PID_0007\SN0123456789' -Name 'Synthetic USB Gadget'),
+                        (New-WfSyntheticPnpEntity -Service $null -ClassGuid $null -PnpClass $null -DeviceId 'ROOT\UNKNOWN\0000' -Name $null),
+                        # Not present: the filter keeps it out, or synthgfx would look like an audio driver too.
+                        (New-WfSyntheticPnpEntity -Service 'synthgfx' -ClassGuid '{4d36e96c-e325-11ce-bfc1-08002be10318}' -PnpClass 'MEDIA' -DeviceId 'HDAUDIO\FUNC_01&VEN_FFFF&DEV_0008\5&0&0&0001' -Name 'Synthetic Display Audio' -Present $false)
                     )
                 }
             }
@@ -754,6 +778,25 @@ function Get-WfSyntheticPresentMonCsv {
         }
     }
     throw ('no synthetic PresentMon CSV named ' + $Name)
+}
+
+function New-WfSyntheticSystemDriver {
+    # One invented Win32_SystemDriver instance of a running kernel driver.
+    param([string]$Name, [string]$DisplayName, [string]$PathName)
+    return [ordered]@{ AcceptPause = $false; AcceptStop = $true; Caption = $DisplayName; CreationClassName = 'Win32_SystemDriver'; Description = $DisplayName; DesktopInteract = $false
+        DisplayName = $DisplayName; ErrorControl = 'Normal'; ExitCode = 0; InstallDate = $null; Name = $Name; PathName = $PathName; ServiceSpecificExitCode = 0
+        ServiceType = 'Kernel Driver'; Started = $true; StartMode = 'Manual'; StartName = $null; State = 'Running'; Status = 'OK'
+        SystemCreationClassName = 'Win32_ComputerSystem'; SystemName = 'SYNTHETIC-PC'; TagId = 0 }
+}
+
+function New-WfSyntheticPnpEntity {
+    # One invented Win32_PnPEntity instance with the identifying properties a
+    # real one has (instance path, name, hardware id), so the tests can show
+    # that only Service and ClassGuid are kept.
+    param($Service, $ClassGuid, $PnpClass, [string]$DeviceId, $Name, [bool]$Present = $true)
+    return [ordered]@{ Availability = $null; Caption = $Name; ClassGuid = $ClassGuid; CompatibleID = @(); ConfigManagerErrorCode = 0; ConfigManagerUserConfig = $false
+        CreationClassName = 'Win32_PnPEntity'; Description = $Name; DeviceID = $DeviceId; HardwareID = @(($DeviceId -split '\\')[0..1] -join '\'); Manufacturer = 'Synthetic'
+        Name = $Name; PNPClass = $PnpClass; PNPDeviceID = $DeviceId; Present = $Present; Service = $Service; Status = 'OK'; SystemName = 'SYNTHETIC-PC' }
 }
 
 function New-WfSyntheticTraceMachine {

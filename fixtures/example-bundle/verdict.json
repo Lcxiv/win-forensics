@@ -9,8 +9,8 @@
       "checks": [
         {"name": "manifest_schema", "ok": true, "detail": null},
         {"name": "artifacts_present_with_matching_sha256", "ok": true, "detail": "2 artifacts"},
-        {"name": "decoded_tables_and_sidecars_validate", "ok": true, "detail": "dpcisr_module_cpu, dpcisr_interval, pdh_counters"},
-        {"name": "provenance_completeness", "ok": true, "detail": "2170 decoded rows carry provenance that resolves to a manifest artifact"},
+        {"name": "decoded_tables_and_sidecars_validate", "ok": true, "detail": "dpcisr_module_cpu, dpcisr_interval, dpcisr_class_cpu, pdh_counters"},
+        {"name": "provenance_completeness", "ok": true, "detail": "2323 decoded rows carry provenance that resolves to a manifest artifact"},
         {"name": "evidence_validates_and_resolves", "ok": true, "detail": "2 rows"},
         {"name": "verdict_validates", "ok": true, "detail": null}
       ]
@@ -57,13 +57,14 @@
           {"stage": "raw_lines", "rows": 312},
           {"stage": "decoded_dpcisr_module_cpu", "rows": 288},
           {"stage": "decoded_dpcisr_interval", "rows": 352},
+          {"stage": "decoded_dpcisr_class_cpu", "rows": 153},
           {"stage": "evidence", "rows": 1}
         ],
         "events_lost": null,
         "truncation": {"truncated": false, "detail": "report reconciles (EQUAL) for both sections"},
         "stack_resolution_rate": null,
         "clock_fit": {"model": "unaligned", "offset_100ns": null, "rate": null, "residual_max_100ns": null, "error_bound_100ns": null, "pairs_used": 0, "clock_step_segments": 0},
-        "versions": {"tool_version": null, "decoder": "decode_dpcisr", "decoder_version": "1.0.0", "schema_version": "1.0.0"},
+        "versions": {"tool_version": null, "decoder": "decode_dpcisr", "decoder_version": "1.2.0", "schema_version": "1.1.0"},
         "unconsumed": [
           {"what": "Distribution of number of 2000 ms intervals w.r.t. DPC/ISR usage (report line 299)", "reason": "no decoded table defined for this section in phase 0a"}
         ]
@@ -297,7 +298,7 @@
         "measurement_status": "observed",
         "status_reason": "hand written example that copies one decoded row from each table into an evidence row; it evaluates no playbook",
         "inputs": [
-          {"decoded_table": "dpcisr_module_cpu", "schema_version": "1.0.0", "rows_in": 288, "collector_id": "dpcisr"},
+          {"decoded_table": "dpcisr_module_cpu", "schema_version": "1.1.0", "rows_in": 288, "collector_id": "dpcisr"},
           {"decoded_table": "pdh_counters", "schema_version": "1.0.0", "rows_in": 1530, "collector_id": "pdh"}
         ],
         "rows_out": 2,
@@ -305,7 +306,8 @@
         "disconfirmers_checked": [],
         "joins": ["dpcisr_interval_to_pdh_sample"],
         "unconsumed": [
-          {"what": "dpcisr_interval (352 rows)", "reason": "no analyzer exists in phase 0a"}
+          {"what": "dpcisr_interval (352 rows)", "reason": "no analyzer exists in phase 0a"},
+          {"what": "dpcisr_class_cpu (153 rows)", "reason": "no analyzer exists in phase 0a"}
         ]
       }
     ]
@@ -325,6 +327,7 @@
   "hypotheses": [],
   "unconsumed_data": [
     {"what": "decoded/dpcisr_interval.jsonl", "reason": "no analyzer exists in phase 0a"},
+    {"what": "decoded/dpcisr_class_cpu.jsonl", "reason": "no analyzer exists in phase 0a"},
     {"what": "raw/dpcisr/xperf_analysis.txt line 299 onward", "reason": "the 2000 ms distribution table has no decoded table in phase 0a"}
   ],
   "versions": {

@@ -75,7 +75,7 @@ EXPECTED = {
     "clock-calibration-clock-step": ("ok", {"clock_calibration": "observed", "operator_marks": "observed"}),
     "clock-calibration-missed-slot": ("ok", {"clock_calibration": "observed", "operator_marks": "observed_zero"}),
     "clock-calibration-read-failed": ("ok", {"clock_calibration": "observed", "operator_marks": "observed_zero"}),
-    "driver-inventory": ("ok", {"pnp_signed_drivers": "observed", "system_drivers": "observed"}),
+    "driver-inventory": ("ok", {"pnp_signed_drivers": "observed", "system_drivers": "observed", "pnp_device_services": "observed"}),
     "reliability-records": ("ok", {"reliability_records": "observed", "reliability_stability_metrics": "observed"}),
     "rf-survey": ("ok", {"net_adapters": "observed", "default_routes": "observed", "wlan_interfaces": "observed", "wlan_drivers": "observed",
                          "wlan_networks": "observed", "wlan_profiles": "observed", "wlan_report": "observed",
@@ -281,8 +281,12 @@ def test_status_and_evidence_stay_separate(case):
                     assert literal[:-1] + "0000Z" == recorded, (literal, recorded)
             if collector["raw_time_range"] is not None:
                 assert collector["raw_time_range"]["end"] == options["window_end_utc"]
-        elif collector["command"][0] == "Get-CimInstance" and "Win32_PnPEntity" not in collector["command"]:
+        elif collector["command"][0] == "Get-CimInstance" and not {"Get-PnpDeviceProperty", "SetupDiOpenDevRegKey"} & set(collector["command"]):
             assert "-OperationTimeoutSec" in collector["command"] and "-Property" in collector["command"]
+            if "Win32_PnPEntity" in collector["command"]:
+                # The one plain read of Plug and Play devices: service and setup class of present devices, nothing that identifies one.
+                assert collector["requested"]["options"]["properties"] == ["Service", "ClassGuid"]
+                assert collector["requested"]["options"]["filter"] == "Present = TRUE"
             if collector["requested"]["options"]["time_property"]:
                 assert "-Filter" in collector["command"] and collector["requested"]["options"]["filter"].startswith("TimeGenerated >= '")
         elif collector["kind"] == "presentmon":

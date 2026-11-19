@@ -77,7 +77,9 @@
         "clock_pairs",
         "clock_segments",
         "operator_marks",
-        "diskio_activity"
+        "diskio_activity",
+        "dpcisr_class_cpu",
+        "driver_service_class"
       ]
     },
     "time_domain": {

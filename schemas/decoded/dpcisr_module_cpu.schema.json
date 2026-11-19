@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/dpcisr_module_cpu.schema.json",
   "title": "dpcisr_module_cpu row",
-  "description": "One row per (kind, module, cpu) cell of the 'CPU Usage Summing By Module For the Whole Trace' tables in an xperf -a dpcisr report. Zero cells are rows.",
-  "x-schema-version": "1.0.0",
+  "description": "One row per (kind, module, cpu) cell of the 'CPU Usage Summing By Module For the Whole Trace' tables in an xperf -a dpcisr report. Zero cells are rows. Schema 1.1.0 adds the driver class columns, which decode_dpcisr 1.2.0 always fills (docs/driver-classes.md).",
+  "x-schema-version": "1.1.0",
   "x-decoded-table": "dpcisr_module_cpu",
   "type": "object",
   "additionalProperties": false,
@@ -49,6 +49,43 @@
       "type": "integer",
       "minimum": 0
     },
+    "driver_class": {
+      "type": "string",
+      "enum": [
+        "gpu",
+        "network",
+        "usb",
+        "bluetooth",
+        "audio",
+        "storage",
+        "kernel",
+        "other",
+        "unclassified"
+      ],
+      "description": "The driver class of the module (scripts/driver_classes.py); unclassified when nothing names one."
+    },
+    "classification_source": {
+      "type": "string",
+      "enum": [
+        "inventory",
+        "inbox-map",
+        "none"
+      ],
+      "description": "inventory: the PC's driver_service_class table; inbox-map: the cited map of Microsoft inbox binaries; none: neither."
+    },
+    "classification_reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Why the class was given, in words, including what the inventory said when the inbox map decided."
+    },
+    "classification_reference": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "description": "For inbox-map, the Learn page of the entry; for inventory, <inventory bundle_id>/decoded/driver_service_class.jsonl#line:<n>[;line:<n>]; null for none."
+    },
     "provenance": {
       "allOf": [
         {
@@ -60,7 +97,7 @@
               "const": "dpcisr_module_cpu"
             },
             "schema_version": {
-              "const": "1.0.0"
+              "const": "1.1.0"
             }
           }
         }
