@@ -454,6 +454,64 @@ function Get-WfSyntheticCases {
             }
         })
 
+    # The connection quality session. Every address, round trip and loss
+    # below is invented; the gateway address and the adapter's hardware
+    # address in New-WfSyntheticNet are canaries the tests look for in every
+    # bundle file.
+
+    # A 30 s session on a wired adapter: the gateway answers every echo, the
+    # line beyond it drops cloudflare for three seconds and google for one,
+    # and the gateway's DNS relay fails one query of three. Status ok.
+    $cases.Add(@{
+            Case = 'connection-quality'; Collector = 'connection-quality'; ExitCode = 0; Arguments = @{ DurationSeconds = 30 }
+            Setup = {
+                $global:WfSynthetic.Net.Lost = @{ gateway = @(); cloudflare = @(12, 13, 14); google = @(13) }
+                $global:WfSynthetic.Net.DnsFail = @{ gateway = @(20); cloudflare = @() }
+            }
+        })
+
+    # A 30 s session in which the cable drops: the adapter reads disconnected
+    # from 9 s to 11 s, every echo in those seconds times out and both DNS
+    # queries of slot 10 wait for their timeout, so the slots after them are
+    # reached more than an interval late and written as missed; the process is then
+    # starved for three seconds (the 17th wait overshoots), so three more
+    # slots are missed, the link reading of slot 20 among them (sampling
+    # gaps, not losses); from 25 s the preferred default route is another
+    # interface and gateway, which link_state records without naming either.
+    # Status ok.
+    $cases.Add(@{
+            Case = 'connection-quality-link-drop'; Collector = 'connection-quality'; ExitCode = 0; Arguments = @{ DurationSeconds = 30 }
+            Setup = {
+                $net = $global:WfSynthetic.Net
+                $net.LinkDown = @(@{ From = 9; To = 11 })
+                $net.Lost = @{ gateway = @(9, 10, 11); cloudflare = @(9, 10, 11); google = @(9, 10, 11) }
+                $net.DnsFail = @{ gateway = @(10); cloudflare = @(10, 11, 12) }
+                $net.RouteChangeAtSecond = 25
+                $net.RoutesAfterChange = @(@{ NextHop = '10.99.0.1'; InterfaceIndex = 12; RouteMetric = 0; Store = 1; AddressFamily = 2 })
+                $global:WfSynthetic.Clock = New-WfSyntheticClock -OvershootMs @{ 17 = 3000 }
+            }
+        })
+
+    # A PC whose only default route is on link (no gateway address): the
+    # gateway probes and the link reading are not collected, the public
+    # probes run. Status partial.
+    $cases.Add(@{
+            Case = 'connection-quality-no-gateway'; Collector = 'connection-quality'; ExitCode = 0; Arguments = @{ DurationSeconds = 10 }
+            Setup = {
+                $global:WfSynthetic.Net.Routes = @(@{ NextHop = '0.0.0.0'; InterfaceIndex = 3; RouteMetric = 0; Store = 1; AddressFamily = 2 })
+            }
+        })
+
+    # The echo batch throws in the fifth second: the session did not reach
+    # its stop, so every source is capture_failed and no samples file is
+    # kept. Status failed.
+    $cases.Add(@{
+            Case = 'connection-quality-session-failed'; Collector = 'connection-quality'; ExitCode = 1; Arguments = @{ DurationSeconds = 10 }
+            Setup = {
+                $global:WfSynthetic.Net.PingThrowAtSecond = 4
+            }
+        })
+
     return $cases.ToArray()
 }
 

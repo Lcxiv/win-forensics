@@ -1,0 +1,7 @@
+2026-03-01T12:00:01.0000000Z collector connection-quality version 1.0.0, helper version 1.2.0, no time window (snapshot), 70 s per source
+connection-quality: session start at qpc 27345678971284, 10 slots of 1 s, ping targets gateway,cloudflare,google, DNS targets gateway,cloudflare, link True
+connection-quality raised: the session failed: an exception of type System.InvalidOperationException
+source gateway_probes: status capture_failed, 2 artifacts
+source public_probes: status capture_failed, 2 artifacts
+source link_state: status capture_failed, 2 artifacts
+2026-03-01T12:00:10.0000000Z manifest written: bundle 20260301T120001Z_connection_quality_ae3a76a9, status failed, 6 artifacts
