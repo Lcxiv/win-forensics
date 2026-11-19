@@ -17,9 +17,12 @@ A module is classed first through the PC's own driver inventory, when
 such as S1 (its ``driver_service_class`` table), then through the cited map of
 Microsoft inbox binaries in ``scripts/driver_classes.py``, and otherwise is
 ``unclassified`` with source ``none``. An inventory of another machine, a
-bundle that does not list both sources, or one whose sources were observed but that was not decoded, is refused and nothing
-is written; an inventory whose sources were not observed is recorded in the
-``driver_inventory_join`` check and the inbox map alone is used.
+bundle that does not list both sources, one whose sources were observed but
+that was not decoded, or one whose decoded table differs from the rows its
+hash checked raw exports give, is refused and nothing is written; the rows
+used are the ones derived from those exports. An inventory whose sources were
+not observed is recorded in the ``driver_inventory_join`` check and the inbox
+map alone is used.
 
 Every row carries a provenance object whose ``row_id_or_offset`` is the 1-based
 line number of the raw line it was parsed from.
