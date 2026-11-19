@@ -9,9 +9,11 @@
 # pseudonyms that keep other people's network names out of a bundle) and is
 # what the Pester suite exercises off Windows. The second half is a small set
 # of adapter functions that touch Windows (event log, WMI, wevtutil, netsh,
-# one file under ProgramData, Plug and Play device properties, identity, the
-# inbox wpr.exe path, the hash and version of an operator supplied tool, and
-# the clock and sleep a live capture waits on).
+# powercfg, a few known files and folders, the registry provider, the two
+# audited native blocks for the device hardware keys and the processor
+# topology, Plug and Play device properties, identity, the inbox wpr.exe
+# path, the hash and version of an operator supplied tool, and the clock and
+# sleep a live capture waits on).
 # The test suite replaces the adapters with synthetic ones; nothing else in
 # this file calls a Windows only API.
 #
