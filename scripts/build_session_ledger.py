@@ -394,19 +394,23 @@ def entry_id(identity: tuple[Any, ...]) -> str:
 def build_sessions(observations: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """One row per log file, merged across bundles. See docs/session-ledger.md, "Play sessions"."""
     sessions = [o for o in observations if o["kind"] == "session"]
-    # Inside one bundle, logs of one title that share a creation time: file name tunnelling gives a file created under
-    # a name that was just renamed or deleted the old file's creation time, so only the first written keeps the start.
-    shared: set[int] = set()
-    groups: dict[tuple[str, str, datetime], list[dict[str, Any]]] = {}
+    # Logs of one title that share a creation time in any bundle: file name tunnelling gives a file created under a name
+    # that was just renamed or deleted the old file's creation time. Such a log is identified across bundles by its last
+    # write time too, and over all bundles only the first written keeps the start.
+    written: dict[tuple[str, str, datetime], set[datetime]] = {}
     for o in sessions:
-        groups.setdefault((o["bundle"]["bundle_id"], o["title"], o["created"]), []).append(o)
-    for group in groups.values():
-        for later in sorted(group, key=lambda o: o["written"])[1:]:
-            shared.add(id(later))
+        written.setdefault((o["bundle"]["bundle_id"], o["title"], o["created"]), set()).add(o["written"])
+    tunnelled = {(title, created) for (_, title, created), times in written.items() if len(times) > 1}
+    first_written: dict[tuple[str, datetime], datetime] = {}
+    for o in sessions:
+        key = (o["title"], o["created"])
+        if key in tunnelled and (key not in first_written or o["written"] < first_written[key]):
+            first_written[key] = o["written"]
     merged: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
     for o in sessions:
-        identity = ("session", o["title"], o["created_text"], "shared" if id(o) in shared else "own",
-                    o["written_text"] if id(o) in shared else None)
+        identity = ("session", o["title"], o["created_text"])
+        if (o["title"], o["created"]) in tunnelled:
+            identity += (o["written_text"],)
         merged.setdefault(identity, []).append(o)
     rows = []
     for identity, group in merged.items():
@@ -420,7 +424,7 @@ def build_sessions(observations: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 check = "replaced_in_place"
         start = latest["created"]
         end = latest["written"]
-        if id(latest) in shared:
+        if first_written.get((latest["title"], latest["created"]), latest["written"]) < latest["written"]:
             check, start = "creation_shared", None
         if check == "replaced_in_place":
             start = None

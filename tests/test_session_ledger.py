@@ -278,6 +278,25 @@ def test_a_log_renamed_to_a_backup_between_runs_is_still_one_session():
     assert [r["session_check"] for r in out if r is not first[0]] == ["creation_shared"]
 
 
+def test_a_purged_backup_never_hands_its_start_to_the_next_log():
+    t1 = "2026-02-27T10:00:00.0000000Z"
+    w1, w2, w3 = "2026-02-27T12:00:00.0000000Z", "2026-02-28T13:00:00.0000000Z", "2026-03-02T20:00:00.0000000Z"
+    run1 = [session("b1", "2026-03-01T12:00:00", t1, w1, 300, "FortniteGame-backup-2026.02.27-12.00.00.log"),
+            session("b1", "2026-03-01T12:00:00", t1, w2, 200)]
+    run2 = [session("b2", "2026-03-03T12:00:00", t1, w2, 200, "FortniteGame-backup-2026.02.28-13.00.00.log"),
+            session("b2", "2026-03-03T12:00:00", t1, w3, 100)]
+    out = ledger.build_sessions(run1 + run2)
+    by_end = {r["end_utc"]: r for r in out}
+    assert sorted(by_end) == [w1, w2, w3] and len(out) == 3
+    assert by_end[w1]["session_check"] == "ok" and by_end[w1]["duration_s"] == 2 * 3600
+    assert by_end[w2]["session_check"] == "creation_shared" and by_end[w2]["observations"] == 2
+    assert by_end[w3]["session_check"] == "creation_shared"
+    assert [r["end_utc"] for r in out if r["start_utc"] is not None] == [w1]
+    assert sum(r["duration_s"] for r in out if r["duration_s"] is not None) == 2 * 3600
+    again = ledger.build_sessions(list(reversed(run2 + run1)))
+    assert sorted(ledger.entry_id(r["_identity"]) for r in out) == sorted(ledger.entry_id(r["_identity"]) for r in again)
+
+
 def test_a_log_written_before_it_was_created_has_no_start():
     out = ledger.build_sessions([session("b1", "2026-03-01T12:00:00", "2026-02-27T10:00:00.0000000Z", "2026-02-27T09:00:00.0000000Z", 100)])
     assert len(out) == 1 and out[0]["session_check"] == "end_before_start"
