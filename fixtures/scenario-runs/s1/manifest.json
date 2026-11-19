@@ -2757,7 +2757,7 @@
     "Ran as the collector account (its name is not recorded); elevated: True; member of Event Log Readers (S-1-5-32-573): True; member of Performance Log Users (S-1-5-32-559): False.",
     "Each collector ran as its own Windows PowerShell process, one after another, except the clock session, which ran in the background across the live captures. Each collector's own manifest, summary and log are kept under logs/steps/<step>/ with the profile folder written as <profile>, the account as <account> and this directory as <bundle>; raw/ holds every source the runner merged, under its own id or with the step's prefix (state_before_, state_after_).",
     "In this scenario the history steps are optional: their sources are listed with required false whatever the collector marked.",
-    "Step state_before (config-snapshot): absent; config-snapshot.ps1 is not in this checkout (the state snapshot is PR 11); the slot is kept so the order does not change when it lands",
+    "Step state_before (config-snapshot): absent; config-snapshot is not registered with the runner yet; the slot is kept so the order does not change when it is",
     "Step clock (clock-calibration): completed",
     "Step dpcisr (dpcisr-trace): completed",
     "Step frames (presentmon-frames): completed",
@@ -2767,7 +2767,7 @@
     "Step tdr (tdr-events): completed",
     "Step reliability (reliability-records): completed",
     "Step drivers (driver-inventory): completed",
-    "Step state_after (config-snapshot): absent; config-snapshot.ps1 is not in this checkout (the state snapshot is PR 11); the slot is kept so the order does not change when it lands",
+    "Step state_after (config-snapshot): absent; config-snapshot is not registered with the runner yet; the slot is kept so the order does not change when it is",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine."
   ],
   "preflight": {
@@ -2926,7 +2926,7 @@
         "ready": null,
         "private_removed": null,
         "session_end": null,
-        "detail": "config-snapshot.ps1 is not in this checkout (the state snapshot is PR 11); the slot is kept so the order does not change when it lands"
+        "detail": "config-snapshot is not registered with the runner yet; the slot is kept so the order does not change when it is"
       },
       {
         "step": "clock",
@@ -3129,7 +3129,7 @@
         "ready": null,
         "private_removed": null,
         "session_end": null,
-        "detail": "config-snapshot.ps1 is not in this checkout (the state snapshot is PR 11); the slot is kept so the order does not change when it lands"
+        "detail": "config-snapshot is not registered with the runner yet; the slot is kept so the order does not change when it is"
       }
     ]
   }

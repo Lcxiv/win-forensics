@@ -178,7 +178,7 @@ Describe 'runner helpers' {
         $fixtures = Join-Path $script:CollectorRoot '../../fixtures/collector-bundles'
         foreach ($entry in @(Get-WfCollectorRegistry)) {
             $bundle = @(Get-ChildItem -LiteralPath $fixtures -Directory | Where-Object { $_.Name -eq $entry['Name'] -or $_.Name -like ($entry['Name'] + '-*') } | Sort-Object Name)
-            if ($entry['Name'] -eq 'config-snapshot') { $bundle.Count | Should -Be 0; continue }
+            if ($entry['Name'] -eq 'config-snapshot') { @($entry['Sources']).Count | Should -Be 0; continue }
             $manifest = Read-WfJsonFile -Path (Join-Path $bundle[0].FullName 'manifest.json')
             $declared = @($entry['Sources'] | ForEach-Object { '{0}|{1}|{2}' -f $_['Id'], $_['Kind'], $_['Required'] })
             $written = @($manifest['collectors'] | ForEach-Object { '{0}|{1}|{2}' -f $_['id'], $_['kind'], $_['required'] })

@@ -112,10 +112,9 @@ function Get-WfCollectorRegistry {
             Sources = @([ordered]@{ Id = 'pnp_signed_drivers'; Kind = 'config_snapshot'; Required = $true }, [ordered]@{ Id = 'system_drivers'; Kind = 'config_snapshot'; Required = $true })
             WorstCase = { return 600 }
         },
-        # The state snapshot (PR 11, not on main yet). The slot is reserved in
-        # S1 before and after; until config-snapshot.ps1 is beside this file
-        # the step is recorded as absent. Registering it is this entry: its
-        # sources and rights once it lands.
+        # The state snapshot. The slot is reserved in S1 before and after;
+        # until this entry declares its sources the step is recorded as
+        # absent. Registering it is this entry: its sources and rights.
         [ordered]@{
             Name = 'config-snapshot'; Rights = 'none'; DiskCaps = 0; DiskExtra = { return [int64]0 }; Tools = @(); ReadyFile = $null; Session = $null
             Sources = @()
@@ -644,7 +643,7 @@ function Invoke-WfScenario {
         foreach ($key in $stepDefinition.Keys) { $step[$key] = $stepDefinition[$key] }
         $step['Entry'] = Get-WfRegistryEntry -Name $step['Collector']
         $step['ScriptPath'] = [System.IO.Path]::Combine($CollectorRoot, $step['Collector'] + '.ps1')
-        $step['Absent'] = ($step['Phase'] -eq 'state' -and -not (Test-Path -LiteralPath $step['ScriptPath'] -PathType Leaf))
+        $step['Absent'] = ($step['Phase'] -eq 'state' -and @($step['Entry']['Sources']).Count -eq 0)
         $step['DeadlineSeconds'] = [int](& $step['Entry']['WorstCase'] $step['Arguments']) + (Get-WfRunnerDeadlineMarginSeconds)
         $steps.Add($step)
     }
@@ -656,7 +655,7 @@ function Invoke-WfScenario {
     $records = New-Object 'System.Collections.Generic.List[object]'
     foreach ($step in $steps) {
         $record = New-WfStepRecord -Step $step
-        if ($step['Absent']) { $record.outcome = 'absent'; $record.detail = $step['Collector'] + '.ps1 is not in this checkout (the state snapshot is PR 11); the slot is kept so the order does not change when it lands' }
+        if ($step['Absent']) { $record.outcome = 'absent'; $record.detail = $step['Collector'] + ' is not registered with the runner yet; the slot is kept so the order does not change when it is' }
         $step['Record'] = $record
         $records.Add($record)
     }

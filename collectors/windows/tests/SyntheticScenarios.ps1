@@ -1912,7 +1912,7 @@ function Get-WfSyntheticRunCases {
     return @(
         # S1 as it should go: every capture observed, the history optional and
         # partial (the undocumented Display provider never yields a quiet
-        # window), the state snapshot slots absent until PR 11 lands. Exit 0.
+        # window), the state snapshot slots absent until it is registered. Exit 0.
         @{ Case = 's1'; ExitCode = 0; Setup = { } },
         # The account is not elevated: the kernel trace cannot be started, the
         # preflight refuses before anything runs, every declared source is

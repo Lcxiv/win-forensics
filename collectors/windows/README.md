@@ -321,7 +321,7 @@ The steps run in this order. The clock session starts first and runs in the back
 | `drivers` | `driver-inventory` | history | no |
 | `state_after` | `config-snapshot` (with `-Snapshot stop`) | state | no |
 
-`config-snapshot` is PR 11 and is not on main. Its two steps are reserved slots: until `config-snapshot.ps1` is beside the runner each is recorded as `absent`, with no `collectors[]` entry (nothing ran, so nothing is claimed), and the order of the other steps does not change when it lands. Its sources get the prefixes `state_before_` and `state_after_` in the merged manifest, because the same collector runs twice.
+`config-snapshot` is not registered with the runner yet (its registry entry declares no sources). Its two steps are reserved slots: until the entry is filled in each is recorded as `absent`, with no `collectors[]` entry (nothing ran, so nothing is claimed), and the order of the other steps does not change when it is. Its sources get the prefixes `state_before_` and `state_after_` in the merged manifest, because the same collector runs twice.
 
 The clock session's length is planned, not measured: 30 seconds, plus each capture's window with an allowance for its start, stop and save (90 seconds for the kernel trace with its `tracerpt` summary, 60 for the frame recording, whose offline PresentMon read happens after its stop and needs no cover), at most 840. With the defaults that is 300 seconds. `run.clock_brackets_live` then says whether the first calibration pair came before the first capture started and the last pair after the last capture stopped, from the runner's own start and stop times of those steps; a capture that overran the session has file times after the last pair, which the clock fit treats as unaligned.
 
