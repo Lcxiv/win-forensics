@@ -10,7 +10,7 @@
   "source_sha256": "992b5acee5ef2843ac8ec39cec5e43408825b769c61a8045521c1e0a74bced42",
   "last_write_time_utc": "2026-02-28T12:00:00.0000000Z",
   "mode": "summary",
-  "copy_gate": null,
+  "why": "the file is free text that can name networks the current run never saw, so only its size, times, hash, line count and address token count are recorded",
   "summarised": true,
   "copied": false,
   "source_encoding": null,

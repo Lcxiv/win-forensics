@@ -93,6 +93,7 @@ DOC_POWERCFG = "https://learn.microsoft.com/windows-hardware/design/device-exper
 DOC_SLIDER = "https://learn.microsoft.com/windows-hardware/customize/desktop/customize-power-slider"
 DOC_PROCESS = "https://learn.microsoft.com/windows/win32/cimwin32prov/win32-process"
 DOC_LASSO_COMPONENTS = "https://bitsum.com/apps/process-lasso/docs/getting-started/how-it-works/"
+DOC_LASSO_LOGGING = "https://bitsum.com/apps/process-lasso/docs/interface/logging/"
 
 # IRQ_DEVICE_POLICY (wdm.h), and the TDR enumerations, as Microsoft lists them.
 IRQ_DEVICE_POLICY = {0: "IrqPolicyMachineDefault", 1: "IrqPolicyAllCloseProcessors", 2: "IrqPolicyOneCloseProcessor",
@@ -780,10 +781,10 @@ def decode_install_listing(bundle: Path, files: list[Any], source: str, entry: d
 
 def decode_copied_file(bundle: Path, source: str, entry: dict[str, Any], schema_version: str, category: str, stem: str) -> tuple[list[dict[str, Any]], list[str]]:
     """One row for a text file the collector copied or summarised. result.json says which (mode, copied, summarised): a protected
-    copy is keyed <stem>_copied and named in decoded.copy; a summary, written when the copy gate did not pass, is keyed
-    <stem>_summarised and named in decoded.summary, never as a copy. The facts (the original's hash and size, the replacement
-    counts, the gate's outcome) are in result.json, so the row's provenance points there and the report is a consumed source; the
-    primary itself stays a raw artifact."""
+    copy is keyed <stem>_copied and named in decoded.copy; a summary is keyed <stem>_summarised and named in decoded.summary,
+    never as a copy, with the line count and creation time read from the summary itself and the collector's reason as the note.
+    The other facts (the original's hash and size, the replacement counts) are in result.json, so the row's provenance points
+    there and the report is a consumed source; the primary itself stays a raw artifact."""
     command = " ".join(entry["command"] or [])
     when = captured_at(entry)
     report_path = report_of(entry)
@@ -800,21 +801,50 @@ def decode_copied_file(bundle: Path, source: str, entry: dict[str, Any], schema_
     else:
         raise DecodeError(f"{report_path}: mode, copied and summarised do not say whether the primary is a copy or a summary")
     path = str(report.get("path") or source)
-    gate = report.get("copy_gate")
+    facts: dict[str, Any] = {"copy": source if copied else None, "summary": None if copied else source, "source_sha256": report.get("source_sha256"),
+                             "source_bytes": report.get("source_bytes"), "last_write_time_utc": report.get("last_write_time_utc")}
     if copied:
         value_text = path
-    elif isinstance(gate, dict) and gate.get("passed") is False:
-        value_text = f"{path} (summarised, not copied, because the copy gate did not pass)"
+        facts.update({"copy_is_verbatim": report.get("copy_is_verbatim"), "protection": report.get("protection"), "source_encoding": report.get("source_encoding")})
     else:
+        summary = read_json(bundle / source, source)
+        if not isinstance(summary, dict) or summary.get("content_kept") is not False:
+            raise DecodeError(f"{source}: not a file summary")
         value_text = f"{path} (summarised, not copied)"
+        facts.update({"creation_time_utc": summary.get("creation_time_utc"), "lines": summary.get("lines"), "note": report.get("why")})
     prov = provenance("config_snapshot", report_path, "offset:0", schema_version)
     return [snapshot_row(category, f"{stem}_copied" if copied else f"{stem}_summarised", value_text, command, when, prov, present=True, value_number=report.get("source_bytes"),
-                         decoded={"copy": source if copied else None, "summary": None if copied else source, "source_sha256": report.get("source_sha256"),
-                                  "source_bytes": report.get("source_bytes"), "last_write_time_utc": report.get("last_write_time_utc"),
-                                  "copy_is_verbatim": report.get("copy_is_verbatim"), "protection": report.get("protection"), "source_encoding": report.get("source_encoding"),
-                                  "copy_gate": gate},
-                         documented_by=None, source_id=entry["id"])], [report_path, source]
+                         decoded=facts, documented_by=None, source_id=entry["id"])], [report_path, source]
 
+
+def decode_command_line_logging(bundle: Path, source: str, entry: dict[str, Any], schema_version: str) -> list[dict[str, Any]]:
+    """The IncludeCommandLines line of the copied Process Lasso INI, as an observation about the configuration at capture time:
+    present with its value, or absent. It says nothing about lines already in the log, and nothing is decided on it."""
+    command = " ".join(entry["command"] or [])
+    when = captured_at(entry)
+    note = "the setting as the INI holds it at capture time; the log is history and is summarised whatever this says"
+    for number, line in enumerate((bundle / source).read_text(encoding="utf-8").splitlines(), start=1):
+        match = re.match(r"\s*IncludeCommandLines\s*=(.*)$", line, re.IGNORECASE)
+        if not match:
+            continue
+        value = match.group(1).strip()
+        enabled = {"true": True, "1": True, "false": False, "0": False}.get(value.lower())
+        return [snapshot_row("process_lasso", "command_line_logging", f"IncludeCommandLines={value}", command, when,
+                             provenance("config_snapshot", source, f"line:{number}", schema_version), present=True,
+                             decoded={"setting": "IncludeCommandLines", "value": value, "enabled": enabled, "note": note},
+                             documented_by=DOC_LASSO_LOGGING, source_id=entry["id"])]
+    return [snapshot_row("process_lasso", "command_line_logging", "IncludeCommandLines is not in the INI", command, when,
+                         provenance("config_snapshot", source, "offset:0", schema_version), present=False,
+                         decoded={"setting": "IncludeCommandLines", "value": None, "enabled": None, "note": note},
+                         documented_by=DOC_LASSO_LOGGING, source_id=entry["id"])]
+
+
+def decode_lasso_config(bundle: Path, source: str, entry: dict[str, Any], schema_version: str) -> tuple[list[dict[str, Any]], list[str]]:
+    """The config_copied row and, when the INI text is in the bundle, the command_line_logging row read from it."""
+    produced, consumed = decode_copied_file(bundle, source, entry, schema_version, "process_lasso", "config")
+    if produced[0]["key"] == "config_copied":
+        produced += decode_command_line_logging(bundle, source, entry, schema_version)
+    return produced, consumed
 
 def decode_topology(records: list[Any], source: str, entry: dict[str, Any], schema_version: str) -> list[dict[str, Any]]:
     """cpu_topology rows from the parsed GetLogicalProcessorInformationEx records: one per core (its logical processors and SMT
@@ -1017,7 +1047,7 @@ def decode(bundle: Path, decoded_at: str | None = None) -> dict[str, Any]:
         "timer_helper_process": lambda s, p, e: decode_timer_helper(read_json_array(p, s), s, e, versions["config_snapshot"]),
         "process_lasso_install": lambda s, p, e: decode_install_listing(bundle, read_json_array(p, s), s, e, versions["config_snapshot"], "process_lasso"),
         "stutter_guard_install": lambda s, p, e: decode_install_listing(bundle, read_json_array(p, s), s, e, versions["config_snapshot"], "stutter_guard"),
-        "process_lasso_config": lambda s, p, e: decode_copied_file(bundle, s, e, versions["config_snapshot"], "process_lasso", "config"),
+        "process_lasso_config": lambda s, p, e: decode_lasso_config(bundle, s, e, versions["config_snapshot"]),
         "process_lasso_log": lambda s, p, e: decode_copied_file(bundle, s, e, versions["config_snapshot"], "process_lasso", "log"),
         "stutter_guard_journal": lambda s, p, e: decode_copied_file(bundle, s, e, versions["config_snapshot"], "stutter_guard", "journal"),
     }

@@ -12,12 +12,7 @@
   "source_sha256": null,
   "last_write_time_utc": null,
   "mode": "summary",
-  "copy_gate": {
-    "source": "process_lasso_config",
-    "pattern": "(?im)^\\s*IncludeCommandLines\\s*=\\s*(false|0)\\s*$",
-    "passed": false,
-    "detail": "the gating file process_lasso_config was not copied in this run, so the switch it carries is unknown"
-  },
+  "why": "the vendor log is history whose lines can carry process command line arguments, whatever IncludeCommandLines says now, and no shape rule reliably removes them, so only its size, times, hash, line count and address token count are recorded",
   "summarised": false,
   "copied": false,
   "source_encoding": null,

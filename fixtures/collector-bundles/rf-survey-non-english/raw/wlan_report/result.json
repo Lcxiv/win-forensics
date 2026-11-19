@@ -10,7 +10,7 @@
   "source_sha256": null,
   "last_write_time_utc": null,
   "mode": "summary",
-  "copy_gate": null,
+  "why": "the file is free text that can name networks the current run never saw, so only its size, times, hash, line count and address token count are recorded",
   "summarised": false,
   "copied": false,
   "source_encoding": null,

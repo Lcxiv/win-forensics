@@ -10,7 +10,7 @@
   "source_sha256": null,
   "last_write_time_utc": null,
   "mode": "copy",
-  "copy_gate": null,
+  "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)",
   "summarised": false,
   "copied": false,
   "source_encoding": null,

@@ -198,9 +198,10 @@ def test_status_and_evidence_stay_separate(case):
             assert collector["requested"]["options"]["path_documented"] is False
             mode = collector["requested"]["options"]["mode"]
             if mode == "summary":
-                # The WLAN report's text never leaves the machine.
+                # The text of the WLAN report and of the vendor log never leaves the machine.
+                assert collector["requested"]["options"]["protection"] is None
                 if collector["status"] in OBSERVED:
-                    assert primary[0]["path"].endswith("/report-summary.json")
+                    assert primary[0]["path"].endswith("-summary.json") and collector["enabled"]["options"]["content_kept"] is False
             else:
                 assert mode == "copy" and collector["requested"]["options"]["protection"]["user_pseudonym"].startswith("user-")
                 if collector["status"] in OBSERVED:
@@ -261,7 +262,7 @@ def test_observed_zero_is_an_empty_export_inside_a_covered_range(case):
         if not primary:
             continue
         text = (bundle / primary[0]["path"]).read_text(encoding="utf-8")
-        if primary[0]["path"].endswith("/report-summary.json"):
+        if primary[0]["path"].endswith("-summary.json"):
             # The file source's summary: one object about the file, never its text, never empty.
             summary = json.loads(text)
             assert summary["content_kept"] is False and summary["bytes"] > 0 and len(summary["sha256"]) == 64

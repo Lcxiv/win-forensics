@@ -101,66 +101,93 @@ def test_copied_files_are_protected_and_their_original_hash_is_recorded(bundle_c
     journal = (bundle / "raw" / "stutter_guard_journal" / "journal.json").read_text(encoding="utf-8")
     assert '"exportedBy": "C:\\\\Users\\\\user-' in journal, "a doubled separator in an escaped path is still a user profile path"
     # The same owner maps to the same pseudonym in every copied file of the bundle.
-    log = (bundle / "raw" / "process_lasso_log" / "processlasso.log").read_text(encoding="utf-8")
     pseudonym = ini.split("ExcludedProcesses=C:\\Users\\")[1].split("\\")[0]
-    assert pseudonym in log and pseudonym in journal
-    # In the vendor log everything after the first program on a line is gone, with the columns that followed it.
-    log_report = json.loads((bundle / "raw" / "process_lasso_log" / "result.json").read_text(encoding="utf-8"))
-    assert log_report["protection"]["command_arguments_removed"] == 3 and log_report["copy_is_verbatim"] is False
-    assert log.count("<arguments omitted>") == 3 and "Priority lowered" not in log and "GPU adapter preference set" not in log
+    assert pseudonym in journal
     decoded(bundle)
-    copied = {r["key"]: r for r in rows(bundle, "config_snapshot") if r["key"] in ("config_copied", "log_copied", "journal_copied")}
-    assert set(copied) == {"config_copied", "log_copied", "journal_copied"}
+    copied = {r["key"]: r for r in rows(bundle, "config_snapshot") if r["key"].endswith("_copied")}
+    assert set(copied) == {"config_copied", "journal_copied"}, "the vendor log is never copied"
     assert copied["config_copied"]["decoded"]["source_sha256"] == report["source_sha256"]
     # The row's facts live in result.json, so that is what the provenance names; the copy is a raw artifact the row points at.
     assert copied["config_copied"]["provenance"]["source_file"] == "raw/process_lasso_config/result.json"
     assert copied["config_copied"]["provenance"]["row_id_or_offset"] == "offset:0"
     assert copied["config_copied"]["decoded"]["copy"] == "raw/process_lasso_config/prolasso.ini"
-    assert copied["log_copied"]["decoded"]["copy_gate"]["passed"] is True, "the vendor log was copied because the INI says command lines are off"
-    assert copied["log_copied"]["decoded"]["protection"]["command_arguments_removed"] == 3, "the row carries the count of lines cut after their program"
-    assert copied["log_copied"]["decoded"]["copy_is_verbatim"] is False
-    assert "command_arguments_removed" not in copied["config_copied"]["decoded"]["protection"], "only the vendor log asks for the rule"
+    assert "copy_gate" not in copied["config_copied"]["decoded"]
     sidecar = meta(bundle, "config_snapshot")
     assert {"raw/process_lasso_config/result.json", "raw/process_lasso_config/prolasso.ini"} <= {f["path"] for f in sidecar["source_files"]}
 
 
-def test_a_summarised_log_is_never_labelled_a_copy(bundle_copy):
-    """The copy gate did not pass (the INI does not say command lines are off), so the collector wrote a summary as the primary."""
+def test_the_vendor_log_is_a_summary_row_and_never_a_copy(bundle_copy):
+    """The collector summarises the Process Lasso log: its lines can carry command line arguments no shape rule reliably removes."""
     bundle = bundle_copy("config-snapshot")
     folder = bundle / "raw" / "process_lasso_log"
+    assert sorted(p.name for p in folder.iterdir()) == ["log-summary.json", "result.json", "source.json"]
+    summary = json.loads((folder / "log-summary.json").read_text(encoding="utf-8"))
+    assert set(summary) == {"path", "bytes", "creation_time_utc", "last_write_time_utc", "sha256", "lines", "address_tokens", "content_kept"}
+    assert summary["content_kept"] is False
     report = json.loads((folder / "result.json").read_text(encoding="utf-8"))
-    gate = dict(report["copy_gate"], passed=False, detail="the gating file does not match the pattern")
-    report.update({"mode": "summary", "copy_gate": gate, "summarised": True, "copied": False, "source_encoding": None,
-                   "source_byte_order_mark": None, "copy_is_verbatim": None, "protection": None})
-    summary = {"path": report["path"], "bytes": report["source_bytes"], "last_write_time_utc": report["last_write_time_utc"],
-               "sha256": report["source_sha256"], "lines": 4, "address_tokens": 0, "content_kept": False}
-    (folder / "result.json").write_text(json.dumps(report), encoding="utf-8")
-    (folder / "processlasso.log").write_text(json.dumps(summary), encoding="utf-8")
-    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
-    entry = next(c for c in manifest["collectors"] if c["id"] == "process_lasso_log")
-    for artifact in entry["artifacts"]:
-        artifact["bytes"] = (bundle / artifact["path"]).stat().st_size
-        artifact["sha256"] = wf_schema.sha256_of(bundle / artifact["path"])
-    (bundle / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    assert "copy_gate" not in report and report["protection"] is None
 
     assert decoded(bundle)["tables"]["config_snapshot"]["status"] == "observed"
     table = rows(bundle, "config_snapshot")
     assert wf_schema.validate_rows(table, "decoded/config_snapshot.schema.json") == []
     by_key = {r["key"]: r for r in table if r["source_id"] in ("process_lasso_config", "process_lasso_log", "stutter_guard_journal")}
-    assert set(by_key) == {"config_copied", "log_summarised", "journal_copied"}, "a summary is never keyed as a copy"
+    assert set(by_key) == {"config_copied", "command_line_logging", "log_summarised", "journal_copied"}, "a summary is never keyed as a copy"
     row = by_key["log_summarised"]
     assert row["present"] is True and row["category"] == "process_lasso"
-    assert "summarised" in row["value_text"] and "copy gate did not pass" in row["value_text"]
-    assert row["decoded"]["copy"] is None and row["decoded"]["summary"] == "raw/process_lasso_log/processlasso.log"
-    assert row["decoded"]["copy_gate"]["passed"] is False and row["decoded"]["copy_is_verbatim"] is None and row["decoded"]["protection"] is None
-    assert row["decoded"]["source_sha256"] == report["source_sha256"] and row["value_number"] == report["source_bytes"]
+    assert row["value_text"].endswith("(summarised, not copied)") and row["value_number"] == report["source_bytes"] == summary["bytes"]
+    assert row["decoded"] == {"copy": None, "summary": "raw/process_lasso_log/log-summary.json", "source_sha256": summary["sha256"],
+                              "source_bytes": summary["bytes"], "last_write_time_utc": summary["last_write_time_utc"],
+                              "creation_time_utc": summary["creation_time_utc"], "lines": summary["lines"], "note": report["why"]}
+    assert len(row["decoded"]["source_sha256"]) == 64 and row["decoded"]["lines"] == 5 and row["decoded"]["creation_time_utc"]
+    assert "command line arguments" in row["decoded"]["note"] and "no shape rule reliably removes" in row["decoded"]["note"]
     assert row["provenance"]["source_file"] == "raw/process_lasso_log/result.json" and row["provenance"]["row_id_or_offset"] == "offset:0"
     assert by_key["config_copied"]["decoded"]["summary"] is None
 
+
+def rewrite_ini(bundle: Path, old: str, new: str) -> None:
+    """Changes one line of the copied INI in a bundle copy and brings the manifest's size and hash for it in step."""
+    path = bundle / "raw" / "process_lasso_config" / "prolasso.ini"
+    text = path.read_bytes().decode("utf-8")
+    assert old in text
+    path.write_bytes(text.replace(old, new).encode("utf-8"))
+    manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+    for artifact in next(c for c in manifest["collectors"] if c["id"] == "process_lasso_config")["artifacts"]:
+        artifact["bytes"] = (bundle / artifact["path"]).stat().st_size
+        artifact["sha256"] = wf_schema.sha256_of(bundle / artifact["path"])
+    (bundle / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+
+@pytest.mark.parametrize("line, present, value, enabled", [
+    ("IncludeCommandLines=false", True, "false", False),
+    ("IncludeCommandLines = 1", True, "1", True),
+    ("includecommandlines=maybe", True, "maybe", None),
+    ("LogPruneDays=30", False, None, None),
+], ids=["off", "on", "unreadable", "absent"])
+def test_command_line_logging_is_an_observation_about_the_ini_and_never_a_gate(line, present, value, enabled, bundle_copy):
+    bundle = bundle_copy("config-snapshot")
+    rewrite_ini(bundle, "IncludeCommandLines=false", line)
+    assert decoded(bundle)["tables"]["config_snapshot"]["status"] == "observed"
+    table = rows(bundle, "config_snapshot")
+    assert wf_schema.validate_rows(table, "decoded/config_snapshot.schema.json") == []
+    row = next(r for r in table if r["key"] == "command_line_logging")
+    assert row["category"] == "process_lasso" and row["source_id"] == "process_lasso_config" and row["present"] is present
+    assert row["decoded"]["setting"] == "IncludeCommandLines" and row["decoded"]["value"] == value and row["decoded"]["enabled"] is enabled
+    assert row["provenance"]["source_file"] == "raw/process_lasso_config/prolasso.ini"
+    ini_lines = (bundle / "raw" / "process_lasso_config" / "prolasso.ini").read_text(encoding="utf-8").splitlines()
+    if present:
+        assert row["value_text"] == f"IncludeCommandLines={value}"
+        assert ini_lines[int(row["provenance"]["row_id_or_offset"].removeprefix("line:")) - 1] == line
+    else:
+        assert row["provenance"]["row_id_or_offset"] == "offset:0" and "not in the INI" in row["value_text"]
+    keys = {r["key"] for r in table if r["source_id"] == "process_lasso_log"}
+    assert keys == {"log_summarised"}, "the log is summarised whatever the INI says"
+
+
+def test_a_report_that_does_not_say_copy_or_summary_fails_the_table(bundle_copy):
     unclear = bundle_copy("config-snapshot")
     report_path = unclear / "raw" / "process_lasso_log" / "result.json"
     report = json.loads(report_path.read_text(encoding="utf-8"))
-    report["copied"] = False
+    report["summarised"] = False
     report_path.write_text(json.dumps(report), encoding="utf-8")
     result = decoded(unclear)
     assert result["tables"]["config_snapshot"]["status"] == "decode_failed" and "a copy or a summary" in result["tables"]["config_snapshot"]["reason"]

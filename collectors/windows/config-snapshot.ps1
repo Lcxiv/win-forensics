@@ -47,9 +47,11 @@
 #   process_lasso_install, stutter_guard_install
 #                         the files under the conventional install folders,
 #                         hashed and versioned, never copied
-#   process_lasso_config, process_lasso_log, stutter_guard_journal
-#                         protected copies of the configuration, the action
-#                         log and the journal, with the hash of the original
+#   process_lasso_config, stutter_guard_journal
+#                         protected copies of the configuration and the
+#                         journal, with the hash of the original
+#   process_lasso_log     a summary of the action log (size, times, hash,
+#                         line count), never its text
 #
 # Citations for the keys and classes read:
 # https://learn.microsoft.com/windows-hardware/drivers/kernel/interrupt-affinity-and-priority
@@ -362,27 +364,24 @@ $definition = @{
         @{
             Id                 = 'process_lasso_log'
             Type               = 'file'
-            Mode               = 'copy'
             Kind               = 'config_snapshot'
             Required           = $false
             Folder             = 'ProgramData'
             PathTail           = 'ProcessLasso\logs\processlasso.log'
             AlternatePathTails = @('ProcessLasso\logs\prolasso.log', 'ProcessLasso\prolasso.log')
             PathDocumented     = $false
-            FileName           = 'processlasso.log'
-            # Bitsum: process command lines are not logged by default "because they
-            # may contain user sensitive information" and are switched on by the
-            # IncludeCommandLines setting (https://bitsum.com/apps/process-lasso/docs/interface/logging/,
-            # https://bitsum.com/apps/process-lasso/docs/reference/ini-config/). The
-            # log is copied only when the copied INI says that switch is off;
-            # otherwise it is summarised (size, time, hash, line count). The
-            # switch says nothing about lines written while it was on, so in
-            # the copy everything after the first program on a line is removed
-            # by shape first; the gate is the second layer.
-            StripArgumentsAfterExecutable = $true
-            CopyGate           = @{ Source = 'process_lasso_config'; Pattern = '(?im)^\s*IncludeCommandLines\s*=\s*(false|0)\s*$'; Reason = 'the INI does not say IncludeCommandLines is off, so the log may carry process command lines, which the vendor documents as possibly sensitive and whose removal by shape misses a program without a known extension' }
+            FileName           = 'log-summary.json'
+            # Summary only. The log is history: Bitsum says process command
+            # lines are not logged by default "because they may contain user
+            # sensitive information" and are switched on by IncludeCommandLines
+            # (https://bitsum.com/apps/process-lasso/docs/interface/logging/,
+            # https://bitsum.com/apps/process-lasso/docs/reference/ini-config/),
+            # and what that switch says now says nothing about lines written
+            # earlier. No shape rule reliably removes argument text, so no
+            # line of the log reaches the bundle.
+            SummaryReason      = 'the vendor log is history whose lines can carry process command line arguments, whatever IncludeCommandLines says now, and no shape rule reliably removes them'
             MissingHint        = 'Bitsum names the action log prolasso.log (https://bitsum.com/apps/process-lasso/docs/getting-started/how-it-works/) and says its path is set under Options / General / Configure Startup (https://bitsum.com/apps/process-lasso/docs/interface/logging/); the candidates tried are listed in source.json.'
-            Expectation        = 'the action log exists at one of the candidate paths and is readable; its protected text and the hash of the original are recorded'
+            Expectation        = 'the action log exists at one of the candidate paths and is readable; its size, times, hash and line count are recorded, its text is not'
         },
         @{
             Id             = 'stutter_guard_install'

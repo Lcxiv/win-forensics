@@ -419,7 +419,7 @@ function Invoke-WfProcess {
 
 function Read-WfFileBytes {
     param([string]$Path, [int64]$MaxBytes, [datetime]$DeadlineUtc = [datetime]::MaxValue)
-    $result = [ordered]@{ Exists = $false; Readable = $false; Bytes = $null; Length = $null; LastWriteUtc = $null; ErrorKind = $null; ErrorMessage = $null }
+    $result = [ordered]@{ Exists = $false; Readable = $false; Bytes = $null; Length = $null; CreationUtc = $null; LastWriteUtc = $null; ErrorKind = $null; ErrorMessage = $null }
     if (-not $global:WfSynthetic.Files.ContainsKey($Path)) {
         $result.ErrorKind = 'not_found'
         $result.ErrorMessage = 'the file does not exist'
@@ -435,6 +435,7 @@ function Read-WfFileBytes {
     }
     $bytes = (New-Object System.Text.UTF8Encoding($false)).GetBytes([string]$entry['Text'])
     $result.Length = [int64]$bytes.Length
+    $result.CreationUtc = ConvertTo-WfUtcString -Value $global:WfSynthetic.Now.AddDays(-30)
     $result.LastWriteUtc = ConvertTo-WfUtcString -Value $global:WfSynthetic.Now.AddDays(-1)
     if ($result.Length -gt $MaxBytes) {
         $result.ErrorKind = 'too_large'

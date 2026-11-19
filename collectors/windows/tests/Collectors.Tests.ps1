@@ -1950,141 +1950,50 @@ Describe 'config-snapshot sources against the synthetic backend' {
         $log = Get-ConfigSource -Run $run -Id 'process_lasso_log'
         @($log.requested.options.path_candidates).Count | Should -Be 3
         $log.enabled.options.path | Should -BeExactly 'C:\ProgramData\ProcessLasso\logs\processlasso.log'
-        $log.requested.options.copy_gate.passed | Should -BeTrue
+        $log.requested.options.mode | Should -BeExactly 'summary'
     }
 
-    It 'summarises the vendor log instead of copying it when the INI does not say command lines are off' {
-        foreach ($case in @(@{ Name = 'on'; Replace = 'IncludeCommandLines=true' }, @{ Name = 'missing'; Replace = 'LogDisable=false' })) {
+    It 'summarises the vendor log and lets no line of it into the bundle, whatever the INI says' {
+        $text = "-password=x`r`n'C:\a\game.exe' -token=abc`r`ngame.exe; -key s3cr3t`r`n"
+        foreach ($case in @(@{ Name = 'off'; Replace = 'IncludeCommandLines=false' }, @{ Name = 'on'; Replace = 'IncludeCommandLines=true' }, @{ Name = 'missing'; Replace = 'LogDisable=false' }, @{ Name = 'noini'; Replace = $null })) {
             Start-ConfigCase
-            $ini = $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\config\prolasso.ini']['Text']
-            $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\config\prolasso.ini'] = @{ Text = $ini.Replace('IncludeCommandLines=false', [string]$case['Replace']) }
-            $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\logs\processlasso.log'] = @{ Text = "`"Date`",`"Action`",`"Details`"`r`n`"2026-02-10`",`"Launch`",`"C:\Games\game.exe -AUTH_PASSWORD=0123456789abcdef -epicusername=PlayerName`"`r`n" }
-            $out = Join-Path $TestDrive ('gate-' + $case['Name'])
+            if ($null -eq $case['Replace']) {
+                $global:WfSynthetic.Files.Remove('C:\ProgramData\ProcessLasso\config\prolasso.ini')
+            } else {
+                $ini = $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\config\prolasso.ini']['Text']
+                $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\config\prolasso.ini'] = @{ Text = $ini.Replace('IncludeCommandLines=false', [string]$case['Replace']) }
+            }
+            $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\logs\processlasso.log'] = @{ Text = $text }
+            $out = Join-Path $TestDrive ('log-' + $case['Name'])
             $run = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out
             $log = Get-ConfigSource -Run $run -Id 'process_lasso_log'
-            $log.status | Should -BeExactly 'observed'
+            $log.status | Should -BeExactly 'observed' -Because $case['Name']
             $log.requested.options.mode | Should -BeExactly 'summary'
-            $log.requested.options.copy_gate.passed | Should -BeFalse
+            $log.requested.options.PSObject.Properties.Name | Should -Not -Contain 'copy_gate'
+            $log.requested.options.protection | Should -BeNullOrEmpty
             $log.enabled.options.content_kept | Should -BeFalse
             foreach ($file in @(Get-ChildItem -LiteralPath $out -File -Recurse)) {
-                [System.IO.File]::ReadAllText($file.FullName).Contains('AUTH_PASSWORD') | Should -BeFalse -Because ($file.Name + ' must not carry a logged command line')
+                $content = [System.IO.File]::ReadAllText($file.FullName)
+                foreach ($secret in @('password', 'token=abc', 's3cr3t')) {
+                    $content.Contains($secret) | Should -BeFalse -Because ($file.Name + ' must not carry ' + $secret)
+                }
             }
-            $summary = Get-Content -LiteralPath (Join-Path $out 'raw/process_lasso_log/processlasso.log') -Raw | ConvertFrom-Json
+            @(Get-ChildItem -LiteralPath (Join-Path $out 'raw/process_lasso_log') -File | ForEach-Object { $_.Name } | Sort-Object) | Should -Be @('log-summary.json', 'result.json', 'source.json')
+            $summary = Get-Content -LiteralPath (Join-Path $out 'raw/process_lasso_log/log-summary.json') -Raw | ConvertFrom-Json
+            @($summary.PSObject.Properties.Name | Sort-Object) | Should -Be @('address_tokens', 'bytes', 'content_kept', 'creation_time_utc', 'last_write_time_utc', 'lines', 'path', 'sha256')
             $summary.content_kept | Should -BeFalse
-            $summary.lines | Should -Be 3
+            $summary.bytes | Should -Be $text.Length
+            $summary.lines | Should -Be 4
+            $summary.sha256 | Should -BeExactly (Get-WfSha256OfText -Text $text)
+            $summary.creation_time_utc | Should -Not -BeNullOrEmpty
+            $summary.last_write_time_utc | Should -Not -BeNullOrEmpty
+            $report = Get-Content -LiteralPath (Join-Path $out 'raw/process_lasso_log/result.json') -Raw | ConvertFrom-Json
+            $report.summarised | Should -BeTrue
+            $report.copied | Should -BeFalse
+            $report.protection | Should -BeNullOrEmpty
+            $report.why | Should -Match 'command line arguments'
+            @($run.Manifest.notes | Where-Object { $_ -match 'process_lasso_log' -and $_ -match 'summarised, not copied' }).Count | Should -Be 1
         }
-        # When the INI itself was not copied, the gate cannot pass either.
-        Start-ConfigCase
-        $global:WfSynthetic.Files.Remove('C:\ProgramData\ProcessLasso\config\prolasso.ini')
-        $run2 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory (Join-Path $TestDrive 'gate-noini')
-        (Get-ConfigSource -Run $run2 -Id 'process_lasso_log').requested.options.copy_gate.detail | Should -Match 'was not copied'
-        (Get-ConfigSource -Run $run2 -Id 'process_lasso_log').requested.options.mode | Should -BeExactly 'summary'
-    }
-
-    It 'removes everything after the first program on a line when the source asks, and leaves other text alone' {
-        $cases = @(
-            @{ In = '2026,Launch,chrome.exe --handle=1,i,2 --token=secret'; Out = '2026,Launch,chrome.exe <arguments omitted>' },
-            @{ In = '"C:\a\game.exe -password=x -launcher=b.exe" -more'; Out = '"C:\a\game.exe <arguments omitted>' },
-            @{ In = '2026,Launch, "C:\a\game.exe -password=x -launcher=b.exe"'; Out = '2026,Launch, "C:\a\game.exe <arguments omitted>' },
-            @{ In = '2026,Launch, "C:\a\game.exe -password=x -launcher=b.exe" ,next'; Out = '2026,Launch, "C:\a\game.exe <arguments omitted>' },
-            @{ In = 'C:\Games\game.exe -AUTH_PASSWORD=0123456789abcdef -epicusername=PlayerName'; Out = 'C:\Games\game.exe <arguments omitted>' },
-            @{ In = '"C:\Program Files\Game\game.exe" -token=abc'; Out = '"C:\Program Files\Game\game.exe" <arguments omitted>' },
-            @{ In = 'C:\Games\game.exe -password=x'; Out = 'C:\Games\game.exe <arguments omitted>' },
-            @{ In = 'launcher.exe game.exe -x'; Out = 'launcher.exe <arguments omitted>' },
-            @{ In = 'C:\Tools\RUN.BAT /secret:hunter2'; Out = 'C:\Tools\RUN.BAT <arguments omitted>' },
-            @{ In = '"C:\Tools\start it.cmd" --key s3cr3t'; Out = '"C:\Tools\start it.cmd" <arguments omitted>' },
-            @{ In = 'tool.com /u:someone'; Out = 'tool.com <arguments omitted>' },
-            @{ In = '"2026-02-10","Rule","game.exe","9344","GPU adapter preference set"'; Out = '"2026-02-10","Rule","game.exe" <arguments omitted>' }
-        )
-        foreach ($case in $cases) {
-            $r = Protect-WfCopiedText -Text ([string]$case['In']) -Salt 'test-salt' -StripArgumentsAfterExecutable
-            $r['Text'] | Should -BeExactly ([string]$case['Out']) -Because ([string]$case['In'])
-            $r['ArgumentCount'] | Should -Be 1 -Because ([string]$case['In'])
-        }
-        foreach ($same in @('C:\Games\game.exe', '"C:\Program Files\Game\game.exe"', '2026,ProBalance,example.exe ', '2026,ProBalance,Priority lowered to Below Normal', 'see the commands list, or game.exefile', '')) {
-            $r = Protect-WfCopiedText -Text $same -Salt 'test-salt' -StripArgumentsAfterExecutable
-            $r['Text'] | Should -BeExactly $same
-            $r['ArgumentCount'] | Should -Be 0
-        }
-        $lines = "first,game.exe -password=x,kept`r`nno program here`nlast,next.exe`r`nC:\Games\b.cmd /k`n"
-        $r = Protect-WfCopiedText -Text $lines -Salt 'test-salt' -StripArgumentsAfterExecutable
-        $r['Text'] | Should -BeExactly "first,game.exe <arguments omitted>`r`nno program here`nlast,next.exe`r`nC:\Games\b.cmd <arguments omitted>`n" -Because 'each line is cut on its own and every line ending stays'
-        $r['ArgumentCount'] | Should -Be 2
-        $rest = Protect-WfCopiedText -Text 'C:\Users\Jane Doe\Games\game.exe -mail=jane.doe@example.test' -Salt 'test-salt' -StripArgumentsAfterExecutable
-        $rest['Text'] | Should -Match '^C:\\Users\\user-[0-9a-f]{12}\\Games\\game\.exe <arguments omitted>$' -Because 'the other rules still apply to what remains'
-        $rest['MailCount'] | Should -Be 0
-        $plain = Protect-WfCopiedText -Text 'C:\Games\game.exe -password=x' -Salt 'test-salt'
-        $plain['Text'] | Should -BeExactly 'C:\Games\game.exe -password=x' -Because 'a source that does not ask keeps its text'
-        $plain['ArgumentCount'] | Should -Be 0
-    }
-
-    It 'copies the vendor log without the arguments of a command line logged while the switch was on' {
-        Start-ConfigCase
-        $logLines = @(
-            '"Date","Action","Details"',
-            '"2026-02-08","Launch","C:\Games\game.exe -AUTH_PASSWORD=0123456789abcdef -epicusername=PlayerName"',
-            '2026-02-08,Launch,"C:\Program Files\Game\game.exe" -token=abc',
-            '2026-02-08,Launch,C:\Games\game.exe -password=x',
-            '2026-02-08,Launch,launcher.exe game.exe -x',
-            '2026-02-08,Launch,C:\Tools\run.bat /secret:hunter2',
-            '2026-02-08,Launch,"C:\Tools\start it.cmd" --key s3cr3t',
-            '2026-02-08,Launch,chrome.exe --handle=1,i,2 --token=secret',
-            '2026-02-08,Launch, "C:\a\game.exe -pin=4711 -launcher=b.exe"',
-            '2026-02-08,Launch,"C:\a\game.exe -pin=4712 -launcher=c.exe" -more',
-            '2026-02-09,ProBalance,Priority lowered to Below Normal',
-            '2026-02-09,ProBalance,example.exe',
-            '"2026-02-10","Rule","C:\Users\Synthetic Owner\Games\game.exe"',
-            ''
-        )
-        $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\logs\processlasso.log'] = @{ Text = ($logLines -join "`r`n") }
-        $out = Join-Path $TestDrive 'log-arguments'
-        $run = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out
-        $source = Get-ConfigSource -Run $run -Id 'process_lasso_log'
-        $source.status | Should -BeExactly 'observed'
-        $source.requested.options.mode | Should -BeExactly 'copy'
-        $source.requested.options.copy_gate.passed | Should -BeTrue
-        foreach ($file in @(Get-ChildItem -LiteralPath $out -File -Recurse)) {
-            $text = [System.IO.File]::ReadAllText($file.FullName)
-            foreach ($secret in @('AUTH_PASSWORD', '0123456789abcdef', 'epicusername', 'PlayerName', 'token=abc', 'password=x', 'game.exe -x', 'hunter2', 's3cr3t', '--handle', 'token=secret', '4711', '4712', 'launcher=', '-more', 'Synthetic Owner')) {
-                $text.Contains($secret) | Should -BeFalse -Because ($file.Name + ' must not carry ' + $secret)
-            }
-        }
-        $copy = @([System.IO.File]::ReadAllText((Join-Path $out 'raw/process_lasso_log/processlasso.log')) -split "`r`n")
-        $copy.Count | Should -Be $logLines.Count
-        $copy[0] | Should -BeExactly $logLines[0]
-        $copy[1] | Should -BeExactly '"2026-02-08","Launch","C:\Games\game.exe <arguments omitted>'
-        $copy[2] | Should -BeExactly '2026-02-08,Launch,"C:\Program Files\Game\game.exe" <arguments omitted>'
-        $copy[3] | Should -BeExactly '2026-02-08,Launch,C:\Games\game.exe <arguments omitted>'
-        $copy[4] | Should -BeExactly '2026-02-08,Launch,launcher.exe <arguments omitted>'
-        $copy[5] | Should -BeExactly '2026-02-08,Launch,C:\Tools\run.bat <arguments omitted>'
-        $copy[6] | Should -BeExactly '2026-02-08,Launch,"C:\Tools\start it.cmd" <arguments omitted>'
-        $copy[7] | Should -BeExactly '2026-02-08,Launch,chrome.exe <arguments omitted>'
-        $copy[8] | Should -BeExactly '2026-02-08,Launch, "C:\a\game.exe <arguments omitted>'
-        $copy[9] | Should -BeExactly '2026-02-08,Launch,"C:\a\game.exe <arguments omitted>'
-        $copy[10] | Should -BeExactly $logLines[10] -Because 'a line with no program is unchanged'
-        $copy[11] | Should -BeExactly $logLines[11] -Because 'a program that is the last thing on its line is unchanged'
-        $copy[12] | Should -Match '^"2026-02-10","Rule","C:\\Users\\user-[0-9a-f]{12}\\Games\\game\.exe"$'
-        $report = Get-Content -LiteralPath (Join-Path $out 'raw/process_lasso_log/result.json') -Raw | ConvertFrom-Json
-        $report.protection.command_arguments_removed | Should -Be 9
-        $report.protection.user_profile_names_replaced | Should -Be 1
-        $report.copy_is_verbatim | Should -BeFalse
-        $source.enabled.options.copy_is_verbatim | Should -BeFalse
-        $source.requested.options.protection.argument_removal | Should -Match '<arguments omitted>'
-        @($run.Manifest.notes | Where-Object { $_ -match 'process_lasso_log' -and $_ -match 'arguments after a program removed on 9 lines' }).Count | Should -Be 1
-        $ini = Get-Content -LiteralPath (Join-Path $out 'raw/process_lasso_config/result.json') -Raw | ConvertFrom-Json
-        $ini.protection.PSObject.Properties.Name | Should -Not -Contain 'command_arguments_removed' -Because 'the INI did not ask for the rule'
-    }
-
-    It 'keeps a copied log whose programs end their lines verbatim' {
-        Start-ConfigCase
-        $text = "`"2026-02-09`",`"ProBalance`",`"Priority lowered to Below Normal`",`"example.exe`"`r`n"
-        $global:WfSynthetic.Files['C:\ProgramData\ProcessLasso\logs\processlasso.log'] = @{ Text = $text }
-        $out = Join-Path $TestDrive 'log-verbatim'
-        $null = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory $out
-        [System.IO.File]::ReadAllText((Join-Path $out 'raw/process_lasso_log/processlasso.log')) | Should -BeExactly $text
-        $report = Get-Content -LiteralPath (Join-Path $out 'raw/process_lasso_log/result.json') -Raw | ConvertFrom-Json
-        $report.protection.command_arguments_removed | Should -Be 0
-        $report.copy_is_verbatim | Should -BeTrue
     }
 
     It 'finds the log at an alternate candidate and reports a missing file with every candidate tried' {
@@ -2097,7 +2006,7 @@ Describe 'config-snapshot sources against the synthetic backend' {
         $log = Get-ConfigSource -Run $run -Id 'process_lasso_log'
         $log.status | Should -BeExactly 'observed'
         $log.enabled.options.path | Should -BeExactly 'C:\ProgramData\ProcessLasso\logs\prolasso.log'
-        Test-Path -LiteralPath (Join-Path $out 'raw/process_lasso_log/processlasso.log') | Should -BeTrue -Because 'the primary keeps the definition''s file name'
+        Test-Path -LiteralPath (Join-Path $out 'raw/process_lasso_log/log-summary.json') | Should -BeTrue -Because 'the primary keeps the definition''s file name'
         Start-ConfigCase 'config-snapshot-clean'
         $run2 = Invoke-TestCollector -Collector 'config-snapshot' -OutputDirectory (Join-Path $TestDrive 'no-log')
         $missing = Get-ConfigSource -Run $run2 -Id 'process_lasso_log'

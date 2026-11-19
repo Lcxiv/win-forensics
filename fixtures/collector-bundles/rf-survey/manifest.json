@@ -802,7 +802,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "cec914c956b69dc36834b6bec28f4ff01e7d6182e65e04756a9b90478954d074"
+        "value": "4e18c8bb26d66c745e8e0922b55e6c66809d297e89573b294bf5a26b79ee4eec"
       },
       "filter_hash": null,
       "requested": {
@@ -819,8 +819,7 @@
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 80,
           "mode": "summary",
-          "copy_gate": null,
-          "why": "the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded",
+          "why": "the file is free text that can name networks the current run never saw, so only its size, times, hash, line count and address token count are recorded",
           "protection": null,
           "sharing": "the file is opened for reading with writers allowed to continue; a file being appended may be read mid line, and the hash is of the bytes read"
         }
@@ -848,20 +847,20 @@
       "artifacts": [
         {
           "path": "raw/wlan_report/report-summary.json",
-          "bytes": 305,
-          "sha256": "5911ff60c224ad50f63450a4ecf5779242fc44da86d5d3b04d9a02288e135777",
+          "bytes": 360,
+          "sha256": "aa9690e36dca3765cc6d1a7f3130b7d509692dafa0af646e0781f7453d8a21ce",
           "role": "primary"
         },
         {
           "path": "raw/wlan_report/result.json",
-          "bytes": 612,
-          "sha256": "4edcc53b77edef5f89cf497fd7867cfc04a1daa423405e3c9b8c076d87aa5dd3",
+          "bytes": 754,
+          "sha256": "2f20ada51ff5f033a2ae4cedb65225e4445dd312be99cf3b6ca347c502b0ab27",
           "role": "report"
         },
         {
           "path": "raw/wlan_report/source.json",
-          "bytes": 649,
-          "sha256": "cec914c956b69dc36834b6bec28f4ff01e7d6182e65e04756a9b90478954d074",
+          "bytes": 648,
+          "sha256": "4e18c8bb26d66c745e8e0922b55e6c66809d297e89573b294bf5a26b79ee4eec",
           "role": "config"
         }
       ],
@@ -1274,6 +1273,6 @@
     "Each event log query selects a fixed interval, window_end_utc minus the window to window_end_utc, so records raised while the query ran are not part of the result.",
     "Network names, hardware addresses and Bluetooth peer names are pseudonyms (ssid-<12 hex>, mac-<12 hex>, name-<12 hex>) keyed with a random salt that was not stored: the same value maps to the same pseudonym inside this bundle and to nothing outside it. The saved Wi-Fi profiles of this PC are the exception: they are the owner's own networks and stay readable, each with its pseudonym, so an explicit owner selection can be matched at analysis time.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
-    "source wlan_report: the file exists and was summarised, not copied; its text can name networks the current run never saw"
+    "source wlan_report: the file exists and was summarised, not copied; the file is free text that can name networks the current run never saw"
   ]
 }

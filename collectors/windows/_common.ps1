@@ -1766,14 +1766,14 @@ function Invoke-WfFileSource {
     #                         SHA-256 of the original bytes, the replacement
     #                         counts (role report)
     #   <FileName>            the primary: in summary mode the summary (size,
-    #                         last write time, SHA-256, line count, how many
+    #                         creation and last write time, SHA-256, line count, how many
     #                         address shaped tokens it holds), in copy mode
     #                         the protected text of the file
     # Summary mode is for free text that can name networks the current run
     # never saw (the WLAN report embeds "netsh wlan show all"); only the
     # summary leaves the machine and the owner reads the report at the PC.
     # Copy mode is for the owner's own configuration and log files (a
-    # Process Lasso INI, its action log, a Stutter Guard journal): the text
+    # Process Lasso INI, a Stutter Guard journal): the text
     # is kept, after Protect-WfCopiedText has replaced every Windows user
     # profile folder name, e-mail shaped token and hardware address by a
     # pseudonym, and result.json records the SHA-256 of the original bytes so
@@ -1794,32 +1794,6 @@ function Invoke-WfFileSource {
     $fileName = [string]$Source['FileName']
     $mode = 'summary'
     if ($Source['Mode']) { $mode = [string]$Source['Mode'] }
-    # A copy gate: the copy is allowed only when another copied file of this
-    # run (a configuration) matches a pattern, for example the vendor's switch
-    # that keeps process command lines out of its log being off. When the gate
-    # does not pass, or the gating file was not copied, the file is
-    # summarised instead, and result.json says which. The gate reads the
-    # switch as it is now, not as it was when an older line was written, so
-    # a source whose text can carry command lines also sets
-    # StripArgumentsAfterExecutable, which removes by shape everything after
-    # the first program on each line of the copy.
-    $gate = $Source['CopyGate']
-    $stripArguments = [bool]$Source['StripArgumentsAfterExecutable']
-    $gateResult = $null
-    if ($mode -eq 'copy' -and $null -ne $gate) {
-        $gateResult = [ordered]@{ source = [string]$gate['Source']; pattern = [string]$gate['Pattern']; passed = $false; detail = $null }
-        $gatingText = $null
-        if ($null -ne $Context -and $Context.ContainsKey('CopiedTexts') -and $Context['CopiedTexts'].ContainsKey([string]$gate['Source'])) { $gatingText = [string]$Context['CopiedTexts'][[string]$gate['Source']] }
-        if ($null -eq $gatingText) {
-            $gateResult.detail = 'the gating file ' + [string]$gate['Source'] + ' was not copied in this run, so the switch it carries is unknown'
-        } elseif ($gatingText -match [string]$gate['Pattern']) {
-            $gateResult.passed = $true
-            $gateResult.detail = 'the gating file matches the pattern'
-        } else {
-            $gateResult.detail = 'the gating file does not match the pattern: ' + [string]$gate['Reason']
-        }
-        if (-not $gateResult.passed) { $mode = 'summary' }
-    }
     $kind = 'other'
     if ($Source['Kind']) { $kind = [string]$Source['Kind'] }
     $entry = New-WfCollectorEntry -Id $id -Kind $kind -Required ([bool]$Source['Required'])
@@ -1845,12 +1819,12 @@ function Invoke-WfFileSource {
             foreach ($tail in (Get-WfList -Value $Source['AlternatePathTails'])) { $candidates.Add($folder + '\' + [string]$tail) }
         }
         $protection = $null
-        $why = 'the file is free text that can name networks the current run never saw, so only its size, time, hash and token counts are recorded'
-        if ($null -ne $gateResult -and -not $gateResult.passed) {
-            $why = 'the file was to be copied, but its copy gate did not pass (' + [string]$gateResult.detail + '), so only its size, time, hash and token counts are recorded'
-        } elseif ($mode -eq 'copy') {
+        $summaryReason = 'the file is free text that can name networks the current run never saw'
+        if ([string]$Source['SummaryReason']) { $summaryReason = [string]$Source['SummaryReason'] }
+        $why = $summaryReason + ', so only its size, times, hash, line count and address token count are recorded'
+        if ($mode -eq 'copy') {
             $why = 'the file is the owner''s own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)'
-            $protection = Get-WfCopiedTextProtectionDescription -StripArgumentsAfterExecutable:$stripArguments
+            $protection = Get-WfCopiedTextProtectionDescription
         }
         $config = [ordered]@{
             path               = $candidates[0]
@@ -1859,7 +1833,6 @@ function Invoke-WfFileSource {
             max_artifact_bytes = $MaxArtifactBytes
             timeout_seconds    = $TimeoutSeconds
             mode               = $mode
-            copy_gate          = $gateResult
             why                = $why
             protection         = $protection
             sharing            = 'the file is opened for reading with writers allowed to continue; a file being appended may be read mid line, and the hash is of the bytes read'
@@ -1914,10 +1887,9 @@ function Invoke-WfFileSource {
             try { $sourceSha = (([System.BitConverter]::ToString($sha.ComputeHash($bytes))) -replace '-', '').ToLowerInvariant() } finally { $sha.Dispose() }
             if ($mode -eq 'copy') {
                 $decoded = ConvertFrom-WfTextBytes -Bytes $bytes
-                $copy = Protect-WfCopiedText -Text ([string]$decoded['Text']) -Salt ([string]$Context['Salt']) -StripArgumentsAfterExecutable:$stripArguments
+                $copy = Protect-WfCopiedText -Text ([string]$decoded['Text']) -Salt ([string]$Context['Salt'])
                 $copy['Encoding'] = [string]$decoded['Encoding']
                 $copy['HadByteOrderMark'] = [bool]$decoded['HadByteOrderMark']
-                if ($Context.ContainsKey('CopiedTexts')) { $Context['CopiedTexts'][$id] = [string]$copy['Text'] }
                 Write-WfTextFile -Path $primaryPath -Text ([string]$copy['Text'])
                 $copySize = (Get-Item -LiteralPath $primaryPath).Length
                 if ($copySize -gt $MaxArtifactBytes) {
@@ -1930,6 +1902,7 @@ function Invoke-WfFileSource {
                 $summary = [ordered]@{
                     path                = $path
                     bytes               = [int64]$bytes.Length
+                    creation_time_utc   = $read['CreationUtc']
                     last_write_time_utc = $read['LastWriteUtc']
                     sha256              = $sourceSha
                     lines               = @(($text -replace "`r`n", "`n") -split "`n").Count
@@ -1942,12 +1915,7 @@ function Invoke-WfFileSource {
         $stopped = Get-WfUtcNow
         $verbatim = $null
         if ($null -ne $copy) {
-            $verbatim = ((-not $copy['HadByteOrderMark']) -and $copy['Encoding'] -eq 'utf-8' -and ([int]$copy['UserCount'] + [int]$copy['MailCount'] + [int]$copy['HostCount'] + [int]$copy['MacCount'] + [int]$copy['ArgumentCount']) -eq 0)
-        }
-        $protectionCounts = $null
-        if ($null -ne $copy) {
-            $protectionCounts = [ordered]@{ user_profile_names_replaced = $copy['UserCount']; email_addresses_replaced = $copy['MailCount']; unc_hosts_replaced = $copy['HostCount']; mac_addresses_replaced = $copy['MacCount'] }
-            if ($stripArguments) { $protectionCounts['command_arguments_removed'] = $copy['ArgumentCount'] }
+            $verbatim = ((-not $copy['HadByteOrderMark']) -and $copy['Encoding'] -eq 'utf-8' -and ([int]$copy['UserCount'] + [int]$copy['MailCount'] + [int]$copy['HostCount'] + [int]$copy['MacCount']) -eq 0)
         }
         $report = [ordered]@{
             path                = $path
@@ -1959,13 +1927,13 @@ function Invoke-WfFileSource {
             source_sha256       = $sourceSha
             last_write_time_utc = $read['LastWriteUtc']
             mode                = $mode
-            copy_gate           = $gateResult
+            why                 = $why
             summarised          = ($null -ne $summary)
             copied              = ($null -ne $copy -and -not $readErrorKind)
             source_encoding     = $(if ($null -ne $copy) { $copy['Encoding'] } else { $null })
             source_byte_order_mark = $(if ($null -ne $copy) { $copy['HadByteOrderMark'] } else { $null })
             copy_is_verbatim    = $verbatim
-            protection          = $protectionCounts
+            protection          = $(if ($null -ne $copy) { [ordered]@{ user_profile_names_replaced = $copy['UserCount']; email_addresses_replaced = $copy['MailCount']; unc_hosts_replaced = $copy['HostCount']; mac_addresses_replaced = $copy['MacCount'] } } else { $null })
         }
         Write-WfJsonFile -Path (Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/result.json')) -Object $report
         if ($readErrorKind) {
@@ -1979,13 +1947,9 @@ function Invoke-WfFileSource {
             $met = $true
             $entry.raw_time_range = New-WfTimeRange -StartUtc $started -EndUtc $stopped
             if ($mode -eq 'copy') {
-                $argumentNote = ''
-                if ($stripArguments) { $argumentNote = (' and the arguments after a program removed on {0} lines' -f $copy['ArgumentCount']) }
-                $Notes.Add(('source {0}: the file was copied with {1} user profile folder names, {2} e-mail shaped tokens, {3} UNC host names and {4} hardware addresses replaced by pseudonyms{5}; result.json holds the SHA-256 of the original bytes' -f $id, $copy['UserCount'], $copy['MailCount'], $copy['HostCount'], $copy['MacCount'], $argumentNote))
-            } elseif ($null -ne $gateResult) {
-                $Notes.Add('source ' + $id + ': the file exists and was summarised, not copied, because its copy gate did not pass: ' + [string]$gateResult.detail)
+                $Notes.Add(('source {0}: the file was copied with {1} user profile folder names, {2} e-mail shaped tokens, {3} UNC host names and {4} hardware addresses replaced by pseudonyms; result.json holds the SHA-256 of the original bytes' -f $id, $copy['UserCount'], $copy['MailCount'], $copy['HostCount'], $copy['MacCount']))
             } else {
-                $Notes.Add('source ' + $id + ': the file exists and was summarised, not copied; its text can name networks the current run never saw')
+                $Notes.Add('source ' + $id + ': the file exists and was summarised, not copied; ' + $summaryReason)
             }
         }
         Remove-WfPrimaryUnlessKept -Path $primaryPath -Status $entry.status -Truncated $false -RecordCount $(if ($met) { 1 } else { 0 }) -Log $Log -SourceId $id
@@ -2265,8 +2229,8 @@ function Invoke-WfPnpSource {
 }
 
 # ---------------------------------------------------------------------------
-# Copied text. The owner's own configuration and log files (a Process Lasso
-# INI and action log, a Stutter Guard journal) are kept readable, because
+# Copied text. The owner's own configuration files (a Process Lasso INI, a
+# Stutter Guard journal) are kept readable, because
 # they are what the analysis reads. Three things in them are not the owner's
 # to publish or identify a person: a Windows user profile folder name in a
 # path (\Users\<name>\), an e-mail shaped token, and a hardware address. Each
@@ -2328,80 +2292,32 @@ function ConvertTo-WfPseudonymisedMatches {
     return [ordered]@{ Text = $builder.ToString(); Count = $count }
 }
 
-function Get-WfArgumentsOmittedMarker {
-    return '<arguments omitted>'
-}
-
-function Protect-WfLoggedCommandLines {
-    # One rule per line of a vendor log. The first place where .exe, .com,
-    # .bat or .cmd (any case) is directly followed by a double quote, white
-    # space, a comma or the end of the line is where a program ends. The
-    # line is kept up to there, with the closing quote when one directly
-    # follows, and the whole rest of the line is replaced by a fixed marker,
-    # because it can be the argument text of a command line, which can carry
-    # credentials and account names and has no shape of its own. Columns
-    # after the program are lost with it. A line with no program, or with
-    # nothing after its first program, stays as it is, and so does every
-    # line ending. Returns the text and the number of lines changed.
-    param([string]$Text)
-    if ($null -eq $Text) { return [ordered]@{ Text = ''; Count = 0 } }
-    $programs = [regex]::Matches($Text, '(?i)(\.(?:exe|com|bat|cmd)(?=["\s,]|\z)"?)([^\r\n]*)')
-    $builder = New-Object System.Text.StringBuilder
-    $last = 0
-    $count = 0
-    foreach ($program in $programs) {
-        $null = $builder.Append($Text.Substring($last, $program.Index - $last))
-        if ($program.Groups[2].Value.Trim().Length -eq 0) {
-            $null = $builder.Append($program.Value)
-        } else {
-            $null = $builder.Append($program.Groups[1].Value + ' ' + (Get-WfArgumentsOmittedMarker))
-            $count += 1
-        }
-        $last = $program.Index + $program.Length
-    }
-    $null = $builder.Append($Text.Substring($last))
-    return [ordered]@{ Text = $builder.ToString(); Count = $count }
-}
-
 function Protect-WfCopiedText {
     # The protection applied to every copied text: user profile folder names,
     # e-mail shaped tokens, UNC host names, hardware addresses, each found by
     # its shape. Line endings and everything else stay as they are. What has
-    # no shape (an account name inside an argument) is not caught, so a
-    # source whose text can carry command lines asks for
-    # StripArgumentsAfterExecutable: everything after the first program on a
-    # line is removed first, and the four rules apply to what remains.
-    param([string]$Text, [string]$Salt, [switch]$StripArgumentsAfterExecutable)
-    $argumentCount = 0
-    if ($StripArgumentsAfterExecutable) {
-        $stripped = Protect-WfLoggedCommandLines -Text $Text
-        $Text = [string]$stripped['Text']
-        $argumentCount = [int]$stripped['Count']
-    }
+    # no shape (an account name inside an argument) is not caught, which is
+    # why a vendor log that can carry command lines is summarised, never
+    # copied.
+    param([string]$Text, [string]$Salt)
     $users = ConvertTo-WfPseudonymisedMatches -Text $Text -Pattern (Get-WfUserProfilePattern) -Kind 'user' -Salt $Salt -Keep (Get-WfStandardProfileFolders)
     $mails = ConvertTo-WfPseudonymisedMatches -Text ([string]$users['Text']) -Pattern (Get-WfEmailPattern) -Kind 'mail' -Salt $Salt
     $hosts = ConvertTo-WfPseudonymisedMatches -Text ([string]$mails['Text']) -Pattern (Get-WfUncHostPattern) -Kind 'host' -Salt $Salt
     $macs = Protect-WfMacAddresses -Text ([string]$hosts['Text']) -Salt $Salt
-    return [ordered]@{ Text = [string]$macs['Text']; UserCount = [int]$users['Count']; MailCount = [int]$mails['Count']; HostCount = [int]$hosts['Count']; MacCount = [int]$macs['Count']; ArgumentCount = $argumentCount }
+    return [ordered]@{ Text = [string]$macs['Text']; UserCount = [int]$users['Count']; MailCount = [int]$mails['Count']; HostCount = [int]$hosts['Count']; MacCount = [int]$macs['Count'] }
 }
 
 function Get-WfCopiedTextProtectionDescription {
-    param([switch]$StripArgumentsAfterExecutable)
-    $description = [ordered]@{
+    return [ordered]@{
         mode           = 'copy'
         user_pseudonym = 'user-<first 12 hex of SHA-256(salt, name)>, every folder name after \Users\ in a path, except the standard folders Public, Default, Default User and All Users'
         mail_pseudonym = 'mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token'
         host_pseudonym = 'host-<first 12 hex of SHA-256(salt, name)>, the host of every UNC path (two leading separators)'
         mac_pseudonym  = 'mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address'
-        limits         = 'a DOMAIN\\user pair, an account name outside a path, or a computer name standing alone has no shape of its own and is not caught'
+        limits         = 'a DOMAIN\\user pair, an account name in a command line argument, or a computer name standing alone has no shape of its own and is not caught, which is why a vendor log that can carry command lines is summarised and never copied'
         salt           = 'random per run, never written; pseudonyms are consistent inside this bundle only'
         encoding       = 'the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json'
     }
-    if ($StripArgumentsAfterExecutable) {
-        $description['argument_removal'] = 'on every line, everything after the first program (the first .exe, .com, .bat or .cmd, in any case, directly followed by a double quote, white space, a comma or the end of the line; the closing quote is kept when one directly follows) is replaced by ' + (Get-WfArgumentsOmittedMarker) + ', whatever the vendor switch said when the line was written; columns after the program are lost with it; the copy gate is a second layer (see copy_gate)'
-        $description['argument_removal_limits'] = 'a logged command whose program has none of those extensions is not caught; read the copy before the bundle leaves the PC'
-    }
-    return $description
 }
 
 function ConvertFrom-WfTextBytes {
@@ -3763,7 +3679,7 @@ function Invoke-WfCollector {
     $driverResult = $null
     # Shared by the sources that pseudonymise names and addresses: one salt
     # for the run, and the network names learned so far, kept in memory only.
-    $context = @{ Salt = (New-WfPseudonymSalt); Ssids = (New-Object 'System.Collections.Generic.List[string]'); CopiedTexts = @{} }
+    $context = @{ Salt = (New-WfPseudonymSalt); Ssids = (New-Object 'System.Collections.Generic.List[string]') }
     $protects = $false
     $copies = $false
     foreach ($source in $sources) {
@@ -3807,7 +3723,6 @@ function Invoke-WfCollector {
         $entries.Add($result['Entry'])
     }
     $context['Ssids'].Clear()
-    $context['CopiedTexts'].Clear()
     $stop = Get-WfUtcNow
 
     $machine = $machineInfo['machine']
@@ -4507,7 +4422,7 @@ function Read-WfFileBytes {
     # passes it stops and is a timeout, so one slow volume cannot hold the
     # collector.
     param([string]$Path, [int64]$MaxBytes, [datetime]$DeadlineUtc = [datetime]::MaxValue)
-    $result = [ordered]@{ Exists = $false; Readable = $false; Bytes = $null; Length = $null; LastWriteUtc = $null; ErrorKind = $null; ErrorMessage = $null }
+    $result = [ordered]@{ Exists = $false; Readable = $false; Bytes = $null; Length = $null; CreationUtc = $null; LastWriteUtc = $null; ErrorKind = $null; ErrorMessage = $null }
     $stream = $null
     try {
         if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
@@ -4518,6 +4433,7 @@ function Read-WfFileBytes {
         $result.Exists = $true
         $item = Get-Item -LiteralPath $Path -ErrorAction Stop
         $result.Length = [int64]$item.Length
+        $result.CreationUtc = ConvertTo-WfUtcString -Value $item.CreationTimeUtc
         $result.LastWriteUtc = ConvertTo-WfUtcString -Value $item.LastWriteTimeUtc
         if ($result.Length -gt $MaxBytes) {
             $result.ErrorKind = 'too_large'

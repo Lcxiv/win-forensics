@@ -1565,7 +1565,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "12183be91de5d738c777100d6f6866efc5ee2dea5de86d3ce13be0d891a45350"
+        "value": "e576ae6cdc72482fa3039446f0dfb33932aedcbf4b737bf12f53b99cc18d2402"
       },
       "filter_hash": null,
       "requested": {
@@ -1608,7 +1608,7 @@
             "mail_pseudonym": "mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token",
             "host_pseudonym": "host-<first 12 hex of SHA-256(salt, name)>, the host of every UNC path (two leading separators)",
             "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
-            "limits": "a DOMAIN\\\\user pair, an account name outside a path, or a computer name standing alone has no shape of its own and is not caught",
+            "limits": "a DOMAIN\\\\user pair, an account name in a command line argument, or a computer name standing alone has no shape of its own and is not caught, which is why a vendor log that can carry command lines is summarised and never copied",
             "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
             "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json"
           }
@@ -1658,8 +1658,8 @@
       "artifacts": [
         {
           "path": "raw/timer_helper_process/query.json",
-          "bytes": 1551,
-          "sha256": "12183be91de5d738c777100d6f6866efc5ee2dea5de86d3ce13be0d891a45350",
+          "bytes": 1650,
+          "sha256": "e576ae6cdc72482fa3039446f0dfb33932aedcbf4b737bf12f53b99cc18d2402",
           "role": "config"
         },
         {
@@ -1819,7 +1819,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "85c3a184ebca8f5b8c48b23f765f7ea66fb125cb21a9c0bd2eb4ab2e368b76ed"
+        "value": "62674b6b1df59db76ab3cfb99b42490b708905b56192630ac5a68e837c1a0f75"
       },
       "filter_hash": null,
       "requested": {
@@ -1836,7 +1836,6 @@
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 50,
           "mode": "copy",
-          "copy_gate": null,
           "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)",
           "protection": {
             "mode": "copy",
@@ -1844,7 +1843,7 @@
             "mail_pseudonym": "mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token",
             "host_pseudonym": "host-<first 12 hex of SHA-256(salt, name)>, the host of every UNC path (two leading separators)",
             "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
-            "limits": "a DOMAIN\\\\user pair, an account name outside a path, or a computer name standing alone has no shape of its own and is not caught",
+            "limits": "a DOMAIN\\\\user pair, an account name in a command line argument, or a computer name standing alone has no shape of its own and is not caught, which is why a vendor log that can carry command lines is summarised and never copied",
             "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
             "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json"
           },
@@ -1880,14 +1879,14 @@
         },
         {
           "path": "raw/process_lasso_config/result.json",
-          "bytes": 707,
-          "sha256": "661e98820497b26ba37cb3ac160d98cd7668b8b848411df20788a0b3f44ea53c",
+          "bytes": 898,
+          "sha256": "46fa27125101ab1f2ba1e715c8e6f64f136dbd86baade98a4f278e7bff8b4449",
           "role": "report"
         },
         {
           "path": "raw/process_lasso_config/source.json",
-          "bytes": 1555,
-          "sha256": "85c3a184ebca8f5b8c48b23f765f7ea66fb125cb21a9c0bd2eb4ab2e368b76ed",
+          "bytes": 1633,
+          "sha256": "62674b6b1df59db76ab3cfb99b42490b708905b56192630ac5a68e837c1a0f75",
           "role": "config"
         }
       ],
@@ -1937,7 +1936,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "e4760dc20cc9ee409babad7a530a60f5a28f20d60b18fe03e2ad6cd2336d1220"
+        "value": "75896fb8afd4767dad583b3d4ebfb5371dd1e6500c396fc1cd2779bfee38e543"
       },
       "filter_hash": null,
       "requested": {
@@ -1955,26 +1954,9 @@
           "path_documented": false,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 50,
-          "mode": "copy",
-          "copy_gate": {
-            "source": "process_lasso_config",
-            "pattern": "(?im)^\\s*IncludeCommandLines\\s*=\\s*(false|0)\\s*$",
-            "passed": true,
-            "detail": "the gating file matches the pattern"
-          },
-          "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)",
-          "protection": {
-            "mode": "copy",
-            "user_pseudonym": "user-<first 12 hex of SHA-256(salt, name)>, every folder name after \\Users\\ in a path, except the standard folders Public, Default, Default User and All Users",
-            "mail_pseudonym": "mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token",
-            "host_pseudonym": "host-<first 12 hex of SHA-256(salt, name)>, the host of every UNC path (two leading separators)",
-            "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
-            "limits": "a DOMAIN\\\\user pair, an account name outside a path, or a computer name standing alone has no shape of its own and is not caught",
-            "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
-            "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json",
-            "argument_removal": "on every line, everything after the first program (the first .exe, .com, .bat or .cmd, in any case, directly followed by a double quote, white space, a comma or the end of the line; the closing quote is kept when one directly follows) is replaced by <arguments omitted>, whatever the vendor switch said when the line was written; columns after the program are lost with it; the copy gate is a second layer (see copy_gate)",
-            "argument_removal_limits": "a logged command whose program has none of those extensions is not caught; read the copy before the bundle leaves the PC"
-          },
+          "mode": "summary",
+          "why": "the vendor log is history whose lines can carry process command line arguments, whatever IncludeCommandLines says now, and no shape rule reliably removes them, so only its size, times, hash, line count and address token count are recorded",
+          "protection": null,
           "sharing": "the file is opened for reading with writers allowed to continue; a file being appended may be read mid line, and the hash is of the bytes read"
         }
       },
@@ -1990,31 +1972,31 @@
           "source_bytes": 343,
           "source_sha256": "0be296947e60c204f3ebc4bbf4a2261ff32da208e2227087de4251d7454d0c42",
           "last_write_time_utc": "2026-02-28T12:00:00.0000000Z",
-          "mode": "copy",
-          "content_kept": true,
-          "copy_is_verbatim": false
+          "mode": "summary",
+          "content_kept": false,
+          "copy_is_verbatim": null
         },
-        "verified_by": "the source size, time and hash are in result.json next to the replacement counts; the primary is the protected copy"
+        "verified_by": "the source size, time and hash are in the summary artifact; the text itself is not in the bundle"
       },
       "events_lost": null,
       "buffers": null,
       "artifacts": [
         {
-          "path": "raw/process_lasso_log/processlasso.log",
-          "bytes": 290,
-          "sha256": "145f25770dc14128c7acc42a77c8de8beb811df2466bcd74c3957baae44eef13",
+          "path": "raw/process_lasso_log/log-summary.json",
+          "bytes": 340,
+          "sha256": "f30d5fc37555633aeca5bdb5ff0dfe9cd4d3eed549084506eb091979b8b90978",
           "role": "primary"
         },
         {
           "path": "raw/process_lasso_log/result.json",
-          "bytes": 1037,
-          "sha256": "3dce317524be073174202793bcf0f570946496ce6ba92b1722eae95df06d51f9",
+          "bytes": 912,
+          "sha256": "21bc8f121d45a56f403666d72dbfa5c7d1bca67d105765129d9ce4f0edd41df9",
           "role": "report"
         },
         {
           "path": "raw/process_lasso_log/source.json",
-          "bytes": 2453,
-          "sha256": "e4760dc20cc9ee409babad7a530a60f5a28f20d60b18fe03e2ad6cd2336d1220",
+          "bytes": 806,
+          "sha256": "75896fb8afd4767dad583b3d4ebfb5371dd1e6500c396fc1cd2779bfee38e543",
           "role": "config"
         }
       ],
@@ -2025,9 +2007,9 @@
         "unit": "iso_utc"
       },
       "expectation": {
-        "declared": "the action log exists at one of the candidate paths and is readable; its protected text and the hash of the original are recorded",
+        "declared": "the action log exists at one of the candidate paths and is readable; its size, times, hash and line count are recorded, its text is not",
         "met": true,
-        "detail": "343 bytes copied"
+        "detail": "343 bytes summarised"
       },
       "target_process": null
     },
@@ -2168,7 +2150,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "a985ade50294de3bc3829e477f502dfe837e2dc38cd912bc8fa2da55c364c4e3"
+        "value": "54ef363d271c933f3a9d0b91262e9c1b3e3a8100b3d6c35c45941a8c10c03462"
       },
       "filter_hash": null,
       "requested": {
@@ -2185,7 +2167,6 @@
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 50,
           "mode": "copy",
-          "copy_gate": null,
           "why": "the file is the owner's own configuration or log; its text is kept, with user profile folder names, e-mail shaped tokens, UNC host names and hardware addresses replaced by pseudonyms (see protection)",
           "protection": {
             "mode": "copy",
@@ -2193,7 +2174,7 @@
             "mail_pseudonym": "mail-<first 12 hex of SHA-256(salt, address)>, every e-mail shaped token",
             "host_pseudonym": "host-<first 12 hex of SHA-256(salt, name)>, the host of every UNC path (two leading separators)",
             "mac_pseudonym": "mac-<first 12 hex of SHA-256(salt, address)>, every six pair hardware address",
-            "limits": "a DOMAIN\\\\user pair, an account name outside a path, or a computer name standing alone has no shape of its own and is not caught",
+            "limits": "a DOMAIN\\\\user pair, an account name in a command line argument, or a computer name standing alone has no shape of its own and is not caught, which is why a vendor log that can carry command lines is summarised and never copied",
             "salt": "random per run, never written; pseudonyms are consistent inside this bundle only",
             "encoding": "the copy is UTF-8 without a byte order mark; the source encoding is recorded in result.json"
           },
@@ -2229,14 +2210,14 @@
         },
         {
           "path": "raw/stutter_guard_journal/result.json",
-          "bytes": 693,
-          "sha256": "c20431f5d13c6f4617cd47859a0706a844cc9e1e7859a90dae3d090d68e9244d",
+          "bytes": 884,
+          "sha256": "f2bc69fe48287f4049e4d6cac4250e80887c374761b42fdfbc37c8f8911cfc10",
           "role": "report"
         },
         {
           "path": "raw/stutter_guard_journal/source.json",
-          "bytes": 1541,
-          "sha256": "a985ade50294de3bc3829e477f502dfe837e2dc38cd912bc8fa2da55c364c4e3",
+          "bytes": 1619,
+          "sha256": "54ef363d271c933f3a9d0b91262e9c1b3e3a8100b3d6c35c45941a8c10c03462",
           "role": "config"
         }
       ],
@@ -2307,7 +2288,7 @@
     "Network names, hardware addresses and Bluetooth peer names are pseudonyms (ssid-<12 hex>, mac-<12 hex>, name-<12 hex>) keyed with a random salt that was not stored: the same value maps to the same pseudonym inside this bundle and to nothing outside it. The saved Wi-Fi profiles of this PC are the exception: they are the owner's own networks and stay readable, each with its pseudonym, so an explicit owner selection can be matched at analysis time.",
     "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
     "source process_lasso_config: the file was copied with 2 user profile folder names, 1 e-mail shaped tokens, 1 UNC host names and 0 hardware addresses replaced by pseudonyms; result.json holds the SHA-256 of the original bytes",
-    "source process_lasso_log: the file was copied with 1 user profile folder names, 0 e-mail shaped tokens, 0 UNC host names and 0 hardware addresses replaced by pseudonyms and the arguments after a program removed on 3 lines; result.json holds the SHA-256 of the original bytes",
+    "source process_lasso_log: the file exists and was summarised, not copied; the vendor log is history whose lines can carry process command line arguments, whatever IncludeCommandLines says now, and no shape rule reliably removes them",
     "source stutter_guard_journal: the file was copied with 1 user profile folder names, 0 e-mail shaped tokens, 0 UNC host names and 0 hardware addresses replaced by pseudonyms; result.json holds the SHA-256 of the original bytes"
   ]
 }
