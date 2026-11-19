@@ -43,8 +43,8 @@
     "<bundle>/raw/wpr_trace/tracerpt-summary.txt",
     "-y"
   ],
-  "session_started_utc": "2026-03-01T12:00:03.0000000Z",
-  "session_stop_issued_utc": "2026-03-01T12:00:13.0000000Z",
+  "session_started_utc": "2026-03-01T12:00:04.0000000Z",
+  "session_stop_issued_utc": "2026-03-01T12:00:14.0000000Z",
   "recording_seconds": 10,
   "stopped_early_at_cap": false,
   "temp_bytes_seen": 4096,
