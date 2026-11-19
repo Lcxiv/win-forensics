@@ -92,7 +92,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "5de392aa61044add90a5512c6b58aeb00d94f5ea57f2cde84c4eb8eba6387410"
+        "value": "f377659b4fb58264383e5cf5771ae14dbd9bc663019345df99328858cdc3ed33"
       },
       "filter_hash": null,
       "requested": {
@@ -119,7 +119,7 @@
           "max_events": 5000,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 300,
-          "query_sha256": "5de392aa61044add90a5512c6b58aeb00d94f5ea57f2cde84c4eb8eba6387410"
+          "query_sha256": "f377659b4fb58264383e5cf5771ae14dbd9bc663019345df99328858cdc3ed33"
         }
       },
       "enabled": {
@@ -166,8 +166,8 @@
         },
         {
           "path": "raw/application_error_events/query.xml",
-          "bytes": 1056,
-          "sha256": "5de392aa61044add90a5512c6b58aeb00d94f5ea57f2cde84c4eb8eba6387410",
+          "bytes": 940,
+          "sha256": "f377659b4fb58264383e5cf5771ae14dbd9bc663019345df99328858cdc3ed33",
           "role": "config"
         }
       ],
