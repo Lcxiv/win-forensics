@@ -2557,7 +2557,11 @@ Describe 'presentmon-frames against the synthetic backend' {
         $run3 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-start-stuck')
         (Get-PmSource -Run $run3).status | Should -BeExactly 'not_collected'
         (Get-PmSource -Run $run3).status_reason | Should -Match 'timed out True'
-        (Get-PmStarted)[-1] | Should -Match $script:PmWprCancel -Because 'a start that did not complete may have left a recording of our instance'
+        # The shared end check: read the instance, cancel what is not idle, read it again.
+        $stuck = @(Get-PmStarted)
+        $stuck[-3] | Should -Match '^wpr\.exe -status -instancename wf-presentmon-frames$'
+        $stuck[-2] | Should -Match $script:PmWprCancel -Because 'a start that did not complete may have left a recording of our instance'
+        $stuck[-1] | Should -Match '^wpr\.exe -status -instancename wf-presentmon-frames$' -Because 'the cancel is confirmed by a second read'
 
         # The same start had already opened its session file under wpr-temp: it does not stay in the bundle.
         Start-PmCase
@@ -2645,7 +2649,8 @@ Describe 'presentmon-frames against the synthetic backend' {
         $run3 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-stop-still-running')
         (Get-PmSource -Run $run3).status | Should -BeExactly 'capture_failed'
         (Get-PmSource -Run $run3).status_reason | Should -Match 'exited 0 but the instance could not be confirmed idle'
-        (Get-PmStarted)[-1] | Should -Match $script:PmWprCancel
+        (Get-PmStarted)[-2] | Should -Match $script:PmWprCancel
+        (Get-PmStarted)[-1] | Should -Match '^wpr\.exe -status -instancename wf-presentmon-frames$' -Because 'the cancel is confirmed by a second read'
         @((Get-PmStarted) | Where-Object { $_ -match '^PresentMon' }).Count | Should -Be 0
     }
 
@@ -3147,7 +3152,7 @@ Describe 'dpcisr-trace against the synthetic backend' {
         $trace = Get-TraceSource -Run $run -Id 'wpr_trace'
         $trace.status | Should -BeExactly 'not_collected'
         $trace.status_reason | Should -Match 'wpr -start was refused.*access is denied'
-        Get-WprVerbs | Should -Be @('-status', '-profiles', '-start', '-status') -Because 'the instance is checked even after a refusal'
+        Get-WprVerbs | Should -Be @('-status', '-profiles', '-start', '-status', '-cancel', '-status') -Because 'the shared end check reads the instance after a start that did not succeed, cancels it whatever it read, and reads it again'
         $trace.enabled.options.session_state_final | Should -BeExactly 'idle'
         Assert-NoTraceLeft -Out $out
 

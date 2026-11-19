@@ -3995,6 +3995,198 @@ function Invoke-WfCollectorScript {
 }
 
 # ---------------------------------------------------------------------------
+# PresentMon pin: what presentmon-frames runs and the scenario runner's
+# preflight checks before any capture.
+# ---------------------------------------------------------------------------
+# GitHub release v2.6.0 of GameTechDev/PresentMon, published 2026-09-21, asset
+# PresentMon-2.6.0-x64.exe. The digest is the one GitHub records for the
+# release asset (the release API's digest field, read 2026-11-18); the size is
+# the asset size from the same record. Only these exact bytes are run.
+function Get-WfPresentMonPinnedVersion { return '2.6.0' }
+function Get-WfPresentMonPinnedFileName { return 'PresentMon-2.6.0-x64.exe' }
+function Get-WfPresentMonPinnedSha256 { return 'b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af' }
+function Get-WfPresentMonPinnedLength { return [int64]980320 }
+function Get-WfPresentMonReleaseUrl { return 'https://github.com/GameTechDev/PresentMon/releases/tag/v2.6.0' }
+function Get-WfPresentMonAssetUrl { return 'https://github.com/GameTechDev/PresentMon/releases/download/v2.6.0/PresentMon-2.6.0-x64.exe' }
+function Get-WfPresentMonDocumentationUrl { return 'https://github.com/GameTechDev/PresentMon/blob/v2.6.0/README-ConsoleApplication.md' }
+function Get-WfPresentMonSourceUrl { return 'https://github.com/GameTechDev/PresentMon/tree/v2.6.0' }
+# The WPR recording: the instance name every wpr call carries (WPR
+# Command-Line Options: -instancename "specifies a name to uniquely identify
+# the tracing instance" and "must be the last parameter"), which is also the
+# event collector's name in the profile, and the profile name inside the .wprp.
+function Get-WfPresentMonInstanceName { return 'wf-presentmon-frames' }
+function Get-WfPresentMonProfileName { return 'WfPresentMonFrames' }
+# Deadlines in seconds for the phases that are not the recording window.
+function Get-WfPresentMonStartDeadline { return 60 }
+function Get-WfPresentMonStatusDeadline { return 30 }
+function Get-WfPresentMonStopDeadline { return 180 }
+function Get-WfPresentMonDecodeDeadline { return 240 }
+function Get-WfPresentMonCancelDeadline { return 60 }
+# Cap on what a program may print on a console stream that is not the CSV.
+function Get-WfPresentMonConsoleCapBytes { return [int64]1048576 }
+# A process name: letters, digits, dot, underscore and hyphen, not starting
+# with a hyphen, so it can never read as an option.
+function Get-WfPresentMonProcessNamePattern { return '^[A-Za-z0-9._][A-Za-z0-9._-]{0,119}$' }
+# How far the session's own end time may precede the stop request before the
+# session counts as closed early (it reached its file cap or died).
+function Get-WfPresentMonEndToleranceSeconds { return 5 }
+
+function Get-WfPresentMonDefaultPath {
+    # <install root>\tools\<pinned file name>: the collectors live two levels
+    # below the install root (remote\collectors on the PC; collectors\windows
+    # in the repository, where tools\ is ignored by git).
+    param([string]$ScriptRoot)
+    $installRoot = Split-Path -Parent (Split-Path -Parent $ScriptRoot)
+    return [System.IO.Path]::Combine($installRoot, 'tools', (Get-WfPresentMonPinnedFileName))
+}
+
+# ---------------------------------------------------------------------------
+# Live sessions: the one start, bound, stop and end path.
+# ---------------------------------------------------------------------------
+
+function Get-WfLastOutput {
+    # The last object a hook wrote, so a stray object it wrote by accident
+    # never stands in for its result.
+    param([object[]]$Items)
+    if ($null -eq $Items -or $Items.Count -eq 0) { return $null }
+    return $Items[$Items.Count - 1]
+}
+
+function New-WfLiveSessionRecord {
+    # What Invoke-WfLiveSession reports about one session. Every member is a
+    # fact about the session control, never about the evidence it recorded.
+    return [ordered]@{
+        start_attempted  = $false
+        start_ok         = $false
+        may_remain       = $false
+        verify_reason    = $null
+        bound_seconds    = $null
+        stopped_early    = $false
+        stop_issued      = $false
+        stop_ok          = $null
+        state_after_stop = $null
+        cancel_issued    = $false
+        cancel_ok        = $null
+        state_final      = $null
+        confirmed        = $null
+        error            = $null
+        end_error        = $null
+    }
+}
+
+function Invoke-WfLiveSession {
+    # Runs one live session through the fixed order every live collector
+    # shares: start, verify, bound, stop, and on every exit path the end
+    # check. The collector supplies what is particular to its tool as hooks
+    # (scriptblocks, each called with the state map as its first argument);
+    # this function owns the order, the bound and the end policy, so no
+    # collector carries a session control of its own.
+    #
+    #   Start   (required) issues the start. Returns a map with Ok (the
+    #           session is running) and MayRemain (a start that did not
+    #           succeed may still have left a session behind). A start that
+    #           raises is treated as one that may have left a session.
+    #   Started (optional) runs right after the monotonic reading the bound
+    #           counts from, only after a start that succeeded (a collector
+    #           stamps its system clock start time here).
+    #   Verify  (optional) runs only after a start that succeeded. Returns
+    #           $null when the session's settings are proven, otherwise the
+    #           reason; the session is then not bounded nor stopped, only
+    #           ended (and cancelled) by the end check.
+    #   Watch   (optional) runs after each second of the default bound;
+    #           returns $true to stop early.
+    #   Bound   (optional) replaces the default bound (one second at a time
+    #           on the monotonic clock until LiveSeconds have passed since
+    #           the start returned). Returns $true when it stopped early.
+    #   Stop    (required) issues the stop. Returns $true when it completed.
+    #   Fail    (optional) gets the message of anything that raised between
+    #           the start and the stop, before the end check runs.
+    #   Confirm (required) reads the session's state: 'idle', 'active' or
+    #           'unknown'. The second argument names the moment
+    #           ('after_stop' or 'after_cancel').
+    #   Cancel  (required) cancels the session without saving it. The
+    #           second argument is the state Confirm read. Returns $true when
+    #           the cancel completed.
+    #
+    # The end policy, the same for every collector and every exit path: when
+    # a session may remain, its state is read; anything but idle, a start
+    # that did not complete, or a stop that did not complete, is cancelled
+    # and the state read again. The
+    # session is confirmed ended only when the last read is idle; anything
+    # else is reported, never assumed (a collector that cannot confirm the
+    # end is capture_failed and says so in the manifest notes).
+    #
+    # The function adds no log lines and takes no clock reading but the
+    # monotonic one, so a collector's log and timestamps are its own. Its
+    # variables carry a wfLs prefix because hooks see the caller's variables
+    # through the dynamic scope, and a hook must never find one of these in
+    # place of its own collector's. Hooks write results into the state map,
+    # never into variables (an assignment in a hook is local to the hook).
+    param(
+        [System.Collections.IDictionary]$LiveHooks,
+        [System.Collections.IDictionary]$LiveState,
+        [double]$LiveSeconds
+    )
+    $wfLsRecord = New-WfLiveSessionRecord
+    $LiveState['Session'] = $wfLsRecord
+    try {
+        $wfLsRecord.start_attempted = $true
+        $wfLsRecord.may_remain = $true
+        $wfLsStart = Get-WfLastOutput -Items @(& $LiveHooks['Start'] $LiveState)
+        $LiveState['MonotonicStart'] = Get-WfMonotonicSeconds
+        $wfLsRecord.start_ok = [bool]$wfLsStart['Ok']
+        $wfLsRecord.may_remain = ($wfLsRecord.start_ok -or [bool]$wfLsStart['MayRemain'])
+        if ($wfLsRecord.start_ok -and $LiveHooks.Contains('Started')) { $null = & $LiveHooks['Started'] $LiveState }
+        if ($wfLsRecord.start_ok -and $LiveHooks.Contains('Verify')) {
+            $wfLsReason = Get-WfLastOutput -Items @(& $LiveHooks['Verify'] $LiveState)
+            if ($null -ne $wfLsReason -and [string]$wfLsReason) { $wfLsRecord.verify_reason = [string]$wfLsReason }
+        }
+        if ($wfLsRecord.start_ok -and $null -eq $wfLsRecord.verify_reason) {
+            if ($LiveHooks.Contains('Bound')) {
+                $wfLsRecord.stopped_early = [bool](Get-WfLastOutput -Items @(& $LiveHooks['Bound'] $LiveState))
+            } else {
+                $wfLsDeadline = [double]$LiveState['MonotonicStart'] + $LiveSeconds
+                while ((Get-WfMonotonicSeconds) -lt $wfLsDeadline) {
+                    Start-WfSleep -Seconds 1
+                    if ($LiveHooks.Contains('Watch') -and [bool](Get-WfLastOutput -Items @(& $LiveHooks['Watch'] $LiveState))) {
+                        $wfLsRecord.stopped_early = $true
+                        break
+                    }
+                }
+            }
+            $wfLsRecord.bound_seconds = [math]::Round((Get-WfMonotonicSeconds) - [double]$LiveState['MonotonicStart'], 3)
+            $wfLsRecord.stop_issued = $true
+            $wfLsRecord.stop_ok = [bool](Get-WfLastOutput -Items @(& $LiveHooks['Stop'] $LiveState))
+        }
+    } catch {
+        $wfLsRecord.error = $_.Exception.Message
+        if ($LiveHooks.Contains('Fail')) {
+            try { $null = & $LiveHooks['Fail'] $LiveState $wfLsRecord.error } catch { $wfLsRecord.error = $wfLsRecord.error + '; the failure hook raised: ' + $_.Exception.Message }
+        }
+    } finally {
+        if ($wfLsRecord.may_remain) {
+            $wfLsFinal = 'unknown'
+            try {
+                $wfLsFinal = [string](Get-WfLastOutput -Items @(& $LiveHooks['Confirm'] $LiveState 'after_stop'))
+                $wfLsRecord.state_after_stop = $wfLsFinal
+                if ($wfLsFinal -ne 'idle' -or -not $wfLsRecord.start_ok -or ($wfLsRecord.stop_issued -and -not $wfLsRecord.stop_ok)) {
+                    $wfLsRecord.cancel_issued = $true
+                    $wfLsRecord.cancel_ok = [bool](Get-WfLastOutput -Items @(& $LiveHooks['Cancel'] $LiveState $wfLsFinal))
+                    $wfLsFinal = [string](Get-WfLastOutput -Items @(& $LiveHooks['Confirm'] $LiveState 'after_cancel'))
+                }
+            } catch {
+                $wfLsFinal = 'unknown'
+                $wfLsRecord.end_error = $_.Exception.Message
+            }
+            if (@('idle', 'active', 'unknown') -notcontains $wfLsFinal) { $wfLsFinal = 'unknown' }
+            $wfLsRecord.state_final = $wfLsFinal
+            $wfLsRecord.confirmed = ($wfLsFinal -eq 'idle')
+        }
+    }
+    return $wfLsRecord
+}
+
+# ---------------------------------------------------------------------------
 # Windows adapters. Everything below touches Windows and is replaced by
 # collectors/windows/tests/SyntheticBackend.ps1 in the test suite.
 # ---------------------------------------------------------------------------
@@ -4566,12 +4758,6 @@ function Get-WfNetshPath {
     return (Get-WfToolPath -Name 'netsh')
 }
 
-function Wait-WfSeconds {
-    # The recording window of a live capture. Replaced by the synthetic
-    # backend, which advances its clock instead of sleeping.
-    param([int]$Seconds)
-    if ($Seconds -gt 0) { Start-Sleep -Seconds $Seconds }
-}
 
 function Test-WfToolPresent {
     param([string]$Path)

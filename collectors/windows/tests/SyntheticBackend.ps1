@@ -35,7 +35,7 @@
 #              OnCall = <scriptblock run when the program is started, for a side effect> },
 #              for wpr and the PresentMon binary, matched in order after Commands; a run with
 #              no match exits 1. An entry may instead carry Responses = <list of such maps>, used
-#              in call order with the last repeating. Waited = seconds passed to Wait-WfSeconds, summed
+#              in call order with the last repeating. Waited = seconds passed to Start-WfSleep, summed
 #   Binaries   full path -> @{ Length; Sha256; FileVersion; ProductVersion } for Get-WfBinaryInfo;
 #              a missing key is a file that does not exist
 #   Account    the values Get-WfAccountInfo returns (elevated, group memberships)
@@ -565,12 +565,6 @@ function Test-WfToolPresent {
     return $true
 }
 
-function Wait-WfSeconds {
-    # The recording window passes on the synthetic clock, not in real time.
-    param([int]$Seconds)
-    $global:WfSynthetic.Ticks += $Seconds
-    $global:WfSynthetic.Waited += $Seconds
-}
 
 function Get-WfBinaryInfo {
     param([string]$Path)
@@ -1301,6 +1295,8 @@ function Get-WfPinnedToolBuilds {
 }
 
 function Start-WfSleep {
+    # The bound of a live session passes on the synthetic clock, not in real time.
     param([int]$Seconds)
     $global:WfSynthetic.Ticks += [math]::Max(0, $Seconds)
+    $global:WfSynthetic.Waited += [math]::Max(0, $Seconds)
 }
