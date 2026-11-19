@@ -28,6 +28,10 @@ timer resolution) produce no row, and neither does any source that failed: a
 status is never turned into evidence. When the only observed sources of
 ``config_snapshot`` are powercfg listings that yield no derived row, the table
 is written ``observed_zero`` with the listings that were read as its sources.
+Whenever the ``powercfg`` table is ``decode_failed``, ``config_snapshot`` is
+``decode_failed`` too, with a reason naming the powercfg failure and no rows,
+however many other sources decoded: a partial table is never presented as
+complete.
 
 Provenance names the file that carries the fact: a device element or a
 topology record by ``index:<n>`` in its JSON array, a file of an install
@@ -1077,8 +1081,6 @@ def decode(bundle: Path, decoded_at: str | None = None) -> dict[str, Any]:
         only_power = not sources
         if only_power:
             listed = [sid for sid in TABLE_SOURCES["powercfg"] if sid in TABLE_SOURCES["config_snapshot"] and sid in observed]
-            if listed and power_status == "decode_failed":
-                raise DecodeError(f"the powercfg listings this table derives its rows from failed to decode: {power_reason}")
             sources = [s for s in (primary_of(observed[sid]) for sid in listed) if s and s in power_sources]
         for sid in ("power_mode", "timer_resolution"):
             if sid in entries:
@@ -1095,6 +1097,10 @@ def decode(bundle: Path, decoded_at: str | None = None) -> dict[str, Any]:
     except DecodeError as exc:
         status, reason, rows = "decode_failed", str(exc), []
         checks.append({"name": "read", "ok": False, "detail": str(exc)})
+    if power_status == "decode_failed":
+        checks.append({"name": "power_rows", "ok": False, "detail": power_reason})
+        failed = f"the powercfg table failed to decode, so the rows this table derives from it are missing: {power_reason}"
+        status, reason, rows = "decode_failed", failed if status != "decode_failed" else f"{failed}; {reason}", []
     results["config_snapshot"] = finish_table(bundle, "config_snapshot", rows, sources, observed, checks, status, reason, decoded_at,
                                               "no config-snapshot source was observed")
     worst = "observed"

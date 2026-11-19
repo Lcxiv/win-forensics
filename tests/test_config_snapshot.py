@@ -512,8 +512,25 @@ def test_a_powercfg_listing_that_fails_to_decode_fails_the_table_derived_from_it
     result = decoded(bundle)
     assert result["status"] == "decode_failed"
     table = result["tables"]["config_snapshot"]
-    assert table["status"] == "decode_failed" and "powercfg listings" in table["reason"]
+    assert table["status"] == "decode_failed" and "powercfg table failed to decode" in table["reason"]
     assert not (bundle / "decoded" / "config_snapshot.jsonl").exists(), "nothing on disk can be named, so nothing is written"
+
+
+def test_a_failed_powercfg_decode_fails_config_snapshot_however_many_other_sources_decoded(bundle_copy):
+    bundle = bundle_copy("config-snapshot")
+    (bundle / "raw" / "power_settings" / "output.txt").unlink()
+    result = decoded(bundle)
+    assert result["tables"]["powercfg"]["status"] == "decode_failed"
+    table = result["tables"]["config_snapshot"]
+    assert table["status"] == "decode_failed" and "powercfg" in table["reason"] and table["rows"] == 0
+    assert rows(bundle, "config_snapshot") == []
+    sidecar = meta(bundle, "config_snapshot")
+    assert wf_schema.validate_object(sidecar, "decoded/table_meta.schema.json") == []
+    assert sidecar["status"] == "decode_failed" and "powercfg" in sidecar["status_reason"] and sidecar["row_count"] == 0
+    assert sidecar["source_files"] and "raw/power_settings/output.txt" not in [f["path"] for f in sidecar["source_files"]]
+    power_check = next(c for c in sidecar["checks"] if c["name"] == "power_rows")
+    assert power_check["ok"] is False and power_check["detail"]
+    assert result["tables"]["process_inventory"]["status"] == "observed" and rows(bundle, "process_inventory")
 
 
 def test_decoder_refuses_a_foreign_bundle_and_a_missing_primary(bundle_copy, tmp_path):
