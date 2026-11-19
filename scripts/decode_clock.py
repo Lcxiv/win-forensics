@@ -211,12 +211,15 @@ class Segment:
 
         The step of size delta = qpc span - file time span happened at an unknown moment inside the
         segment; wherever it happened, the clock re-showed the delta of file time before it, so the union
-        over every possible moment runs from ft_a - delta to ft_a + qpc span.
+        over every possible moment runs from ft_a - delta to ft_a + qpc span. Pair a's file time is itself
+        only known to its own uncertainty (its half width, plus the increment term when it was not read at
+        a clock edge), so both ends carry that too.
         """
         if self.step_kind != "backward":
             return None
         delta = self.qpc_span_100ns - self.span_100ns
-        return (self.a.filetime_utc_100ns - delta, self.a.filetime_utc_100ns + self.qpc_span_100ns)
+        u_a = half_width_100ns(self.a.qpc_before, self.a.qpc_after, self.frequency_hz) + (0 if self.a.edge else self.increment_100ns)
+        return (self.a.filetime_utc_100ns - delta - u_a, self.a.filetime_utc_100ns + self.qpc_span_100ns + u_a)
 
     @property
     def half_width_max_100ns(self) -> int:

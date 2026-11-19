@@ -219,8 +219,9 @@ def test_a_backward_step_smaller_than_the_interval_never_passes_a_tight_join():
     assert placed.aligned and placed.clock_step and placed.error_bound_100ns == 51 + 50_000_000 + 1
     join = decode_clock.check_join("j", "eventlog", "wpr", 100_000, placed, model.align_qpc(model.epoch_qpc))
     assert join["aligned"] is False and join["achieved_bound_100ns"] == 50_000_053
-    # The file times the clock may have shown twice: from ft_a minus the lost 4.999 s up to ft_a plus the counter span.
-    assert step.ambiguous_range == (FT0 + 50_000_000 - 49_990_000, FT0 + 50_000_000 + 50_000_000)
+    # The file times the clock may have shown twice: from ft_a minus the lost 4.999 s up to ft_a plus the counter span,
+    # each end carrying the edge pair's half width.
+    assert step.ambiguous_range == (FT0 + 50_000_000 - 49_990_000 - 51, FT0 + 50_000_000 + 50_000_000 + 51)
     assert not model.align(FT0 + 30_000_000).aligned, "a stamp in the first segment that the clock re-showed after the step is ambiguous"
 
 
@@ -243,7 +244,7 @@ def test_a_backward_step_of_three_seconds_makes_the_re_shown_file_times_unaligne
     step = model.segments[1]
     assert step.span_100ns == 20_000_000 and step.qpc_span_100ns == 50_000_000
     assert step.error_bound_100ns == 51 + 50_000_000, "the elapsed master span, not the 2 s file time span"
-    assert step.ambiguous_range == (FT0 + 50_000_000 - 30_000_000, FT0 + 50_000_000 + 50_000_000)
+    assert step.ambiguous_range == (FT0 + 50_000_000 - 30_000_000 - 51, FT0 + 50_000_000 + 50_000_000 + 51)
     event = model.align(FT0 + 85_000_000)
     assert not event.aligned and "shown twice" in event.reason and "segment 1" in event.reason
     # Inside the step segment itself a stamp is placed with the wide bound; the re-shown range in the first segment is refused too.
@@ -256,6 +257,38 @@ def test_a_backward_step_of_three_seconds_makes_the_re_shown_file_times_unaligne
     assert late.aligned and not late.clock_step and late.error_bound_100ns == 51
     refused = decode_clock.check_join("j", "eventlog", "wpr", 100_000, event, model.align_qpc(model.epoch_qpc))
     assert refused["aligned"] is False and "shown twice" in refused["reason"]
+
+
+def test_a_backward_step_after_a_pair_not_taken_at_an_edge_widens_the_re_shown_range_by_that_pair():
+    """Pairs at 0, 5, 10, 15, 20 s of true time; the pair at 5 s was not read at a clock edge; the clock steps back 3 s at 9 s.
+
+    The file time of the pair at 5 s can lag true time by its half width plus the increment term, so the
+    file times the clock showed twice can reach that far past ft_a plus the counter span, into a later
+    segment whose two pairs are edge pairs and whose own bound is only the bracket.
+    """
+    pairs = []
+    for seq, t in enumerate([0, 5, 10, 15, 20]):
+        ft = FT0 + t * 10_000_000 - (30_000_000 if t >= 9 else 0)
+        qpc = 1_000_000_000 + t * FREQ
+        edge = seq != 1
+        pairs.append({"seq": seq, "phase": "start" if seq == 0 else ("stop" if seq == 4 else "interval"), "qpc_before": qpc, "qpc_after": qpc + 100,
+                      "filetime_utc_100ns": ft, "edge": edge, "step_100ns": 10_000 if edge else None})
+    model = decode_clock.fit_pairs(pairs, FREQ)
+    assert model.aligned
+    assert [s.step_kind for s in model.segments] == ["none", "backward", "none", "none"]
+    step = model.segments[1]
+    assert step.increment_100ns == 156_250 and model.segments[2].increment_100ns == 0
+    uncertainty = 51 + 156_250
+    assert step.ambiguous_range == (FT0 + 50_000_000 - 30_000_000 - uncertainty, FT0 + 50_000_000 + 50_000_000 + uncertainty)
+    for stamp in (FT0 + 100_000_000 + 52, FT0 + 100_000_000 + 100_000, FT0 + 100_000_000 + uncertainty):
+        assert model.segment_for(stamp) is model.segments[2]
+        event = model.align(stamp)
+        assert not event.aligned and "shown twice" in event.reason and "segment 1" in event.reason
+        refused = decode_clock.check_join("j", "eventlog", "wpr", 100_000, event, model.align_qpc(model.epoch_qpc))
+        assert refused["aligned"] is False and "shown twice" in refused["reason"]
+    assert not model.align(FT0 + 20_000_000 - uncertainty).aligned, "the lower end carries the same uncertainty"
+    beyond = model.align(FT0 + 100_000_000 + uncertainty + 1)
+    assert beyond.aligned and not beyond.clock_step and beyond.segment == 2 and beyond.error_bound_100ns == 51
 
 
 def test_a_backward_step_larger_than_the_interval_cannot_be_fitted():
