@@ -104,7 +104,7 @@ def test_collector_without_an_output_directory_prints_one_failed_line(collector)
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="on Windows the real adapters would read the machine")
-@pytest.mark.parametrize("collector", ["bugcheck-history", "reliability-records", "presentmon-frames"])
+@pytest.mark.parametrize("collector", ["bugcheck-history", "reliability-records", "dpcisr-trace", "presentmon-frames"])
 def test_real_adapters_fail_closed_off_windows(collector, tmp_path):
     """Run the unmodified script as a process where no Windows API exists.
 

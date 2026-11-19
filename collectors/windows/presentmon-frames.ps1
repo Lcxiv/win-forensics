@@ -635,7 +635,7 @@ function Get-WfPresentMonLeftoverNote {
 }
 
 function Invoke-WfPresentMonFramesSource {
-    # The custom source the definition below names. Verifies the pinned binary
+    # The script source the definition below names through a scriptblock. Verifies the pinned binary
     # and the controller, records the providers with wpr for the window under
     # this collector's own instance name, stops the recording on every path,
     # reads the file header and the controller's counters, runs PresentMon
@@ -658,8 +658,9 @@ function Invoke-WfPresentMonFramesSource {
         [System.Collections.Generic.List[string]]$Notes,
         [hashtable]$Context
     )
-    # The context carries the pseudonym salt the network sources share; frame
-    # rows carry process names and swap chain addresses, nothing it protects.
+    # The context carries the pseudonym salt the network sources share (frame
+    # rows carry process names and swap chain addresses, nothing it protects)
+    # and the Tools list the helper copies into manifest.tools.
     if ($null -eq $Context) { $Context = @{} }
     $id = [string]$Source['Id']
     $exe = [string]$Source['BinaryPath']
@@ -974,6 +975,9 @@ function Invoke-WfPresentMonFramesSource {
                     } elseif (-not $etlHeader['found']) {
                         $readErrorKind = 'other'
                         $readErrorMessage = 'the recording''s log file header could not be read (' + [string]$etlHeader['error'] + '), so its loss counters, clock and bounds are unknown; the controller reported ' + $(if ($null -ne $statusFacts['events_lost']) { [string]$statusFacts['events_lost'] + ' events lost' } else { 'no loss count' }) + ', which is not enough on its own'
+                    } elseif ($null -eq $etlHeader['end_time_utc']) {
+                        $readErrorKind = 'other'
+                        $readErrorMessage = 'the recording''s log file header carries no end time (EndTime is zero), so the session cannot be shown to have run until the stop was requested; a header without an end time is not accepted'
                     } elseif ($null -eq $statusFacts['events_lost']) {
                         $readErrorKind = 'other'
                         $readErrorMessage = 'events lost could not be read from wpr -status (no Dropped event or Events Lost line), so the controller''s count is unknown and the header''s ' + [string]$etlHeader['events_lost'] + ' cannot be cross checked'
@@ -1175,6 +1179,7 @@ function Invoke-WfPresentMonFramesSource {
             $entry.raw_time_range = New-WfTimeRange -StartUtc $recordStartBound -EndUtc $recordStopBound
         }
         $entry.events_lost = $eventsLost
+        $entry.buffers_lost = $buffersLost
         $entry.enabled = [ordered]@{
             providers = @($comparison['providers'] | Where-Object { $_['enabled'] } | ForEach-Object { [string]$_['id'] })
             keywords  = @($comparison['providers'] | Where-Object { $_['enabled'] } | ForEach-Object { [string]$_['id'] + ':' + [string]$_['enabled_keywords'] })
@@ -1247,10 +1252,11 @@ function Invoke-WfPresentMonFramesSource {
     if ($dataLeft) {
         $entry.artifacts = Get-WfPresentMonOwnArtifactRecords -BundleRoot $BundleRoot -RelativeDir $relativeDir -Roles $roles
     } else {
-        $entry.artifacts = Get-WfArtifactRecords -BundleRoot $BundleRoot -SourceId $id -Roles $roles
+        if ($Context.Contains('Tools')) { foreach ($tool in @($tools)) { $Context['Tools'].Add($tool) } }
+    $entry.artifacts = Get-WfArtifactRecords -BundleRoot $BundleRoot -SourceId $id -Roles $roles
     }
     $Log.Add(('source {0}: status {1}, {2} artifacts' -f $id, $entry.status, @($entry.artifacts).Count))
-    return [ordered]@{ Entry = $entry; Rows = @(); Tools = $tools }
+    return [ordered]@{ Entry = $entry; Rows = @() }
 }
 
 # --- parameter checks, before anything is written -----------------------------
@@ -1272,18 +1278,27 @@ if ($problems.Count -gt 0) {
 
 $targetProcess = $null
 if ($names.Count -gt 0) { $targetProcess = [string]$names[0] }
+# The script source's entry point: a literal scriptblock (not a closure, so it
+# sees the helper's functions) that hands the source to the function above.
+$invokePresentMonFrames = {
+    param([hashtable]$Source, [string]$BundleRoot, [int64]$MaxArtifactBytes, [int]$TimeoutSeconds, [System.Collections.Generic.List[string]]$Log, [System.Collections.Generic.List[string]]$Notes, [hashtable]$Context)
+    return (Invoke-WfPresentMonFramesSource -Source $Source -BundleRoot $BundleRoot -MaxArtifactBytes $MaxArtifactBytes -TimeoutSeconds $TimeoutSeconds -Log $Log -Notes $Notes -Context $Context)
+}
 $definition = @{
     Name                     = $collectorName
     Version                  = '2.1.0'
     Question                 = 'What did the frame pipeline do, frame by frame, during a bounded window: present cadence, time in Present, CPU and GPU busy and wait, display latency, every frame stamped in the ETW performance counter domain?'
     RequestedDurationSeconds = $DurationSeconds
     TargetProcess            = $targetProcess
-    CalibrationMethod        = 'none in this collector: the recording is an ETW file whose events carry the clock its log file header names (clock_type in the manifest; QPC is the etw_qpc master domain of docs/contracts/timestamps.md), and PresentMon writes CPUStartQPC from those timestamps; the calibration pairs that relate them to system time come from the clock collector of a later runner'
+    Calibration              = @{
+        status = 'not_applicable'
+        method = 'none in this collector: the recording is an ETW file whose events carry the clock its log file header names (clock_type in the manifest; QPC is the etw_qpc master domain of docs/contracts/timestamps.md), and PresentMon writes CPUStartQPC from those timestamps; the calibration pairs that relate them to system time come from the clock collector of a later runner'
+    }
     Sources                  = @(
         @{
             Id              = 'presentmon_frames'
-            Type            = 'custom'
-            Invoke          = 'Invoke-WfPresentMonFramesSource'
+            Type            = 'script'
+            Invoke          = $invokePresentMonFrames
             Required        = $true
             BinaryPath      = $binaryPath
             DurationSeconds = $DurationSeconds

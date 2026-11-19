@@ -11,6 +11,17 @@ Tables (see docs/contracts/decoded-tables.md sections 5.1 and 5.2):
 Every row carries a provenance object whose ``row_id_or_offset`` is the 1-based
 line number of the raw line it was parsed from.
 
+The bundle must have a ``manifest.json``, and ``--source`` must be a normalised
+bundle relative path, inside the bundle, listed in the manifest as a primary
+artifact of a collector of kind ``xperf``, and present on disk; anything else is
+``decode_failed`` and nothing is written. The sidecar also records that
+collector's measurement status as the ``collector_status`` check, which does
+not change the decoder's own status: a report decoded from a trace whose
+collector is ``capture_failed`` (lost events) still yields rows, and the
+manifest and the ``tracestats`` table are where the loss is read. A decoder
+never upgrades a collector's status (docs/contracts/measurement-status.md,
+section 2, rule 3).
+
 Usage::
 
     python scripts/decode_dpcisr.py --bundle fixtures/example-bundle \
@@ -19,6 +30,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from dataclasses import dataclass, field
@@ -30,7 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import wf_schema  # noqa: E402
 
 DECODER = "decode_dpcisr"
-DECODER_VERSION = "1.0.0"
+DECODER_VERSION = "1.1.0"
 TOOL = {"name": "xperf -a dpcisr", "version": None}
 
 RE_SECTION = {"DPC Info": "dpc", "Interrupt Info": "isr"}
@@ -61,6 +73,36 @@ class Section:
 
 class DecodeError(Exception):
     pass
+
+
+OBSERVED = ("observed", "observed_zero")
+
+
+def collector_for_source(bundle: Path, source: str) -> dict[str, Any]:
+    """The manifest collector that lists ``source`` as a primary xperf artifact.
+
+    Raises DecodeError when the bundle has no manifest, when the source is not such an artifact,
+    or when the path is not a normalised bundle relative path inside the bundle.
+    """
+    manifest_path = bundle / "manifest.json"
+    if not manifest_path.is_file():
+        raise DecodeError("the bundle has no manifest.json")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DecodeError(f"manifest.json: {exc}") from exc
+    if source != source.strip() or source.startswith(("/", "\\")) or "\\" in source:
+        raise DecodeError(f"{source}: not a bundle relative path")
+    if any(part in ("", ".", "..") for part in source.split("/")) or not source.startswith("raw/"):
+        raise DecodeError(f"{source}: not a normalised path under raw/")
+    if bundle.resolve() not in (bundle / source).resolve().parents:
+        raise DecodeError(f"{source}: resolves outside the bundle")
+    for collector in manifest["collectors"]:
+        if collector["kind"] != "xperf":
+            continue
+        if any(a["role"] == "primary" and a["path"] == source for a in collector["artifacts"]):
+            return collector
+    raise DecodeError(f"{source}: not listed in the manifest as the primary artifact of an xperf collector")
 
 
 def provenance(source_file: str, line_no: int, table: str) -> dict[str, str]:
@@ -206,11 +248,17 @@ def checks_for(sections: list[Section]) -> list[dict[str, Any]]:
 
 
 def decode(bundle: Path, source: str, decoded_at: str | None = None) -> dict[str, Any]:
+    decoded_at = decoded_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        collector = collector_for_source(bundle, source)
+    except DecodeError as exc:
+        return {"status": "decode_failed", "reason": str(exc), "tables": {}}
     raw_path = bundle / source
+    if not raw_path.is_file():
+        return {"status": "decode_failed", "reason": f"{source}: missing from the bundle", "tables": {}}
     text = raw_path.read_text(encoding="utf-8-sig")
     decoded_dir = bundle / "decoded"
     decoded_dir.mkdir(parents=True, exist_ok=True)
-    decoded_at = decoded_at or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     status, reason, sections, checks = "observed", None, [], []
     try:
         sections = parse_report(text, source)
@@ -219,6 +267,9 @@ def decode(bundle: Path, source: str, decoded_at: str | None = None) -> dict[str
             status, reason = "decode_failed", "a decoder self check failed; see checks"
     except DecodeError as exc:
         status, reason = "decode_failed", str(exc)
+    # Informational, never gating: the collector decided its status before any decoder ran.
+    detail = collector["status"] + (f": {collector['status_reason']}" if collector["status_reason"] else "")
+    checks.append({"name": "collector_status", "ok": collector["status"] in OBSERVED, "detail": f"{collector['id']} {detail}"})
 
     module_rows = [r for s in sections for r in s.module_rows]
     interval_rows = [r for s in sections for r in s.interval_rows]

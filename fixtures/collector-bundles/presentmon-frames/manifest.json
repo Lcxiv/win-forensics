@@ -1,5 +1,5 @@
 {
-  "manifest_version": "1.0.0",
+  "manifest_version": "1.1.0",
   "bundle_id": "20260301T120001Z_presentmon_frames_ae3a76a9",
   "created_utc": "2026-03-01T12:01:24.0000000Z",
   "scenario": {
@@ -496,6 +496,7 @@
         "verified_by": "wpr -status collectors -details at the end of the window (recording in progress, Dropped event and Events Lost counters, the enabled providers with their keywords and levels compared with the request), the log file header of the recording (events and buffers lost, clock type, start and end), the CSV PresentMon printed (a CPUStartQPC column proves --qpc_time) and its stderr (overflowed presents), and the exit codes and console text of every run in console.txt"
       },
       "events_lost": 0,
+      "buffers_lost": 0,
       "buffers": {
         "size_kb": 64,
         "count": 256,

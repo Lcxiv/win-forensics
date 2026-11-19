@@ -1,5 +1,5 @@
 {
-  "manifest_version": "1.0.0",
+  "manifest_version": "1.1.0",
   "bundle_id": "20260301T120001Z_bugcheck_history_ae3a76a9",
   "created_utc": "2026-03-01T12:00:07.0000000Z",
   "scenario": {
@@ -92,7 +92,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "210dda09fbf240e4da8dc35efe02465f7231c9fa5fede6b3d7024896dd0b6993"
+        "value": "418f087964fe718e0491a2cfa1b7fcd38b8b31b6cf4961a72f10d2ec8b9f6019"
       },
       "filter_hash": null,
       "requested": {
@@ -118,7 +118,7 @@
           "max_events": 5000,
           "max_artifact_bytes": 67108864,
           "timeout_seconds": 300,
-          "query_sha256": "210dda09fbf240e4da8dc35efe02465f7231c9fa5fede6b3d7024896dd0b6993"
+          "query_sha256": "418f087964fe718e0491a2cfa1b7fcd38b8b31b6cf4961a72f10d2ec8b9f6019"
         }
       },
       "enabled": {
@@ -143,6 +143,7 @@
         "verified_by": "EventLogReader accepted the query in query.xml; the oldest retained record and the provider list are in channel_state.json"
       },
       "events_lost": null,
+      "buffers_lost": null,
       "buffers": null,
       "artifacts": [
         {
@@ -153,8 +154,8 @@
         },
         {
           "path": "raw/system_restart_events/query.xml",
-          "bytes": 366,
-          "sha256": "210dda09fbf240e4da8dc35efe02465f7231c9fa5fede6b3d7024896dd0b6993",
+          "bytes": 347,
+          "sha256": "418f087964fe718e0491a2cfa1b7fcd38b8b31b6cf4961a72f10d2ec8b9f6019",
           "role": "config"
         }
       ],

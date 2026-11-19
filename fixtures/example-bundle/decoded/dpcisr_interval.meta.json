@@ -2,7 +2,7 @@
   "decoded_table": "dpcisr_interval",
   "schema_version": "1.0.0",
   "decoder": "decode_dpcisr",
-  "decoder_version": "1.0.0",
+  "decoder_version": "1.1.0",
   "tool": {
     "name": "xperf -a dpcisr",
     "version": null
@@ -68,6 +68,11 @@
       "name": "isr_unconsumed_section",
       "ok": true,
       "detail": "line:299 Distribution of number of 2000 ms intervals w.r.t. DPC/ISR usage:"
+    },
+    {
+      "name": "collector_status",
+      "ok": true,
+      "detail": "dpcisr observed"
     }
   ],
   "decoded_at_utc": "2026-09-03T00:00:00Z"

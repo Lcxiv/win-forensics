@@ -217,6 +217,7 @@ def test_loss_overflow_or_an_unconfirmed_window_in_the_record_is_decode_failed(b
         "events": ({"events_lost": 7}, "lost data (events lost 7"),
         "buffers": ({"buffers_lost": 2}, "buffers lost 2"),
         "header events": ({"header": {"events_lost": 3}}, "header 3 and 0"),
+        "no end time": ({"header": {"end_time_utc": None}}, "carries no end time"),
         "overflow": ({"presentmon": {"overflowed_presents": 12, "warnings": [], "errors": []}}, "threw 12 presents away"),
         "stop": ({"stop_confirmed": False}, "stop was not confirmed"),
         "early": ({"session_ended_early": True}, "did not run for the whole window"),
@@ -413,6 +414,16 @@ def test_decoder_refuses_inputs_it_cannot_vouch_for(bundle_copy):
     nowhere = bundle / "nowhere"
     assert decode_presentmon.decode(nowhere, decoded_at=DECODED_AT)["status"] == "decode_failed"
     assert not nowhere.exists()
+
+
+def test_only_observed_captures_are_inputs(bundle_copy):
+    bundle = bundle_copy(HAPPY)
+    manifest_path = bundle / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["collectors"][0]["status"] = "observed_zero"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    result = decode_presentmon.decode(bundle, decoded_at=DECODED_AT)
+    assert result["status"] == "not_collected" and not (bundle / "decoded").exists(), "observed_zero is not a status this collector reports, so it is never an input"
 
 
 def test_decoder_cli_exit_codes(bundle_copy, capsys):

@@ -63,7 +63,8 @@ DECODER = "decode_presentmon"
 DECODER_VERSION = "3.0.0"
 TABLE = "presentmon_frames"
 TOOL_NAME = "PresentMon console application (GameTechDev/PresentMon), --etl_file over a Windows Performance Recorder trace read on the PC"
-OBSERVED = ("observed", "observed_zero")
+# The one status the collector reports for a capture with frames; it never reports observed_zero.
+OBSERVED = ("observed",)
 
 # PresentMon 2.6.0 console README, "CSV columns", plus the two v1 metric
 # columns its source writes with --qpc_time (TimeInQPC, MsFlipDelay), to the
@@ -187,6 +188,8 @@ def read_recording(bundle: Path, capture: dict[str, Any]) -> dict[str, Any]:
     clock = header.get("clock_type")
     if clock not in DOMAINS:
         raise DecodeError(f"{path}: the recording was stamped with the {clock or 'unknown'} clock, which the table does not place in a time domain")
+    if not header.get("end_time_utc"):
+        raise DecodeError(f"{path}: the recording's header carries no end time, so the session cannot be shown to have run until the stop")
     if options.get("clock_type") != clock:
         raise DecodeError(f"{path}: the manifest says clock {options.get('clock_type')!r}, the recording record {clock!r}")
     events_lost = record.get("events_lost")
