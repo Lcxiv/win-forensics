@@ -34,6 +34,8 @@ It also holds `config-snapshot`, the first piece of the live latency capture: th
 
 The same directory holds the local scenario runner, `_run-scenario.ps1`, which the owner starts at the PC (never through SSH). Before anything runs it makes read only preflight checks (Windows PowerShell 5.1, the token's elevation and groups as booleans, each collector's rights, free space against the scenario's minimum, the pinned SHA-256 of every operator supplied tool) and refuses rather than fixes. Then it runs scenario S1's collectors as separate processes in a fixed order, each under a deadline: the clock session in the background across the three live captures (the DPC trace, the frame recording and the disk activity trace, one after another), then the history collectors, with two reserved slots for the configuration snapshot before and after. A collector stopped at its deadline has its partial raw data removed and its live session read and cancelled. The runner merges every collector's sources into one bundle whose manifest (contract 1.2.0, with `preflight` and `run` sections) is written last. The four live collectors (with the clock session) share one tested session path in the helper (start, bound, stop, end check), and each still runs on its own with unchanged output. The method, the deadlines, the privacy rules and what is still to verify on the PC are in [collectors/windows/README.md](collectors/windows/README.md), "Scenario runner".
 
+It also holds `session-ledger`, the history behind the session and incident ledger: the names, sizes and times of the Overwatch, Fortnite, Battle.net and Epic Games Launcher log files, never their text, the display driver's System log records under the service name WMI reports, the WerKernel channel, and the names, sizes and times of the live kernel dumps, minidumps and Windows Error Reporting report folders, never their content. It runs between play sessions as the account that plays and never touches a game. On the Mac, `scripts/build_session_ledger.py` joins it with the `bugcheck-history`, `tdr-events`, `application-errors` and `whea-errors` bundles of the same machine and an operator's configuration periods file into the `session_ledger` and `session_ledger_periods` tables: every session and incident on one timeline, and per period the hours played, the sessions and the incidents by type, each count beside its hours and coverage and a rate only when every input is complete ([docs/session-ledger.md](docs/session-ledger.md)).
+
 ## The four contracts
 
 | Contract | Document | Schemas |
@@ -51,8 +53,9 @@ Process Monitor facts settled on the GitHub hosted Windows runner, with the fixt
 docs/contracts/          the contracts above plus procmon-facts.md
 docs/rf-survey.md        the RF survey: method, limits, citations, and the before and after test
 docs/clock-calibration.md  the clock calibration session and operator marks: how the clocks are read, the fit, the limits
+docs/session-ledger.md   the session and incident ledger: the split, the session and rate rules, the refusals, follow-up
 schemas/                 JSON Schema (draft 2020-12), one file per table, plus manifest, evidence, verdict, common,
-                         and analysis/ for an analyzer's structured result
+                         analysis/ for an analyzer's structured result, and input/ for operator written files
 collectors/windows/      read only PowerShell collectors for the PC, their shared helper _common.ps1, the scenario runner
                          _run-scenario.ps1 with its library _scenarios.ps1, and README.md;
                          tests/ holds the Pester suite, the synthetic backend, and the fixture generator
@@ -63,12 +66,14 @@ scripts/                 wf_schema.py (schema registry and validation), decode_d
                          decode_rf_survey.py and analyze_rf_survey.py (the RF survey tables, evidence rows and report),
                          decode_config_snapshot.py (config_snapshot, powercfg and process_inventory from a config-snapshot bundle),
                          decode_clock.py (the clock calibration tables, the fitted model, alignment and join refusal),
+                         build_session_ledger.py (the session_ledger and session_ledger_periods tables from several bundles),
                          decode_net_quality.py (the net_quality and net_quality_bursts tables from a connection-quality bundle),
                          verify_bundle.py (manifest, checksums, no unlisted raw file), fetch_pwsh.sh (PowerShell 7 into tools/),
                          make_procmon_pmc.py, procmon_facts.ps1 and procmon_facts_summarize.py (runner harness)
 fixtures/example-bundle/ one bundle laid out to the contract from two win-opt format fixtures
 fixtures/collector-bundles/  synthetic bundles written by the collectors against the synthetic backend, one per case
 fixtures/scenario-runs/  synthetic bundles written by the scenario runner with the real collectors as its children
+fixtures/session-ledger/ the example periods file and the ledger built from five synthetic collector bundles
 fixtures/procmon/        committed .pmc test configurations and the runner's facts and export heads
 fixtures/presentmon/     the first buffer of a PresentMon regression recording (the one .etl git keeps), with its
                          provenance and licence
@@ -155,6 +160,18 @@ python scripts/decode_net_quality.py --bundle <bundle directory>
 ```
 
 which checks the samples against the manifest and the collector's record and writes `decoded/net_quality.jsonl` (one row per probe) and `decoded/net_quality_bursts.jsonl` (runs of losses, failed queries, link down readings, route changes and sampling gaps) with their sidecars, whose checks summarise loss and round trip per target, or reports `not_collected` and writes nothing when no source was observed.
+
+The session ledger is built from several bundles of one machine and the operator's periods file; the committed example is rebuilt with:
+
+```
+rm -rf fixtures/session-ledger/example
+python scripts/build_session_ledger.py --bundle fixtures/collector-bundles/session-ledger \
+    --bundle fixtures/collector-bundles/bugcheck-history-ledger --bundle fixtures/collector-bundles/tdr-events-ledger \
+    --bundle fixtures/collector-bundles/application-errors --bundle fixtures/collector-bundles/whea-errors-quiet \
+    --periods fixtures/session-ledger/periods.json --out fixtures/session-ledger/example --decoded-at 2026-09-03T00:00:00Z
+```
+
+after a change to the builder, its schemas or those bundles, or `tests/test_session_ledger.py` fails on the stale comparison. It refuses, writing nothing, bundles that do not verify, bundles from two machines, and a periods file that fails its schema or overlaps.
 
 A `config-snapshot` bundle is decoded with:
 

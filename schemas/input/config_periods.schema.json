@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/input/config_periods.schema.json",
+  "title": "Configuration periods file",
+  "description": "Written by the operator: the date ranges during which the PC kept one configuration, each with a label, for the session ledger (docs/session-ledger.md). Times carry an explicit offset or Z. Periods are in order and do not overlap; only the last may be open (end null).",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "version",
+    "revision",
+    "tracked_titles",
+    "periods"
+  ],
+  "properties": {
+    "format": {
+      "const": "wf-config-periods"
+    },
+    "version": {
+      "const": "1.0.0"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Raised by the operator at every edit."
+    },
+    "machine_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "description": "Optional: the machine the periods describe, as the bundles name it."
+    },
+    "tracked_titles": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "overwatch",
+          "fortnite"
+        ]
+      },
+      "description": "The games whose hours are the denominator of every rate."
+    },
+    "periods": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "period_id",
+          "label",
+          "start",
+          "end"
+        ],
+        "properties": {
+          "period_id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,40}$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "start": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]{1,6})?)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+          },
+          "end": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]{1,6})?)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        }
+      }
+    }
+  }
+}

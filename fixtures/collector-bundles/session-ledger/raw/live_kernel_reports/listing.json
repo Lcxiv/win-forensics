@@ -1,0 +1,4 @@
+[
+{"type":"folder","folder":null,"name":"WATCHDOG","name_kept":true,"name_prefix":null,"extension":null,"bytes":null,"creation_time_utc":"2026-01-20T12:00:00.0000000Z","last_write_time_utc":"2026-02-25T15:08:04.0000000Z","entered":true},
+{"type":"file","folder":"WATCHDOG","name":"WATCHDOG-20260225-1452.dmp","name_kept":true,"name_prefix":null,"extension":".dmp","bytes":1258291,"creation_time_utc":"2026-02-25T15:08:04.0000000Z","last_write_time_utc":"2026-02-25T15:08:12.0000000Z","entered":null}
+]

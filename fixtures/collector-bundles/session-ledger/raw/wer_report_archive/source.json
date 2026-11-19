@@ -1,0 +1,19 @@
+{
+  "folder": "ProgramData",
+  "path_tail": "Microsoft\\Windows\\WER\\ReportArchive",
+  "path_display": "<ProgramData>\\Microsoft\\Windows\\WER\\ReportArchive",
+  "path_documented": "https://learn.microsoft.com/windows-server/failover-clustering/troubleshooting-using-wer-reports",
+  "depth": 1,
+  "include": [],
+  "name_pattern": "^[A-Za-z0-9]{1,40}(\\.[A-Za-z0-9]{1,12}){1,3}$",
+  "folder_pattern": "^$",
+  "prefix_pattern": "^([A-Za-z]{1,32})_",
+  "absence": "observation",
+  "max_entries": 5000,
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 300,
+  "mode": "metadata",
+  "content_read": false,
+  "why_no_content": "the question is when these files were written and how large they are; the names, sizes and times are read from the folder listing, and no file is opened, hashed or copied",
+  "name_rule": "a name that matches name_pattern (folder_pattern for a folder) is kept verbatim; any other is name-<first 12 hex of SHA-256(salt, lower cased name)> with a random salt that is not stored"
+}
