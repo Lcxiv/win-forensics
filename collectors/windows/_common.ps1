@@ -19,7 +19,8 @@
 # fixed netsh query), file (one known file copied read only), pnp (present
 # Plug and Play devices with their parent chain), script (a source the
 # collector implements itself with a scriptblock, used by the live capture
-# collector dpcisr-trace, which keeps its session control local), and custom
+# collectors dpcisr-trace and presentmon-frames, which keep their session
+# control local), and custom
 # (a function the collector script itself defines, named in the definition;
 # it receives the bundle root and returns its manifest entries, and may fill
 # the manifest's calibration section and the scenario marks;
@@ -2231,6 +2232,9 @@ function Invoke-WfCollector {
     }
     $windowText = 'no time window (snapshot)'
     if ($windowed) { $windowText = ('window {0} days' -f $WindowDays) }
+    # A live capture scoped to a process names it; history collectors leave it out.
+    $targetProcess = $null
+    if ($Definition.ContainsKey('TargetProcess') -and $Definition['TargetProcess']) { $targetProcess = [string]$Definition['TargetProcess'] }
     $log.Add(('{0} collector {1} version {2}, helper version {3}, {4}, {5} s per source' -f (ConvertTo-WfUtcString -Value $start), $name, [string]$Definition['Version'], (Get-WfCollectorsVersion), $windowText, $TimeoutSeconds))
 
     $machineInfo = $null
@@ -2393,7 +2397,7 @@ function Invoke-WfCollector {
             id                   = $scenarioId
             version              = [string]$Definition['Version']
             requested_duration_s = $requestedDuration
-            target_process       = $null
+            target_process       = $targetProcess
             marks                = @($marks)
         }
         capture            = [ordered]@{
@@ -2673,7 +2677,9 @@ function Get-WfAccountInfo {
     # privileges of the account that authenticated:
     # https://learn.microsoft.com/en-us/powershell/scripting/security/remoting/ssh-remoting-in-powershell
     # WindowsPrincipal.IsInRole: https://learn.microsoft.com/en-us/dotnet/api/system.security.principal.windowsprincipal.isinrole
-    $info = [ordered]@{ name = $null; elevated = $null; event_log_readers = $null }
+    # Well known SIDs (Event Log Readers S-1-5-32-573, Performance Log Users
+    # S-1-5-32-559): https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-security-identifiers
+    $info = [ordered]@{ name = $null; elevated = $null; event_log_readers = $null; performance_log_users = $null }
     try {
         $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
         $principal = New-Object System.Security.Principal.WindowsPrincipal($identity)
@@ -2681,6 +2687,8 @@ function Get-WfAccountInfo {
         $info.elevated = [bool]$principal.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
         $readers = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-573')
         $info.event_log_readers = [bool]$principal.IsInRole($readers)
+        $performanceLogUsers = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-559')
+        $info.performance_log_users = [bool]$principal.IsInRole($performanceLogUsers)
     } catch {
         Write-WfStderrLine -Text ('could not read the account identity: ' + $_.Exception.Message)
     }
@@ -2942,7 +2950,9 @@ function Invoke-WfProcess {
     # through this are wevtutil (export verb), netsh (wlan show queries), the
     # inbox wpr.exe (status, profiles, start, stop and cancel of the one
     # session dpcisr-trace owns), the inbox tracerpt.exe (the summary of that
-    # trace) and a pinned xperf.exe (the dpcisr report of that trace).
+    # trace), a pinned xperf.exe (the dpcisr report of that trace), the same
+    # wpr.exe for the one named recording presentmon-frames owns, and the pinned
+    # PresentMon console binary reading that recording offline (presentmon-frames.ps1).
     param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null, [int64]$MaxBytes = 0)
     $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Oversized = $false; Error = $null; DurationMs = $null; StdOutBytes = [int64]0; StdErrBytes = [int64]0; Diagnostic = $null }
     if ($TimeoutSeconds -lt 1) {
@@ -3044,9 +3054,42 @@ function Get-WfNetshPath {
     return [System.IO.Path]::Combine([string]$env:SystemRoot, 'System32', 'netsh.exe')
 }
 
+function Wait-WfSeconds {
+    # The recording window of a live capture. Replaced by the synthetic
+    # backend, which advances its clock instead of sleeping.
+    param([int]$Seconds)
+    if ($Seconds -gt 0) { Start-Sleep -Seconds $Seconds }
+}
+
 function Test-WfToolPresent {
     param([string]$Path)
     return [bool](Test-Path -LiteralPath $Path -PathType Leaf)
+}
+
+function Get-WfBinaryInfo {
+    # What a collector checks before it runs an operator supplied executable:
+    # that the file exists, its exact size and SHA-256 (the pin), and the
+    # version strings Windows reads from its resource block
+    # (https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.fileversioninfo),
+    # which are recorded and never trusted in place of the hash.
+    param([string]$Path)
+    $info = [ordered]@{ exists = $false; length = $null; sha256 = $null; file_version = $null; product_version = $null; error = $null }
+    try {
+        if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $info }
+        $info.exists = $true
+        $info.length = [int64](Get-Item -LiteralPath $Path).Length
+        $info.sha256 = Get-WfSha256OfFile -Path $Path
+        try {
+            $version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($Path)
+            $info.file_version = $version.FileVersion
+            $info.product_version = $version.ProductVersion
+        } catch {
+            $info.file_version = $null
+        }
+    } catch {
+        $info.error = $_.Exception.Message
+    }
+    return $info
 }
 
 function Get-WfConsoleOutputEncoding {

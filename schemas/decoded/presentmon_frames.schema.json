@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/presentmon_frames.schema.json",
   "title": "presentmon_frames row",
-  "description": "Provisional. One row per frame from a PresentMon console CSV. Exactly one of cpu_start_qpc and cpu_start_time_s is non-null.",
-  "x-schema-version": "0.1.0",
+  "description": "Provisional. One row per frame from a PresentMon console CSV written with --qpc_time, as the presentmon-frames collector produces it from an ETW recording with --etl_file. cpu_start_qpc is the frame's CPUStartQPC in the recording's clock (the sidecar's time_domain names it). Decoder: scripts/decode_presentmon.py.",
+  "x-schema-version": "0.2.0",
   "x-decoded-table": "presentmon_frames",
   "type": "object",
   "additionalProperties": false,
@@ -19,7 +19,6 @@
     "ms_between_presents",
     "ms_in_present_api",
     "cpu_start_qpc",
-    "cpu_start_time_s",
     "provenance"
   ],
   "properties": {
@@ -65,16 +64,14 @@
       ]
     },
     "cpu_start_qpc": {
+      "type": "integer"
+    },
+    "time_in_qpc": {
       "type": [
         "integer",
         "null"
-      ]
-    },
-    "cpu_start_time_s": {
-      "type": [
-        "number",
-        "null"
-      ]
+      ],
+      "description": "TimeInQPC: the present start in the recording's clock (v1 metrics with --qpc_time)."
     },
     "ms_cpu_busy": {
       "type": [
@@ -131,6 +128,12 @@
       ]
     },
     "animation_time_ms": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ms_flip_delay": {
       "type": [
         "number",
         "null"
@@ -222,33 +225,11 @@
               "const": "presentmon_frames"
             },
             "schema_version": {
-              "const": "0.1.0"
+              "const": "0.2.0"
             }
           }
         }
       ]
     }
-  },
-  "oneOf": [
-    {
-      "properties": {
-        "cpu_start_qpc": {
-          "type": "integer"
-        },
-        "cpu_start_time_s": {
-          "type": "null"
-        }
-      }
-    },
-    {
-      "properties": {
-        "cpu_start_qpc": {
-          "type": "null"
-        },
-        "cpu_start_time_s": {
-          "type": "number"
-        }
-      }
-    }
-  ]
+  }
 }

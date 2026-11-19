@@ -191,6 +191,91 @@ function Get-WfSyntheticCases {
             }
         })
 
+    # The PresentMon frame capture: wpr records the providers PresentMon
+    # needs to a file under the collector's own instance name, PresentMon
+    # reads that file offline and prints its CSV on stdout, and the file is
+    # deleted. The binary, wpr's output, the recording and every frame are
+    # invented; the hash the synthetic file reports is the pinned one so the
+    # collector's verification passes; the CSV follows the header PresentMon
+    # 2.6.0 writes for its default options with --qpc_time (CsvOutput.cpp
+    # WriteCsvHeader<FrameMetrics>, lines 531 to 667), and the recording's
+    # first buffer follows the layout of PresentMon's own regression
+    # recordings (see New-WfSyntheticEtlBytes).
+
+    # A completed 60 second recording of every presenting process with no
+    # loss, read by PresentMon into frames of a game and of a process whose
+    # start event was not in the recording. Status ok, source observed.
+    $cases.Add(@{
+            Case = 'presentmon-frames'; Collector = 'presentmon-frames'; ExitCode = 0
+            Arguments = @{ PresentMonPath = (Get-WfSyntheticPresentMonPath); DurationSeconds = 60 }
+            Setup = {
+                New-WfSyntheticPresentMon -PerformanceLogUsers $true
+                Add-WfSyntheticWprRuns -EventsLost 0 -EtlBytes (New-WfSyntheticEtlBytes -DurationSeconds 60)
+                Add-WfSyntheticPresentMonDecode -CsvText (Get-WfSyntheticPresentMonCsv -Name 'two-processes')
+            }
+        })
+
+    # The same recording, and PresentMon printed nothing: with the pinned
+    # binary an empty output cannot be told from a read that stopped early,
+    # so no quiet window is claimed and the source is capture_failed.
+    $cases.Add(@{
+            Case = 'presentmon-frames-no-frames'; Collector = 'presentmon-frames'; ExitCode = 1
+            Arguments = @{ PresentMonPath = (Get-WfSyntheticPresentMonPath); DurationSeconds = 30 }
+            Setup = {
+                New-WfSyntheticPresentMon -PerformanceLogUsers $true
+                Add-WfSyntheticWprRuns -EventsLost 0 -EtlBytes (New-WfSyntheticEtlBytes -DurationSeconds 30)
+                Add-WfSyntheticPresentMonDecode -CsvText ''
+            }
+        })
+
+    # The operator has not placed the binary: nothing runs, not even wpr; the
+    # source is not_collected with the download hint; the collector exits 1.
+    $cases.Add(@{
+            Case = 'presentmon-frames-no-binary'; Collector = 'presentmon-frames'; ExitCode = 1
+            Arguments = @{ PresentMonPath = (Get-WfSyntheticPresentMonPath); DurationSeconds = 60 }
+            Setup = {
+                New-WfSyntheticPresentMon -PerformanceLogUsers $true -Present $false
+                Add-WfSyntheticWprRuns
+            }
+        })
+
+    # The controller lost events during the window: the source is
+    # capture_failed, PresentMon never runs, the recording is deleted like
+    # every recording.
+    $cases.Add(@{
+            Case = 'presentmon-frames-lost-events'; Collector = 'presentmon-frames'; ExitCode = 1
+            Arguments = @{ PresentMonPath = (Get-WfSyntheticPresentMonPath); DurationSeconds = 60 }
+            Setup = {
+                New-WfSyntheticPresentMon -PerformanceLogUsers $true
+                Add-WfSyntheticWprRuns -EventsLost 12 -EtlBytes (New-WfSyntheticEtlBytes -DurationSeconds 60 -EventsLost 12)
+                Add-WfSyntheticPresentMonDecode -CsvText (Get-WfSyntheticPresentMonCsv -Name 'two-processes')
+            }
+        })
+
+    # PresentMon read a complete recording but threw presents away (its
+    # "overflowed present events" warning): the frame table would be
+    # incomplete, so the source is capture_failed with the count recorded.
+    $cases.Add(@{
+            Case = 'presentmon-frames-overflow'; Collector = 'presentmon-frames'; ExitCode = 1
+            Arguments = @{ PresentMonPath = (Get-WfSyntheticPresentMonPath); DurationSeconds = 60 }
+            Setup = {
+                New-WfSyntheticPresentMon -PerformanceLogUsers $true
+                Add-WfSyntheticWprRuns -EventsLost 0 -EtlBytes (New-WfSyntheticEtlBytes -DurationSeconds 60)
+                Add-WfSyntheticPresentMonDecode -CsvText (Get-WfSyntheticPresentMonCsv -Name 'two-processes') -StdErr (Get-WfSyntheticPresentMonOverflowText -Count 37)
+            }
+        })
+
+    # The account may not control event tracing sessions and wpr refuses to
+    # start: not_collected with wpr's words, nothing recorded.
+    $cases.Add(@{
+            Case = 'presentmon-frames-access-denied'; Collector = 'presentmon-frames'; ExitCode = 1
+            Arguments = @{ PresentMonPath = (Get-WfSyntheticPresentMonPath); DurationSeconds = 60 }
+            Setup = {
+                New-WfSyntheticPresentMon -PerformanceLogUsers $false
+                Add-WfSyntheticWprRuns -StartExitCode 1 -StartStdErr "Access is denied.`r`n"
+            }
+        })
+
     # The live DPC and interrupt capture. The synthetic recorder starts and
     # stops cleanly; the synthetic xperf is a pinned build whose report puts
     # the invented graphics driver's DPC and interrupt time on CPU 6. Status
@@ -294,6 +379,305 @@ function Get-WfSyntheticCases {
         })
 
     return $cases.ToArray()
+}
+
+function Get-WfSyntheticPresentMonPath {
+    # Where the fixture cases say the binary is; the synthetic backend never
+    # touches the path, it only looks it up.
+    return 'C:\ProgramData\win-forensics\tools\PresentMon-2.6.0-x64.exe'
+}
+
+function Get-WfSyntheticWprPath {
+    return 'C:\Windows\System32\wpr.exe'
+}
+
+function Get-WfSyntheticPresentMonPinnedSha256 {
+    # The pin presentmon-frames.ps1 carries (GitHub release v2.6.0 asset
+    # digest). Kept here as text so the synthetic file can report it; a test
+    # compares it with the collector's own constant.
+    return 'b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af'
+}
+
+function New-WfSyntheticPresentMon {
+    # The synthetic PresentMon binary (present with the pinned hash and size
+    # unless told otherwise) and the account's group memberships.
+    param([bool]$PerformanceLogUsers = $true, [bool]$Present = $true, [string]$Sha256 = '', [int64]$Length = 980320, [bool]$Elevated = $false)
+    $global:WfSynthetic.Elevated = $Elevated
+    $global:WfSynthetic.PerformanceLogUsers = $PerformanceLogUsers
+    if (-not $Present) {
+        $global:WfSynthetic.Binaries.Remove((Get-WfSyntheticPresentMonPath))
+        return
+    }
+    if (-not $Sha256) { $Sha256 = Get-WfSyntheticPresentMonPinnedSha256 }
+    $global:WfSynthetic.Binaries[(Get-WfSyntheticPresentMonPath)] = @{ Length = $Length; Sha256 = $Sha256; FileVersion = '2.6.0.0'; ProductVersion = '2.6.0' }
+}
+
+function Get-WfSyntheticPresentMonWprStatusText {
+    # What the synthetic wpr -status prints. The in progress text follows the
+    # sample on the WPR Command-Line Options page ("WPR recording is in
+    # progress...", "Dropped event", "Collector Name", "Events Lost" per
+    # collector); the text when nothing records is invented, since Microsoft
+    # documents only that "a message displays that WPR is not recording";
+    # the provider lines under "Providers" are invented too (the collector
+    # reads "<name>: <keywords>: <level>" and the README's verification list
+    # says so). -ProviderLines $false leaves the Providers block out, which
+    # the collector must treat as settings it could not confirm.
+    param([bool]$InProgress, [int64]$EventsLost = 0, [bool]$Collectors = $false, [int64]$DroppedEvents = -1, [bool]$ProviderLines = $true, [string]$DxgKrnlKeywords = '0x8000841')
+    $nl = "`r`n"
+    if (-not $InProgress) { return ('WPR is not recording.' + $nl) }
+    if ($DroppedEvents -lt 0) { $DroppedEvents = $EventsLost }
+    $text = 'WPR recording is in progress...' + $nl + $nl + 'Time since start        : 00:01:00' + $nl + $nl + ('Dropped event           : {0}' -f $DroppedEvents) + $nl + $nl + 'Logging mode            : File' + $nl
+    if ($Collectors) {
+        $text += $nl + 'Actively recording collectors:' + $nl
+        $text += 'Collector Name          : wf-presentmon-frames' + $nl
+        $text += 'Collector Type          : Event Collector' + $nl
+        $text += 'Buffer Size (KB)        : 64' + $nl
+        $text += ('Events Lost             : {0}' -f $EventsLost) + $nl
+        if ($ProviderLines) {
+            $text += 'Providers' + $nl
+            $text += '    Microsoft-Windows-Kernel-Process: 0x8000000000000010: 0x04' + $nl
+            $text += ('    {802ec45a-1e99-4b83-9920-87c98277ba9d}: ' + $DxgKrnlKeywords + ': 0x04') + $nl
+            $text += '    Microsoft-Windows-Win32k: 0x8400000440c01000: 0x04' + $nl
+            $text += '    Microsoft-Windows-Dwm-Core: 0x8000000000000081: 0x05' + $nl
+            $text += '    {8c9dd1ad-e6e5-4b07-b455-684a9d879900}: 0x0: 0x05' + $nl
+            $text += '    {65cd4c8a-0848-4583-92a0-31c0fbaf00c0}: 0x0: 0x04' + $nl
+            $text += '    Microsoft-Windows-DXGI: 0x8000000000000002: 0xff' + $nl
+            $text += '    Microsoft-Windows-D3D9: 0x8000000000000002: 0xff' + $nl
+            $text += 'CaptureState Providers on Start' + $nl
+            $text += '    Microsoft-Windows-Kernel-Process: 0x8000000000000010: 0x04' + $nl
+            $text += '    {802ec45a-1e99-4b83-9920-87c98277ba9d}: 0x840: 0x04' + $nl
+        }
+    }
+    return $text
+}
+
+function Get-WfSyntheticPresentMonOverflowText {
+    # The three warning lines MainThread.cpp prints at v2.6.0 (lines 456 to
+    # 459) when the consumer threw presents away, on stderr.
+    param([int]$Count)
+    return (('warning: {0} overflowed present events detected. This could be due to a high-fps application.' -f $Count) + "`n" +
+        '         Consider increasing the present event circular buffer size to a value larger' + "`n" +
+        '         than the default of 2048, e.g., --set_circular_buffer_size 4096.' + "`n")
+}
+
+function New-WfSyntheticEtlBytes {
+    # A stand in for the first buffer of an ETW log file, laid out as the
+    # first buffer of PresentMon's own regression recordings is
+    # (Tests/Gold/test_case_0.etl at tag v2.6.0, whose first 4096 bytes are
+    # committed as fixtures/presentmon/gold-test_case_0.first-buffer.etl):
+    # a 72 byte buffer header (buffer size, saved offset, current offset,
+    # then fields this stand in leaves zero), a 32 byte system trace header
+    # (version 2, header type 2, flags 0xc0, size, hook id 0, thread and
+    # process id, time stamp, kernel and user time) and TRACE_LOGFILE_HEADER
+    # (the documented structure, pointer members of PointerSize each, the
+    # time zone block padded to 176 bytes), followed by the logger and log
+    # file names and 0xff fill to the end of the buffer. Everything in it is
+    # invented; the Pester suite compares its layout with the committed
+    # first buffer field by field.
+    param([int]$DurationSeconds = 60, [int64]$EventsLost = 0, [int64]$BuffersLost = 0, [int64]$BuffersWritten = 40, [int]$ClockType = 1,
+        [int64]$PerfFreq = 10000000, [int]$PointerSize = 8, [int]$MaximumFileSizeMb = 48, [int]$StartOffsetSeconds = 7, [int]$EndLagSeconds = 10,
+        [int]$EndOffsetSeconds = -1, [int]$BufferSize = 4096, [int]$HeaderType = 2, [switch]$NoEndTime)
+    $start = $global:WfSynthetic.Now.AddSeconds($StartOffsetSeconds)
+    # The session starts a few synthetic seconds after the collector's own
+    # start bound (the probe, the clock reads and wpr -start take about 7)
+    # and ends after the stop was requested (the window, the status read
+    # and a lag) unless -EndOffsetSeconds places it earlier.
+    if ($EndOffsetSeconds -ge 0) { $end = $global:WfSynthetic.Now.AddSeconds($EndOffsetSeconds) } else { $end = $start.AddSeconds($DurationSeconds + 1 + $EndLagSeconds) }
+    $payload = New-Object System.IO.MemoryStream
+    $pw = New-Object System.IO.BinaryWriter($payload)
+    try {
+        $pw.Write([uint32]65536)                    # BufferSize (of the session)
+        $pw.Write([byte]10); $pw.Write([byte]0); $pw.Write([byte]2); $pw.Write([byte]0)   # Version: major 10, minor 0, sub, sub minor
+        $pw.Write([uint32]26100)                    # ProviderVersion (build)
+        $pw.Write([uint32]16)                       # NumberOfProcessors
+        if ($NoEndTime) { $pw.Write([int64]0) } else { $pw.Write([int64]$end.ToFileTimeUtc()) }      # EndTime (0 when the session never closed cleanly)
+        $pw.Write([uint32]156250)                   # TimerResolution
+        $pw.Write([uint32]$MaximumFileSizeMb)       # MaximumFileSize
+        $pw.Write([uint32]0x1)                      # LogFileMode (sequential)
+        $pw.Write([uint32]$BuffersWritten)          # BuffersWritten
+        $pw.Write([uint32]1)                        # StartBuffers
+        $pw.Write([uint32]$PointerSize)             # PointerSize
+        $pw.Write([uint32]$EventsLost)              # EventsLost
+        $pw.Write([uint32]3000)                     # CpuSpeedInMHz
+        $pw.Write((New-Object byte[] (2 * $PointerSize)))  # LoggerName, LogFileName pointers
+        $pw.Write((New-Object byte[] 176))          # TIME_ZONE_INFORMATION, padded
+        $pw.Write([int64]$global:WfSynthetic.Now.AddDays(-2).ToFileTimeUtc())  # BootTime
+        $pw.Write([int64]$PerfFreq)                 # PerfFreq
+        $pw.Write([int64]$start.ToFileTimeUtc())    # StartTime
+        $pw.Write([uint32]$ClockType)               # ReservedFlags (clock type)
+        $pw.Write([uint32]$BuffersLost)             # BuffersLost
+        $pw.Write([System.Text.Encoding]::Unicode.GetBytes("wf-presentmon-frames`0"))
+        $pw.Write([System.Text.Encoding]::Unicode.GetBytes("trace.etl`0"))
+        $pw.Flush()
+        $payloadBytes = $payload.ToArray()
+    } finally {
+        $pw.Dispose()
+        $payload.Dispose()
+    }
+    $eventSize = 32 + $payloadBytes.Length
+    $savedOffset = 72 + $eventSize
+    if ($savedOffset % 8 -ne 0) { $savedOffset += 8 - ($savedOffset % 8) }
+    $buffer = New-Object byte[] $BufferSize
+    for ($i = $savedOffset; $i -lt $BufferSize; $i++) { $buffer[$i] = 0xff }
+    $stream = New-Object System.IO.MemoryStream
+    $writer = New-Object System.IO.BinaryWriter($stream)
+    try {
+        $writer.Write([uint32]$BufferSize)                   # buffer header: BufferSize
+        $writer.Write([uint32]$savedOffset)                  # SavedOffset
+        $writer.Write([uint32]0)                             # CurrentOffset
+        $writer.Write((New-Object byte[] 60))                # the rest of the 72 byte buffer header, left zero
+        $writer.Write([uint16]2)                             # system trace header: Version
+        $writer.Write([byte]$HeaderType)                     # HeaderType (2: 64 bit system header)
+        $writer.Write([byte]0xc0)                            # Flags
+        $writer.Write([uint16]$eventSize)                    # Size
+        $writer.Write([uint16]0)                             # HookId 0: the log file header event
+        $writer.Write([uint32]4)                             # ThreadId
+        $writer.Write([uint32]4)                             # ProcessId
+        $writer.Write([int64]0)                              # TimeStamp (counter value, invented)
+        $writer.Write([uint32]0)                             # KernelTime
+        $writer.Write([uint32]0)                             # UserTime
+        $writer.Write($payloadBytes)
+        $writer.Flush()
+        $head = $stream.ToArray()
+    } finally {
+        $writer.Dispose()
+        $stream.Dispose()
+    }
+    [array]::Copy($head, $buffer, $head.Length)
+    return $buffer
+}
+
+function Add-WfSyntheticWprRuns {
+    # What the synthetic wpr does for each verb the collector uses, in the
+    # order the collector calls them: -status (probe), -start, -status
+    # collectors -details (end of window), -stop, -status (after), -cancel.
+    # Every call carries -instancename; the synthetic matches on the verb.
+    # -LeftoverActive makes the first probe report a recording in progress
+    # and the next probe idle (the collector cancels its own leftover between
+    # them); -ProbeInProgress keeps every probe in progress.
+    param([bool]$ProbeInProgress = $false, [bool]$LeftoverActive = $false, [bool]$ProbeFails = $false, [bool]$ProbeStuck = $false,
+        [int]$StartExitCode = 0, [string]$StartStdOut = '', [string]$StartStdErr = '', [bool]$StartStuck = $false,
+        [bool]$InProgressAtEnd = $true, [int64]$EventsLost = 0, [int64]$DroppedEvents = -1, [bool]$ProviderLines = $true, [string]$DxgKrnlKeywords = '0x8000841',
+        [int]$StopExitCode = 0, [bool]$StopStuck = $false, $EtlBytes = $null,
+        [bool]$AfterInProgress = $false, [int]$CancelExitCode = 0, [bool]$CancelStuck = $false, [int]$StartSeconds = 3, [int]$StopSeconds = 5)
+    $wpr = Get-WfSyntheticWprPath
+    $global:WfSynthetic.Programs.Add(@{ Path = $wpr; Match = '-status collectors -details'; ExitCode = 0; StdOut = (Get-WfSyntheticPresentMonWprStatusText -InProgress $InProgressAtEnd -EventsLost $EventsLost -Collectors $true -DroppedEvents $DroppedEvents -ProviderLines $ProviderLines -DxgKrnlKeywords $DxgKrnlKeywords); StdErr = ''; Seconds = 1 })
+    $start = @{ Path = $wpr; Match = '-start'; ExitCode = $StartExitCode; StdOut = $StartStdOut; StdErr = $StartStdErr; Seconds = $StartSeconds }
+    if ($StartStuck) { $start['Stuck'] = $true }
+    $global:WfSynthetic.Programs.Add($start)
+    $stop = @{ Path = $wpr; Match = '-stop'; ExitCode = $StopExitCode; StdOut = ''; StdErr = ''; Seconds = $StopSeconds }
+    if ($StopStuck) { $stop['Stuck'] = $true }
+    if ($null -ne $EtlBytes) { $stop['OutputFileArgument'] = '-stop "([^"]+)"'; $stop['OutputBytes'] = [byte[]]$EtlBytes }
+    $global:WfSynthetic.Programs.Add($stop)
+    $cancel = @{ Path = $wpr; Match = '-cancel'; ExitCode = $CancelExitCode; StdOut = ''; StdErr = ''; Seconds = 1 }
+    if ($CancelStuck) { $cancel['Stuck'] = $true }
+    $global:WfSynthetic.Programs.Add($cancel)
+    $probe = @{ ExitCode = 0; StdOut = (Get-WfSyntheticPresentMonWprStatusText -InProgress $ProbeInProgress); StdErr = ''; Seconds = 1 }
+    if ($ProbeFails) { $probe = @{ ExitCode = 2; StdOut = ''; StdErr = "synthetic wpr: -status failed`r`n"; Seconds = 1 } }
+    if ($ProbeStuck) { $probe['Stuck'] = $true }
+    $after = @{ ExitCode = 0; StdOut = (Get-WfSyntheticPresentMonWprStatusText -InProgress $AfterInProgress); StdErr = ''; Seconds = 1 }
+    $responses = @($probe, $after)
+    # A probe that keeps reporting the instance in progress: the collector
+    # cancels once, probes again, and must then stop.
+    if ($ProbeInProgress) { $responses = @($probe, $probe, $after) }
+    if ($LeftoverActive) {
+        $responses = @(@{ ExitCode = 0; StdOut = (Get-WfSyntheticPresentMonWprStatusText -InProgress $true); StdErr = ''; Seconds = 1 }, $probe, $after)
+    }
+    $global:WfSynthetic.Programs.Add(@{ Path = $wpr; Match = '-status'; Responses = $responses })
+}
+
+function Add-WfSyntheticPresentMonDecode {
+    # What the synthetic PresentMon does when started with --etl_file
+    # --output_stdout: prints the CSV on stdout (nothing else: CommandLine.cpp
+    # turns console output off for --output_stdout) and any warning on
+    # stderr, as the real one does (Console.cpp PrintWarning writes to
+    # stderr). An empty CSV text is an empty stdout, which is what the real
+    # binary prints when no frame was emitted.
+    param([int]$ExitCode = 0, [string]$CsvText = '', [string]$StdErr = '', [bool]$Stuck = $false, [int]$Seconds = 4)
+    $decode = @{ Path = (Get-WfSyntheticPresentMonPath); Match = '--etl_file'; ExitCode = $ExitCode; StdOut = $CsvText; StdErr = $StdErr; Seconds = $Seconds }
+    if ($Stuck) { $decode['Stuck'] = $true }
+    $global:WfSynthetic.Programs.Add($decode)
+}
+
+function ConvertTo-WfSyntheticCsvCell {
+    # The writer's rule for several metrics: a zero prints NA, anything else
+    # prints with the given number of decimals.
+    param([double]$Value, [int]$Decimals)
+    if ($Value -eq 0.0) { return 'NA' }
+    return $Value.ToString('F' + $Decimals, [System.Globalization.CultureInfo]::InvariantCulture)
+}
+
+function Get-WfSyntheticPresentMonCsv {
+    # Invented CSV text in the layout PresentMon 2.6.0 writes for the console
+    # application's default options with --qpc_time: the 28 column header of
+    # WriteCsvHeader<FrameMetrics> (CsvOutput.cpp lines 531 to 667, v1
+    # metrics, track display, GPU and input on) and rows shaped by
+    # WriteCsvRow<FrameMetrics> (lines 675 to 854): integers for the two QPC
+    # columns, 14 decimals for the four Ms* columns written with DBL_DIG - 1,
+    # 4 decimals elsewhere, and NA where the writer prints NA for a zero or
+    # missing value. Values are made up: a 10 MHz counter, a game at about
+    # 144 frames per second whose name came from the recorded Kernel-Process
+    # events, and a second process whose start event was not recorded.
+    param([string]$Name)
+    $nl = "`r`n"
+    $inv = [System.Globalization.CultureInfo]::InvariantCulture
+    $header = 'Application,ProcessID,SwapChainAddress,PresentRuntime,SyncInterval,PresentFlags,AllowsTearing,PresentMode,TimeInQPC,MsBetweenSimulationStart,MsBetweenPresents,MsBetweenDisplayChange,MsInPresentAPI,MsRenderPresentLatency,MsUntilDisplayed,CPUStartQPC,MsBetweenAppStart,MsCPUBusy,MsCPUWait,MsGPULatency,MsGPUTime,MsGPUBusy,MsGPUWait,MsAnimationError,AnimationTime,MsFlipDelay,MsAllInputToPhotonLatency,MsClickToPhotonLatency'
+    switch ($Name) {
+        'header-only' { return ($header + $nl) }
+        'no-qpc' {
+            return (($header -replace 'CPUStartQPC', 'CPUStartTimeInMs') + $nl +
+                'SyntheticGame.exe,4242,0x1F3A0C0B2E0,DXGI,0,512,1,Hardware: Independent Flip,123456858140,NA,6.91400000000000,NA,0.21400000000000,6.11200000000000,NA,0.0000,6.9140,5.8120,1.1020,0.4010,5.6330,5.5110,0.1220,NA,NA,NA,NA,NA' + $nl)
+        }
+        'two-processes' {
+            $lines = New-Object 'System.Collections.Generic.List[string]'
+            $lines.Add($header)
+            $qpc = [int64]123456789000
+            # BetweenPresents, CPUBusy, CPUWait, GPULatency, GPUTime, GPUBusy, GPUWait, DisplayChange, UntilDisplayed, AnimationError, AnimationTime, FlipDelay, AllInput, Click, InPresentAPI, RenderPresentLatency
+            $game = @(
+                @(6.914, 5.812, 1.102, 0.401, 5.633, 5.511, 0.122, 6.944, 6.112, 0.030, 12345.6858, 0.0, 0.0, 0.0, 0.214, 6.112),
+                @(6.930, 5.790, 1.140, 0.398, 5.701, 5.590, 0.111, 6.930, 6.144, -0.014, 12352.6158, 0.0, 18.772, 18.772, 0.201, 6.144),
+                @(6.902, 5.820, 1.082, 0.405, 5.655, 5.540, 0.115, 6.902, 6.090, 0.028, 12359.5178, 0.0, 0.0, 0.0, 0.219, 6.090),
+                @(13.804, 12.650, 1.154, 0.412, 12.511, 12.400, 0.111, 13.804, 13.011, 6.902, 12373.3218, 0.0, 0.0, 0.0, 0.233, 13.011),
+                @(6.944, 5.801, 1.143, 0.399, 5.622, 5.500, 0.122, 0.0, 0.0, -6.860, 12380.2658, 0.0, 0.0, 0.0, 0.208, 6.120),
+                @(6.920, 5.833, 1.087, 0.403, 5.690, 5.577, 0.113, 13.864, 6.120, 0.000, 12387.1858, 0.0, 0.0, 0.0, 0.211, 6.120),
+                @(6.911, 5.809, 1.102, 0.400, 5.640, 5.521, 0.119, 6.911, 6.100, 0.009, 12394.0968, 0.0, 25.104, 25.104, 0.215, 6.100),
+                @(6.933, 5.822, 1.111, 0.404, 5.661, 5.548, 0.113, 6.933, 6.133, -0.022, 12401.0298, 0.0, 0.0, 0.0, 0.209, 6.133)
+            )
+            $modes = @('Hardware: Independent Flip', 'Hardware: Independent Flip', 'Hardware: Independent Flip', 'Hardware Composed: Independent Flip', 'Hardware: Independent Flip', 'Hardware: Independent Flip', 'Hardware: Independent Flip', 'Hardware: Independent Flip')
+            $i = 0
+            foreach ($f in $game) {
+                $qpc += [int64]([double]$f[0] * 10000)
+                $cells = New-Object 'System.Collections.Generic.List[string]'
+                $cells.Add('SyntheticGame.exe'); $cells.Add('4242'); $cells.Add('0x1F3A0C0B2E0'); $cells.Add('DXGI'); $cells.Add('0'); $cells.Add('512'); $cells.Add('1'); $cells.Add($modes[$i])
+                $cells.Add([string]($qpc + 2140))                                   # TimeInQPC
+                $cells.Add('NA')                                                    # MsBetweenSimulationStart (zero prints NA)
+                $cells.Add(([double]$f[0]).ToString('F14', $inv))                   # MsBetweenPresents
+                $cells.Add((ConvertTo-WfSyntheticCsvCell -Value $f[7] -Decimals 14)) # MsBetweenDisplayChange
+                $cells.Add(([double]$f[14]).ToString('F14', $inv))                  # MsInPresentAPI
+                $cells.Add(([double]$f[15]).ToString('F14', $inv))                  # MsRenderPresentLatency
+                $cells.Add((ConvertTo-WfSyntheticCsvCell -Value $f[8] -Decimals 4))  # MsUntilDisplayed
+                $cells.Add([string]$qpc)                                            # CPUStartQPC
+                foreach ($k in @(0, 1, 2, 3, 4, 5, 6)) { $cells.Add(([double]$f[$k]).ToString('F4', $inv)) }  # MsBetweenAppStart, CPU busy and wait, GPU latency, time, busy, wait
+                $cells.Add(([double]$f[9]).ToString('F4', $inv))                    # MsAnimationError
+                $cells.Add(([double]$f[10]).ToString('F4', $inv))                   # AnimationTime
+                $cells.Add((ConvertTo-WfSyntheticCsvCell -Value $f[11] -Decimals 4)) # MsFlipDelay
+                $cells.Add((ConvertTo-WfSyntheticCsvCell -Value $f[12] -Decimals 4)) # MsAllInputToPhotonLatency
+                $cells.Add((ConvertTo-WfSyntheticCsvCell -Value $f[13] -Decimals 4)) # MsClickToPhotonLatency
+                $lines.Add(($cells.ToArray() -join ','))
+                $i += 1
+                if ($i -eq 3 -or $i -eq 6) {
+                    # A frame from a process whose start or rundown event was not in the recording, composed by the desktop.
+                    $u = $qpc + 31000
+                    $lines.Add('<unknown>,5120,0x1F3A1D44F00,DXGI,1,0,0,Composed: Flip,' + ($u + 1800) + ',NA,16.66600000000000,16.66700000000000,0.08800000000000,1.50000000000000,20.1040,' + $u + ',16.6660,2.0110,14.6550,0.9020,1.2440,1.2010,0.0430,0.0000,' + ([double]($u / 10000.0)).ToString('F4', $inv) + ',NA,NA,NA')
+                }
+            }
+            return (($lines.ToArray() -join $nl) + $nl)
+        }
+        'ragged' {
+            return ($header + $nl + 'SyntheticGame.exe,4242,0x1F3A0C0B2E0,DXGI,0,512' + $nl)
+        }
+    }
+    throw ('no synthetic PresentMon CSV named ' + $Name)
 }
 
 function New-WfSyntheticTraceMachine {

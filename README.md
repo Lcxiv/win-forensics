@@ -14,11 +14,13 @@ Bundles captured from a real machine are never committed here; only schemas, cod
 
 ## Where this repository is in the build
 
-This is phase 0a of the build order in the captain's implementation plan (kept outside this repository under `firstmate/data/win-opt-framework/implementation-plan.md`, with the research and review history in `plan.md` next to it). Phase 0a writes the four contracts everything else depends on, settles three Process Monitor facts with committed runner fixtures, and lays out one example bundle. Apart from the live capture and the clock calibration session described below, there are no live capture collectors, analyzers, or correlator yet; those are phases 1 to 4. The only CI job is the Process Monitor fact finding workflow.
+This is phase 0a of the build order in the captain's implementation plan (kept outside this repository under `firstmate/data/win-opt-framework/implementation-plan.md`, with the research and review history in `plan.md` next to it). Phase 0a writes the four contracts everything else depends on, settles three Process Monitor facts with committed runner fixtures, and lays out one example bundle. Apart from the two live captures and the clock calibration session described below, there are no live capture collectors, analyzers, or correlator yet; those are phases 1 to 4. The only CI job is the Process Monitor fact finding workflow.
 
 One set of collectors exists ahead of that order, because the captain's plan for reaching the gaming PC over SSH needs it: `collectors/windows/` holds named, read only PowerShell collectors that read history the machine already keeps (bug check and restart events, hardware error events, application crashes and hangs, GPU driver timeouts, reliability records, the driver inventory) as a standard account in Event Log Readers. Each writes a bundle to this contract with every source's measurement status, and `scripts/decode_eventlog.py` decodes the event exports into the `eventlog_events` table. [collectors/windows/README.md](collectors/windows/README.md) records what has run on the PC so far, lists what is still to be verified there, and names what needs Administrator and is therefore left for a later elevated task.
 
 It also holds the first live capture, `dpcisr-trace`: one bounded Windows Performance Recorder session from a committed profile (kernel Interrupt, DPC and Loader events, no stacks, no process or thread events), under its own WPR instance name, stopped and confirmed on every exit path, with the final events lost and buffers lost read from the saved trace by the inbox `tracerpt` and, when the operator names a hash pinned `xperf.exe`, the `xperf -a dpcisr` report that `scripts/decode_dpcisr.py` turns into the per CPU, per module tables. The trace itself never leaves the PC: a kernel trace carries the machine's hardware and network addresses in its configuration events, so it is read on the machine and removed. `scripts/decode_tracestats.py` decodes the status text and the summary into the `tracestats` table so the loss is readable without the tools' wording, and null never becomes zero. Kernel tracing needs an elevated account, so the collector refuses the front door's standard account and says so; the report half that needs the Windows Performance Toolkit on the PC waits for a decision on which build to pin ([collectors/windows/README.md](collectors/windows/README.md), "The dpcisr-trace sources").
+
+It also holds a second live capture, `presentmon-frames`: Windows Performance Recorder records the ETW providers and event ids PresentMon needs into a file on the PC for a bounded window, under the collector's own instance name (stopped on every exit path, any loss from the controller or the file failing the capture), and an operator supplied, pinned PresentMon console binary (verified by SHA-256 before the recording and again before it runs) reads that file offline with `--etl_file` and prints the CSV the bundle keeps; the recording is deleted on the PC because a merged trace can carry network addresses. PresentMon as run opens no process; whether WPR does is a verification item, not a claim. `scripts/decode_presentmon.py` decodes the CSV and the recording record into the `presentmon_frames` table. The pinned version, every option and provider with its citation, why PresentMon never runs live, the elevation question, and the anti-cheat position are in the same README.
 
 The same directory holds `clock-calibration`, the clock session collector: for a bounded session it records the calibration triples the timestamp contract asks for (performance counter, system time, performance counter, at the start, every 5 s and at the stop), and it gives the person at the PC a mark command for a second console that stamps "I felt it here" with the same counter the kernel trace uses, without touching the game. `scripts/decode_clock.py` fits the contract's piecewise model on the Mac, writes the `clock_pairs`, `clock_segments` and `operator_marks` tables, and is the library a correlator uses to place a system time stamp on the master clock with its error bound and to refuse a join the calibration cannot support. Method, the deviation from the contract's named precise time API and the limits are in [docs/clock-calibration.md](docs/clock-calibration.md).
 
@@ -47,6 +49,7 @@ collectors/windows/      read only PowerShell collectors for the PC, their share
                          tests/ holds the Pester suite, the synthetic backend, and the fixture generator
 scripts/                 wf_schema.py (schema registry and validation), decode_dpcisr.py, decode_pdh.py, decode_eventlog.py,
                          decode_tracestats.py (trace loss from the recorder's status text and the tracerpt summary),
+                         decode_presentmon.py (the presentmon_frames table from a presentmon-frames bundle),
                          decode_rf_survey.py and analyze_rf_survey.py (the RF survey tables, evidence rows and report),
                          decode_clock.py (the clock calibration tables, the fitted model, alignment and join refusal),
                          verify_bundle.py (manifest, checksums, no unlisted raw file), fetch_pwsh.sh (PowerShell 7 into tools/),
@@ -54,6 +57,8 @@ scripts/                 wf_schema.py (schema registry and validation), decode_d
 fixtures/example-bundle/ one bundle laid out to the contract from two win-opt format fixtures
 fixtures/collector-bundles/  synthetic bundles written by the collectors against the synthetic backend, one per case
 fixtures/procmon/        committed .pmc test configurations and the runner's facts and export heads
+fixtures/presentmon/     the first buffer of a PresentMon regression recording (the one .etl git keeps), with its
+                         provenance and licence
 tests/                   pytest: schemas, decoders, the example bundle, collector bundles and scripts, documentation
                          hygiene, procmon fixtures
 .github/workflows/       procmon-facts.yml only
@@ -105,6 +110,14 @@ python scripts/analyze_rf_survey.py --bundle <bundle directory> [--own-network <
 
 The result is `reports/rf-survey.md` inside the bundle, with its evidence rows in `evidence.jsonl`. Without `--own-network` the report describes the airspace and recommends nothing about the router, because the analysis never guesses which network is yours; with it, every access point of that network is aggregated and a channel is recommended.
 
+A `presentmon-frames` bundle is decoded with:
+
+```
+python scripts/decode_presentmon.py --bundle <bundle directory>
+```
+
+It reads the collector's record of the recording (clock, loss counts, the confirmed stop) and PresentMon's CSV for the frames, writes `decoded/presentmon_frames.jsonl` with its sidecar, or reports `not_collected` and writes nothing when the capture did not happen.
+
 A `clock-calibration` bundle is fitted with:
 
 ```
@@ -120,6 +133,8 @@ The collector checks that need PowerShell (PSScriptAnalyzer with the Windows Pow
 The bundles in `fixtures/collector-bundles/` are synthetic from end to end: the real collector scripts wrote them, but every event, record, driver, and machine detail in them is invented in `collectors/windows/tests/SyntheticScenarios.ps1`. They exist to prove the layout, the manifest, the checksums, and the status rules, and they are regenerated, not edited.
 
 The two raw files in `fixtures/example-bundle/raw/` are win-opt's recorded `xperf -a dpcisr` report and per CPU PDH counter CSV. They are format fixtures: they prove that the readers parse those shapes and that provenance can point at a real line and cell. No number, module name, or conclusion inside them is treated as a finding, and none is used as an example or threshold in the contracts. Thresholds in later playbooks come from Microsoft and tool documentation only.
+
+The one file in `fixtures/presentmon/` is a format fixture from the PresentMon project's own regression tests, not a capture from any machine this project measures; [fixtures/presentmon/PROVENANCE.md](fixtures/presentmon/PROVENANCE.md) records where it comes from and its licence.
 
 ## Reaching the gaming PC
 

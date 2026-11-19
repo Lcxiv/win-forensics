@@ -28,6 +28,17 @@
 #   Evtx       'unavailable' (default) or 'placeholder' (writes a small file)
 #   Commands   netsh argument string -> @{ ExitCode; StdOut; StdErr } or @{ Stuck = $true }
 #              (the process never finishes); a missing key exits 1 with a message
+#   Programs   list of @{ Path = <executable>; Match = <text found in the arguments>;
+#              ExitCode; StdOut; StdErr; Stuck; Seconds = <how long the run takes>;
+#              OutputFileArgument = <regex with one group capturing a path in the arguments>;
+#              OutputText or OutputBytes = <written to that path before the process "exits"> },
+#              OnCall = <scriptblock run when the program is started, for a side effect> },
+#              for wpr and the PresentMon binary, matched in order after Commands; a run with
+#              no match exits 1. An entry may instead carry Responses = <list of such maps>, used
+#              in call order with the last repeating. Waited = seconds passed to Wait-WfSeconds, summed
+#   Binaries   full path -> @{ Length; Sha256; FileVersion; ProductVersion } for Get-WfBinaryInfo;
+#              a missing key is a file that does not exist
+#   Account    the values Get-WfAccountInfo returns (elevated, group memberships)
 #   NetshPresent  $false makes the netsh preflight fail
 #   Files      full path -> @{ Text = <string> } or @{ ErrorKind; ErrorMessage }
 #   Pnp        @{ Devices = <list of device maps, each may carry Properties = @{ DEVPKEY -> value } > }
@@ -64,12 +75,16 @@ function Reset-WfSynthetic {
         Providers    = @('Microsoft-Windows-WHEA-Logger', 'Application Error', 'Application Hang', 'Windows Error Reporting', '.NET Runtime', 'Display', 'Microsoft-Windows-WLAN-AutoConfig')
         Evtx         = 'unavailable'
         Commands     = @{}
+        Programs     = New-Object 'System.Collections.Generic.List[object]'
+        Binaries     = @{}
         NetshPresent = $true
         Files        = @{}
         Pnp          = @{ Devices = @() }
         Processes    = New-Object 'System.Collections.Generic.List[object]'
+        Waited       = 0
         Salt         = 'synthetic-salt-0001'
         Elevated     = $false
+        PerformanceLogUsers = $false
         Wpr          = New-WfSyntheticWpr
         Tracerpt     = @{ Present = $true; ExitCode = 0; Stuck = $false; EventsLost = 0; BuffersLost = 0; Labels = 'english' }
         Tools        = @{}
@@ -340,7 +355,7 @@ function Get-WfMachineInfo {
 }
 
 function Get-WfAccountInfo {
-    return [ordered]@{ name = 'SYNTHETIC-PC\wf-collector'; elevated = [bool]$global:WfSynthetic.Elevated; event_log_readers = $true }
+    return [ordered]@{ name = 'SYNTHETIC-PC\wf-collector'; elevated = [bool]$global:WfSynthetic.Elevated; event_log_readers = $true; performance_log_users = [bool]$global:WfSynthetic.PerformanceLogUsers }
 }
 
 function Get-WfToolInventory {
@@ -530,6 +545,26 @@ function Test-WfToolPresent {
     return $true
 }
 
+function Wait-WfSeconds {
+    # The recording window passes on the synthetic clock, not in real time.
+    param([int]$Seconds)
+    $global:WfSynthetic.Ticks += $Seconds
+    $global:WfSynthetic.Waited += $Seconds
+}
+
+function Get-WfBinaryInfo {
+    param([string]$Path)
+    $info = [ordered]@{ exists = $false; length = $null; sha256 = $null; file_version = $null; product_version = $null; error = $null }
+    if (-not $global:WfSynthetic.Binaries.ContainsKey($Path)) { return $info }
+    $entry = $global:WfSynthetic.Binaries[$Path]
+    $info.exists = $true
+    $info.length = [int64]$entry['Length']
+    $info.sha256 = [string]$entry['Sha256']
+    if ($entry.Contains('FileVersion')) { $info.file_version = $entry['FileVersion'] }
+    if ($entry.Contains('ProductVersion')) { $info.product_version = $entry['ProductVersion'] }
+    return $info
+}
+
 function Get-WfConsoleOutputEncoding {
     return (New-Object System.Text.UTF8Encoding($false))
 }
@@ -551,17 +586,64 @@ function Invoke-WfProcess {
         $result.Error = 'not started: the deadline had passed'
         return $result
     }
-    if ($FilePath -like '*wpr.exe') { return (Invoke-WfSyntheticWpr -Arguments $Arguments -TimeoutSeconds $TimeoutSeconds -Result $result) }
+    # A test that registered a Programs entry for this executable (the
+    # presentmon-frames cases drive wpr through Programs) takes precedence
+    # over the stateful simulators dpcisr-trace uses.
+    $programForPath = $false
+    foreach ($program in $global:WfSynthetic.Programs) { if ([string]$program['Path'] -eq $FilePath) { $programForPath = $true; break } }
+    if ($FilePath -like '*wpr.exe' -and -not $programForPath) { return (Invoke-WfSyntheticWpr -Arguments $Arguments -TimeoutSeconds $TimeoutSeconds -Result $result) }
     if ($FilePath -like '*xperf.exe') { return (Invoke-WfSyntheticXperf -Arguments $Arguments -TimeoutSeconds $TimeoutSeconds -Result $result -MaxBytes $MaxBytes) }
     if ($FilePath -like '*tracerpt.exe') { return (Invoke-WfSyntheticTracerpt -Arguments $Arguments -TimeoutSeconds $TimeoutSeconds -Result $result) }
     $result.Started = $true
     $result.DurationMs = 7
-    if (-not $global:WfSynthetic.Commands.ContainsKey($Arguments)) {
+    $entry = $null
+    if ($global:WfSynthetic.Commands.ContainsKey($Arguments)) {
+        $entry = $global:WfSynthetic.Commands[$Arguments]
+    } else {
+        foreach ($program in $global:WfSynthetic.Programs) {
+            if ([string]$program['Path'] -ne $FilePath) { continue }
+            if ($program['Match'] -and -not $Arguments.Contains([string]$program['Match'])) { continue }
+            $entry = $program
+            break
+        }
+    }
+    if ($null -eq $entry) {
         $result.ExitCode = 1
         $result.StdErr = 'synthetic backend: no output is defined for ' + $FilePath + ' ' + $Arguments
         return $result
     }
-    $entry = $global:WfSynthetic.Commands[$Arguments]
+    if ($entry.Contains('Responses')) {
+        # A program whose answer changes from call to call (wpr -status before
+        # and after a recording): the responses are used in order and the last
+        # one repeats.
+        $calls = 0
+        if ($entry.Contains('Calls')) { $calls = [int]$entry['Calls'] }
+        $entry['Calls'] = $calls + 1
+        $responses = @($entry['Responses'])
+        $entry = $responses[[math]::Min($calls, $responses.Count - 1)]
+    }
+    if ($entry.Contains('Seconds')) {
+        $global:WfSynthetic.Ticks += [int]$entry['Seconds']
+        $result.DurationMs = [int64]$entry['Seconds'] * 1000
+    }
+    if ($entry.Contains('OnCall')) {
+        # A side effect the test wants when this program runs (the binary on
+        # disk changing between the preflight hash and the run).
+        & $entry['OnCall']
+    }
+    if ($entry.Contains('OutputFileArgument')) {
+        # wpr writes its ETL to the -stop path; the synthetic program does
+        # the same before it "exits", so the collector reads a file it did
+        # not write itself.
+        $m = [regex]::Match($Arguments, [string]$entry['OutputFileArgument'])
+        if ($m.Success) {
+            $target = $m.Groups[1].Value
+            $parent = Split-Path -Parent $target
+            if ($parent -and -not (Test-Path -LiteralPath $parent)) { $null = New-Item -ItemType Directory -Force -Path $parent }
+            if ($entry.Contains('OutputBytes')) { [System.IO.File]::WriteAllBytes($target, [byte[]]$entry['OutputBytes']) }
+            elseif ($entry.Contains('OutputText')) { Write-WfTextFile -Path $target -Text ([string]$entry['OutputText']) }
+        }
+    }
     if ($entry['Stuck']) {
         $global:WfSynthetic.Ticks += $TimeoutSeconds
         $result.TimedOut = $true

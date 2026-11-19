@@ -1,0 +1,39 @@
+{
+  "instance_name": "wf-presentmon-frames",
+  "session_cap_mb": 48,
+  "etl_bytes": 0,
+  "etl_sha256": null,
+  "etl_kept": false,
+  "header": {
+    "found": false,
+    "error": "not read"
+  },
+  "window_start_bound_utc": null,
+  "stop_requested_utc": null,
+  "window_stop_bound_utc": null,
+  "duration_seconds": 60,
+  "in_progress_at_end": false,
+  "session_ended_early": false,
+  "stop_confirmed": false,
+  "events_lost": null,
+  "events_lost_sources": {
+    "wpr_status_dropped_events": null,
+    "wpr_status_collectors": null,
+    "etl_header_events_lost": null,
+    "etl_header_buffers_lost": null
+  },
+  "buffers_lost": null,
+  "wpr_collectors": [],
+  "wpr_enabled_providers": [],
+  "settings_comparison": {
+    "ok": null,
+    "providers": []
+  },
+  "presentmon": {
+    "overflowed_presents": null,
+    "etw_events_lost": null,
+    "etw_buffers_lost": null,
+    "warnings": [],
+    "errors": []
+  }
+}

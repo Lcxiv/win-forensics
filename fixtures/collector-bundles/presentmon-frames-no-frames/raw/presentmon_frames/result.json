@@ -1,0 +1,120 @@
+{
+  "binary": {
+    "path": "C:\\ProgramData\\win-forensics\\tools\\PresentMon-2.6.0-x64.exe",
+    "exists": true,
+    "length": 980320,
+    "sha256": "b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af",
+    "file_version": "2.6.0.0",
+    "product_version": "2.6.0",
+    "error": null,
+    "pin_matched": true,
+    "length_matched": true,
+    "sha256_before_run": "b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af"
+  },
+  "controller": {
+    "path": "C:\\Windows\\System32\\wpr.exe",
+    "present": true,
+    "file_version": null,
+    "sha256": null
+  },
+  "runs": {
+    "probe": {
+      "attempted": true,
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": 1000,
+      "deadline_seconds": 30,
+      "error": null
+    },
+    "leftover_cancel": {
+      "attempted": false,
+      "started": false,
+      "exit_code": null,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": null,
+      "deadline_seconds": 60,
+      "error": null
+    },
+    "start": {
+      "attempted": true,
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": 3000,
+      "deadline_seconds": 60,
+      "error": null
+    },
+    "status": {
+      "attempted": true,
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": 1000,
+      "deadline_seconds": 30,
+      "error": null
+    },
+    "stop": {
+      "attempted": true,
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": 5000,
+      "deadline_seconds": 180,
+      "error": null
+    },
+    "after": {
+      "attempted": true,
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": 1000,
+      "deadline_seconds": 30,
+      "error": null
+    },
+    "cancel": {
+      "attempted": false,
+      "started": false,
+      "exit_code": null,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": null,
+      "deadline_seconds": 60,
+      "error": null
+    },
+    "decode": {
+      "attempted": true,
+      "started": true,
+      "exit_code": 0,
+      "timed_out": false,
+      "oversized": false,
+      "duration_ms": 4000,
+      "deadline_seconds": 240,
+      "error": null
+    }
+  },
+  "source_started_utc": "2026-03-01T12:00:02.0000000Z",
+  "source_stopped_utc": "2026-03-01T12:00:52.0000000Z",
+  "csv": {
+    "path": "raw/presentmon_frames/frames.csv",
+    "present": false,
+    "bytes": 0,
+    "header": [],
+    "qpc_time_column": false,
+    "frames": 0,
+    "processes": [],
+    "truncated_process_list": false,
+    "unknown_application_frames": 0
+  },
+  "recorded_data_left": [],
+  "account": {
+    "elevated": false,
+    "performance_log_users": true
+  }
+}
