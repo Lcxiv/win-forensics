@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Decode a driver-inventory bundle into the ``driver_service_class`` table.
+"""Decode a bundle's driver inventory into the ``driver_service_class`` table.
 
 See docs/contracts/decoded-tables.md section 5.22 and docs/driver-classes.md.
 The table joins two sources of the ``driver-inventory`` collector on the
@@ -24,7 +24,8 @@ class those classes give (``scripts/driver_classes.py``), or null with the
 reason when they give none. Nothing else leaves the export: no device
 instance path, hardware identifier, device name, or full binary path.
 
-The table needs both sources. When either was not observed the table is
+Any bundle that lists both sources is accepted, a ``driver_inventory`` run or
+a scenario run such as S1. The table needs both sources. When either was not observed the table is
 ``not_collected`` and not written: a service list without the device read
 would look like services without devices, which it is not.
 
@@ -48,7 +49,6 @@ import wf_schema  # noqa: E402
 DECODER = "decode_driver_inventory"
 DECODER_VERSION = "1.0.0"
 OBSERVED = ("observed", "observed_zero")
-SCENARIO = "driver_inventory"
 TABLE = "driver_service_class"
 SERVICES = "system_drivers"
 DEVICES = "pnp_device_services"
@@ -67,8 +67,6 @@ def load_manifest(bundle: Path) -> dict[str, Any]:
         manifest = json.loads(path.read_text(encoding="utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise DecodeError(f"manifest.json: {exc}") from exc
-    if manifest.get("scenario", {}).get("id") != SCENARIO:
-        raise DecodeError(f"the bundle's scenario is {manifest.get('scenario', {}).get('id')!r}, not {SCENARIO}")
     return manifest
 
 
@@ -214,7 +212,7 @@ def decode(bundle: Path, decoded_at: str | None = None) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--bundle", required=True, type=Path, help="driver-inventory bundle directory")
+    ap.add_argument("--bundle", required=True, type=Path, help="bundle directory listing system_drivers and pnp_device_services")
     ap.add_argument("--decoded-at", default=None, help="override decoded_at_utc (ISO 8601 Z) for reproducible fixtures")
     args = ap.parse_args(argv)
     result = decode(args.bundle, args.decoded_at)

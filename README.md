@@ -58,7 +58,7 @@ scripts/                 wf_schema.py (schema registry and validation), decode_d
                          decode_tracestats.py (trace loss from the recorder's status text and the tracerpt summary),
                          decode_presentmon.py (the presentmon_frames table from a presentmon-frames bundle),
                          decode_diskio.py (the diskio_activity table from a diskio-trace bundle),
-                         decode_driver_inventory.py (driver_service_class from a driver-inventory bundle) and
+                         decode_driver_inventory.py (driver_service_class from a driver-inventory or S1 bundle) and
                          driver_classes.py (the cited driver class map and the rules of docs/driver-classes.md),
                          decode_rf_survey.py and analyze_rf_survey.py (the RF survey tables, evidence rows and report),
                          decode_config_snapshot.py (config_snapshot, powercfg and process_inventory from a config-snapshot bundle),
@@ -107,8 +107,8 @@ A `dpcisr-trace` bundle is decoded with:
 
 ```
 python scripts/decode_tracestats.py --bundle <bundle directory>
-python scripts/decode_driver_inventory.py --bundle <driver-inventory bundle of the same machine>
-python scripts/decode_dpcisr.py --bundle <bundle directory> --source raw/dpcisr_report/dpcisr.txt --inventory <driver-inventory bundle>
+python scripts/decode_driver_inventory.py --bundle <driver-inventory or S1 bundle of the same machine>
+python scripts/decode_dpcisr.py --bundle <bundle directory> --source raw/dpcisr_report/dpcisr.txt --inventory <decoded driver-inventory or S1 bundle>
 ```
 
 The first reads the final trace loss out of the tracerpt summary and the recorder's status text; the third needs the report a pinned `xperf` produced on the PC, and refuses a source the manifest does not list. The second decodes the driver service to device setup class join that lets the third class vendor drivers (a network adapter's driver is `network` only through it); without `--inventory` only the Microsoft inbox binaries of the map are classed, and an inventory of another machine is refused.

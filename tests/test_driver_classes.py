@@ -339,7 +339,34 @@ def test_a_bundle_that_is_not_an_inventory_is_refused(bundles):
     _, dpc = bundles
     other = dpc.parent / "other"
     shutil.copytree(BUNDLES / "diskio-trace", other)
-    refuse(dpc, other, "not driver_inventory")
+    refuse(dpc, other, "so it is not a driver inventory")
+
+
+S1 = REPO_ROOT / "fixtures" / "scenario-runs" / "s1"
+
+
+def test_an_s1_run_is_its_own_inventory(tmp_path):
+    s1 = tmp_path / "s1"
+    shutil.copytree(S1, s1)
+    result = decode_driver_inventory.decode(s1, DECODED_AT)
+    assert result["status"] == "observed", result
+    assert meta_of(s1, "driver_service_class")["status"] == "observed"
+    result = decode_dpcisr.decode(s1, REPORT, DECODED_AT, inventory=s1)
+    assert result["status"] == "observed", result
+    rows = rows_of(s1, "dpcisr_module_cpu")
+    assert any(r["classification_source"] == "inventory" for r in rows)
+    bundle_id = json.loads((s1 / "manifest.json").read_text(encoding="utf-8"))["bundle_id"]
+    join = next(c for c in meta_of(s1, "dpcisr_module_cpu")["checks"] if c["name"] == "driver_inventory_join")
+    assert join["ok"] is True and bundle_id in join["detail"]
+
+
+def test_an_s1_run_without_the_device_read_is_not_an_inventory_table(tmp_path):
+    s1 = tmp_path / "s1"
+    shutil.copytree(S1, s1)
+    set_source_status(s1, "pnp_device_services", "capture_failed")
+    result = decode_driver_inventory.decode(s1, DECODED_AT)
+    assert result["status"] == "not_collected" and "pnp_device_services is capture_failed" in result["reason"]
+    assert not (s1 / "decoded" / "driver_service_class.jsonl").exists()
 
 
 def test_a_summary_of_failed_module_rows_is_never_written(bundles, monkeypatch):

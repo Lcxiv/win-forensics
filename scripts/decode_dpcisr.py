@@ -12,11 +12,12 @@ Tables (see docs/contracts/decoded-tables.md sections 5.1, 5.2 and 5.21):
   and over all CPUs, with each class's share of that kind's time.
 
 A module is classed first through the PC's own driver inventory, when
-``--inventory`` names a decoded ``driver-inventory`` bundle of the same
-machine (its ``driver_service_class`` table), then through the cited map of
+``--inventory`` names a decoded bundle of the same machine that lists both
+``driver-inventory`` sources, a ``driver_inventory`` run or a scenario run
+such as S1 (its ``driver_service_class`` table), then through the cited map of
 Microsoft inbox binaries in ``scripts/driver_classes.py``, and otherwise is
-``unclassified`` with source ``none``. An inventory of another machine, or one
-whose sources were observed but that was not decoded, is refused and nothing
+``unclassified`` with source ``none``. An inventory of another machine, a
+bundle that does not list both sources, or one whose sources were observed but that was not decoded, is refused and nothing
 is written; an inventory whose sources were not observed is recorded in the
 ``driver_inventory_join`` check and the inbox map alone is used.
 
@@ -37,7 +38,7 @@ section 2, rule 3).
 Usage::
 
     python scripts/decode_dpcisr.py --bundle fixtures/example-bundle \
-        --source raw/dpcisr/xperf_analysis.txt [--inventory <driver-inventory bundle>] \
+        --source raw/dpcisr/xperf_analysis.txt [--inventory <bundle with the driver inventory sources>] \
         [--decoded-at 2026-09-03T00:00:00Z]
 """
 from __future__ import annotations
@@ -143,8 +144,10 @@ def load_inventory(bundle: Path, inventory: Path | None) -> tuple[driver_classes
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise DecodeError(f"inventory: {manifest_path}: {exc}") from exc
-    if manifest.get("scenario", {}).get("id") != "driver_inventory":
-        raise DecodeError(f"inventory: the bundle's scenario is {manifest.get('scenario', {}).get('id')!r}, not driver_inventory")
+    statuses = {c["id"]: c["status"] for c in manifest.get("collectors", [])}
+    absent = [s for s in INVENTORY_SOURCES if s not in statuses]
+    if absent:
+        raise DecodeError(f"inventory: the bundle does not list {' or '.join(absent)}, so it is not a driver inventory")
     ours, theirs = machine_id_of(bundle), (manifest.get("machine") or {}).get("machine_id")
     if not ours or ours != theirs:
         raise DecodeError(f"inventory: machine {theirs} is not the machine of this trace ({ours})")
@@ -152,8 +155,7 @@ def load_inventory(bundle: Path, inventory: Path | None) -> tuple[driver_classes
     rows_path = inventory / "decoded" / f"{INVENTORY_TABLE}.jsonl"
     meta_path = inventory / "decoded" / f"{INVENTORY_TABLE}.meta.json"
     if not meta_path.is_file():
-        statuses = {c["id"]: c["status"] for c in manifest.get("collectors", [])}
-        unobserved = [f"{s} {statuses.get(s, 'absent')}" for s in INVENTORY_SOURCES if statuses.get(s) not in OBSERVED]
+        unobserved = [f"{s} {statuses[s]}" for s in INVENTORY_SOURCES if statuses[s] not in OBSERVED]
         if not unobserved:
             raise DecodeError(f"inventory: {bundle_id} has no decoded {INVENTORY_TABLE} table; run scripts/decode_driver_inventory.py on it first")
         return None, {"name": "driver_inventory_join", "ok": False,
@@ -457,7 +459,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--bundle", required=True, type=Path, help="bundle directory (contains raw/ and decoded/)")
     ap.add_argument("--source", required=True, help="bundle relative path of the xperf dpcisr report, for example raw/dpcisr/report.txt")
     ap.add_argument("--inventory", default=None, type=Path,
-                    help="decoded driver-inventory bundle of the same machine, whose driver_service_class table classes the modules first")
+                    help="decoded bundle of the same machine listing system_drivers and pnp_device_services, whose driver_service_class table classes the modules first")
     ap.add_argument("--decoded-at", default=None, help="override decoded_at_utc (ISO 8601 Z) for reproducible fixtures")
     args = ap.parse_args(argv)
     result = decode(args.bundle, args.source, args.decoded_at, args.inventory)
