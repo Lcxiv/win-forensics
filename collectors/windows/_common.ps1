@@ -1769,15 +1769,17 @@ function Invoke-WfFileSource {
     #                         creation and last write time, SHA-256, line count, how many
     #                         address shaped tokens it holds), in copy mode
     #                         the protected text of the file
-    # Summary mode is for free text that can name networks the current run
-    # never saw (the WLAN report embeds "netsh wlan show all"); only the
-    # summary leaves the machine and the owner reads the report at the PC.
-    # Copy mode is for the owner's own configuration and log files (a
+    # Summary mode is for free text no shape rule can protect: the WLAN
+    # report embeds "netsh wlan show all" and can name networks the current
+    # run never saw, and the Process Lasso action log can carry process
+    # command line arguments. Only the summary leaves the machine and the
+    # owner reads the file at the PC.
+    # Copy mode is for the owner's own configuration and journal files (a
     # Process Lasso INI, a Stutter Guard journal): the text
     # is kept, after Protect-WfCopiedText has replaced every Windows user
-    # profile folder name, e-mail shaped token and hardware address by a
-    # pseudonym, and result.json records the SHA-256 of the original bytes so
-    # a copy with zero replacements can be checked to be verbatim.
+    # profile folder name, e-mail shaped token, UNC host and hardware address
+    # by a pseudonym, and result.json records the SHA-256 of the original
+    # bytes so a copy with zero replacements can be checked to be verbatim.
     # A file that does not exist at any candidate path, or cannot be read, is
     # not_collected with the message from Windows; a file above the cap is
     # capture_failed.
