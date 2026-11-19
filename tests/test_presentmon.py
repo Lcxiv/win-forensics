@@ -252,6 +252,42 @@ def test_a_manifest_loss_count_that_disagrees_with_the_record_is_decode_failed(b
     assert rows == [] and meta["status"] == "decode_failed"
 
 
+def _set_source(name, value):
+    return lambda o: o["events_lost_sources"].__setitem__(name, value)
+
+
+# Each field the collector writes in enabled.options and in the recording record (or that the CSV settles),
+# set to a value the record and the CSV do not carry: (tamper, the two values the reason must name).
+OPTIONS_TAMPERS = {
+    "events_lost": (lambda o: o.__setitem__("events_lost", 5), "events_lost 5 for an observed capture, the record 0"),
+    "wpr_status_dropped_events": (_set_source("wpr_status_dropped_events", 4), "events_lost_sources.wpr_status_dropped_events 4 for an observed capture, the record 0"),
+    "wpr_status_collectors": (_set_source("wpr_status_collectors", 4), "events_lost_sources.wpr_status_collectors 4 for an observed capture, the record 0"),
+    "etl_header_events_lost": (_set_source("etl_header_events_lost", 4), "events_lost_sources.etl_header_events_lost 4 for an observed capture, the record 0"),
+    "etl_header_buffers_lost": (_set_source("etl_header_buffers_lost", 4), "events_lost_sources.etl_header_buffers_lost 4 for an observed capture, the record 0"),
+    "presentmon_overflowed_presents": (lambda o: o.__setitem__("presentmon_overflowed_presents", 9), "presentmon_overflowed_presents 9 for an observed capture, the record None"),
+    "etl_bytes": (lambda o: o.__setitem__("etl_bytes", 8192), "etl_bytes 8192 for an observed capture, the record 4096"),
+    "stop_confirmed": (lambda o: o.__setitem__("stop_confirmed", False), "stop_confirmed False for an observed capture, the record True"),
+    "session_ended_early": (lambda o: o.__setitem__("session_ended_early", True), "session_ended_early True for an observed capture, the record False"),
+    "recording_in_progress": (lambda o: o.__setitem__("recording_in_progress", False), "recording_in_progress False for an observed capture, the record True"),
+    "records": (lambda o: o.__setitem__("records", 11), "records 11 for an observed capture, the CSV decodes to frame rows numbering 10"),
+    "unknown_application_frames": (lambda o: o.__setitem__("unknown_application_frames", 3), "unknown_application_frames 3 for an observed capture, the CSV's rows of <unknown> applications number 2"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(OPTIONS_TAMPERS))
+def test_an_enabled_option_that_disagrees_with_the_record_or_the_csv_is_decode_failed(bundle_copy, name):
+    tamper, reason = OPTIONS_TAMPERS[name]
+    bundle = bundle_copy(HAPPY)
+    manifest_path = bundle / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    tamper(manifest["collectors"][0]["enabled"]["options"])
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    result = decode_presentmon.decode(bundle, decoded_at=DECODED_AT)
+    assert result["status"] == "decode_failed" and reason in result["reason"], result
+    rows, meta = rows_and_meta(bundle)
+    assert rows == [] and meta["status"] == "decode_failed"
+
+
 def test_an_observed_capture_with_no_frame_row_is_refused(bundle_copy):
     bundle = bundle_copy(HAPPY)
     header, _ = read_csv(bundle)

@@ -11,7 +11,14 @@ addresses, which never enter a bundle). What the recording's log file header
 said (its clock, its loss counters, its start and end) is in
 ``raw/presentmon_frames/recording.json`` (role report) and repeated in the
 manifest entry's ``enabled.options``; the decoder reads both and refuses to
-build a table when they disagree or report loss. One row per CSV data row;
+build a table when the record reports loss or when the manifest disagrees
+with it: the entry's ``events_lost`` and ``buffers_lost``, and in
+``enabled.options`` ``clock_type``, ``events_lost``, ``buffers_lost``, the
+four counters of ``events_lost_sources``, ``presentmon_overflowed_presents``,
+``etl_bytes``, ``stop_confirmed``, ``session_ended_early`` and
+``recording_in_progress`` must equal the record's values, and ``records`` and
+``unknown_application_frames`` must equal the frame rows decoded from the CSV
+and those of them whose application is ``<unknown>``. One row per CSV data row;
 the provenance ``row_id_or_offset`` is ``row:<n>`` with the 1-based data row,
 not counting the header line.
 
@@ -116,10 +123,39 @@ OTHER_START_COLUMNS = ("CPUStartTime", "CPUStartTimeInMs", "CPUStartTimeInSecond
 NA = "NA"
 # The clock names the collector writes from the header's ReservedFlags (WNODE_HEADER ClientContext: 1 QPC, 2 system time, 3 CPU cycle counter).
 DOMAINS = {"qpc": ("etw_qpc", "qpc_ticks"), "system_time": ("system_time", "filetime_100ns")}
+# Fields the collector writes both in the manifest entry's enabled.options and in recording.json: (key path in the options, key path in the record).
+SHARED_FIELDS = (
+    (("events_lost",), ("events_lost",)),
+    (("events_lost_sources", "wpr_status_dropped_events"), ("events_lost_sources", "wpr_status_dropped_events")),
+    (("events_lost_sources", "wpr_status_collectors"), ("events_lost_sources", "wpr_status_collectors")),
+    (("events_lost_sources", "etl_header_events_lost"), ("events_lost_sources", "etl_header_events_lost")),
+    (("events_lost_sources", "etl_header_buffers_lost"), ("events_lost_sources", "etl_header_buffers_lost")),
+    (("presentmon_overflowed_presents",), ("presentmon", "overflowed_presents")),
+    (("etl_bytes",), ("etl_bytes",)),
+    (("stop_confirmed",), ("stop_confirmed",)),
+    (("session_ended_early",), ("session_ended_early",)),
+    (("recording_in_progress",), ("in_progress_at_end",)),
+)
 
 
 class DecodeError(Exception):
     pass
+
+
+def lookup(obj: Any, keys: tuple[str, ...]) -> Any:
+    for key in keys:
+        obj = obj.get(key) if isinstance(obj, dict) else None
+    return obj
+
+
+def same(a: Any, b: Any) -> bool:
+    """Equal in value and JSON type (true is not 1)."""
+    return type(a) is type(b) and a == b
+
+
+def check_option(source: str, options: dict[str, Any], name: str, actual: Any, what: str) -> None:
+    if not same(options.get(name), actual):
+        raise DecodeError(f"{source}: the manifest's enabled.options record {name} {options.get(name)!r} for an observed capture, {what} {actual!r}")
 
 
 def load_manifest(bundle: Path) -> dict[str, Any]:
@@ -207,6 +243,10 @@ def read_recording(bundle: Path, capture: dict[str, Any]) -> dict[str, Any]:
     overflow = (record.get("presentmon") or {}).get("overflowed_presents")
     if overflow:
         raise DecodeError(f"{path}: PresentMon threw {overflow} presents away while reading the recording, so the table would be incomplete")
+    for option_keys, record_keys in SHARED_FIELDS:
+        in_manifest, in_record = lookup(options, option_keys), lookup(record, record_keys)
+        if not same(in_manifest, in_record):
+            raise DecodeError(f"{path}: the manifest's enabled.options record {'.'.join(option_keys)} {in_manifest!r} for an observed capture, the record {in_record!r}")
     return {"clock": clock, "header": header, "record": record}
 
 
@@ -369,6 +409,8 @@ def decode(bundle: Path, sources: list[str] | None = None, decoded_at: str | Non
             result = decode_csv(bundle, capture["csv"], schema_version)
             if not result["rows"]:
                 raise DecodeError(f"{capture['csv']}: an observed capture with no frame row; the collector never reports one (zero frames is capture_failed)")
+            check_option(capture["csv"], capture["options"], "records", len(result["rows"]), "the CSV decodes to frame rows numbering")
+            check_option(capture["csv"], capture["options"], "unknown_application_frames", result["unknown_rows"], "the CSV's rows of <unknown> applications number")
             rows += result["rows"]
             for key, count in result["processes"].items():
                 processes[key] = processes.get(key, 0) + count
