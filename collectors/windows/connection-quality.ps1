@@ -456,7 +456,7 @@ function Invoke-WfNetQualitySessionSource {
                     $link['readings'] = [int]$link['readings'] + 1
                     if ($linkStatus -eq 'read') {
                         $link['read'] = [int]$link['read'] + 1
-                        if ($line['media_connect_state'] -ne 1 -or $line['operational_status'] -ne 1) { $link['down'] = [int]$link['down'] + 1 }
+                        if ($null -ne $line['media_connect_state'] -and $null -ne $line['operational_status'] -and ($line['media_connect_state'] -ne 1 -or $line['operational_status'] -ne 1)) { $link['down'] = [int]$link['down'] + 1 }
                     } elseif ($linkStatus -eq 'not_found') { $link['not_found'] = [int]$link['not_found'] + 1 }
                     else { $link['errors'] = [int]$link['errors'] + 1 }
                     if ($null -eq $routeSame) { $link['route_unknown'] = [int]$link['route_unknown'] + 1 }
