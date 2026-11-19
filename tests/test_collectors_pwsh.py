@@ -104,7 +104,7 @@ def test_collector_without_an_output_directory_prints_one_failed_line(collector)
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="on Windows the real adapters would read the machine")
-@pytest.mark.parametrize("collector", ["bugcheck-history", "reliability-records", "config-snapshot", "dpcisr-trace"])
+@pytest.mark.parametrize("collector", ["bugcheck-history", "reliability-records", "config-snapshot", "dpcisr-trace", "presentmon-frames"])
 def test_real_adapters_fail_closed_off_windows(collector, tmp_path):
     """Run the unmodified script as a process where no Windows API exists.
 
@@ -126,6 +126,13 @@ def test_real_adapters_fail_closed_off_windows(collector, tmp_path):
     for source in manifest["collectors"]:
         assert source["status"] in ("not_collected", "capture_failed", "unsupported") and source["status_reason"]
         assert [a for a in source["artifacts"] if a["role"] == "primary"] == []
+    if collector == "presentmon-frames":
+        # No binary at the default path (tools/ under the repository root), so the real
+        # Get-WfBinaryInfo reports it missing and nothing is started.
+        source = manifest["collectors"][0]
+        assert source["status"] == "not_collected" and "PresentMon-2.6.0-x64.exe" in source["status_reason"]
+        assert source["requested"]["options"]["tool"].endswith("PresentMon-2.6.0-x64.exe")
+        assert source["preflight"]["checks"][0] == {"name": "binary_present", "ok": False, "detail": source["requested"]["options"]["tool"]}
     # The inventory of what ran is real here: both script files are hashed.
     tools = {t["name"]: t for t in manifest["tools"]}
     assert tools[f"collector:{collector}"]["sha256"] == wf_schema.sha256_of(COLLECTOR_DIR / f"{collector}.ps1")

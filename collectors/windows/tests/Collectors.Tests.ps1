@@ -2291,6 +2291,696 @@ Describe 'config-snapshot sources against the synthetic backend' {
     }
 }
 
+Describe 'presentmon-frames against the synthetic backend' {
+    BeforeAll {
+        function Start-PmCase {
+            # The happy case's machine: the pinned binary present, the account
+            # in Performance Log Users, wpr recording without loss under the
+            # collector's instance name, PresentMon printing the two process CSV.
+            Reset-WfSynthetic
+            $selected = @(Get-WfSyntheticCases | Where-Object { $_['Case'] -eq 'presentmon-frames' })[0]
+            & $selected['Setup']
+        }
+        function Reset-PmPrograms {
+            # Replaces what the synthetic programs do when started.
+            param([hashtable]$Wpr = @{}, $Decode = @{})
+            $global:WfSynthetic.Programs.Clear()
+            if (-not $Wpr.ContainsKey('EtlBytes')) { $Wpr['EtlBytes'] = (New-WfSyntheticEtlBytes -DurationSeconds 60) }
+            Add-WfSyntheticWprRuns @Wpr
+            if ($null -ne $Decode) {
+                if (-not $Decode.ContainsKey('CsvText')) { $Decode['CsvText'] = (Get-WfSyntheticPresentMonCsv -Name 'two-processes') }
+                Add-WfSyntheticPresentMonDecode @Decode
+            }
+        }
+        function Invoke-PmCollector {
+            param([string]$OutputDirectory, [hashtable]$Arguments = @{})
+            $all = @{ PresentMonPath = (Get-WfSyntheticPresentMonPath); DurationSeconds = 60 }
+            foreach ($key in $Arguments.Keys) { $all[$key] = $Arguments[$key] }
+            return (Invoke-TestCollector -Collector 'presentmon-frames' -OutputDirectory $OutputDirectory -Arguments $all)
+        }
+        function Get-PmSource {
+            param($Run)
+            return @($Run.Manifest.collectors | Where-Object { $_.id -eq 'presentmon_frames' })[0]
+        }
+        function Get-PmStarted {
+            # Every process the run started, as "<file name> <arguments>".
+            return @($global:WfSynthetic.Processes.ToArray() | ForEach-Object { (Split-Path -Leaf ([string]$_['FilePath'])) + ' ' + [string]$_['Arguments'] })
+        }
+        function Get-PmRecording {
+            param([string]$OutputDirectory)
+            return (Get-Content -LiteralPath (Join-Path $OutputDirectory 'raw/presentmon_frames/recording.json') -Raw | ConvertFrom-Json)
+        }
+        # The only argument strings the collector may hand to the two binaries. Every wpr call ends in the instance name.
+        $script:PmInstance = ' -instancename wf-presentmon-frames$'
+        $script:PmWprProbe = '^wpr\.exe -status' + $script:PmInstance
+        $script:PmWprStart = '^wpr\.exe -start "[^"]+profile\.wprp!WfPresentMonFrames\.Verbose" -filemode -recordtempto "[^"]+wpr-temp"' + $script:PmInstance
+        $script:PmWprStatus = '^wpr\.exe -status collectors -details' + $script:PmInstance
+        $script:PmWprStop = '^wpr\.exe -stop "[^"]+trace\.etl" "win-forensics presentmon-frames" -skipPdbGen' + $script:PmInstance
+        $script:PmWprCancel = '^wpr\.exe -cancel' + $script:PmInstance
+        $script:PmDecode = '^PresentMon-2\.6\.0-x64\.exe --etl_file "[^"]+trace\.etl" --output_stdout --qpc_time( --process_name [A-Za-z0-9._][A-Za-z0-9._-]*)*$'
+        $script:PmGold = Join-Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))) 'fixtures/presentmon/gold-test_case_0.first-buffer.etl'
+        function Assert-PmAllowlisted {
+            foreach ($call in (Get-PmStarted)) {
+                $allowed = ($call -match $script:PmWprProbe) -or ($call -match $script:PmWprStart) -or ($call -match $script:PmWprStatus) -or ($call -match $script:PmWprStop) -or ($call -match $script:PmWprCancel) -or ($call -match $script:PmDecode)
+                $allowed | Should -BeTrue -Because $call
+                $call | Should -Not -Match '--timed|--session_name|--process_id|--terminate|--stop_existing|--restart_as_admin|--hotkey|--output_file' -Because 'PresentMon never runs live and never writes a file'
+                if ($call -match '^wpr') { $call | Should -Match $script:PmInstance -Because 'every wpr call names the instance' }
+            }
+        }
+    }
+
+    It 'records with wpr under its instance name, reads the recording with PresentMon offline, deletes it, and never starts PresentMon live' {
+        Start-PmCase
+        $out = Join-Path $TestDrive 'pm-ok'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $run.ExitCode | Should -Be 0
+        ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'ok'
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'observed'
+        $source.kind | Should -BeExactly 'presentmon'
+        $source.preflight.ok | Should -BeTrue
+        @($source.preflight.checks | ForEach-Object { $_.name }) | Should -Be @('binary_present', 'binary_sha256_pinned', 'binary_length_pinned', 'wpr_present', 'wpr_instance_idle')
+        @($source.command) | Should -Be @((Get-WfSyntheticPresentMonPath), '--etl_file', 'raw/presentmon_frames/trace.etl', '--output_stdout', '--qpc_time')
+        $source.events_lost | Should -Be 0
+        $source.buffers.size_kb | Should -Be 64
+        $source.buffers.mode | Should -BeExactly 'file'
+        $source.enabled.options.records | Should -Be 10
+        $source.enabled.options.qpc_time_column | Should -BeTrue
+        $source.enabled.options.clock_type | Should -BeExactly 'qpc'
+        $source.enabled.options.settings_match_request | Should -BeTrue
+        $source.enabled.options.stop_confirmed | Should -BeTrue
+        $source.enabled.options.session_ended_early | Should -BeFalse
+        $source.enabled.options.etl_kept | Should -BeFalse
+        $source.enabled.options.events_lost_sources.wpr_status_dropped_events | Should -Be 0
+        $source.enabled.options.events_lost_sources.etl_header_events_lost | Should -Be 0
+        $source.enabled.options.unknown_application_frames | Should -Be 2
+        @($source.enabled.options.processes).Count | Should -Be 2
+        @($source.enabled.providers) | Should -Contain 'Microsoft-Windows-DxgKrnl'
+        @($source.artifacts | ForEach-Object { $_.role + ':' + (Split-Path -Leaf $_.path) } | Sort-Object) | Should -Be @('config:command.json', 'config:profile.wprp', 'log:console.txt', 'primary:frames.csv', 'report:recording.json', 'report:result.json')
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/trace.etl') | Should -BeFalse -Because 'the recording never leaves the PC'
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/wpr-temp') | Should -BeFalse
+        # The range the source claims is the collector's own bound around the recording: before the start, after the stop.
+        $recording = Get-PmRecording -OutputDirectory $out
+        (Get-TestUtcText $source.raw_time_range.start) | Should -BeExactly (Get-TestUtcText $recording.window_start_bound_utc)
+        (Get-TestUtcText $source.raw_time_range.end) | Should -BeExactly (Get-TestUtcText $recording.window_stop_bound_utc)
+        ([datetime]$recording.window_start_bound_utc) | Should -BeLessThan ([datetime]$recording.header.start_time_utc)
+        ([datetime]$recording.header.end_time_utc) | Should -BeGreaterThan ([datetime]$recording.stop_requested_utc)
+        $global:WfSynthetic.Waited | Should -Be 60
+        # The CSV is what PresentMon printed, written without a byte order mark.
+        [System.IO.File]::ReadAllBytes((Join-Path $out 'raw/presentmon_frames/frames.csv')) | Should -Be ((New-Object System.Text.UTF8Encoding($false)).GetBytes((Get-WfSyntheticPresentMonCsv -Name 'two-processes')))
+        $profile = [System.IO.File]::ReadAllText((Join-Path $out 'raw/presentmon_frames/profile.wprp'))
+        $profile | Should -Match 'Name="802ec45a-1e99-4b83-9920-87c98277ba9d"'
+        $profile | Should -Match '<MaximumFileSize Value="48" FileMode="Sequential"/>' -Because 'three quarters of the 64 MiB cap'
+        $profile | Should -Match '<Keyword Value="0x8000841"/>'
+        $profile | Should -Match '<EventFilters FilterIn="true">'
+        $profile | Should -Match '<EventId Value="184"/>'
+        $profile | Should -Not -Match '0x4000000000000000' -Because 'the DxgKrnl Performance keyword is never enabled'
+        $source.filter_hash.value | Should -BeExactly (Get-TestSha256 -Path (Join-Path $out 'raw/presentmon_frames/profile.wprp'))
+        $source.config_hash.value | Should -BeExactly (Get-TestSha256 -Path (Join-Path $out 'raw/presentmon_frames/command.json'))
+        # Six processes in order: probe, start, status at the end, stop, status after, PresentMon offline. No cancel.
+        $started = Get-PmStarted
+        $started.Count | Should -Be 6
+        $started[0] | Should -Match $script:PmWprProbe
+        $started[1] | Should -Match $script:PmWprStart
+        $started[2] | Should -Match $script:PmWprStatus
+        $started[3] | Should -Match $script:PmWprStop
+        $started[4] | Should -Match $script:PmWprProbe
+        $started[5] | Should -Match $script:PmDecode
+        Assert-PmAllowlisted
+        $run.Manifest.scenario.requested_duration_s | Should -Be 60
+        $run.Manifest.calibration.method | Should -Match 'clock_type'
+        @($run.Manifest.tools | Where-Object { $_.name -eq 'presentmon' })[0].sha256 | Should -BeExactly (Get-WfSyntheticPresentMonPinnedSha256)
+        @($run.Manifest.tools | Where-Object { $_.name -eq 'wpr' })[0].path | Should -Match 'wpr\.exe$'
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/presentmon_frames/result.json') -Raw | ConvertFrom-Json
+        $result.binary.sha256_before_run | Should -BeExactly (Get-WfSyntheticPresentMonPinnedSha256)
+        $result.runs.cancel.attempted | Should -BeFalse
+        $result.runs.leftover_cancel.attempted | Should -BeFalse
+        $result.runs.decode.exit_code | Should -Be 0
+        $recording.header.found | Should -BeTrue
+        $recording.header.events_lost | Should -Be 0
+        $recording.etl_kept | Should -BeFalse
+        $recording.etl_sha256 | Should -Match '^[0-9a-f]{64}$'
+        @($recording.wpr_enabled_providers).Count | Should -Be 8
+        @($recording.settings_comparison.providers | Where-Object { $_.strict -and -not $_.enabled }).Count | Should -Be 0
+    }
+
+    It 'passes names through to the offline read only and records the first as the target' {
+        Start-PmCase
+        $out = Join-Path $TestDrive 'pm-named'
+        $run = Invoke-PmCollector -OutputDirectory $out -Arguments @{ ProcessName = @('SyntheticGame.exe', 'Other-App_2.exe') }
+        $run.ExitCode | Should -Be 0
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'observed'
+        @($source.command)[-4..-1] | Should -Be @('--process_name', 'SyntheticGame.exe', '--process_name', 'Other-App_2.exe')
+        $source.target_process.name | Should -BeExactly 'SyntheticGame.exe'
+        $source.target_process.alive_at_start | Should -BeNullOrEmpty
+        $run.Manifest.scenario.target_process | Should -BeExactly 'SyntheticGame.exe'
+        (Get-PmStarted)[-1] | Should -Match $script:PmDecode
+        (Get-PmStarted)[1] | Should -Not -Match 'SyntheticGame' -Because 'the recording is of every process; the name filter applies to the file'
+        Assert-PmAllowlisted
+    }
+
+    It 'runs nothing when the binary hash or size differs or the binary is missing' {
+        foreach ($setup in @(@{ Sha256 = ('0' * 64) }, @{ Length = 980321 }, @{ Present = $false })) {
+            Start-PmCase
+            New-WfSyntheticPresentMon -PerformanceLogUsers $true @setup
+            $out = Join-Path $TestDrive ('pm-pin-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+            $run = Invoke-PmCollector -OutputDirectory $out
+            $run.ExitCode | Should -Be 1
+            $source = Get-PmSource -Run $run
+            $source.status | Should -BeExactly 'not_collected'
+            $source.status_reason | Should -Match '^preflight failed: '
+            $source.preflight.ok | Should -BeFalse
+            $global:WfSynthetic.Processes.Count | Should -Be 0 -Because 'nothing may run, not even wpr, before the pin matched'
+            $global:WfSynthetic.Waited | Should -Be 0
+            Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/trace.etl') | Should -BeFalse
+            Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/frames.csv') | Should -BeFalse
+            @($source.artifacts | ForEach-Object { $_.role } | Sort-Object) | Should -Be @('config', 'config', 'report', 'report')
+        }
+        (Get-PmSource -Run $run).status_reason | Should -Match 'never downloads'
+    }
+
+    It 'refuses to run the binary that changed between the preflight hash and the read' {
+        Start-PmCase
+        Reset-PmPrograms
+        # The synthetic stop swaps the binary on disk, as a writable tools folder would allow.
+        $stop = @($global:WfSynthetic.Programs | Where-Object { $_['Match'] -eq '-stop' })[0]
+        $stop['OnCall'] = { $global:WfSynthetic.Binaries[(Get-WfSyntheticPresentMonPath)] = @{ Length = 980320; Sha256 = ('1' * 64); FileVersion = '2.6.0.0'; ProductVersion = '2.6.0' } }
+        $out = Join-Path $TestDrive 'pm-swapped'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match 'changed between the preflight check and the run \(now SHA-256 1{64}'
+        @((Get-PmStarted) | Where-Object { $_ -match '^PresentMon' }).Count | Should -Be 0
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/presentmon_frames/result.json') -Raw | ConvertFrom-Json
+        $result.binary.pin_matched | Should -BeTrue
+        $result.binary.sha256_before_run | Should -BeExactly ('1' * 64)
+    }
+
+    It 'cancels only its own leftover recording, and fails closed when the instance cannot be shown idle or wpr is missing' {
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ LeftoverActive = $true }
+        $out = Join-Path $TestDrive 'pm-leftover'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $run.ExitCode | Should -Be 0
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'observed'
+        $started = Get-PmStarted
+        $started.Count | Should -Be 8 -Because 'probe, cancel of the leftover, probe again, then the normal six'
+        $started[0] | Should -Match $script:PmWprProbe
+        $started[1] | Should -Match $script:PmWprCancel
+        $started[2] | Should -Match $script:PmWprProbe
+        $started[3] | Should -Match $script:PmWprStart
+        Assert-PmAllowlisted
+        @($run.Manifest.notes | Where-Object { $_ -match 'own WPR instance \(wf-presentmon-frames\) was still active' }).Count | Should -Be 1
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/presentmon_frames/result.json') -Raw | ConvertFrom-Json
+        $result.runs.leftover_cancel.attempted | Should -BeTrue
+
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ ProbeInProgress = $true }
+        $run2 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-busy')
+        $run2.ExitCode | Should -Be 1
+        $source2 = Get-PmSource -Run $run2
+        $source2.status | Should -BeExactly 'not_collected'
+        $source2.status_reason | Should -Match 'was active and the cancel did not clear it; nothing was started'
+        @($source2.preflight.checks | Where-Object { $_.name -eq 'wpr_instance_idle' })[0].ok | Should -BeFalse
+        @(Get-PmStarted).Count | Should -Be 3 -Because 'probe, cancel, probe; no start'
+        (Get-PmStarted)[1] | Should -Match $script:PmWprCancel
+        $global:WfSynthetic.Waited | Should -Be 0
+
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ ProbeFails = $true }
+        $run3 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-probe-fails')
+        (Get-PmSource -Run $run3).status | Should -BeExactly 'not_collected'
+        (Get-PmSource -Run $run3).status_reason | Should -Match 'idle state of this collector''s WPR instance could not be established \(wpr -status exit code 2'
+        @(Get-PmStarted).Count | Should -Be 1
+
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ ProbeStuck = $true }
+        $run4 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-probe-stuck')
+        (Get-PmSource -Run $run4).status | Should -BeExactly 'not_collected'
+        (Get-PmSource -Run $run4).status_reason | Should -Match 'timed out True'
+        @(Get-PmStarted).Count | Should -Be 1 -Because 'a probe that hangs starts nothing and cancels nothing'
+
+        Start-PmCase
+        $global:WfSynthetic.Wpr.Present = $false
+        $run5 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-no-wpr')
+        (Get-PmSource -Run $run5).status | Should -BeExactly 'not_collected'
+        (Get-PmSource -Run $run5).status_reason | Should -Match 'Windows Performance Recorder is not at'
+        $global:WfSynthetic.Processes.Count | Should -Be 0
+    }
+
+    It 'treats a refused or failed start as not collected and keeps the words wpr printed' {
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ StartExitCode = 1; StartStdErr = "Access is denied.`r`n" }
+        $out = Join-Path $TestDrive 'pm-denied'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $run.ExitCode | Should -Be 1
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'not_collected'
+        $source.status_reason | Should -Match 'wpr -start was refused \(exit code 1\): "Access is denied\."'
+        $source.status_reason | Should -Match 'Performance Log Users'
+        @(Get-PmStarted).Count | Should -Be 2 -Because 'the probe and the refused start; no stop, no cancel, no PresentMon'
+        $global:WfSynthetic.Waited | Should -Be 0
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/trace.etl') | Should -BeFalse
+        [System.IO.File]::ReadAllText((Join-Path $out 'raw/presentmon_frames/console.txt')) | Should -Match 'Access is denied\.'
+
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ StartExitCode = 2; StartStdOut = "synthetic wpr: the profile could not be loaded`r`n" }
+        $run2 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-start-fails')
+        (Get-PmSource -Run $run2).status | Should -BeExactly 'not_collected'
+        (Get-PmSource -Run $run2).status_reason | Should -Match 'wpr -start did not complete \(exit code 2'
+        @(Get-PmStarted).Count | Should -Be 2 -Because 'a start that exited without starting leaves nothing to cancel'
+
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ StartStuck = $true }
+        $run3 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-start-stuck')
+        (Get-PmSource -Run $run3).status | Should -BeExactly 'not_collected'
+        (Get-PmSource -Run $run3).status_reason | Should -Match 'timed out True'
+        (Get-PmStarted)[-1] | Should -Match $script:PmWprCancel -Because 'a start that did not complete may have left a recording of our instance'
+
+        # The same start had already opened its session file under wpr-temp: it does not stay in the bundle.
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ StartStuck = $true }
+        $out4 = Join-Path $TestDrive 'pm-start-stuck-session-file'
+        $global:PmSessionDir = Join-Path $out4 'raw/presentmon_frames/wpr-temp'
+        $start = @($global:WfSynthetic.Programs | Where-Object { $_['Match'] -eq '-start' })[0]
+        $start['OnCall'] = {
+            $null = New-Item -ItemType Directory -Path $global:PmSessionDir -Force
+            [System.IO.File]::WriteAllBytes((Join-Path $global:PmSessionDir 'session.etl'), [byte[]](1..16))
+        }
+        $run4 = Invoke-PmCollector -OutputDirectory $out4
+        $source4 = Get-PmSource -Run $run4
+        $source4.status | Should -BeExactly 'not_collected'
+        Test-Path -LiteralPath $global:PmSessionDir | Should -BeFalse -Because 'the session file never leaves the PC'
+        @($source4.artifacts | ForEach-Object { $_.role }) | Should -Not -Contain 'other'
+        @($source4.artifacts | Where-Object { $_.path -match 'wpr-temp' }).Count | Should -Be 0
+    }
+
+    It 'is capture_failed on any loss from any source, never reads the recording, and keeps nothing' {
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ EventsLost = 12; EtlBytes = (New-WfSyntheticEtlBytes -DurationSeconds 60 -EventsLost 12) }
+        $out = Join-Path $TestDrive 'pm-lost'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $run.ExitCode | Should -Be 1
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match '^the recording lost events or buffers: 12 events lost \(wpr -status: dropped 12, collectors 12; header 12\)'
+        $source.events_lost | Should -Be 12
+        $source.raw_time_range | Should -BeNullOrEmpty
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/trace.etl') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/frames.csv') | Should -BeFalse
+        @((Get-PmStarted) | Where-Object { $_ -match '^PresentMon' }).Count | Should -Be 0 -Because 'PresentMon is not run over a recording with loss'
+        @($source.artifacts | ForEach-Object { $_.role } | Sort-Object) | Should -Be @('config', 'config', 'log', 'report', 'report')
+
+        # The controller said zero before the stop; the header the session wrote at its close says 3.
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ EventsLost = 0; EtlBytes = (New-WfSyntheticEtlBytes -DurationSeconds 60 -EventsLost 3) }
+        $run2 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-header-loss')
+        (Get-PmSource -Run $run2).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run2).events_lost | Should -Be 3
+        (Get-PmSource -Run $run2).status_reason | Should -Match '3 events lost \(wpr -status: dropped 0, collectors 0; header 3\)'
+
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ EventsLost = 0; EtlBytes = (New-WfSyntheticEtlBytes -DurationSeconds 60 -BuffersLost 2) }
+        $run3 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-buffers-lost')
+        (Get-PmSource -Run $run3).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run3).status_reason | Should -Match '2 buffers lost'
+        (Get-PmSource -Run $run3).enabled.options.buffers_lost | Should -Be 2
+
+        # Only the top level Dropped event counter shows loss.
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ EventsLost = 0; DroppedEvents = 5 }
+        $run4 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-dropped')
+        (Get-PmSource -Run $run4).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run4).events_lost | Should -Be 5
+        (Get-PmSource -Run $run4).enabled.options.events_lost_sources.wpr_status_dropped_events | Should -Be 5
+    }
+
+    It 'cancels and fails when the stop does not complete, and says when it could not confirm the stop' {
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ StopStuck = $true }
+        $out = Join-Path $TestDrive 'pm-stop-stuck'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $run.ExitCode | Should -Be 1
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match '^wpr -stop did not complete .*; the recording was cancelled instead'
+        $source.status_reason | Should -Not -Match 'may still be active'
+        @((Get-PmStarted) | Where-Object { $_ -match $script:PmWprCancel }).Count | Should -Be 1
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/trace.etl') | Should -BeFalse
+
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ StopStuck = $true; CancelStuck = $true; AfterInProgress = $true }
+        $run2 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-stop-unconfirmed')
+        $source2 = Get-PmSource -Run $run2
+        $source2.status | Should -BeExactly 'capture_failed'
+        $source2.status_reason | Should -Match 'the recording may still be active'
+        $source2.enabled.options.stop_confirmed | Should -BeFalse
+        @($run2.Manifest.notes | Where-Object { $_ -match 'could not confirm that the WPR recording of instance wf-presentmon-frames stopped' }).Count | Should -Be 1
+
+        # The stop exited 0 but the instance still shows in progress: not confirmed, cancelled, failed.
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ AfterInProgress = $true }
+        $run3 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-stop-still-running')
+        (Get-PmSource -Run $run3).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run3).status_reason | Should -Match 'exited 0 but the instance could not be confirmed idle'
+        (Get-PmStarted)[-1] | Should -Match $script:PmWprCancel
+        @((Get-PmStarted) | Where-Object { $_ -match '^PresentMon' }).Count | Should -Be 0
+    }
+
+    It 'still writes the manifest and both notes when the session it could not stop keeps its file from being deleted' {
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ StopStuck = $true; CancelStuck = $true; AfterInProgress = $true }
+        $out = Join-Path $TestDrive 'pm-temp-held'
+        $global:PmSessionDir = Join-Path $out 'raw/presentmon_frames/wpr-temp'
+        # The synthetic start opens a session file in a folder nothing can be removed from, as a live session holds its file.
+        $start = @($global:WfSynthetic.Programs | Where-Object { $_['Match'] -eq '-start' })[0]
+        $start['OnCall'] = {
+            $null = New-Item -ItemType Directory -Path $global:PmSessionDir -Force
+            [System.IO.File]::WriteAllBytes((Join-Path $global:PmSessionDir 'session.etl'), [byte[]](1..16))
+            # Not readable either, as a file a writer holds without read sharing: hashing it would fail.
+            & chmod 000 (Join-Path $global:PmSessionDir 'session.etl')
+            & chmod 555 $global:PmSessionDir
+        }
+        try {
+            $run = Invoke-PmCollector -OutputDirectory $out
+        } finally {
+            if (Test-Path -LiteralPath $global:PmSessionDir) { & chmod 755 $global:PmSessionDir }
+        }
+        $run.ExitCode | Should -Be 1
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match '^wpr -stop did not complete'
+        $source.status_reason | Should -Match 'the recording may still be active'
+        $source.status_reason | Should -Match 'recorded data could not be deleted from the bundle'
+        @($run.Manifest.notes | Where-Object { $_ -match 'run "wpr -cancel -instancename wf-presentmon-frames" as an administrator' }).Count | Should -Be 1
+        @($run.Manifest.notes | Where-Object { $_ -match 'recorded data could not be deleted and is still in the bundle.*wpr-temp' }).Count | Should -Be 1
+        @($run.Manifest.notes | Where-Object { $_ -match 'raw/presentmon_frames/wpr-temp/session\.etl \(16 bytes\)' }).Count | Should -Be 1
+        @($run.Manifest.tools | ForEach-Object { $_.name }) | Should -Contain 'presentmon' -Because 'the tools that ran are recorded whether or not recorded data was left behind'
+        @($run.Manifest.tools | ForEach-Object { $_.name }) | Should -Contain 'wpr'
+        # The held file is named by path and size and never opened: it is not an artifact and has no hash.
+        @($source.artifacts | Where-Object { $_.path -match 'wpr-temp' }).Count | Should -Be 0
+        @($source.artifacts | ForEach-Object { $_.role + ':' + (Split-Path -Leaf $_.path) } | Sort-Object) | Should -Be @('config:command.json', 'config:profile.wprp', 'log:console.txt', 'report:recording.json', 'report:result.json')
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/presentmon_frames/result.json') -Raw | ConvertFrom-Json
+        @($result.recorded_data_left).Count | Should -Be 1
+        $result.recorded_data_left[0].path | Should -BeExactly 'raw/presentmon_frames/wpr-temp/session.etl'
+        $result.recorded_data_left[0].bytes | Should -Be 16
+    }
+
+    It 'is capture_failed, not not_collected, when a start that timed out left a session file that cannot be deleted' {
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ StartStuck = $true }
+        $out = Join-Path $TestDrive 'pm-start-stuck-held'
+        $global:PmSessionDir = Join-Path $out 'raw/presentmon_frames/wpr-temp'
+        $start = @($global:WfSynthetic.Programs | Where-Object { $_['Match'] -eq '-start' })[0]
+        $start['OnCall'] = {
+            $null = New-Item -ItemType Directory -Path $global:PmSessionDir -Force
+            [System.IO.File]::WriteAllBytes((Join-Path $global:PmSessionDir 'session.etl'), [byte[]](1..16))
+            & chmod 555 $global:PmSessionDir
+        }
+        try {
+            $run = Invoke-PmCollector -OutputDirectory $out
+        } finally {
+            if (Test-Path -LiteralPath $global:PmSessionDir) { & chmod 755 $global:PmSessionDir }
+        }
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match '^wpr -start did not complete'
+        $source.status_reason | Should -Match 'recorded data could not be deleted from the bundle'
+        $source.status_reason | Should -Not -Match 'nothing was recorded'
+    }
+
+    It 'claims no frames when the read succeeded but the recording could not be deleted afterwards' -Skip:(-not $IsMacOS) {
+        Start-PmCase
+        Reset-PmPrograms
+        $out = Join-Path $TestDrive 'pm-etl-held'
+        $global:PmHeldEtl = Join-Path $out 'raw/presentmon_frames/trace.etl'
+        # The file flag stands in for a recording something still holds: it can be read but not deleted.
+        $decode = @($global:WfSynthetic.Programs | Where-Object { $_['Match'] -eq '--etl_file' })[0]
+        $decode['OnCall'] = { & chflags uchg $global:PmHeldEtl }
+        try {
+            $run = Invoke-PmCollector -OutputDirectory $out
+        } finally {
+            if (Test-Path -LiteralPath $global:PmHeldEtl) { & chflags nouchg $global:PmHeldEtl }
+        }
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match '^recorded data could not be deleted from the bundle'
+        $source.enabled.options.records | Should -Be 0
+        $source.expectation.detail | Should -Match '; 0 frames from '
+        $source.raw_time_range | Should -BeNullOrEmpty
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/frames.csv') | Should -BeFalse
+        @($source.artifacts | Where-Object { $_.path -match 'trace\.etl' }).Count | Should -Be 0
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/presentmon_frames/result.json') -Raw | ConvertFrom-Json
+        @($result.recorded_data_left | ForEach-Object { $_.path }) | Should -Be @('raw/presentmon_frames/trace.etl')
+    }
+
+    It 'fails when the recording was not in progress at the end, closed before the stop, or merged above the cap' {
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ InProgressAtEnd = $false }
+        $run = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-died')
+        (Get-PmSource -Run $run).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run).status_reason | Should -Match 'did not report a recording in progress'
+        (Get-PmSource -Run $run).enabled.options.recording_in_progress | Should -BeFalse
+
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ EtlBytes = (New-WfSyntheticEtlBytes -DurationSeconds 60 -EndOffsetSeconds 30) }
+        $out = Join-Path $TestDrive 'pm-capped'
+        $run2 = Invoke-PmCollector -OutputDirectory $out
+        $source = Get-PmSource -Run $run2
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match 'the session closed at .* before the stop was requested at .*: it reached its file cap of 48 MB'
+        $source.enabled.options.session_ended_early | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/trace.etl') | Should -BeFalse
+
+        Start-PmCase
+        $big = New-Object byte[] 1048577
+        $header = New-WfSyntheticEtlBytes -DurationSeconds 60
+        [array]::Copy($header, $big, $header.Length)
+        Reset-PmPrograms -Wpr @{ EtlBytes = $big }
+        $run3 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-over-cap') -Arguments @{ MaxArtifactBytes = 1048576 }
+        (Get-PmSource -Run $run3).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run3).status_reason | Should -Match 'merged recording is 1048577 bytes, above the artifact cap of 1048576'
+        [System.IO.File]::ReadAllText((Join-Path $TestDrive 'pm-over-cap/raw/presentmon_frames/profile.wprp')) | Should -Match '<MaximumFileSize Value="1" FileMode="Sequential"/>'
+    }
+
+    It 'fails closed when the loss counters or the header cannot be read' {
+        Start-PmCase
+        Reset-PmPrograms
+        # wpr -status collectors -details without any counter line: in progress, no Dropped event, no Events Lost.
+        $global:WfSynthetic.Programs[0]['StdOut'] = ('WPR recording is in progress...' + "`r`n")
+        $run = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-no-loss-count')
+        (Get-PmSource -Run $run).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run).status_reason | Should -Match 'events lost could not be read from wpr -status'
+        (Get-PmSource -Run $run).events_lost | Should -Be 0 -Because 'the header still gave its count; the controller did not'
+
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ EtlBytes = (New-Object byte[] 4096) }
+        $run2 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-no-header')
+        $source2 = Get-PmSource -Run $run2
+        $source2.status | Should -BeExactly 'capture_failed'
+        $source2.status_reason | Should -Match 'log file header could not be read \(the first event is not a system trace header'
+        $source2.enabled.options.etl_header_found | Should -BeFalse
+        $source2.enabled.options.clock_type | Should -BeNullOrEmpty
+        $source2.events_lost | Should -Be 0 -Because 'the controller count is recorded even when the header is not'
+
+        # A header with no end time cannot show the session ran until the stop: never skipped, always failed.
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ EtlBytes = (New-WfSyntheticEtlBytes -DurationSeconds 60 -NoEndTime) }
+        $run4 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-no-end-time')
+        (Get-PmSource -Run $run4).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run4).status_reason | Should -Match 'carries no end time \(EndTime is zero\)'
+        (Get-PmSource -Run $run4).enabled.options.recording_end_utc | Should -BeNullOrEmpty
+        @((Get-PmStarted) | Where-Object { $_ -match '^PresentMon' }).Count | Should -Be 0
+
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ EtlBytes = (New-WfSyntheticEtlBytes -DurationSeconds 60 -ClockType 2) }
+        $run3 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-clock')
+        (Get-PmSource -Run $run3).status | Should -BeExactly 'observed' -Because 'the clock is recorded, not judged, by the collector'
+        (Get-PmSource -Run $run3).enabled.options.clock_type | Should -BeExactly 'system_time'
+    }
+
+    It 'reads the first buffer of the vendor recording the way it reads its own, and the synthetic layout matches it' {
+        Test-Path -LiteralPath $script:PmGold | Should -BeTrue
+        $gold = [System.IO.File]::ReadAllBytes($script:PmGold)
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ EtlBytes = $gold }
+        $out = Join-Path $TestDrive 'pm-gold'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $source = Get-PmSource -Run $run
+        $recording = Get-PmRecording -OutputDirectory $out
+        $recording.header.found | Should -BeTrue
+        $recording.header.header_type | Should -Be 2
+        $recording.header.pointer_size | Should -Be 8
+        $recording.header.os_version | Should -BeExactly '10.0'
+        $recording.header.os_build | Should -Be 17763
+        $recording.header.number_of_processors | Should -Be 16
+        $recording.header.buffers_written | Should -Be 663
+        $recording.header.events_lost | Should -Be 0
+        $recording.header.buffers_lost | Should -Be 0
+        $recording.header.perf_freq_hz | Should -Be 10000000
+        $recording.header.clock_type | Should -BeExactly 'qpc'
+        $recording.header.logger_name | Should -BeExactly 'Relogger'
+        (Get-TestUtcText $recording.header.start_time_utc) | Should -Match '^2020-'
+        $source.status | Should -BeExactly 'capture_failed' -Because 'a recording that ended years before the stop was requested did not cover the window'
+        $source.status_reason | Should -Match 'the session closed at 2020-'
+        # The synthetic first buffer puts the same fields at the same offsets as the vendor file.
+        $synthetic = New-WfSyntheticEtlBytes -DurationSeconds 60
+        foreach ($offset in @(0x48, 0x49, 0x4a, 0x4b, 0x4e, 0x4f)) { $synthetic[$offset] | Should -Be $gold[$offset] -Because ('system trace header byte 0x{0:x}' -f $offset) }
+        [System.BitConverter]::ToUInt32($synthetic, 0x68 + 44) | Should -Be ([System.BitConverter]::ToUInt32($gold, 0x68 + 44)) -Because 'PointerSize'
+        $tail = 0x68 + 56 + 16 + 176
+        [System.BitConverter]::ToInt64($synthetic, $tail + 8) | Should -Be ([System.BitConverter]::ToInt64($gold, $tail + 8)) -Because 'PerfFreq'
+        [System.BitConverter]::ToUInt32($synthetic, $tail + 24) | Should -Be ([System.BitConverter]::ToUInt32($gold, $tail + 24)) -Because 'ReservedFlags'
+        [System.BitConverter]::ToUInt32($synthetic, 0) | Should -Be ([System.BitConverter]::ToUInt32($gold, 0)) -Because 'the first buffer size'
+    }
+
+    It 'fails when wpr -status does not show the requested providers enabled with their keywords and level' {
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ ProviderLines = $false }
+        $run = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-no-providers')
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match 'requested settings were not shown enabled by wpr -status collectors -details: Microsoft-Windows-DxgKrnl, Microsoft-Windows-Win32k, Microsoft-Windows-Dwm-Core, Microsoft-Windows-DXGI, Microsoft-Windows-D3D9 \(.*0 provider lines were read\)'
+        $source.enabled.options.settings_match_request | Should -BeFalse
+        @((Get-PmStarted) | Where-Object { $_ -match '^PresentMon' }).Count | Should -Be 0
+
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ DxgKrnlKeywords = '0x1' }
+        $run2 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-weak-keywords')
+        (Get-PmSource -Run $run2).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run2).status_reason | Should -Match 'not shown enabled .*: Microsoft-Windows-DxgKrnl \('
+        $recording = Get-PmRecording -OutputDirectory (Join-Path $TestDrive 'pm-weak-keywords')
+        @($recording.settings_comparison.providers | Where-Object { $_.id -eq 'Microsoft-Windows-DxgKrnl' })[0].keywords_ok | Should -BeFalse
+    }
+
+    It 'never claims a quiet window: an empty PresentMon output is capture_failed, scoped or not' {
+        Start-PmCase
+        Reset-PmPrograms -Decode @{ CsvText = '' }
+        $out = Join-Path $TestDrive 'pm-empty'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $run.ExitCode | Should -Be 1
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match 'emitted no frame from a 60 second recording without loss'
+        $source.status_reason | Should -Match 'not a quiet window claim'
+        $source.enabled.options.csv_present | Should -BeFalse
+        $source.enabled.options.records | Should -Be 0
+        $source.raw_time_range | Should -BeNullOrEmpty
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/frames.csv') | Should -BeFalse
+
+        Start-PmCase
+        Reset-PmPrograms -Decode @{ CsvText = '' }
+        $run2 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-empty-scoped') -Arguments @{ ProcessName = @('SyntheticGame.exe') }
+        (Get-PmSource -Run $run2).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run2).status_reason | Should -Match 'no frame for the requested process names \(SyntheticGame\.exe\)'
+        (Get-PmSource -Run $run2).status_reason | Should -Match 'no absence is claimed'
+
+        Start-PmCase
+        Reset-PmPrograms -Decode @{ CsvText = (Get-WfSyntheticPresentMonCsv -Name 'header-only') }
+        $run3 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-header-only')
+        (Get-PmSource -Run $run3).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run3).status_reason | Should -Match 'a CSV header and no frame row'
+    }
+
+    It 'is capture_failed when PresentMon threw presents away, warned, failed, hung or printed above the cap' {
+        Start-PmCase
+        Reset-PmPrograms -Decode @{ StdErr = (Get-WfSyntheticPresentMonOverflowText -Count 37) }
+        $out = Join-Path $TestDrive 'pm-overflow'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match '^PresentMon threw away 37 presents'
+        $source.enabled.options.presentmon_overflowed_presents | Should -Be 37
+        $source.enabled.options.presentmon_exit_code | Should -Be 0
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/frames.csv') | Should -BeFalse -Because 'an incomplete frame table is not kept'
+        (Get-PmRecording -OutputDirectory $out).presentmon.overflowed_presents | Should -Be 37
+
+        Start-PmCase
+        Reset-PmPrograms -Decode @{ StdErr = "warning: synthetic text`n" }
+        $run2 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-warning')
+        (Get-PmSource -Run $run2).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run2).status_reason | Should -Match 'reported a problem reading the recording: warning: synthetic text'
+        @((Get-PmSource -Run $run2).enabled.options.presentmon_warnings) | Should -Be @('warning: synthetic text')
+
+        Start-PmCase
+        Reset-PmPrograms -Decode @{ ExitCode = 6; StdErr = "error: failed to start trace session: invalid --etl_file.`n" }
+        $run3 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-exit-6')
+        (Get-PmSource -Run $run3).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run3).status_reason | Should -Match 'PresentMon exited with code 6 reading the recording: "error: failed to start trace session: invalid --etl_file\."'
+
+        Start-PmCase
+        Reset-PmPrograms -Decode @{ Stuck = $true }
+        $run4 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-decode-stuck')
+        (Get-PmSource -Run $run4).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run4).status_reason | Should -Match 'did not finish reading the \d+ byte recording within 240 seconds'
+
+        Start-PmCase
+        $csv = Get-WfSyntheticPresentMonCsv -Name 'two-processes'
+        $builder = New-Object System.Text.StringBuilder
+        while ($builder.Length -lt 1100000) { $null = $builder.Append($csv) }
+        Reset-PmPrograms -Decode @{ CsvText = $builder.ToString() }
+        $run5 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-decode-oversized') -Arguments @{ MaxArtifactBytes = 1048576 }
+        (Get-PmSource -Run $run5).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run5).status_reason | Should -Match 'printed more than the artifact cap of 1048576 bytes of CSV and was stopped'
+        Test-Path -LiteralPath (Join-Path $TestDrive 'pm-decode-oversized/raw/presentmon_frames/frames.csv') | Should -BeFalse
+    }
+
+    It 'refuses a CSV whose header does not prove the requested options' {
+        Start-PmCase
+        Reset-PmPrograms -Decode @{ CsvText = (Get-WfSyntheticPresentMonCsv -Name 'no-qpc') }
+        $out = Join-Path $TestDrive 'pm-no-qpc'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        $source = Get-PmSource -Run $run
+        $source.status | Should -BeExactly 'capture_failed'
+        $source.status_reason | Should -Match '--qpc_time was requested but the CSV header has no CPUStartQPC column'
+        $source.enabled.options.qpc_time_column | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $out 'raw/presentmon_frames/frames.csv') | Should -BeFalse -Because 'a failed source leaves no primary'
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/presentmon_frames/result.json') -Raw | ConvertFrom-Json
+        $result.csv.present | Should -BeFalse -Because 'result.json describes the bundle as it was left'
+        $source.enabled.options.csv_present | Should -BeFalse
+
+        Start-PmCase
+        Reset-PmPrograms -Decode @{ CsvText = ('time,value' + "`r`n" + '1,2' + "`r`n") }
+        $run2 = Invoke-PmCollector -OutputDirectory (Join-Path $TestDrive 'pm-not-presentmon')
+        (Get-PmSource -Run $run2).status | Should -BeExactly 'capture_failed'
+        (Get-PmSource -Run $run2).status_reason | Should -Match 'not the documented PresentMon header'
+    }
+
+    It 'keeps what the programs printed in console.txt and the recording facts in recording.json' {
+        Start-PmCase
+        Reset-PmPrograms -Wpr @{ StartStdOut = "synthetic wpr: starting`r`n" }
+        $out = Join-Path $TestDrive 'pm-console'
+        $run = Invoke-PmCollector -OutputDirectory $out
+        (Get-PmSource -Run $run).status | Should -BeExactly 'observed'
+        $console = [System.IO.File]::ReadAllText((Join-Path $out 'raw/presentmon_frames/console.txt'))
+        $console | Should -Match '=== wpr -status -instancename wf-presentmon-frames \(before\)'
+        $console | Should -Match 'synthetic wpr: starting'
+        $console | Should -Match '=== wpr -stop'
+        $console | Should -Match '=== PresentMon --etl_file \(stdout is the CSV\)'
+        $console | Should -Match 'stdout: the CSV \(\d+ bytes\)'
+        $console | Should -Not -Match 'SyntheticGame\.exe,4242' -Because 'the CSV is frames.csv, not repeated in the log'
+        $recording = Get-PmRecording -OutputDirectory $out
+        $recording.instance_name | Should -BeExactly 'wf-presentmon-frames'
+        $recording.session_cap_mb | Should -Be 48
+        $recording.wpr_collectors | Should -Be @('wf-presentmon-frames')
+        $recording.events_lost_sources.wpr_status_collectors | Should -Be 0
+    }
+
+    It 'rejects a duration, a cap or a process name outside the rules with a failed summary and no bundle' {
+        Start-PmCase
+        foreach ($bad in @(@{ DurationSeconds = 4 }, @{ DurationSeconds = 241 }, @{ MaxArtifactBytes = 1048575 }, @{ MaxArtifactBytes = 1073741825 }, @{ ProcessName = @('bad name.exe') }, @{ ProcessName = @('-start.exe') }, @{ ProcessName = @('a"b.exe') }, @{ ProcessName = @('1.exe', '2.exe', '3.exe', '4.exe', '5.exe', '6.exe', '7.exe', '8.exe', '9.exe') })) {
+            $out = Join-Path $TestDrive ('pm-bad-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+            $run = Invoke-PmCollector -OutputDirectory $out -Arguments $bad
+            $run.ExitCode | Should -Be 1
+            $run.Stdout.Count | Should -Be 1
+            ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'failed'
+            Test-Path -LiteralPath $out | Should -BeFalse
+            $global:WfSynthetic.Processes.Count | Should -Be 0
+        }
+    }
+}
+
 Describe 'dpcisr-trace against the synthetic backend' {
     BeforeAll {
         function Start-TraceCase {

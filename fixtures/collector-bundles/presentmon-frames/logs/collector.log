@@ -1,0 +1,6 @@
+2026-03-01T12:00:01.0000000Z collector presentmon-frames version 2.1.0, helper version 1.2.0, no time window (snapshot), 840 s per source
+source presentmon_frames: wpr -start raw/presentmon_frames/profile.wprp!WfPresentMonFrames.Verbose -filemode -recordtempto raw/presentmon_frames/wpr-temp -instancename wf-presentmon-frames
+source presentmon_frames: wpr -stop raw/presentmon_frames/trace.etl win-forensics presentmon-frames -skipPdbGen -instancename wf-presentmon-frames
+source presentmon_frames: C:\ProgramData\win-forensics\tools\PresentMon-2.6.0-x64.exe --etl_file raw/presentmon_frames/trace.etl --output_stdout --qpc_time
+source presentmon_frames: status observed, 6 artifacts
+2026-03-01T12:01:24.0000000Z manifest written: bundle 20260301T120001Z_presentmon_frames_ae3a76a9, status ok, 6 artifacts
