@@ -29,6 +29,27 @@ BeforeAll {
         return @(Get-ChildItem -LiteralPath $script:EvidenceRoot -Directory)
     }
 
+    function New-TestPlantedFolder {
+        # An evidence folder written by something other than Apply, with a
+        # matching SHA256SUMS. Each row is 'setting|keyword|display|before|proposed'
+        # or, with a sixth field, that driver file.
+        param([string]$Stamp, [string[]]$Rows)
+        $folder = Join-Path $script:EvidenceRoot $Stamp
+        $null = New-Item -ItemType Directory -Path $folder -Force
+        $device = Get-WfNtTextSha256 -Text $global:WfNtSynthetic.Adapters[0].PnPDeviceID
+        $lines = @(((Get-WfNtCsvColumns) | ForEach-Object { '"' + $_ + '"' }) -join ',')
+        foreach ($r in $Rows) {
+            $f = $r.Split('|')
+            $driver = 'rt25cx21x64.sys'
+            if ($f.Count -gt 5) { $driver = $f[5] }
+            $lines += ((@($f[0], $f[1], $f[2], $f[3], '', $f[4], 'change', '', $device, $driver, '1') | ForEach-Object { '"' + $_ + '"' }) -join ',')
+        }
+        Write-WfNtTextFile -Path (Join-Path $folder 'before-values.csv') -Text (($lines -join "`r`n") + "`r`n")
+        Write-WfNtTextFile -Path (Join-Path $folder 'adapter-driver-key.reg') -Text "Windows Registry Editor Version 5.00`r`n"
+        $sums = @((Get-WfNtEvidenceFiles) | ForEach-Object { (Get-WfNtFileSha256 -Path (Join-Path $folder $_)) + '  ' + $_ })
+        Write-WfNtTextFile -Path (Join-Path $folder 'SHA256SUMS') -Text (($sums -join "`r`n") + "`r`n")
+    }
+
     function Assert-TestPrivate {
         # Nothing that identifies the adapter or the network leaves.
         param([string]$Text)
@@ -388,6 +409,57 @@ Describe 'network-tuning' {
             $r.Text | Should -Match 'FAIL idle-restriction \(\*IdleRestriction\): live 1, expected 0'
         }
 
+        It 'undoes a well formed folder that Apply did not write, so the refusals below come from the row checks' {
+            Set-WfNtSyntheticLive -Keyword '*IdleRestriction' -Value '1'
+            New-TestPlantedFolder -Stamp '20261121T000000Z' -Rows @('idle-restriction|*IdleRestriction|idle power down restriction|0|1')
+            $r = Invoke-TestNt -Verb @('Undo')
+            $r.ExitCode | Should -Be 0
+            @($global:WfNtSynthetic.Writes) | Should -Be @('Ethernet 2|*IdleRestriction=0')
+        }
+
+        It 'refuses a planted folder whose row <Case>' -ForEach @(
+            @{ Case = 'names a keyword that is not its setting''s own'; Rows = @('idle-restriction|*FlowControl|Flow Control|0|3') }
+            @{ Case = 'names its setting''s keyword in another case'; Rows = @('idle-restriction|*idlerestriction|idle power down restriction|1|0') }
+            @{ Case = 'gives a display matched setting a keyword that is not a plain name'; Rows = @('green-ethernet|Invented Green;x|Green Ethernet|0|1') }
+            @{ Case = 'gives a display matched setting another display name'; Rows = @('green-ethernet|*FlowControl|Flow Control|0|3') }
+            @{ Case = 'repeats a setting'; Rows = @('idle-restriction|*IdleRestriction|idle power down restriction|0|1', 'idle-restriction|*IdleRestriction|idle power down restriction|0|1') }
+            @{ Case = 'names another driver file'; Rows = @('idle-restriction|*IdleRestriction|idle power down restriction|0|1|rt640x64.sys') }
+        ) {
+            Set-WfNtSyntheticLive -Keyword '*IdleRestriction' -Value '1'
+            New-TestPlantedFolder -Stamp '20261121T000000Z' -Rows $Rows
+            $r = Invoke-TestNt -Verb @('Undo')
+            $r.ExitCode | Should -Be 2
+            $r.Text | Should -Match 'before-values.csv is malformed'
+            $global:WfNtSynthetic.Writes.Count | Should -Be 0
+        }
+
+        It 'refuses a planted display matched row whose live keyword shows another name' {
+            New-TestPlantedFolder -Stamp '20261121T000000Z' -Rows @('green-ethernet|*FlowControl|Green Ethernet|0|3')
+            $r = Invoke-TestNt -Verb @('Undo')
+            $r.ExitCode | Should -Be 2
+            $r.Text | Should -Match 'does not fit this adapter''s settings \(green-ethernet: \*FlowControl is not shown as "Green Ethernet"\)'
+            $global:WfNtSynthetic.Writes.Count | Should -Be 0
+            Get-WfNtSyntheticLive -Keyword '*FlowControl' | Should -Be '3'
+        }
+
+        It 'refuses a planted row whose keyword the adapter does not show once' {
+            New-TestPlantedFolder -Stamp '20261121T000000Z' -Rows @('green-ethernet|InventedMissingKeyword|Green Ethernet|0|1')
+            $r = Invoke-TestNt -Verb @('Undo')
+            $r.ExitCode | Should -Be 2
+            $r.Text | Should -Match 'does not expose InventedMissingKeyword exactly once'
+            $global:WfNtSynthetic.Writes.Count | Should -Be 0
+        }
+
+        It 'refuses a planted row whose saved value is not among the live valid values' {
+            Set-WfNtSyntheticLive -Keyword '*IdleRestriction' -Value '1'
+            New-TestPlantedFolder -Stamp '20261121T000000Z' -Rows @('idle-restriction|*IdleRestriction|idle power down restriction|5|1')
+            $r = Invoke-TestNt -Verb @('Undo')
+            $r.ExitCode | Should -Be 2
+            $r.Text | Should -Match 'idle-restriction: the saved 5 or the applied 1 is not among the driver''s valid values \(0, 1\)'
+            $global:WfNtSynthetic.Writes.Count | Should -Be 0
+            Get-WfNtSyntheticLive -Keyword '*IdleRestriction' | Should -Be '1'
+        }
+
         It 'uses the named evidence folder' {
             (Invoke-TestNt -Verb @('Apply')).ExitCode | Should -Be 0
             $r = Invoke-TestNt -Verb @('Undo') -Extra @{ EvidenceFolder = '20261120T180000Z' }
@@ -583,6 +655,33 @@ Describe 'network-tuning' {
             $r = Invoke-TestNt -Verb @('Readback') -Extra @{ Only = @('ltr-obff') }
             $r.ExitCode | Should -Be 1
             $r.Text | Should -Match 'FAIL ltr-obff: the proposed value cannot be told \(it is a hidden property'
+        }
+
+        It 'reads back each setting named with -Only from the newest folder that holds it' {
+            (Invoke-TestNt -Verb @('Apply')).ExitCode | Should -Be 0
+            $global:WfNtSynthetic.NowUtc = $global:WfNtSynthetic.NowUtc.AddDays(1)
+            (Invoke-TestNt -Verb @('Apply') -Extra @{ Only = @('green-ethernet') }).ExitCode | Should -Be 0
+            $r = Invoke-TestNt -Verb @('Readback') -Extra @{ Only = @('idle-restriction') }
+            $r.ExitCode | Should -Be 0
+            $r.Text | Should -Match 'Compared idle-restriction with evidence folder 20261120T180000Z'
+            $r.Text | Should -Match 'PASS idle-restriction \(\*IdleRestriction\): 1'
+            $r.Text | Should -Match 'has not restarted since Apply \(evidence folder 20261120T180000Z\)'
+            $r.Text | Should -Not -Match 'green-ethernet'
+            $r.Text | Should -Not -Match '20261121T180000Z'
+            (Invoke-TestNt -Verb @('Undo')).ExitCode | Should -Be 0
+            $r = Invoke-TestNt -Verb @('Readback') -Extra @{ Only = @('idle-restriction') }
+            $r.ExitCode | Should -Be 0
+            $r.Text | Should -Match 'PASS idle-restriction'
+            $r = Invoke-TestNt -Verb @('Readback') -Extra @{ Only = @('green-ethernet') }
+            $r.ExitCode | Should -Be 1
+            $r.Text | Should -Match 'Compared green-ethernet with evidence folder 20261121T180000Z'
+            $r.Text | Should -Match 'FAIL green-ethernet \(InventedGreenKeyword\): live 1, expected 0'
+            $global:WfNtSynthetic.Writes.Clear()
+            $r = Invoke-TestNt -Verb @('Readback') -Extra @{ Only = @('flow-control') }
+            $r.ExitCode | Should -Be 1
+            $r.Text | Should -Match 'No usable evidence folder holds flow-control; compared with the proposed values'
+            $r.Text | Should -Match 'FAIL flow-control \(\*FlowControl\): live 3, expected 0'
+            $global:WfNtSynthetic.Writes.Count | Should -Be 0
         }
 
         It 'undoes an earlier experiment kept in place, by its folder' {

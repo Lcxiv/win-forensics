@@ -261,19 +261,19 @@ function Resolve-WfNtSelection {
             if ($p) { $names += $p }
         }
     }
-    if ($names.Count -eq 0) { return [pscustomobject]@{ Ok = $true; Settings = @($all | Where-Object { $_.Default }); Reason = '' } }
+    if ($names.Count -eq 0) { return [pscustomobject]@{ Ok = $true; Named = $false; Settings = @($all | Where-Object { $_.Default }); Reason = '' } }
     $known = @($all | ForEach-Object { $_.Name })
     $unknown = @($names | Where-Object { $known -notcontains $_ })
     if ($unknown.Count -gt 0) {
         $shown = @($unknown | ForEach-Object { Protect-WfNtText -Text $_ })
-        return [pscustomobject]@{ Ok = $false; Settings = @(); Reason = ('-Only names a setting this script does not have: ' + ($shown -join ', ') + '. Known: ' + ($known -join ', ')) }
+        return [pscustomobject]@{ Ok = $false; Named = $true; Settings = @(); Reason = ('-Only names a setting this script does not have: ' + ($shown -join ', ') + '. Known: ' + ($known -join ', ')) }
     }
     $picked = @($all | Where-Object { $names -contains $_.Name })
     $optIn = @($picked | Where-Object { -not $_.Default })
     if ($optIn.Count -gt 0 -and $picked.Count -gt 1) {
-        return [pscustomobject]@{ Ok = $false; Settings = @(); Reason = ('a measure first setting runs alone, one experiment at a time: name only one of ' + (@($picked | ForEach-Object { $_.Name }) -join ', ')) }
+        return [pscustomobject]@{ Ok = $false; Named = $true; Settings = @(); Reason = ('a measure first setting runs alone, one experiment at a time: name only one of ' + (@($picked | ForEach-Object { $_.Name }) -join ', ')) }
     }
-    return [pscustomobject]@{ Ok = $true; Settings = $picked; Reason = '' }
+    return [pscustomobject]@{ Ok = $true; Named = $true; Settings = $picked; Reason = '' }
 }
 
 function Find-WfNtAdapter {
@@ -592,11 +592,20 @@ function Read-WfNtBeforeCsv {
     if ($rows.Count -eq 0) { return $null }
     $columns = @(Get-WfNtCsvColumns)
     $out = @()
-    $known = @((Get-WfNtSettings) | ForEach-Object { $_.Name })
+    $table = @(Get-WfNtSettings)
+    $seen = @()
     foreach ($row in $rows) {
         $names = @($row.PSObject.Properties | ForEach-Object { $_.Name })
         foreach ($c in $columns) { if ($names -notcontains $c) { return $null } }
-        if ($known -notcontains $row.setting) { return $null }
+        $setting = @($table | Where-Object { $_.Name -ceq $row.setting })
+        if ($setting.Count -ne 1 -or $seen -contains $row.setting) { return $null }
+        $seen += $row.setting
+        if ($setting[0].Keyword) {
+            if ($row.keyword -cne $setting[0].Keyword) { return $null }
+        } elseif ($row.keyword -cnotmatch '^\*?[A-Za-z0-9_]+$' -or $row.display_name -ne $setting[0].Display) {
+            return $null
+        }
+        if ([string]$row.driver_file -notmatch (Get-WfNtDriverFilePattern)) { return $null }
         if (-not (Test-WfNtValueText -Text $row.before_value) -or -not (Test-WfNtValueText -Text $row.proposed_value)) { return $null }
         if ($row.action -ne 'change' -and $row.action -ne 'none') { return $null }
         if ($row.device_sha256 -notmatch '^[0-9A-F]{64}$') { return $null }
@@ -679,6 +688,14 @@ function Test-WfNtEvidenceFolder {
     return [pscustomobject]@{ Ok = $true; Reason = ''; Rows = @($rows) }
 }
 
+function Get-WfNtEvidenceFolders {
+    # The folders under the root that hold a SHA256SUMS, newest first.
+    param([string]$EvidenceRoot)
+    if (-not (Test-Path -LiteralPath $EvidenceRoot -PathType Container)) { return @() }
+    $dirs = @(Get-ChildItem -LiteralPath $EvidenceRoot -Directory | Where-Object { $_.Name -match '^\d{8}T\d{6}Z$' } | Sort-Object -Property Name -Descending)
+    return @($dirs | Where-Object { Test-Path -LiteralPath (Join-Path -Path $_.FullName -ChildPath 'SHA256SUMS') -PathType Leaf } | ForEach-Object { $_.FullName })
+}
+
 function Find-WfNtEvidenceFolder {
     # The named folder, or the newest complete one under the root.
     param([string]$EvidenceRoot, [string]$Name)
@@ -689,11 +706,9 @@ function Find-WfNtEvidenceFolder {
         if (Test-Path -LiteralPath $p -PathType Container) { return $p }
         return $null
     }
-    $dirs = @(Get-ChildItem -LiteralPath $EvidenceRoot -Directory | Where-Object { $_.Name -match '^\d{8}T\d{6}Z$' } | Sort-Object -Property Name -Descending)
-    foreach ($d in $dirs) {
-        if (Test-Path -LiteralPath (Join-Path -Path $d.FullName -ChildPath 'SHA256SUMS') -PathType Leaf) { return $d.FullName }
-    }
-    return $null
+    $all = @(Get-WfNtEvidenceFolders -EvidenceRoot $EvidenceRoot)
+    if ($all.Count -eq 0) { return $null }
+    return $all[0]
 }
 
 # ---------------------------------------------------------------------------
@@ -828,6 +843,29 @@ function Invoke-WfNtUndo {
         return 2
     }
     $name = $found.Adapter.Name
+    $properties = @(Get-WfNtAdvancedProperties -Name $name)
+    $table = @(Get-WfNtSettings)
+    $misfit = @()
+    foreach ($row in $rows) {
+        $setting = @($table | Where-Object { $_.Name -ceq $row.setting })[0]
+        $match = @($properties | Where-Object { $_.RegistryKeyword -ceq $row.keyword })
+        if ($match.Count -ne 1) {
+            $misfit += ($row.setting + ': the adapter does not expose ' + $row.keyword + ' exactly once')
+            continue
+        }
+        if (-not $setting.Keyword -and $match[0].DisplayName -ne $setting.Display) {
+            $misfit += ($row.setting + ': ' + $row.keyword + ' is not shown as "' + $setting.Display + '"')
+            continue
+        }
+        $valid = @($match[0].ValidRegistryValues | ForEach-Object { [string]$_ })
+        if ($valid -notcontains $row.before_value -or $valid -notcontains $row.proposed_value) {
+            $misfit += ($row.setting + ': the saved ' + $row.before_value + ' or the applied ' + $row.proposed_value + ' is not among the driver''s valid values (' + ($valid -join ', ') + ')')
+        }
+    }
+    if ($misfit.Count -gt 0) {
+        Write-WfNtReport -Lines @(('REFUSED: evidence folder ' + $stamp + ' does not fit this adapter''s settings (' + ($misfit -join '; ') + '). Nothing changed.')) -Secrets $secrets
+        return 2
+    }
     Write-WfNtReport -Lines @(((Get-WfNtChangeName) + ' Undo from evidence folder ' + $stamp + '.')) -Secrets $secrets
     $todo = @()
     $bad = @()
@@ -868,9 +906,11 @@ function Invoke-WfNtUndo {
 
 function Invoke-WfNtReadback {
     # Reads only: is the applied change in place? PASS when the live value is
-    # the proposed one. Uses the newest complete evidence folder for the rows;
-    # without one, the settings table.
-    param($Selected, [string]$EvidenceRoot)
+    # the proposed one. Without -Only, the rows of the newest complete
+    # evidence folder; with -Only, each named setting's row from the newest
+    # complete folder that holds it. A setting with no such row is compared
+    # with the proposed value from the settings table, read live.
+    param($Selected, [bool]$Named, [string]$EvidenceRoot)
     $found = Find-WfNtAdapter -Adapters @(Get-WfNtEthernetAdapters)
     $secrets = @()
     if ($null -ne $found.Adapter) { $secrets = @($found.Adapter.Name, $found.Adapter.PnPDeviceID) }
@@ -880,21 +920,47 @@ function Invoke-WfNtReadback {
     }
     $lines = @(((Get-WfNtChangeName) + ' Readback: reads only, nothing is changed.'))
     $rows = @()
-    $stamp = ''
-    $folder = Find-WfNtEvidenceFolder -EvidenceRoot $EvidenceRoot -Name ''
-    if ($null -ne $folder) {
-        $evidence = Test-WfNtEvidenceFolder -Folder $folder
-        if ($evidence.Ok) {
-            $stamp = Split-Path -Leaf $folder
-            $rows = @($evidence.Rows)
-            $lines += ('Compared with evidence folder ' + $stamp + ' (PASS means the applied value is in place).')
+    $stamps = @()
+    $fallback = @()
+    if ($Named) {
+        $folders = @()
+        foreach ($f in (Get-WfNtEvidenceFolders -EvidenceRoot $EvidenceRoot)) {
+            $evidence = Test-WfNtEvidenceFolder -Folder $f
+            if ($evidence.Ok) { $folders += [pscustomobject]@{ Stamp = (Split-Path -Leaf $f); Rows = @($evidence.Rows) } }
+        }
+        foreach ($s in $Selected) {
+            $hit = $null
+            foreach ($f in $folders) {
+                $row = @($f.Rows | Where-Object { $_.setting -ceq $s.Name })
+                if ($row.Count -eq 1) { $hit = [pscustomobject]@{ Stamp = $f.Stamp; Row = $row[0] }; break }
+            }
+            if ($null -eq $hit) { $fallback += $s; continue }
+            $rows += $hit.Row
+            if ($stamps -notcontains $hit.Stamp) { $stamps += $hit.Stamp }
+            $lines += ('Compared ' + $s.Name + ' with evidence folder ' + $hit.Stamp + ' (PASS means the applied value is in place).')
+        }
+        if ($fallback.Count -gt 0) {
+            $lines += ('No usable evidence folder holds ' + (@($fallback | ForEach-Object { $_.Name }) -join ', ') + '; compared with the proposed values (PASS means the proposed value is in place).')
+        }
+    } else {
+        $folder = Find-WfNtEvidenceFolder -EvidenceRoot $EvidenceRoot -Name ''
+        if ($null -ne $folder) {
+            $evidence = Test-WfNtEvidenceFolder -Folder $folder
+            if ($evidence.Ok) {
+                $stamps = @(Split-Path -Leaf $folder)
+                $rows = @($evidence.Rows)
+                $lines += ('Compared with evidence folder ' + $stamps[0] + ' (PASS means the applied value is in place).')
+            }
+        }
+        if ($rows.Count -eq 0) {
+            $fallback = @($Selected)
+            $lines += 'No usable evidence folder; compared with the proposed values (PASS means the proposed value is in place).'
         }
     }
     $unresolved = @()
-    if ($rows.Count -eq 0) {
-        $lines += 'No usable evidence folder; compared with the proposed values (PASS means the proposed value is in place).'
+    if ($fallback.Count -gt 0) {
         $properties = @(Get-WfNtAdvancedProperties -Name $found.Adapter.Name)
-        foreach ($s in $Selected) {
+        foreach ($s in $fallback) {
             $r = Test-WfNtSetting -Setting $s -Properties $properties
             if ($r.Keyword -and $r.Proposed) {
                 $rows += [pscustomobject]@{ setting = $s.Name; keyword = $r.Keyword; before_value = ''; proposed_value = $r.Proposed }
@@ -907,11 +973,13 @@ function Invoke-WfNtReadback {
     $check = Get-WfNtReadbackLines -Name $found.Adapter.Name -Rows $rows -Expect 'proposed'
     $lines += $check.Lines
     $lines += $unresolved
-    if ($stamp) {
-        $applied = [datetime]::ParseExact($stamp, 'yyyyMMddTHHmmssZ', [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AdjustToUniversal -bor [System.Globalization.DateTimeStyles]::AssumeUniversal)
+    if ($stamps.Count -gt 0) {
         $boot = Get-WfNtLastBootUtc
-        if ($null -ne $boot -and $boot -lt $applied) {
-            $lines += 'Note: the PC has not restarted since Apply. Unless the adapter was disabled and enabled by hand, the new value is stored but not yet in effect.'
+        foreach ($stamp in $stamps) {
+            $applied = [datetime]::ParseExact($stamp, 'yyyyMMddTHHmmssZ', [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AdjustToUniversal -bor [System.Globalization.DateTimeStyles]::AssumeUniversal)
+            if ($null -ne $boot -and $boot -lt $applied) {
+                $lines += ('Note: the PC has not restarted since Apply (evidence folder ' + $stamp + '). Unless the adapter was disabled and enabled by hand, the new value is stored but not yet in effect.')
+            }
         }
     }
     Write-WfNtReport -Lines $lines -Secrets $secrets
@@ -930,7 +998,7 @@ function Invoke-WfNtMain {
     switch ($Verb) {
         'Apply' { return (Invoke-WfNtApply -Selected $selected -EvidenceRoot $EvidenceRoot) }
         'Undo' { return (Invoke-WfNtUndo -EvidenceRoot $EvidenceRoot -EvidenceFolder $EvidenceFolder) }
-        'Readback' { return (Invoke-WfNtReadback -Selected $selected -EvidenceRoot $EvidenceRoot) }
+        'Readback' { return (Invoke-WfNtReadback -Selected $selected -Named ([bool]$selection.Named) -EvidenceRoot $EvidenceRoot) }
         default {
             $plan = Invoke-WfNtPlan -Selected $selected
             Write-WfNtReport -Lines (Get-WfNtPlanLines -Plan $plan -Elevated (Test-WfNtElevated)) -Secrets @($plan.Secrets)
