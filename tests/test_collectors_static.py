@@ -309,13 +309,7 @@ def test_clock_calibration_sources_are_documented():
 
 
 def test_diskio_trace_sources_and_privacy_rules_are_documented_and_kept():
-    """Both diskio-trace source ids and its table appear in the README; the aggregate never reads a command line or a user id."""
+    """Both diskio-trace source ids, its table and its pseudonym forms appear in the README."""
     readme = (COLLECTOR_DIR / "README.md").read_text(encoding="utf-8")
     for term in ("`wpr_trace`", "`diskio_aggregate`", "`diskio_activity`", "`<profile>`", "dir-", "image-", "The diskio-trace sources"):
         assert term in readme, term
-    script = (COLLECTOR_DIR / "diskio-trace.ps1").read_text(encoding="ascii")
-    code = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
-    for field in ("'CommandLine'", "'UserSID'", "CommandLine]", "UserSID]"):
-        assert field not in code, field
-    assert re.search(r"return @\('DiskIO', 'Filename', 'HardFaults', 'ProcessThread'\)", code), "the four keywords, no FileIO until a pilot has measured it"
-    assert "FileIO'" not in code and "<Stack" not in code

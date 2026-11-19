@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/diskio_activity.schema.json",
   "title": "diskio_activity row",
-  "description": "Provisional. One row per one second bin, process, volume, directory, extension, disk and operation from the aggregate the diskio-trace collector makes on the PC from a kernel trace (DiskIo Read and Write, PageFault_HardFault, FileIo_Name, Process and Thread events) and keeps as raw/diskio_aggregate/aggregate.jsonl; the trace itself never leaves the PC. bin_start_s counts whole seconds from the trace header's StartTime (etw_qpc_relative). Directories keep fixed Windows roots and one level below them in clear, <profile> for the user folder, and dir-<12 hex> per run salted pseudonyms below that; file names are never kept. Decoder: scripts/decode_diskio.py.",
+  "description": "Provisional. One row per one second bin, process, volume, directory, extension, disk and operation from the aggregate the diskio-trace collector makes on the PC from a kernel trace (DiskIo Read and Write, PageFault_HardFault, FileIo_Name, Process and Thread events) and keeps as raw/diskio_aggregate/aggregate.jsonl; the trace itself never leaves the PC. bin_start_s counts whole seconds from the trace header's StartTime (etw_qpc_relative). Directories keep fixed Windows roots and one level below them in clear, <profile> for the user folder, and dir-<12 hex> per run salted pseudonyms below that; file names are never kept, and an extension is kept only from the collector's fixed list of file classes (other otherwise). Decoder: scripts/decode_diskio.py.",
   "x-schema-version": "0.1.0",
   "x-decoded-table": "diskio_activity",
   "type": "object",

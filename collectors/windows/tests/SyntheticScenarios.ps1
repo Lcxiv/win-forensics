@@ -1929,7 +1929,7 @@ function New-WfSyntheticDiskIoMachine {
     # trace's summary. -CollectorRoot adds disk requests on a file inside the
     # bundle (the Pester suite passes its own directory; the fixtures do not,
     # so the dump does not depend on where the repository is checked out).
-    param([int64]$EventsLost = 0, [string]$DropField = '', [string]$CollectorRoot = '', [switch]$NoDiskEvents, [int]$ExtraProcessed = 0)
+    param([int64]$EventsLost = 0, [string]$DropField = '', [string]$CollectorRoot = '', [switch]$NoDiskEvents, [int]$ExtraProcessed = 0, [switch]$PidReuse)
     $global:WfSynthetic.Elevated = $true
     $wpr = $global:WfSynthetic.Wpr
     $wpr.Keywords = @('DiskIO', 'Filename', 'HardFaults', 'ProcessThread')
@@ -1937,7 +1937,7 @@ function New-WfSyntheticDiskIoMachine {
     $wpr.EventsLost = 0
     $wpr.DroppedEvents = 0
     $wpr.EtlContent = New-WfSyntheticEtlBytes -DurationSeconds 10
-    $dump = New-WfSyntheticDiskIoDump -DropField $DropField -CollectorRoot $CollectorRoot -NoDiskEvents:$NoDiskEvents
+    $dump = New-WfSyntheticDiskIoDump -DropField $DropField -CollectorRoot $CollectorRoot -NoDiskEvents:$NoDiskEvents -PidReuse:$PidReuse
     $global:WfSynthetic.Tracerpt.EventsLost = $EventsLost
     $global:WfSynthetic.Tracerpt.BuffersLost = 0
     $global:WfSynthetic.Tracerpt.DumpXml = $dump.Xml
@@ -1952,8 +1952,12 @@ function New-WfSyntheticDiskIoDump {
     # are offsets from the header StartTime New-WfSyntheticEtlBytes writes
     # (Now plus 7 s). The Process events carry a command line and a user id
     # and a system configuration event carries a hardware address, so the
-    # suite can show that none of them reaches the bundle.
-    param([string]$DropField = '', [string]$CollectorRoot = '', [switch]$NoDiskEvents)
+    # suite can show that none of them reaches the bundle. -PidReuse adds two
+    # process ids that change hands inside the window: 5120 (an updater that
+    # writes and exits, then another process started under the same id) and
+    # 6000 (a process the trace first names by its end event, then a new
+    # process under the same id).
+    param([string]$DropField = '', [string]$CollectorRoot = '', [switch]$NoDiskEvents, [switch]$PidReuse)
     $start = $global:WfSynthetic.Now.AddSeconds(7)
     $kernel = '{9e814aad-3204-11d2-9a82-006008a86939}'
     $classes = @{
@@ -2022,6 +2026,28 @@ function New-WfSyntheticDiskIoDump {
             & $add 'FileIo' 32 2.50 @('FileObject', '0xffffa00000008000', 'FileName', $own)
             & $disk 11 2.60 '100' '0xffffa00000008000' 65536 '0x60a01' 1800
         }
+    }
+    if ($PidReuse) {
+        $process = {
+            param([int]$Opcode, [double]$Offset, [string]$ProcessId, [string]$Image)
+            & $add 'Process' $Opcode $Offset @('UniqueProcessKey', '0xffffc00000000140', 'ProcessId', $ProcessId, 'ParentId', '900', 'SessionId', '1', 'ExitStatus', '0', 'UserSID', 'S-1-5-21-1000000001-1000000002-1000000003-1001', 'ImageFileName', $Image, 'CommandLine', $Image)
+        }
+        $thread = {
+            param([int]$Opcode, [double]$Offset, [string]$ProcessId, [string]$ThreadId)
+            & $add 'Thread' $Opcode $Offset @('ProcessId', $ProcessId, 'TThreadId', $ThreadId, 'StackBase', '0xfffff00000030000', 'StackLimit', '0xfffff0000002a000')
+        }
+        & $thread 3 0.007 '6000' '6001'
+        & $process 1 3.00 '5120' 'SyntheticUpdater.exe'
+        & $thread 1 3.01 '5120' '5121'
+        & $disk 11 3.10 '5121' '0xffffa00000001000' 1048576 '0x60a01' 5000
+        & $disk 11 3.20 '6001' '0xffffa00000001000' 2048 '0x60a01' 900
+        & $thread 2 3.90 '5120' '5121'
+        & $process 2 4.00 '5120' 'SyntheticUpdater.exe'
+        & $process 2 4.50 '6000' 'SyntheticEarly.exe'
+        & $process 1 5.00 '5120' 'SyntheticOther.exe'
+        & $thread 1 5.01 '5120' '5122'
+        & $disk 11 5.10 '5122' '0xffffa00000001000' 512 '0x60a01' 400
+        & $process 1 6.00 '6000' 'SyntheticLate.exe'
     }
     # Hard faults: the game pages in code from its pack file.
     & $add 'PageFault' 32 0.40 @('InitialTime', '1000', 'ReadOffset', '4096', 'VirtualAddress', '0x00007ff600001000', 'FileObject', '0xffffa00000002000', 'TThreadId', '1201', 'ByteCount', '32768')

@@ -93,7 +93,7 @@ def test_no_trace_no_dump_and_nothing_private_reaches_a_bundle(case):
 
 def test_every_directory_keeps_fixed_roots_and_one_level_and_pseudonymises_the_rest():
     rows = [json.loads(line) for line in (BUNDLES / "diskio-trace" / AGGREGATE).read_text(encoding="utf-8").splitlines()]
-    roots = (r"\\Windows", r"\\Program Files", r"\\Program Files \(x86\)", r"\\ProgramData", r"\\\$[A-Za-z]+",
+    roots = (r"\\Windows", r"\\Program Files", r"\\Program Files \(x86\)", r"\\ProgramData", r"\\\$Extend",
              r"\\Users\\<profile>\\AppData\\(Local|LocalLow|Roaming)", r"\\Users\\<profile>\\(Desktop|Documents|Downloads)")
     shape = re.compile(r"^(\\|\\Users\\<profile>|(" + "|".join(roots) + r")(\\[^\\]+)?(\\dir-[0-9a-f]{12})*|\\Users\\<profile>(\\dir-[0-9a-f]{12})+|(\\dir-[0-9a-f]{12})+)$")
     named = [r for r in rows if r["path_class"] == "named"]
@@ -102,6 +102,9 @@ def test_every_directory_keeps_fixed_roots_and_one_level_and_pseudonymises_the_r
         assert shape.fullmatch(row["directory"]), row["directory"]
     assert all(r["directory"] is None for r in rows if r["path_class"] != "named")
     assert {r["extension"] for r in rows} == {".pak", ".bin", ".sav", ".evtx", ".dat", None}
+    rules = json.loads((BUNDLES / "diskio-trace" / "raw/diskio_aggregate/command.json").read_text(encoding="utf-8"))["pseudonyms"]
+    kept = {"." + name for name in rules["kept_extensions"]}
+    assert kept and all(r["extension"] in kept | {"other", None} for r in rows), "an extension outside the bundle's own stated list is never kept"
 
 
 # ---------------------------------------------------------------- status

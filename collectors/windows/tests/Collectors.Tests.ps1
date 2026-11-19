@@ -4117,6 +4117,59 @@ Describe 'diskio-trace against the synthetic backend' {
         $own[0].transferred_bytes | Should -Be 65536
     }
 
+    It 'charges a request to the image that owned the process id when it happened, when the id is reused inside the window' {
+        $arguments = Start-DiskCase -Machine @{ PidReuse = $true }
+        $out = Join-Path $TestDrive 'pid-reuse'
+        $run = Invoke-TestCollector -Collector 'diskio-trace' -OutputDirectory $out -Arguments $arguments
+        $run.ExitCode | Should -Be 0
+        (Get-DiskSource -Run $run -Id 'diskio_aggregate').status | Should -BeExactly 'observed'
+        $rows = Get-DiskRows -Out $out
+        $reused = @($rows | Where-Object { $_.process_id -eq 5120 } | Sort-Object -Property bin_start_s)
+        $reused.Count | Should -Be 2
+        $reused[0].bin_start_s | Should -Be 3
+        $reused[0].process_image | Should -BeExactly 'SyntheticUpdater.exe' -Because 'the updater owned the id when it wrote, whatever started under that id later'
+        $reused[0].transferred_bytes | Should -Be 1048576
+        $reused[1].bin_start_s | Should -Be 5
+        $reused[1].process_image | Should -BeExactly 'SyntheticOther.exe'
+        $reused[1].transferred_bytes | Should -Be 512
+        $late = @($rows | Where-Object { $_.process_id -eq 6000 })
+        $late.Count | Should -Be 1
+        $late[0].process_image | Should -BeExactly 'SyntheticEarly.exe' -Because 'an id first named after the request takes the first image the trace gives it, not the last'
+    }
+
+    It 'fails the run and keeps no aggregate when the recording cannot be confirmed removed' {
+        $arguments = Start-DiskCase
+        $out = Join-Path $TestDrive 'held'
+        $global:DiskPrivateDir = Join-Path $out 'private'
+        # As a file another process holds open without delete sharing: nothing can be removed from the folder.
+        $global:WfSynthetic.Tracerpt.OnDump = { & chmod 555 $global:DiskPrivateDir }
+        try {
+            $run = Invoke-TestCollector -Collector 'diskio-trace' -OutputDirectory $out -Arguments $arguments
+            Test-Path -LiteralPath (Join-Path $global:DiskPrivateDir 'trace.etl') | Should -BeTrue -Because 'the case is about a recording that is still there'
+        } finally {
+            if (Test-Path -LiteralPath $global:DiskPrivateDir) { & chmod 755 $global:DiskPrivateDir }
+        }
+        $run.ExitCode | Should -Be 1
+        ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'failed'
+        $aggregate = Get-DiskSource -Run $run -Id 'diskio_aggregate'
+        $aggregate.status | Should -BeExactly 'capture_failed'
+        $aggregate.status_reason | Should -Match 'recording under <bundle>/private .* could not be confirmed removed'
+        $aggregate.expectation.met | Should -BeFalse
+        $aggregate.enabled.options.recording_and_dump_removed | Should -BeFalse
+        @($aggregate.artifacts | ForEach-Object { $_.path }) | Should -Be @('raw/diskio_aggregate/command.json', 'raw/diskio_aggregate/result.json')
+        Test-Path -LiteralPath (Join-Path $out 'raw/diskio_aggregate/aggregate.jsonl') | Should -BeFalse
+        $trace = Get-DiskSource -Run $run -Id 'wpr_trace'
+        $trace.status | Should -BeExactly 'capture_failed' -Because 'no source of a run that left its recording behind is presented as observed'
+        $trace.status_reason | Should -Match 'could not be confirmed removed'
+        $trace.expectation.met | Should -BeFalse
+        $run.Manifest.capture.incomplete | Should -BeTrue
+        @($run.Manifest.notes | Where-Object { $_ -match 'delete <bundle>/private by hand' }).Count | Should -Be 1
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/diskio_aggregate/result.json') -Raw | ConvertFrom-Json
+        $result.recording_and_dump_removed | Should -BeFalse
+        $result.rows | Should -Be 0
+        (Get-Content -LiteralPath (Join-Path $out 'manifest.json') -Raw) + (Get-Content -LiteralPath (Join-Path $out 'raw/diskio_aggregate/result.json') -Raw) | Should -Not -Match ([regex]::Escape($out)) -Because 'the reason names the folder as <bundle>/private, not by its location'
+    }
+
     It 'runs nothing when the account is not elevated, and the aggregate says why' {
         $arguments = Start-DiskCase -Case 'diskio-trace-not-elevated'
         $out = Join-Path $TestDrive 'not-elevated'
@@ -4338,15 +4391,32 @@ Describe 'diskio-trace against the synthetic backend' {
         (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\$Mft' -Salt $salt -CollectorPrefix '').directory | Should -BeExactly '\'
         (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\$Extend\$UsnJrnl' -Salt $salt -CollectorPrefix '').directory | Should -BeExactly '\$Extend'
         (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\pagefile.sys' -Salt $salt -CollectorPrefix '').extension | Should -BeExactly '.sys'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\$Extend\$RmMetadata\$TxfLog\$TxfLog.blf' -Salt $salt -CollectorPrefix '').directory | Should -Match '^\\\$Extend\\\$RmMetadata\\dir-[0-9a-f]{12}$'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\$Extend\Alice\x.dat' -Salt $salt -CollectorPrefix '').directory | Should -Match '^\\\$Extend\\dir-[0-9a-f]{12}$' -Because 'below $Extend only the names NTFS reserves there stay readable'
+        $bin = ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\$Recycle.Bin\S-1-5-21-1000000001-1000000002-1000000003-1001\$I1234.txt' -Salt $salt -CollectorPrefix ''
+        $bin.directory | Should -Match '^\\dir-[0-9a-f]{12}\\dir-[0-9a-f]{12}$' -Because 'a $ name that is not NTFS metadata is no root, so the account id below the recycle bin is never readable'
+        $bin.directory | Should -Not -Match 'S-1-5|Recycle'
+        $bin.extension | Should -BeExactly '.txt'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\$WINDOWS.~BT\Sources\Panther\setup.log' -Salt $salt -CollectorPrefix '').directory | Should -Match '^(\\dir-[0-9a-f]{12}){3}$'
         $c = ConvertTo-DiskIoPathParts -FileName 'C:\Games\Library\Title\data.bin' -Salt $salt -CollectorPrefix ''
         $c.volume | Should -BeNullOrEmpty
-        $c.directory | Should -Match '^\\dir-[0-9a-f]{12}\\dir-[0-9a-f]{12}\\dir-[0-9a-f]{12}$' -Because 'a directory outside the fixed roots is a pseudonym from the top'
+        $c.directory | Should -Match '^(\\dir-[0-9a-f]{12}){4}$' -Because 'a name with a drive letter, which the kernel does not write, has no fixed root: every component is a pseudonym'
         $share = ConvertTo-DiskIoPathParts -FileName '\Device\Mup\fileserver\share\f.txt' -Salt $salt -CollectorPrefix ''
         $share.volume | Should -BeExactly 'Mup'
         $share.directory | Should -Not -Match 'fileserver|share'
         (ConvertTo-DiskIoPathParts -FileName '\Device\Weird-Name\a.txt' -Salt $salt -CollectorPrefix '').volume | Should -Match '^dir-[0-9a-f]{12}$'
         (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Windows\a.tar~1' -Salt $salt -CollectorPrefix '').extension | Should -BeExactly 'other'
         (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Windows\README' -Salt $salt -CollectorPrefix '').extension | Should -BeNullOrEmpty
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Windows\Setup.LOG' -Salt $salt -CollectorPrefix '').extension | Should -BeExactly '.log'
+        # The trace cannot tell a folder from a file: the tail of a dotted folder name is never kept as an extension.
+        $profileFolder = ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Users\john.smith' -Salt $salt -CollectorPrefix ''
+        $profileFolder.directory | Should -BeExactly '\Users'
+        $profileFolder.extension | Should -BeExactly 'other'
+        $dotted = ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Users\x\Documents\Private\Taxes.2025' -Salt $salt -CollectorPrefix ''
+        $dotted.directory | Should -BeExactly '\Users\<profile>\Documents\Private'
+        $dotted.extension | Should -BeExactly 'other'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Users\Alice\Music\Band\a.mp3' -Salt $salt -CollectorPrefix '').extension | Should -BeExactly 'other' -Because 'only the listed file classes keep their extension'
+        @((Get-DiskIoPseudonymRules).kept_extensions) | Should -Be @(Get-DiskIoKeptExtensions) -Because 'the bundle states the list the rule applied'
         $own = ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Out\Bundle\private\trace.etl' -Salt $salt -CollectorPrefix '\out\bundle'
         $own.path_class | Should -BeExactly 'collector'
         $own.directory | Should -BeNullOrEmpty

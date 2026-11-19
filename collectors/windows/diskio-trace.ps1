@@ -680,17 +680,18 @@ function Confirm-DiskIoSessionStopped {
 # trace ("-of <CSV | EVTX | XML> Specifies the dump file format",
 # https://learn.microsoft.com/windows-server/administration/windows-commands/tracerpt),
 # one Event element per event in the documented event schema: System with
-# Provider/@Guid, Opcode and TimeCreated/@SystemTime ("The system time of
-# when the event was logged"), and EventData with one Data element per
-# property, named by its Name attribute
+# Opcode and TimeCreated/@SystemTime ("The system time of when the event
+# was logged"), and EventData with one Data element per property, named by
+# its Name attribute
 # (https://learn.microsoft.com/windows/win32/wes/eventschema-systempropertiestype-complextype,
 # https://learn.microsoft.com/windows/win32/wes/eventschema-eventtype-complextype).
 # Microsoft does not document how tracerpt renders the kernel MOF classes in
-# that schema; the reader below recognises an event by its class GUID (in
-# Provider/@Guid, or in an EventGuid element when present) and its event type
-# (Opcode), both documented per class, and its fields by the MOF property
-# names. That rendering is on the README's verification list, and every
-# check below fails closed when the dump does not read this way.
+# that schema; the reader below recognises an event by its class GUID (the
+# EventGuid element of ExtendedTracingInfo, the one place it is read from)
+# and its event type (Opcode), both documented per class, and its fields by
+# the MOF property names. That rendering is on the README's verification
+# list, and every check below fails closed when the dump does not read this
+# way.
 # ---------------------------------------------------------------------------
 function Get-DiskIoClassGuids {
     # NT Kernel Logger class GUIDs (https://learn.microsoft.com/windows/win32/etw/nt-kernel-logger-constants).
@@ -703,19 +704,40 @@ function Get-DiskIoClassGuids {
     }
 }
 
+function Get-DiskIoNtfsExtendChildren {
+    # The names NTFS itself keeps under \$Extend ("5.3 NTFS Reserved File
+    # Names", https://learn.microsoft.com/openspecs/windows_protocols/ms-fscc/b04c3bd0-79dc-4e58-b8ed-74f19fc2ea0a).
+    # The reserved names in the volume root ($Mft, $MftMirr, $LogFile,
+    # $Volume, $AttrDef, $Bitmap, $Boot, $BadClus, $Secure, $UpCase) are
+    # files, counted under \ without their names; $Extend is the one
+    # directory among them.
+    return @('$Config', '$Delete', '$ObjId', '$Quota', '$Repair', '$Reparse', '$RmMetadata', '$Tops', '$Txf', '$TxfLog')
+}
+
+function Get-DiskIoKeptExtensions {
+    # The file classes whose extension stays readable. The trace cannot tell
+    # a directory from a file, so the text after the last dot of a name may
+    # be the tail of a folder name; only these fixed classes are kept and
+    # everything else is recorded as other.
+    return @('bin', 'cache', 'cfg', 'dat', 'db', 'dll', 'etl', 'evtx', 'exe', 'ini', 'jpg', 'json', 'log', 'mp4', 'pak', 'pdf', 'png', 'sav', 'sys', 'tmp', 'txt', 'xml', 'zip')
+}
+
 function Get-DiskIoPseudonymRules {
     # What the aggregate keeps readable, written into command.json so the
     # bundle states the rules that made it. Decision of 2026-11-18: one
     # readable level below fixed roots, everything deeper a per run salted
     # pseudonym, the salt never written.
     return [ordered]@{
-        fixed_roots           = @('\Windows', '\Program Files', '\Program Files (x86)', '\ProgramData', '\$<NTFS metadata name>', '\Users\<profile>\AppData\Local', '\Users\<profile>\AppData\LocalLow', '\Users\<profile>\AppData\Roaming', '\Users\<profile>\Desktop', '\Users\<profile>\Documents', '\Users\<profile>\Downloads')
+        fixed_roots           = @('\Windows', '\Program Files', '\Program Files (x86)', '\ProgramData', '\$Extend', '\Users\<profile>\AppData\Local', '\Users\<profile>\AppData\LocalLow', '\Users\<profile>\AppData\Roaming', '\Users\<profile>\Desktop', '\Users\<profile>\Documents', '\Users\<profile>\Downloads')
         readable_levels_below_root = 1
         profile_name          = 'the folder name under \Users becomes <profile>, whatever it is'
         root_files            = 'a file directly in the volume root is counted under the directory \ (pagefile.sys, swapfile.sys and hiberfil.sys are such files); its name is never kept'
         other_components      = 'every directory component that is not a fixed root or the one readable level below it becomes dir-<12 hex>, the first 12 hex digits of SHA-256 over a random salt and the lower cased path up to and including that component; the salt is made for this run and never written'
         file_names            = 'never kept; a row is per directory'
-        extension             = 'the lower cased file extension when it is a dot and 1 to 8 letters or digits, other when it is anything else, null without one'
+        ntfs_metadata         = 'the reserved NTFS names in the volume root ($Mft, $MftMirr, $LogFile, $Volume, $AttrDef, $Bitmap, $Boot, $BadClus, $Secure, $UpCase) are files counted under \ ; \$Extend is a fixed root, and the level below it stays readable only when it is one of the reserved names listed in ntfs_extend_children; any other name that starts with $ (the recycle bin, whose folders are named by account id, for one) is no root and becomes a pseudonym like every other directory'
+        ntfs_extend_children  = @(Get-DiskIoNtfsExtendChildren)
+        extension             = 'the lower cased text after the last dot of the name, with its dot, when it is one of kept_extensions; other when the name has a different one (the name may be a folder, whose tail must not be kept); null without one'
+        kept_extensions       = @(Get-DiskIoKeptExtensions)
         volume                = 'the device name after \Device\ when the path starts with one and the name is 1 to 32 letters and digits (HarddiskVolume3), else a dir- pseudonym; null when the path carries no device'
         collector_files       = 'files under this bundle''s own directory (the trace being written, the temporary recording, the dump) are counted with path_class collector and no directory'
         unnamed_files         = 'a disk or hard fault event whose file object has no name event anywhere in the trace is counted with path_class unnamed and no directory'
@@ -759,10 +781,6 @@ function ConvertTo-DiskIoPathParts {
         if ($device -match '^[A-Za-z][A-Za-z0-9]{0,31}$') { $volume = $device }
         else { $volume = ConvertTo-DiskIoPseudonymComponent -PathSoFar ('\Device\' + $device) -Salt $Salt }
         $components = @($components | Select-Object -Skip 2)
-    } elseif ($FileName -match '^[A-Za-z]:\\') {
-        # Microsoft documents the name without the drive letter; one that has
-        # it anyway is read the same way, and the letter is not kept.
-        $components = @($components | Select-Object -Skip 1)
     }
     $parts.volume = $volume
     $relative = '\' + ($components -join '\')
@@ -779,16 +797,21 @@ function ConvertTo-DiskIoPathParts {
     if ($components.Count -gt 1) { $dirs = @($components[0..($components.Count - 2)]) }
     $extension = [System.IO.Path]::GetExtension($file)
     if ($extension) {
-        if ($extension -match '^\.[A-Za-z0-9]{1,8}$') { $parts.extension = $extension.ToLowerInvariant() } else { $parts.extension = 'other' }
+        $class = $extension.Substring(1).ToLowerInvariant()
+        if ((Get-DiskIoKeptExtensions) -ccontains $class) { $parts.extension = '.' + $class } else { $parts.extension = 'other' }
     }
     # The root: how many leading components stay readable as they are (the
     # profile name is replaced), then one readable level, then pseudonyms.
     $rootLength = 0
+    $readableBelow = $true
     $out = New-Object 'System.Collections.Generic.List[string]'
     if ($dirs.Count -gt 0) {
         $first = [string]$dirs[0]
-        if (@('Windows', 'Program Files', 'Program Files (x86)', 'ProgramData') -contains $first -or $first.StartsWith('$')) {
+        if (@('Windows', 'Program Files', 'Program Files (x86)', 'ProgramData') -contains $first) {
             $rootLength = 1
+        } elseif ($first -eq '$Extend') {
+            $rootLength = 1
+            $readableBelow = ($dirs.Count -ge 2 -and (Get-DiskIoNtfsExtendChildren) -contains [string]$dirs[1])
         } elseif ($first -eq 'Users' -and $dirs.Count -ge 2) {
             $shell = $null
             if ($dirs.Count -ge 4 -and [string]$dirs[2] -eq 'AppData' -and @('Local', 'LocalLow', 'Roaming') -contains [string]$dirs[3]) { $shell = 4 }
@@ -813,7 +836,7 @@ function ConvertTo-DiskIoPathParts {
         if ($i -lt $rootLength) {
             # The \Users\<profile> root replaces the user's folder name.
             if ($i -eq 1 -and [string]$dirs[0] -eq 'Users') { $out.Add('<profile>') } else { $out.Add($component) }
-        } elseif ($rootLength -gt 0 -and $i -eq $rootLength) {
+        } elseif ($rootLength -gt 0 -and $i -eq $rootLength -and $readableBelow) {
             $out.Add($component)
         } else {
             $out.Add((ConvertTo-DiskIoPseudonymComponent -PathSoFar $pathSoFar -Salt $Salt))
@@ -834,7 +857,7 @@ function Read-DiskIoEventElement {
     # One Event element of the dump: class GUID, opcode, SystemTime and the
     # named Data values. The reader is positioned on the Event start tag.
     param([System.Xml.XmlReader]$Reader)
-    $eventRecord = @{ Guid = $null; ProviderGuid = $null; EventGuid = $null; Opcode = $null; Time = $null; Data = @{} }
+    $eventRecord = @{ Guid = $null; Opcode = $null; Time = $null; Data = @{} }
     $sub = $Reader.ReadSubtree()
     try {
         $null = $sub.Read()
@@ -844,18 +867,14 @@ function Read-DiskIoEventElement {
             if ($sub.NodeType -ne [System.Xml.XmlNodeType]::Element) { $null = $sub.Read(); continue }
             $name = $sub.LocalName
             if ($sub.Depth -eq 1) { $section = $name }
-            if ($section -eq 'System' -and $name -eq 'Provider') {
-                $guid = $sub.GetAttribute('Guid')
-                if ($guid) { $eventRecord.ProviderGuid = $guid.Trim().Trim('{', '}').ToLowerInvariant() }
-                $null = $sub.Read()
-            } elseif ($section -eq 'System' -and $name -eq 'Opcode' -and $sub.Depth -eq 2) {
+            if ($section -eq 'System' -and $name -eq 'Opcode' -and $sub.Depth -eq 2) {
                 $eventRecord.Opcode = $sub.ReadElementContentAsString()
             } elseif ($section -eq 'System' -and $name -eq 'TimeCreated') {
                 $eventRecord.Time = $sub.GetAttribute('SystemTime')
                 $null = $sub.Read()
             } elseif ($name -eq 'EventGuid' -and $section -ne 'System') {
                 $text = $sub.ReadElementContentAsString()
-                if ($text) { $eventRecord.EventGuid = $text.Trim().Trim('{', '}').ToLowerInvariant() }
+                if ($text) { $eventRecord.Guid = $text.Trim().Trim('{', '}').ToLowerInvariant() }
             } elseif ($section -eq 'EventData' -and $name -eq 'Data') {
                 $dataName = $sub.GetAttribute('Name')
                 $value = $sub.ReadElementContentAsString()
@@ -867,10 +886,6 @@ function Read-DiskIoEventElement {
     } finally {
         $sub.Dispose()
     }
-    # A kernel event names its class in EventGuid when the dump carries one
-    # (the provider is then the kernel logger itself); otherwise the
-    # provider GUID is the class.
-    $eventRecord.Guid = $(if ($eventRecord.EventGuid) { $eventRecord.EventGuid } else { $eventRecord.ProviderGuid })
     return $eventRecord
 }
 
@@ -884,9 +899,10 @@ function Get-DiskIoPercentile {
 }
 
 function Add-DiskIoGroup {
-    # Adds one disk or hard fault event to its group. Keys carry the raw
-    # thread and file object when they could not be resolved at the event's
-    # place in the trace; the end of the read resolves them once more.
+    # Adds one disk or hard fault event to its group. Keys carry the process,
+    # its image and the file name as known at the event's place in the trace,
+    # or the raw thread and file object when they were not; the end of the
+    # read resolves only those.
     param([hashtable]$Groups, [string]$Key, [hashtable]$Seed, [uint64]$Bytes, [string]$FlagsHex, $ResponseUs)
     $group = $Groups[$Key]
     if ($null -eq $group) {
@@ -916,6 +932,7 @@ function Read-DiskIoDump {
         other = [int64]0; malformed = [int64]0; malformed_first = $null; before_start = [int64]0; unresolved_thread = [int64]0; unnamed_file = [int64]0; timed_out = $false }
     $threads = @{}
     $processes = @{}
+    $firstImages = @{}
     $names = @{}
     $groups = @{}
     $startTicks = [datetime]::FromFileTimeUtc($StartFileTime).Ticks
@@ -961,6 +978,10 @@ function Read-DiskIoDump {
             if ($kind -eq 'process') {
                 $pidValue = ConvertTo-DiskIoNumber -Text ([string]$data['ProcessId'])
                 if ($null -eq $pidValue -or -not $data.ContainsKey('ImageFileName')) { $counts.malformed += 1; if ($null -eq $counts.malformed_first) { $counts.malformed_first = ('event:{0} Process event without ProcessId or ImageFileName' -f $index) }; continue }
+                # A process id is reused: the image current at an event's place
+                # is the one that owned the id then. The first image a id was
+                # ever given names the requests seen before any Process event.
+                if (-not $firstImages.ContainsKey([string]$pidValue)) { $firstImages[[string]$pidValue] = [string]$data['ImageFileName'] }
                 $processes[[string]$pidValue] = [string]$data['ImageFileName']
                 $counts.process += 1
                 continue
@@ -992,20 +1013,26 @@ function Read-DiskIoDump {
             $counts[$(if ($kind -eq 'read') { 'disk_read' } elseif ($kind -eq 'write') { 'disk_write' } else { 'hard_fault' })] += 1
             $tidKey = [string]$tid
             $processToken = $(if ($threads.ContainsKey($tidKey)) { 'p:' + [string]$threads[$tidKey] } else { 't:' + $tidKey })
+            $imageToken = 'u:'
+            if ($processToken.StartsWith('p:') -and $processes.ContainsKey($processToken.Substring(2))) { $imageToken = 'i:' + [string]$processes[$processToken.Substring(2)] }
             $foKey = ('{0:x}' -f $fo)
             $fileToken = $(if ($names.ContainsKey($foKey)) { 'n:' + $names[$foKey] } else { 'f:' + $foKey })
             $flagsHex = $(if ($null -ne $flags) { ('0x{0:x}' -f $flags) } else { $null })
             $responseUs = $(if ($null -ne $responseTicks) { [double]$responseTicks * 1000000.0 / [double]$PerfFreq } else { $null })
-            $key = ('{0}|{1}|{2}|{3}|{4}' -f $bin, $processToken, $fileToken, $(if ($null -eq $disk) { '' } else { [string]$disk }), $kind)
-            Add-DiskIoGroup -Groups $groups -Key $key -Seed @{ Bin = $bin; Process = $processToken; File = $fileToken; Disk = $disk; Operation = $kind } -Bytes $size -FlagsHex $flagsHex -ResponseUs $responseUs
+            $key = ('{0}|{1}|{2}|{3}|{4}|{5}' -f $bin, $processToken, $imageToken, $fileToken, $(if ($null -eq $disk) { '' } else { [string]$disk }), $kind)
+            Add-DiskIoGroup -Groups $groups -Key $key -Seed @{ Bin = $bin; Process = $processToken; Image = $imageToken; File = $fileToken; Disk = $disk; Operation = $kind } -Bytes $size -FlagsHex $flagsHex -ResponseUs $responseUs
         }
     } finally {
         $reader.Dispose()
         $stream.Dispose()
     }
-    # Resolve what was not known at the event's place: a thread or file
-    # object whose naming event came later in the trace (the DCEnd and
-    # FileRundown at the end of the session). Then build the rows.
+    # Resolve what was not known at the event's place: a thread, process or
+    # file object whose naming event came later in the trace (the DCEnd and
+    # FileRundown at the end of the session). A process id without a Process
+    # event at the request's place takes the first image the trace gives
+    # that id, which is the next one after the request; a thread without a
+    # Thread event takes the last process and image the trace gives it. Then
+    # build the rows.
     $final = @{}
     $partsCache = @{}
     foreach ($group in $groups.Values) {
@@ -1014,8 +1041,13 @@ function Read-DiskIoDump {
         if ($token.StartsWith('p:')) { $pidValue = [uint64]$token.Substring(2) }
         elseif ($threads.ContainsKey($token.Substring(2))) { $pidValue = [uint64]$threads[$token.Substring(2)] }
         else { $counts.unresolved_thread += [int64]$group['Operations'] }
+        $rawImage = $null
+        $imageToken = [string]$group['Image']
+        if ($imageToken.StartsWith('i:')) { $rawImage = $imageToken.Substring(2) }
+        elseif ($null -ne $pidValue -and $token.StartsWith('p:') -and $firstImages.ContainsKey([string]$pidValue)) { $rawImage = [string]$firstImages[[string]$pidValue] }
+        elseif ($null -ne $pidValue -and $token.StartsWith('t:') -and $processes.ContainsKey([string]$pidValue)) { $rawImage = [string]$processes[[string]$pidValue] }
         $image = $null
-        if ($null -ne $pidValue -and $processes.ContainsKey([string]$pidValue)) { $image = ConvertTo-DiskIoImageName -Image ([string]$processes[[string]$pidValue]) -Salt $Salt }
+        if ($null -ne $rawImage) { $image = ConvertTo-DiskIoImageName -Image $rawImage -Salt $Salt }
         $fileToken = [string]$group['File']
         $fileName = $null
         if ($fileToken.StartsWith('n:')) { $fileName = $fileToken.Substring(2) }
@@ -1364,6 +1396,7 @@ $invokeWprTrace = {
     Write-WfJsonFile -Path (Join-WfBundlePath -BundleRoot $BundleRoot -RelativePath ($relativeDir + '/session.json')) -Object $session
     $Context['Tools'].Add((Get-WfToolRecord -Name 'wpr' -Version $null -Path $session.tool))
     if ($null -ne $summaryRun) { $Context['Tools'].Add((Get-WfToolRecord -Name 'tracerpt' -Version $null -Path $session.tracerpt)) }
+    $Context['TraceEntry'] = $entry
     $Context['TraceStatus'] = $entry.status
     $Context['TraceStatusReason'] = $entry.status_reason
     if ($traceOk -and $confirmed -and $entry.status -eq 'observed') {
@@ -1437,7 +1470,7 @@ $invokeDiskIoAggregate = {
         $config = [ordered]@{
             tool                = $tracerpt
             arguments           = @($dumpArguments | ForEach-Object { & $recorded $_ })
-            dump_format         = 'XML, the documented event schema (one Event element per event; System/Provider/@Guid, System/Opcode, System/TimeCreated/@SystemTime, EventData/Data/@Name)'
+            dump_format         = 'XML, the documented event schema (one Event element per event; ExtendedTracingInfo/EventGuid for the event class, System/Opcode, System/TimeCreated/@SystemTime, EventData/Data/@Name)'
             event_classes       = [ordered]@{
                 DiskIo    = [ordered]@{ guid = (Get-DiskIoClassGuids).DiskIo; event_types = @(10, 11); fields = @('DiskNumber', 'IrpFlags', 'TransferSize', 'FileObject', 'HighResResponseTime', 'IssuingThreadId') }
                 PageFault = [ordered]@{ guid = (Get-DiskIoClassGuids).PageFault; event_types = @(32); fields = @('FileObject', 'TThreadId', 'ByteCount') }
@@ -1497,15 +1530,26 @@ $invokeDiskIoAggregate = {
     # outcome, and the bundle records whether they are gone.
     $removal = Remove-DiskIoPrivateData -BundleRoot $BundleRoot
     $result.recording_and_dump_removed = [bool]$removal.removed
-    $result.removal_error = $removal.error
+    $unremoved = $null
     if (-not $removal.removed) {
-        $message = 'source ' + $id + ': the private folder holding the trace and its dump could not be removed; delete <bundle>/private by hand before the bundle leaves the PC: ' + [string]$removal.error
+        $result.removal_error = & $recorded $(if ($removal.error) { [string]$removal.error } else { 'the removal raised no error and the folder is still there' })
+        $unremoved = 'the recording under <bundle>/private (the trace, its temporary files or its dump) could not be confirmed removed and is still in the bundle directory, so this run is failed and nothing in it is presented as a result; delete <bundle>/private by hand and do not take this directory off the PC: ' + [string]$result.removal_error
+        $message = 'source ' + $id + ': ' + $unremoved
         $Notes.Add($message)
         $Log.Add($message)
+        # The trace source claimed a recording that never leaves the PC; that
+        # claim no longer holds, so it is not observed either and the run
+        # ends failed (no source observed, exit code 1).
+        if ($Context.ContainsKey('TraceEntry') -and [string]$Context['TraceEntry'].status -eq 'observed') {
+            $Context['TraceEntry'].status = 'capture_failed'
+            $Context['TraceEntry'].status_reason = $unremoved
+            $Context['TraceEntry'].expectation.met = $false
+        }
     }
     $counts = $null
     $lines = New-Object 'System.Collections.Generic.List[string]'
     $lineBytes = [int64]0
+    if ($null -ne $unremoved) { $parse = $null }
     if ($null -ne $parse) {
         $counts = $parse.Counts
         $result.counts = $counts
@@ -1536,7 +1580,10 @@ $invokeDiskIoAggregate = {
     }
     $stopped = Get-WfUtcNow
     $met = $false
-    if ($readErrorKind) {
+    if ($null -ne $unremoved) {
+        $entry.status = 'capture_failed'
+        $entry.status_reason = $unremoved
+    } elseif ($readErrorKind) {
         $resolved = Resolve-WfSourceStatus -ReadErrorKind $readErrorKind -ReadErrorMessage $readErrorMessage -WindowStartUtc $started
         $entry.status = $resolved['Status']
         $entry.status_reason = $resolved['Reason']
@@ -1641,7 +1688,7 @@ $definition = @{
             Required     = $true
             Invoke       = $invokeDiskIoAggregate
             MaxDumpBytes = $MaxDumpBytes
-            Expectation  = 'tracerpt dumps the observed trace to XML within the cap, the dump holds exactly the events the summary says were processed, every disk, hard fault, file name, thread and process event reads whole, at least one disk request is recognised, the aggregate fits the cap, and the trace and the dump are deleted'
+            Expectation  = 'tracerpt dumps the observed trace to XML within the cap, the dump holds exactly the events the summary says were processed, every disk, hard fault, file name, thread and process event reads whole, at least one disk request is recognised, the aggregate fits the cap, and the trace and the dump are deleted and seen gone (when they are not, both sources are capture_failed and the run is failed)'
         }
     )
 }

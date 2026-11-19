@@ -59,7 +59,9 @@
 #   Tracerpt   the synthetic tracerpt: Present, ExitCode, Stuck, EventsLost and BuffersLost of
 #              the saved trace, Labels ('english', 'missing' or 'nonnumeric'), EventsProcessed
 #              (the summary's processed count), and for an XML dump ("-o <file> -of XML",
-#              diskio-trace) DumpXml (the text written, none when null), DumpExitCode, DumpStuck
+#              diskio-trace) DumpXml (the text written, none when null), DumpExitCode, DumpStuck,
+#              OnDump (a scriptblock run once the dump is written, for a case that changes
+#              the files under the collector's feet)
 #   Tools      full path of an operator supplied tool -> @{ Sha256; Version } (nothing is read
 #              from disk, so the fixtures stay reproducible)
 #   PinnedTools  tool name -> list of @{ Version; Sha256; Source } the helper reports as pinned
@@ -102,7 +104,7 @@ function Reset-WfSynthetic {
         Elevated     = $false
         PerformanceLogUsers = $false
         Wpr          = New-WfSyntheticWpr
-        Tracerpt     = @{ Present = $true; ExitCode = 0; Stuck = $false; EventsLost = 0; BuffersLost = 0; Labels = 'english'; EventsProcessed = 107340; DumpXml = $null; DumpExitCode = 0; DumpStuck = $false }
+        Tracerpt     = @{ Present = $true; ExitCode = 0; Stuck = $false; EventsLost = 0; BuffersLost = 0; Labels = 'english'; EventsProcessed = 107340; DumpXml = $null; DumpExitCode = 0; DumpStuck = $false; OnDump = $null }
         Tools        = @{}
         PinnedTools  = @{}
         Xperf        = @{ ExitCode = 0; StdOut = ''; StdErr = ''; Stuck = $false }
@@ -1223,6 +1225,7 @@ function Invoke-WfSyntheticTracerpt {
         $Result.ExitCode = [int]$tracerpt['DumpExitCode']
         if ($Result.ExitCode -ne 0) { $Result.StdErr = 'synthetic tracerpt: the dump failed'; return $Result }
         if ($null -ne $tracerpt['DumpXml']) { Write-WfTextFile -Path $dumpPath -Text ([string]$tracerpt['DumpXml']) }
+        if ($tracerpt['OnDump'] -is [scriptblock]) { & $tracerpt['OnDump'] }
         return $Result
     }
     $Result.ExitCode = [int]$tracerpt['ExitCode']

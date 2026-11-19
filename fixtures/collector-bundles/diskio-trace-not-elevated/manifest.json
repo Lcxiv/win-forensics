@@ -238,7 +238,7 @@
       "exit_code": null,
       "config_hash": {
         "algorithm": "sha256",
-        "value": "76507a0500c39bad181607ece9d53c38761e17902fef088f9c50809f485664fa"
+        "value": "c635c1539528ce0e9cdad5483ca9644b3ccdcac836d8584eef780817da8fcb7b"
       },
       "filter_hash": null,
       "requested": {
@@ -286,8 +286,8 @@
       "artifacts": [
         {
           "path": "raw/diskio_aggregate/command.json",
-          "bytes": 4319,
-          "sha256": "76507a0500c39bad181607ece9d53c38761e17902fef088f9c50809f485664fa",
+          "bytes": 5446,
+          "sha256": "c635c1539528ce0e9cdad5483ca9644b3ccdcac836d8584eef780817da8fcb7b",
           "role": "config"
         },
         {
@@ -299,7 +299,7 @@
       ],
       "raw_time_range": null,
       "expectation": {
-        "declared": "tracerpt dumps the observed trace to XML within the cap, the dump holds exactly the events the summary says were processed, every disk, hard fault, file name, thread and process event reads whole, at least one disk request is recognised, the aggregate fits the cap, and the trace and the dump are deleted",
+        "declared": "tracerpt dumps the observed trace to XML within the cap, the dump holds exactly the events the summary says were processed, every disk, hard fault, file name, thread and process event reads whole, at least one disk request is recognised, the aggregate fits the cap, and the trace and the dump are deleted and seen gone (when they are not, both sources are capture_failed and the run is failed)",
         "met": false,
         "detail": "no dump was read"
       },
