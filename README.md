@@ -30,6 +30,12 @@ The same directory holds `rf-survey`, a read only survey of the 2.4 GHz band aro
 
 It also holds `config-snapshot`, the first piece of the live latency capture: the machine configuration that confounds every run, read before and after a capture (`-Snapshot start`, `-Snapshot stop`). It records each PCI function's interrupt affinity policy and MSI mode as the registry holds them, read through the documented device key API (type and bytes, decoded alongside, never reconciled with the routing a trace shows), the GPU timeout detection values, the CPU counts and caches with the SMT sibling map from `GetLogicalProcessorInformationEx`, the active power scheme with the AC and DC processor and idle settings, and the state of two third party tuning tools (installed files with versions and hashes, running components by process name, protected copies of their configuration and journal, and a summary of the vendor log that carries none of its text). Two questions it cannot answer with a documented read only path (which power mode overlay is active, the current timer resolution) are recorded `not_collected` with their reasons rather than guessed. `scripts/decode_config_snapshot.py` decodes a bundle into `config_snapshot`, `powercfg` and `process_inventory`.
 
+## Changes to the PC
+
+`changes/windows/` holds the only code in this repository that changes a Windows machine, kept apart from the read only collectors: one self-contained script per change, run by hand at the PC, elevated, only on the captain's own word for that change. Each script has explicit verbs (`-Plan`, the default, and `-Readback` only read; `-Apply` and `-Undo` change, and only when named), saves every affected key with `reg export`, a values CSV and their SHA-256 before it writes and refuses without that, restores exactly the saved before-state on undo, and ends every apply and undo with a PASS or FAIL readback per value. Nothing in `collectors/`, the scenario runner or `remote-access/` may reference the area or call a change script, and a test enforces it. The rules, the facts still to verify on the PC and the tests are in [changes/windows/README.md](changes/windows/README.md).
+
+The first change, `kbd-crash-dump`, sets Microsoft's documented keyboard initiated crash (`CrashOnCtrlScroll` for USB and PS/2 keyboards, or the alternate `Dump1Keys` and `Dump2Key` for a keyboard without SCROLL LOCK), so a hard freeze can be ended with stop error 0xE2 and a memory dump instead of a power off. It takes effect after a restart, which the script never makes. The operator page, with the key sequence, what to expect, what to do after the reboot and what it cannot do, is [docs/kbd-crash-dump.md](docs/kbd-crash-dump.md).
+
 ## The four contracts
 
 | Contract | Document | Schemas |
@@ -47,10 +53,13 @@ Process Monitor facts settled on the GitHub hosted Windows runner, with the fixt
 docs/contracts/          the contracts above plus procmon-facts.md
 docs/rf-survey.md        the RF survey: method, limits, citations, and the before and after test
 docs/clock-calibration.md  the clock calibration session and operator marks: how the clocks are read, the fit, the limits
+docs/kbd-crash-dump.md   operator page for the keyboard crash dump change: the key sequence, what to expect, the limits
 schemas/                 JSON Schema (draft 2020-12), one file per table, plus manifest, evidence, verdict, common,
                          and analysis/ for an analyzer's structured result
 collectors/windows/      read only PowerShell collectors for the PC, their shared helper _common.ps1, and README.md;
                          tests/ holds the Pester suite, the synthetic backend, and the fixture generator
+changes/windows/         the change scripts that write to the PC (run by hand, elevated, on the captain's word), their
+                         README.md with the rules and the facts to verify, and tests/ with each one's synthetic backend
 scripts/                 wf_schema.py (schema registry and validation), decode_dpcisr.py, decode_pdh.py, decode_eventlog.py,
                          decode_tracestats.py (trace loss from the recorder's status text and the tracerpt summary),
                          decode_presentmon.py (the presentmon_frames table from a presentmon-frames bundle),
@@ -147,7 +156,7 @@ A `config-snapshot` bundle is decoded with:
 python scripts/decode_config_snapshot.py --bundle <bundle directory>
 ```
 
-The collector checks that need PowerShell (PSScriptAnalyzer with the Windows PowerShell 5.1 compatibility rules, the Pester suite, fixture freshness) run from `tests/test_collectors_pwsh.py` and skip when no `pwsh` is found. `scripts/fetch_pwsh.sh` fetches a pinned PowerShell 7 and the two modules into `tools/`, which git ignores.
+The collector checks that need PowerShell (PSScriptAnalyzer with the Windows PowerShell 5.1 compatibility rules, the Pester suite, fixture freshness) run from `tests/test_collectors_pwsh.py` and skip when no `pwsh` is found; the change scripts' checks run the same way from `tests/test_change_kbd_crash_dump.py`. `scripts/fetch_pwsh.sh` fetches a pinned PowerShell 7 and the two modules into `tools/`, which git ignores.
 
 ## What the fixtures are and are not
 
