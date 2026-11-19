@@ -44,7 +44,7 @@
     "entry_id": {
       "type": "string",
       "pattern": "^e-[0-9a-f]{16}$",
-      "description": "Stable id: the first 16 hex of SHA-256 over the entry's identity (an event's log, record id, provider, id and time; a file's kind, folder, extension, size and creation time; a log's title, kept name and creation time), so a rebuild with more bundles keeps the ids of entries already seen."
+      "description": "Id: the first 16 hex of SHA-256 over the entry's identity (an event's log, record id, provider, event id and time; a dump file's kind, folder, extension, size and creation time; a report folder's kind, name prefix and creation time; a session's title and creation time, plus its last write time when two logs of that title share a creation time in any input bundle). A rebuild with more bundles keeps the ids of entries already seen, except a session whose creation time first becomes shared when a bundle is added: it is re-keyed with its last write time."
     },
     "entry_kind": {
       "enum": [
