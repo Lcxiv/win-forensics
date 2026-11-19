@@ -71,6 +71,13 @@
 #              elapsed time that every read and every wait advances, a QPC
 #              derived from it, and a system time with a quantisation step,
 #              a drift and optional steps; marks fire during a wait
+#   Net        the invented network behind connection-quality (New-WfSyntheticNet lists the
+#              knobs): the route table and interface metrics (a change at a given second),
+#              the adapters by interface index (link down windows, a read that throws), the
+#              round trip time per target label and the seconds at which an echo is lost,
+#              faults or makes the batch throw, the DNS answer time per server and the seconds
+#              at which a query fails; every probe advances the synthetic clock by the time it
+#              takes, and Sent records every address an echo or a query went to
 #   Stdout     list that receives what a collector prints on stdout
 #   Stderr     list that receives what a collector prints on stderr
 #   ProfilePath  the account's profile folder the scenario runner refuses tool paths under
@@ -109,6 +116,10 @@ function Reset-WfSynthetic {
         NativeMoreDataSeen = New-Object 'System.Collections.Generic.HashSet[string]'
         Topology     = $null
         Directories  = @{}
+        Metadata     = @{}
+        MissingParents = @()
+        ProfileName  = 'synthetic-player'
+        AccountName  = 'SYNTHETIC-PC\wf-collector'
         Files        = @{}
         Pnp          = @{ Devices = @() }
         Processes    = New-Object 'System.Collections.Generic.List[object]'
@@ -123,6 +134,7 @@ function Reset-WfSynthetic {
         PinnedTools  = @{}
         Xperf        = @{ ExitCode = 0; StdOut = ''; StdErr = ''; Stuck = $false }
         Clock        = $null
+        Net          = $null
         Stdout       = New-Object 'System.Collections.Generic.List[string]'
         Stderr       = New-Object 'System.Collections.Generic.List[string]'
         ProfilePath  = 'C:\Users\synthetic-owner'
@@ -132,6 +144,68 @@ function Reset-WfSynthetic {
         ChildRuns    = New-Object 'System.Collections.Generic.List[object]'
     }
     $global:WfSynthetic.Clock = New-WfSyntheticClock
+    $global:WfSynthetic.Net = New-WfSyntheticNet
+}
+
+function New-WfSyntheticNet {
+    # The invented network. Seconds are true seconds of the synthetic clock
+    # (floor of Elapsed100ns / 1e7), so slot k of a session runs in second k.
+    # Every address below is invented; the gateway address and the adapter's
+    # hardware address are canaries the tests look for in every bundle file.
+    #   Routes / InterfaceMetrics   MSFT_NetRoute rows and IPv4 interface metrics
+    #   RouteChangeAtSecond / RoutesAfterChange   from that second on, the route read returns these rows
+    #   RouteError        a route read throws this message (all reads)
+    #   RouteErrorFromSecond  route reads at or after this second throw (0: never)
+    #   Adapters          interface index (text) -> adapter values; LinkDown: @(@{ From; To }) seconds
+    #                     during which the adapter reads disconnected and down at zero speed
+    #   LinkError         an adapter read throws this message
+    #   RttMs             label -> round trip in ms; Lost: label -> seconds whose echo times out
+    #   Faulted           label -> seconds whose send faults (an exception inside the task)
+    #   PingThrowAtSecond the whole batch throws in this second (0: never)
+    #   DnsAvailable      whether Resolve-DnsName is there
+    #   DnsMs             label -> answer time in ms; DnsFail: label -> seconds whose query fails
+    #   DnsTimeoutMs      how long a failed query takes; DnsErrorId: the FullyQualifiedErrorId it carries
+    return @{
+        Routes               = @(
+            @{ NextHop = '0.0.0.0'; InterfaceIndex = 3; RouteMetric = 0; Store = 1; AddressFamily = 2 },
+            @{ NextHop = '10.213.47.1'; InterfaceIndex = 7; RouteMetric = 0; Store = 1; AddressFamily = 2 },
+            @{ NextHop = '10.213.47.1'; InterfaceIndex = 7; RouteMetric = 0; Store = 0; AddressFamily = 2 },
+            @{ NextHop = '10.99.0.1'; InterfaceIndex = 12; RouteMetric = 0; Store = 1; AddressFamily = 2 }
+        )
+        InterfaceMetrics     = @{ '3' = 5; '7' = 25; '12' = 35 }
+        RouteChangeAtSecond  = $null
+        RoutesAfterChange    = @()
+        RouteError           = $null
+        RouteErrorFromSecond = 0
+        Adapters             = @{
+            '7'  = @{ MediaConnectState = [uint32]1; InterfaceOperationalStatus = [uint32]1; ReceiveLinkSpeed = [uint64]1000000000; TransmitLinkSpeed = [uint64]1000000000; NdisPhysicalMedium = [uint32]14; MacAddress = '02-5E-AA-13-47-01' }
+            '12' = @{ MediaConnectState = [uint32]1; InterfaceOperationalStatus = [uint32]1; ReceiveLinkSpeed = [uint64]866700000; TransmitLinkSpeed = [uint64]866700000; NdisPhysicalMedium = [uint32]9; MacAddress = '02-5E-AA-13-47-02' }
+        }
+        LinkDown             = @()
+        LinkError            = $null
+        Addresses            = @{ '10.213.47.1' = 'gateway'; '10.99.0.1' = 'gateway'; '1.1.1.1' = 'cloudflare'; '8.8.8.8' = 'google' }
+        RttMs                = @{ gateway = 1; cloudflare = 12; google = 15 }
+        Lost                 = @{ gateway = @(); cloudflare = @(); google = @() }
+        Faulted              = @{ gateway = @(); cloudflare = @(); google = @() }
+        PingThrowAtSecond    = 0
+        DnsAvailable         = $true
+        DnsMs                = @{ gateway = 9; cloudflare = 14 }
+        DnsFail              = @{ gateway = @(); cloudflare = @() }
+        DnsTimeoutMs         = 1200
+        DnsErrorId           = 'ERROR_TIMEOUT,Microsoft.DnsClient.Commands.ResolveDnsName'
+        Sent                 = New-Object 'System.Collections.Generic.List[string]'
+        RouteReads           = 0
+        LinkReads            = 0
+    }
+}
+
+function Get-WfSyntheticSecond {
+    return [int64][math]::Floor([double]$global:WfSynthetic.Clock.Elapsed100ns / 10000000.0)
+}
+
+function Add-WfSyntheticElapsedMs {
+    param([int64]$Milliseconds)
+    $global:WfSynthetic.Clock.Elapsed100ns += $Milliseconds * 10000
 }
 
 function New-WfSyntheticClock {
@@ -229,12 +303,22 @@ function New-WfSyntheticEvent {
     # One element of events.json, with event XML that agrees with the fields.
     param(
         [int64]$RecordId, [string]$Channel = 'System', [string]$Provider, [int]$EventId, [int]$Level = 2,
-        [double]$DaysAgo, [object[]]$Properties = @(), $Message = $null, [string]$LevelDisplay = 'Error'
+        [double]$DaysAgo, [object[]]$Properties = @(), $Message = $null, [string]$LevelDisplay = 'Error',
+        # Optional names for the event data items, written as Name attributes
+        # the way a manifest based provider renders them (Kernel-Power 41
+        # names its first item BugcheckCode). Without them the items are bare.
+        [string[]]$DataNames = @()
     )
     $when = $global:WfSynthetic.Now.AddDays(-1 * $DaysAgo)
     $time = ConvertTo-WfUtcString -Value $when
     $data = New-Object 'System.Collections.Generic.List[string]'
-    foreach ($value in $Properties) { $data.Add('<Data>' + [System.Security.SecurityElement]::Escape([string]$value) + '</Data>') }
+    $position = 0
+    foreach ($value in $Properties) {
+        $open = '<Data>'
+        if ($position -lt @($DataNames).Count -and $DataNames[$position]) { $open = "<Data Name='" + $DataNames[$position] + "'>" }
+        $data.Add($open + [System.Security.SecurityElement]::Escape([string]$value) + '</Data>')
+        $position += 1
+    }
     $xml = ("<Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'><System><Provider Name='{0}'/><EventID>{1}</EventID>" +
         "<Version>0</Version><Level>{2}</Level><Task>0</Task><Opcode>0</Opcode><Keywords>0x80000000000000</Keywords>" +
         "<TimeCreated SystemTime='{3}'/><EventRecordID>{4}</EventRecordID><Execution ProcessID='4' ThreadID='8'/>" +
@@ -392,7 +476,7 @@ function Get-WfMachineInfo {
 }
 
 function Get-WfAccountInfo {
-    return [ordered]@{ name = 'SYNTHETIC-PC\wf-collector'; elevated = [bool]$global:WfSynthetic.Elevated; event_log_readers = $true; performance_log_users = [bool]$global:WfSynthetic.PerformanceLogUsers }
+    return [ordered]@{ name = [string]$global:WfSynthetic.AccountName; elevated = [bool]$global:WfSynthetic.Elevated; event_log_readers = $true; performance_log_users = [bool]$global:WfSynthetic.PerformanceLogUsers }
 }
 
 function Get-WfToolInventory {
@@ -610,7 +694,56 @@ function Get-WfKnownFolderPath {
     param([string]$Name)
     if ($Name -eq 'ProgramData') { return 'C:\ProgramData' }
     if ($Name -eq 'ProgramFiles') { return 'C:\Program Files' }
+    if ($Name -eq 'Windows') { return 'C:\Windows' }
+    # The two profile folders carry the invented account name, which the
+    # tests check never reaches a bundle.
+    if ($Name -eq 'LocalApplicationData') { return ('C:\Users\' + $global:WfSynthetic.ProfileName + '\AppData\Local') }
+    if ($Name -eq 'MyDocuments') { return ('C:\Users\' + $global:WfSynthetic.ProfileName + '\Documents') }
     throw ('synthetic backend: unknown folder name ' + $Name)
+}
+
+function Get-WfFileMetadataListing {
+    # The model is $global:WfSynthetic.Metadata, folder path (case insensitive) ->
+    #   @{ Entries = <list of @{ Type = 'file'|'folder'; Folder; Name; Bytes; CreationTimeUtc; LastWriteTimeUtc; Entered }> }
+    #   @{ ErrorKind = 'access_denied'|'other'; ErrorType = <exception type name> }
+    #   @{ Entries; Stuck = $true } (the listing does not finish before the deadline)
+    # A folder not in the map does not exist; its parent exists unless the
+    # path is in $global:WfSynthetic.MissingParents. Entries below the depth
+    # and names outside Include are dropped as the real listing drops them.
+    param([string]$Path, [string]$Parent, [int]$Depth, [string[]]$Include, [int]$MaxEntries, [datetime]$DeadlineUtc)
+    $result = [ordered]@{ Exists = $false; ParentExists = $true; ErrorKind = $null; ErrorType = $null; Entries = @(); Truncated = $false }
+    foreach ($missing in @($global:WfSynthetic.MissingParents)) { if (([string]$missing).Equals($Path, [System.StringComparison]::OrdinalIgnoreCase)) { $result.ParentExists = $false } }
+    $model = $null
+    foreach ($key in $global:WfSynthetic.Metadata.Keys) {
+        if (([string]$key).Equals($Path, [System.StringComparison]::OrdinalIgnoreCase)) { $model = $global:WfSynthetic.Metadata[$key]; break }
+    }
+    if ($null -eq $model) { return $result }
+    $result.Exists = $true
+    if ($model['ErrorKind']) {
+        $result.ErrorKind = [string]$model['ErrorKind']
+        $result.ErrorType = [string]$model['ErrorType']
+        return $result
+    }
+    if ($model['Stuck']) {
+        $global:WfSynthetic.Now = $DeadlineUtc.AddSeconds(1)
+        $result.ErrorKind = 'timeout'
+        $result.ErrorType = 'System.TimeoutException'
+        return $result
+    }
+    $entries = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($item in (Get-WfList -Value $model['Entries'])) {
+        if ($item['Folder'] -and $Depth -lt 1) { continue }
+        if ([string]$item['Type'] -eq 'folder' -and $Depth -lt 1) { continue }
+        if ([string]$item['Type'] -eq 'file' -and -not (Test-WfNameIncluded -Name ([string]$item['Name']) -Include $Include)) { continue }
+        if ($entries.Count -ge $MaxEntries) { $result.Truncated = $true; break }
+        $entries.Add([ordered]@{
+                Type = [string]$item['Type']; Folder = $item['Folder']; Name = [string]$item['Name']; Bytes = $item['Bytes']
+                CreationTimeUtc = $item['CreationTimeUtc']; LastWriteTimeUtc = $item['LastWriteTimeUtc']
+                Entered = $(if ($item.Contains('Entered')) { $item['Entered'] } else { [string]$item['Type'] -eq 'folder' })
+            })
+    }
+    $result.Entries = $entries.ToArray()
+    return $result
 }
 
 function Invoke-WfProcess {
@@ -1341,6 +1474,96 @@ function Start-WfSleep {
     param([int]$Seconds)
     $global:WfSynthetic.Ticks += [math]::Max(0, $Seconds)
     $global:WfSynthetic.Waited += [math]::Max(0, $Seconds)
+}
+
+# --- connection-quality adapters ------------------------------------------
+
+function Get-WfDefaultRouteHop {
+    # The real adapter's selection over the invented route table, so the
+    # ranking runs here as it will on Windows.
+    param([int]$TimeoutSeconds = 30)
+    $net = $global:WfSynthetic.Net
+    $net.RouteReads += 1
+    Add-WfSyntheticElapsedMs -Milliseconds 3
+    $second = Get-WfSyntheticSecond
+    if ($net.RouteError) { throw [System.InvalidOperationException]::new([string]$net.RouteError) }
+    if ($net.RouteErrorFromSecond -gt 0 -and $second -ge $net.RouteErrorFromSecond) { throw [System.InvalidOperationException]::new('synthetic backend: the route table could not be read at 10.213.47.1') }
+    $routes = $net.Routes
+    if ($null -ne $net.RouteChangeAtSecond -and $second -ge $net.RouteChangeAtSecond) { $routes = $net.RoutesAfterChange }
+    return (Select-WfDefaultRouteHop -Routes @($routes) -InterfaceMetrics $net.InterfaceMetrics)
+}
+
+function Get-WfNetLinkState {
+    param([int]$InterfaceIndex, [int]$TimeoutSeconds = 30)
+    $net = $global:WfSynthetic.Net
+    $net.LinkReads += 1
+    Add-WfSyntheticElapsedMs -Milliseconds 4
+    if ($net.LinkError) { throw [System.UnauthorizedAccessException]::new([string]$net.LinkError) }
+    $key = [string]$InterfaceIndex
+    if (-not $net.Adapters.ContainsKey($key)) { return $null }
+    $adapter = $net.Adapters[$key]
+    $second = Get-WfSyntheticSecond
+    foreach ($window in @($net.LinkDown)) {
+        if ($second -ge [int64]$window['From'] -and $second -le [int64]$window['To']) {
+            return @{ MediaConnectState = [uint32]2; InterfaceOperationalStatus = [uint32]7; ReceiveLinkSpeed = [uint64]0; TransmitLinkSpeed = [uint64]0; NdisPhysicalMedium = $adapter['NdisPhysicalMedium'] }
+        }
+    }
+    # Only the requested properties: the invented hardware address stays in the model.
+    return @{
+        MediaConnectState          = $adapter['MediaConnectState']
+        InterfaceOperationalStatus = $adapter['InterfaceOperationalStatus']
+        ReceiveLinkSpeed           = $adapter['ReceiveLinkSpeed']
+        TransmitLinkSpeed          = $adapter['TransmitLinkSpeed']
+        NdisPhysicalMedium         = $adapter['NdisPhysicalMedium']
+    }
+}
+
+function Invoke-WfPingBatch {
+    # All targets at once: the batch takes as long as its slowest echo (a
+    # lost echo takes the whole timeout).
+    param($Targets, [int]$TimeoutMilliseconds, [System.Collections.Generic.List[object]]$Into)
+    $net = $global:WfSynthetic.Net
+    $second = Get-WfSyntheticSecond
+    if ($net.PingThrowAtSecond -gt 0 -and $second -eq $net.PingThrowAtSecond) { throw [System.InvalidOperationException]::new('synthetic backend: the echo batch failed for 10.213.47.1') }
+    $longest = 1
+    foreach ($target in @($Targets)) {
+        $address = [string]$target['Address']
+        $net.Sent.Add('ping ' + $address)
+        if (-not $net.Addresses.ContainsKey($address)) { throw ('synthetic backend: an echo went to an address the scenario does not know') }
+        $label = [string]$net.Addresses[$address]
+        if ($label -ne [string]$target['Label']) { throw ('synthetic backend: target ' + $target['Label'] + ' carries the address of ' + $label) }
+        $outcome = @{ Label = $label; Status = 'Success'; RttMs = [int64]$net.RttMs[$label]; ErrorType = $null }
+        $takes = [int64]$net.RttMs[$label]
+        if (@($net.Faulted[$label]) -contains $second) {
+            $outcome = @{ Label = $label; Status = 'error'; RttMs = $null; ErrorType = 'System.ComponentModel.Win32Exception' }
+            $takes = 2
+        } elseif (@($net.Lost[$label]) -contains $second) {
+            $outcome = @{ Label = $label; Status = 'TimedOut'; RttMs = $null; ErrorType = $null }
+            $takes = $TimeoutMilliseconds
+        }
+        if ($takes -gt $longest) { $longest = $takes }
+        $Into.Add($outcome)
+    }
+    Add-WfSyntheticElapsedMs -Milliseconds $longest
+}
+
+function Test-WfDnsClientAvailable {
+    return [bool]$global:WfSynthetic.Net.DnsAvailable
+}
+
+function Invoke-WfDnsProbe {
+    param([string]$Server, [string]$Name)
+    $net = $global:WfSynthetic.Net
+    $net.Sent.Add('dns ' + $Server + ' ' + $Name)
+    if (-not $net.Addresses.ContainsKey($Server)) { throw ('synthetic backend: a query went to a server the scenario does not know') }
+    $label = [string]$net.Addresses[$Server]
+    $second = Get-WfSyntheticSecond
+    if (@($net.DnsFail[$label]) -contains $second) {
+        Add-WfSyntheticElapsedMs -Milliseconds ([int64]$net.DnsTimeoutMs)
+        return @{ Ok = $false; Records = $null; ErrorType = 'System.ComponentModel.Win32Exception'; ErrorId = $net.DnsErrorId; ErrorCode = 1460 }
+    }
+    Add-WfSyntheticElapsedMs -Milliseconds ([int64]$net.DnsMs[$label])
+    return @{ Ok = $true; Records = 2; ErrorType = $null; ErrorId = $null; ErrorCode = $null }
 }
 
 function Get-WfUserProfilePath {

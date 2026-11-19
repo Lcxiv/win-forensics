@@ -1,0 +1,494 @@
+{
+  "manifest_version": "1.1.0",
+  "bundle_id": "20260301T120001Z_connection_quality_ae3a76a9",
+  "created_utc": "2026-03-01T12:00:10.0000000Z",
+  "scenario": {
+    "id": "connection_quality",
+    "version": "1.0.0",
+    "requested_duration_s": 30,
+    "target_process": null,
+    "marks": []
+  },
+  "capture": {
+    "start_utc": "2026-03-01T12:00:01.0000000Z",
+    "stop_utc": "2026-03-01T12:00:10.0000000Z",
+    "orchestrator": "wf-collector:connection-quality",
+    "orchestrator_version": "1.3.0",
+    "elevated": false,
+    "incomplete": false
+  },
+  "machine": {
+    "machine_id": "ae3a76a9f32fa71b72616118339e376c",
+    "hostname": "SYNTHETIC-PC",
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26100",
+      "build": 26100,
+      "ubr": 1,
+      "display_version": "24H2",
+      "architecture": "64-bit",
+      "edition": "Professional"
+    },
+    "cpu": {
+      "name": "Synthetic CPU",
+      "logical_processors": 16,
+      "qpc_frequency_hz": 10000000
+    },
+    "memory_bytes": 34359738368,
+    "gpus": [
+      {
+        "name": "Synthetic Display Adapter",
+        "driver_version": "1.2.3.4",
+        "driver_date": "2026-01-15T00:00:00.0000000Z",
+        "device_id": "PCI\\VEN_FFFF&DEV_0001"
+      }
+    ],
+    "bios": {
+      "vendor": "Synthetic Firmware",
+      "version": "S1.00",
+      "release_date": "2025-11-01T00:00:00.0000000Z"
+    },
+    "board": {
+      "manufacturer": "Synthetic Boards",
+      "product": "SB-1"
+    },
+    "drivers": [],
+    "time_zone": {
+      "name": "UTC",
+      "utc_offset_minutes": 0,
+      "dst_active": false
+    }
+  },
+  "collectors": [
+    {
+      "id": "gateway_probes",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:03.0000000Z",
+        "checks": [
+          {
+            "name": "qpc_high_resolution",
+            "ok": true,
+            "detail": "Stopwatch.IsHighResolution: True; Stopwatch.Frequency: 10000000 Hz"
+          },
+          {
+            "name": "resolve_dnsname_available",
+            "ok": true,
+            "detail": "Resolve-DnsName (DnsClient module): available"
+          },
+          {
+            "name": "default_route_gateway",
+            "ok": true,
+            "detail": "an IPv4 default route with a gateway was found (2 candidate(s)); its next hop is kept in memory and written as the label gateway"
+          }
+        ]
+      },
+      "command": [
+        "System.Net.NetworkInformation.Ping.SendPingAsync",
+        "gateway",
+        "Resolve-DnsName",
+        "-Name",
+        "www.microsoft.com",
+        "-Type",
+        "A",
+        "-Server",
+        "<target>",
+        "-DnsOnly",
+        "-QuickTimeout",
+        "-NoHostsFile"
+      ],
+      "started_utc": "2026-03-01T12:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:07.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "66edd1edc040ea453d8f187428f06811ae34f43e92300be76f9c1fc64ae95ad1"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "targets": [
+            "gateway"
+          ],
+          "interval_seconds": 1,
+          "dns_every_slots": 10,
+          "ping_timeout_milliseconds": 800,
+          "ping_payload_bytes": 32,
+          "dns_name": "www.microsoft.com",
+          "dns_type": "A",
+          "duration_seconds": 30,
+          "slots": 30,
+          "timeout_seconds": 90,
+          "max_artifact_bytes": 67108864
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "slots_taken": 30,
+          "slots_missed": 0,
+          "lines": 33,
+          "probes": 33,
+          "qpc_frequency_hz": 10000000,
+          "qpc_high_resolution": true,
+          "session_start_qpc": 27345678971284,
+          "session_stop_qpc": 27345979042334,
+          "failure": null,
+          "targets": "gateway",
+          "ping_timeout_milliseconds": 800
+        },
+        "verified_by": "the probe lines themselves in samples.jsonl (one per probe and one per missed slot, in the order written); result.json carries the counts per target and the missed slots"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/gateway_probes/command.json",
+          "bytes": 2693,
+          "sha256": "66edd1edc040ea453d8f187428f06811ae34f43e92300be76f9c1fc64ae95ad1",
+          "role": "config"
+        },
+        {
+          "path": "raw/gateway_probes/result.json",
+          "bytes": 655,
+          "sha256": "f2f347fc3ab9c560a06f49d17ae9cc1b37d3c3857fde2615bbe08080e3079c7e",
+          "role": "report"
+        },
+        {
+          "path": "raw/gateway_probes/samples.jsonl",
+          "bytes": 8092,
+          "sha256": "480c76fb695fb59f9e57250f60f22f58a4ca376b1678a3a1f37a7becd233968e",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:00.0070000Z",
+        "end": "2026-03-01T12:00:29.0070000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "one ICMP echo per target per 1 s slot for 30 slots and one DNS A query per DNS target every 10 slots, each stamped on the performance counter; a slot reached more than one interval late is written as a missed line, so every slot is accounted for",
+        "met": true,
+        "detail": "33 probe lines, 0 missed slots of 30"
+      },
+      "target_process": null
+    },
+    {
+      "id": "public_probes",
+      "kind": "other",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:04.0000000Z",
+        "checks": [
+          {
+            "name": "qpc_high_resolution",
+            "ok": true,
+            "detail": "Stopwatch.IsHighResolution: True; Stopwatch.Frequency: 10000000 Hz"
+          },
+          {
+            "name": "resolve_dnsname_available",
+            "ok": true,
+            "detail": "Resolve-DnsName (DnsClient module): available"
+          }
+        ]
+      },
+      "command": [
+        "System.Net.NetworkInformation.Ping.SendPingAsync",
+        "cloudflare",
+        "google",
+        "Resolve-DnsName",
+        "-Name",
+        "www.microsoft.com",
+        "-Type",
+        "A",
+        "-Server",
+        "<target>",
+        "-DnsOnly",
+        "-QuickTimeout",
+        "-NoHostsFile"
+      ],
+      "started_utc": "2026-03-01T12:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:08.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "a19c92fa8f12005f0931e57a8c9be34b35b4ea5918df1196416aebfb79a1664a"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "targets": [
+            "cloudflare",
+            "google"
+          ],
+          "interval_seconds": 1,
+          "dns_every_slots": 10,
+          "ping_timeout_milliseconds": 800,
+          "ping_payload_bytes": 32,
+          "dns_name": "www.microsoft.com",
+          "dns_type": "A",
+          "duration_seconds": 30,
+          "slots": 30,
+          "timeout_seconds": 90,
+          "max_artifact_bytes": 67108864
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "slots_taken": 30,
+          "slots_missed": 0,
+          "lines": 63,
+          "probes": 63,
+          "qpc_frequency_hz": 10000000,
+          "qpc_high_resolution": true,
+          "session_start_qpc": 27345678971284,
+          "session_stop_qpc": 27345979042334,
+          "failure": null,
+          "targets": [
+            "cloudflare",
+            "google"
+          ],
+          "ping_timeout_milliseconds": 800
+        },
+        "verified_by": "the probe lines themselves in samples.jsonl (one per probe and one per missed slot, in the order written); result.json carries the counts per target and the missed slots"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/public_probes/command.json",
+          "bytes": 2476,
+          "sha256": "a19c92fa8f12005f0931e57a8c9be34b35b4ea5918df1196416aebfb79a1664a",
+          "role": "config"
+        },
+        {
+          "path": "raw/public_probes/result.json",
+          "bytes": 761,
+          "sha256": "a5f9ee7126e8ad852725f9b8dcc3e9520cc5cd1092d3a76713fee5bd4522a583",
+          "role": "report"
+        },
+        {
+          "path": "raw/public_probes/samples.jsonl",
+          "bytes": 15303,
+          "sha256": "6538dd24874ccf7f862344846a8193d1d78b93f2f20d0fdb5425d379f92765ef",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:00.0070000Z",
+        "end": "2026-03-01T12:00:29.0070000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "one ICMP echo per target per 1 s slot for 30 slots and one DNS A query per DNS target every 10 slots, each stamped on the performance counter; a slot reached more than one interval late is written as a missed line, so every slot is accounted for",
+        "met": true,
+        "detail": "63 probe lines, 0 missed slots of 30"
+      },
+      "target_process": null
+    },
+    {
+      "id": "link_state",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:05.0000000Z",
+        "checks": [
+          {
+            "name": "qpc_high_resolution",
+            "ok": true,
+            "detail": "Stopwatch.IsHighResolution: True; Stopwatch.Frequency: 10000000 Hz"
+          },
+          {
+            "name": "default_route_gateway",
+            "ok": true,
+            "detail": "an IPv4 default route with a gateway was found (2 candidate(s)); its next hop is kept in memory and written as the label gateway"
+          },
+          {
+            "name": "default_route_adapter",
+            "ok": true,
+            "detail": "MSFT_NetAdapter row of the default route interface read"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/StandardCimv2",
+        "-ClassName",
+        "MSFT_NetAdapter",
+        "-Filter",
+        "InterfaceIndex = <default route interface>",
+        "-Property",
+        "InterfaceIndex,MediaConnectState,InterfaceOperationalStatus,ReceiveLinkSpeed,TransmitLinkSpeed,NdisPhysicalMedium",
+        "-OperationTimeoutSec",
+        "5"
+      ],
+      "started_utc": "2026-03-01T12:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:09.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "4aa4203df1ae64144130f0df06a10e681ad4519cf5c8e01f982b7cbd224232e6"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "properties": [
+            "InterfaceIndex",
+            "MediaConnectState",
+            "InterfaceOperationalStatus",
+            "ReceiveLinkSpeed",
+            "TransmitLinkSpeed",
+            "NdisPhysicalMedium"
+          ],
+          "every_slots": 10,
+          "duration_seconds": 30,
+          "readings": 4,
+          "cim_timeout_seconds": 5,
+          "time_property": null,
+          "timeout_seconds": 90,
+          "max_artifact_bytes": 67108864
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "slots_taken": 30,
+          "slots_missed": 0,
+          "lines": 4,
+          "probes": 4,
+          "qpc_frequency_hz": 10000000,
+          "qpc_high_resolution": true,
+          "session_start_qpc": 27345678971284,
+          "session_stop_qpc": 27345979042334,
+          "failure": null,
+          "readings": 4,
+          "route_changed_readings": 0
+        },
+        "verified_by": "the probe lines themselves in samples.jsonl (one per probe and one per missed slot, in the order written); result.json carries the counts per target and the missed slots"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/link_state/command.json",
+          "bytes": 2024,
+          "sha256": "4aa4203df1ae64144130f0df06a10e681ad4519cf5c8e01f982b7cbd224232e6",
+          "role": "config"
+        },
+        {
+          "path": "raw/link_state/result.json",
+          "bytes": 585,
+          "sha256": "fd0199c8629a58be85f619633059ec336678a846ec8fc9b285e165d51d661c9b",
+          "role": "report"
+        },
+        {
+          "path": "raw/link_state/samples.jsonl",
+          "bytes": 1459,
+          "sha256": "a34a9a41bf450c81819624d5c023d5ffa8376a459ec6b946e376a05aff8e6b54",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:00.0220000Z",
+        "end": "2026-03-01T12:00:30.0070000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "a reading of the default route adapter every 10 slots of the 30 s session and one at the stop, each stamped on the performance counter; a slot reached more than one interval late is written as a missed line",
+        "met": true,
+        "detail": "4 readings (4 read, 0 not found, 0 errors, 0 not connected or not up), 0 missed, route changed at 0 readings"
+      },
+      "target_process": null
+    }
+  ],
+  "calibration": {
+    "status": "not_applicable",
+    "method": "none in this collector: every probe line carries its own performance counter bracket (qpc_before, qpc_after) around a system time reading, and qpc_done after the probe completed, so it sits on the etw_qpc master clock without calibration; the file time beside it is kept for the reader. Relating system_time sources to the counter is the clock-calibration collector's job",
+    "qpc_frequency_hz": 10000000,
+    "expected_pairs": 0,
+    "pairs": [],
+    "missing_pairs": 0,
+    "time_adjustment": {
+      "start": null,
+      "stop": null
+    },
+    "boot_time_utc": "2026-02-27T12:00:00.0000000Z"
+  },
+  "tools": [
+    {
+      "name": "powershell",
+      "version": "5.1.26100.1",
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "sha256": null
+    },
+    {
+      "name": "wevtutil",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wevtutil.exe",
+      "sha256": null
+    },
+    {
+      "name": "collector:connection-quality",
+      "version": "1.0.0",
+      "path": "<install directory>\\connection-quality.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector-helper:_common.ps1",
+      "version": "1.3.0",
+      "path": "<install directory>\\_common.ps1",
+      "sha256": null
+    }
+  ],
+  "symbols": {
+    "symbol_path": null,
+    "cache_path": null,
+    "dbghelp_version": null
+  },
+  "checksum_algorithm": "sha256",
+  "notes": [
+    "Read only collector connection-quality version 1.0.0: Does the connection from this PC drop or slow down, and where: at the PC, at the router, or beyond it?",
+    "Ran as the collector account (its name is not recorded); elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine."
+  ]
+}

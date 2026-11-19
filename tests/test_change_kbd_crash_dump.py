@@ -1,9 +1,12 @@
-"""The change area and the kbd-crash-dump change script: isolation, posture, and the PowerShell suite.
+"""Checks specific to ``changes/windows/kbd-crash-dump.ps1``.
 
-Change scripts are the only code here that writes to a Windows machine, so these checks keep them
-apart from everything the dispatcher, the scenario runner and the collectors can run, and pin what
-the one script may touch. The Pester suite and the off Windows process run need ``pwsh`` and skip
-without it (``scripts/fetch_pwsh.sh``, or ``WF_PWSH`` and ``WF_PSMODULES``).
+The area rules (no reference from unattended code, ASCII, the forbidden command list) are in
+``tests/test_changes_area.py``, and ``tests/test_changes_pwsh.py`` runs the analyzer and the whole
+Pester suite. What the script writes is checked on its behaviour by ``KbdCrashDump.Tests.ps1``
+against the synthetic registry (every write and export any test makes is recorded). This file keeps
+the safety guards that hold even for code no test reaches, the operator page's required sections,
+and the unmodified script run as a process off Windows, where every adapter fails and it must refuse
+without writing anything.
 """
 from __future__ import annotations
 
@@ -17,118 +20,91 @@ from pathlib import Path
 import pytest
 
 from conftest import REPO_ROOT
+from test_changes_area import code_lines
 
-CHANGES = REPO_ROOT / "changes"
-CHANGE_DIR = CHANGES / "windows"
+CHANGE_DIR = REPO_ROOT / "changes" / "windows"
 SCRIPT = CHANGE_DIR / "kbd-crash-dump.ps1"
-TESTS_DIR = CHANGE_DIR / "tests"
-DOC = REPO_ROOT / "docs" / "kbd-crash-dump.md"
+DOC = REPO_ROOT / "docs" / "changes" / "kbd-crash-dump.md"
 LEARN_KBD = "https://learn.microsoft.com/windows-hardware/drivers/debugger/forcing-a-system-crash-from-the-keyboard"
 
-# A reference to the change area from code or prose: the directory in either separator, or a
-# change script by name. Plain words such as "changes the machine" do not match.
-CHANGE_REFERENCE = re.compile(r"changes[/\\]|kbd-crash-dump", re.IGNORECASE)
-# The scenario runner lives in collectors/windows (the leading underscore keeps it out of the
-# dispatcher's verbs); it is named here so the rule still holds if it moves.
-RUNNER_NAMES = ("_run-scenario.ps1", "_scenarios.ps1")
-
-# Commands no change script may use: prompts, restarts, services, scheduled tasks, downloads,
-# installs, policy changes, text run as code, and interop beyond the .NET registry classes.
-FORBIDDEN = [
-    "Read-Host", "Get-Credential", "PromptForChoice", "ShouldContinue", "Restart-Computer", "Stop-Computer",
-    "shutdown", "New-Service", "Set-Service", "Start-Service", "Stop-Service", "Restart-Service", "sc.exe",
-    "Register-ScheduledTask", "schtasks", "Invoke-WebRequest", "Invoke-RestMethod", "Net.WebClient",
-    "Start-BitsTransfer", "Install-", "Uninstall-", "Set-ExecutionPolicy", "Invoke-Expression", "Invoke-Command",
-    "EncodedCommand", "Add-Type", "DllImport", "Start-Process", "ProcessStartInfo", "Set-ItemProperty",
-    "New-ItemProperty", "Remove-ItemProperty", "Remove-Item", "DeleteSubKeyTree", "hyperkbd", "ConvertTo-Json",
-    "Write-Host", "$global:",
-]
+# The functions allowed to hold a registry write primitive: the three write adapters and the one
+# that opens an existing parent key for them.
+WRITERS = {"Set-KcdRegistryDword", "Remove-KcdRegistryValue", "Remove-KcdRegistryKey", "Open-KcdParentForWrite"}
+REG_RUNNER = "Invoke-KcdRegExport"
+WRITE_PRIMITIVE = re.compile(
+    r"\.SetValue\(|\.DeleteValue\(|OpenSubKey\([^)]*,\s*(\$true|\[[^\]]*RegistryKeyPermissionCheck\]|\[[^\]]*RegistryRights\])"
+    r"|CreateSubKey|DeleteSubKey|DeleteSubKeyTree|Set-ItemProperty|New-ItemProperty|Remove-ItemProperty|New-Item\s+[^\n]*HK"
+    r"|\breg(\.exe)?['\"]?\s+(add|delete|import|copy|restore|load|unload)\b",
+    re.IGNORECASE,
+)
+REG_EXE = re.compile(r"reg\.exe", re.IGNORECASE)
+CALL_OPERATOR = re.compile(r"&\s*(\$\w+|'[^']*'|\"[^\"]*\")\s+'?([^\s')]+)")
 
 
-def code_of(path: Path) -> str:
-    """The script without comment lines."""
-    return "\n".join(line for line in path.read_text(encoding="ascii").splitlines() if not line.lstrip().startswith("#"))
+def function_bodies(code: str) -> dict[str, str]:
+    """Every function, including the indented adapters inside the guarded block, by name."""
+    bodies: dict[str, str] = {}
+    for header in re.finditer(r"^([ \t]*)function ([A-Za-z0-9\-]+) \{", code, re.MULTILINE):
+        close = re.compile(r"^" + re.escape(header.group(1)) + r"\}[ \t]*$", re.MULTILINE).search(code, header.end())
+        bodies[header.group(2)] = code[header.start():close.end() if close else len(code)]
+    return bodies
 
 
-def scanned_files() -> list[Path]:
-    roots = [REPO_ROOT / "collectors", REPO_ROOT / "remote-access"]
-    files = [p for root in roots for p in root.rglob("*") if p.is_file() and "__pycache__" not in p.parts]
-    files += [p for p in REPO_ROOT.rglob("*") if p.name in RUNNER_NAMES and p.is_file()]
-    return sorted(set(files))
+def outermost(bodies: dict[str, str]) -> dict[str, str]:
+    """The bodies with any nested function bodies removed, so a primitive is charged to the innermost function."""
+    out = {}
+    for name, body in bodies.items():
+        own = body
+        for other, inner in bodies.items():
+            if other != name and inner in own and inner != own:
+                own = own.replace(inner, "")
+        out[name] = own
+    return out
 
 
-def test_collectors_runner_and_front_door_never_reference_the_change_area():
+def write_offenders(code: str) -> list[str]:
+    bodies = function_bodies(code)
+    offenders = [name for name, body in outermost(bodies).items() if name not in WRITERS and WRITE_PRIMITIVE.search(body)]
+    rest = code
+    for body in bodies.values():
+        rest = rest.replace(body, "")
+    if WRITE_PRIMITIVE.search(rest):
+        offenders.append("<top level>")
+    return offenders
+
+
+def reg_offenders(code: str) -> list[str]:
     offenders = []
-    for path in scanned_files():
-        text = path.read_bytes().decode("utf-8", errors="replace")
-        for number, line in enumerate(text.splitlines(), start=1):
-            if CHANGE_REFERENCE.search(line):
-                offenders.append(f"{path.relative_to(REPO_ROOT)}:{number}")
-    assert not offenders, offenders
+    for name, body in outermost(function_bodies(code)).items():
+        if name != REG_RUNNER and REG_EXE.search(body):
+            offenders.append(name)
+        if name == REG_RUNNER:
+            offenders += [f"{name}: {verb}" for _, verb in CALL_OPERATOR.findall(body) if verb.lower() != "export"]
+    return offenders
 
 
-def test_the_change_area_holds_only_change_scripts_and_their_tests():
-    assert sorted(p.name for p in CHANGE_DIR.iterdir() if p.is_file()) == ["README.md", "kbd-crash-dump.ps1"]
-    assert sorted(p.name for p in CHANGES.iterdir()) == ["windows"]
-    # The front door installs collectors/windows/*.ps1; nothing under it may be a change script.
-    assert not [p for p in (REPO_ROOT / "collectors").rglob("*.ps1") if "changes" in p.parts]
+def test_registry_writes_happen_only_in_the_write_adapters():
+    code = code_lines(SCRIPT)
+    assert write_offenders(code) == []
+    bodies = function_bodies(code)
+    assert WRITERS <= set(bodies), WRITERS - set(bodies)
 
 
-@pytest.mark.parametrize("path", sorted(CHANGE_DIR.rglob("*.ps1")) + sorted(CHANGE_DIR.rglob("*.psd1")), ids=lambda p: p.name)
-def test_change_scripts_are_plain_ascii(path):
-    data = path.read_bytes()
-    assert not data.startswith(b"\xef\xbb\xbf")
-    offenders = [i for i, b in enumerate(data) if b > 126 or (b < 32 and b not in (9, 10))]
-    assert not offenders, f"{path.name}: byte offsets {offenders[:5]}"
+def test_reg_exe_only_ever_exports():
+    code = code_lines(SCRIPT)
+    assert reg_offenders(code) == []
+    assert CALL_OPERATOR.findall(function_bodies(code)[REG_RUNNER]) != []
 
 
-def test_the_script_holds_no_forbidden_command():
-    code = code_of(SCRIPT).lower()
-    assert [token for token in FORBIDDEN if token.lower() in code] == []
-
-
-def test_the_only_process_is_reg_export_from_the_system_directory():
-    code = code_of(SCRIPT)
-    calls = [line.strip() for line in code.splitlines() if re.search(r"(^|[=;(])\s*&\s*\$", line.strip())]
-    assert calls == ["$null = & $reg 'export' $Key $File '/y' 2>$null"]
-    assert "$reg = Join-Path -Path ([Environment]::GetFolderPath('System')) -ChildPath 'reg.exe'" in code
-    assert "cmd.exe" not in code.lower() and "powershell.exe" not in code.lower()
-
-
-def test_the_script_names_only_the_documented_keys_and_values():
-    code = code_of(SCRIPT)
-    assert "function Get-KcdKeyboardServices { return @('kbdhid', 'i8042prt') }" in code
-    assert "function Get-KcdServicesPath { return 'SYSTEM\\CurrentControlSet\\Services' }" in code
-    assert "function Get-KcdCrashControlPath { return 'SYSTEM\\CurrentControlSet\\Control\\CrashControl' }" in code
-    assert set(re.findall(r"-Role 'change' -Path \$(\w+) -Name '(\w+)'", code)) == {
-        ("parameters", "CrashOnCtrlScroll"), ("crashdump", "Dump1Keys"), ("crashdump", "Dump2Key")}
-    assert "$parameters = (Get-KcdServicesPath) + '\\' + $service + '\\Parameters'" in code
-    assert "$crashdump = (Get-KcdServicesPath) + '\\' + $service + '\\crashdump'" in code
-    # Microsoft's example second key, 0x3d, and its six documented first keys.
-    assert "function Get-KcdAlternateDump2Key { return 61 }" in code
-    assert sorted(int(bit, 16) for bit in re.findall(r"@\{ Bit = (0x[0-9a-f]{2});", code)) == [0x01, 0x02, 0x04, 0x10, 0x20, 0x40]
-    # Every write goes through the two write adapters, and only the verbs call them.
-    for adapter in ("Set-KcdRegistryDword", "Remove-KcdRegistryValue", "Remove-KcdRegistryKey"):
-        callers = [line for line in code.splitlines() if adapter in line and not line.lstrip().startswith("function ")]
-        assert callers, adapter
-    bodies = re.split(r"^function ", code, flags=re.MULTILINE)
-    writers = {body.split(" ", 1)[0] for body in bodies if re.search(r"^\s+(Set-KcdRegistryDword|Remove-KcdRegistryValue|Remove-KcdRegistryKey) -Path", body, re.MULTILINE)}
-    assert writers == {"Invoke-KcdApply", "Invoke-KcdUndo"}
-
-
-def test_the_real_adapters_sit_in_one_guarded_block():
-    code = code_of(SCRIPT)
-    guard = "if (-not (Get-Command -Name 'Get-KcdRegistryKey' -CommandType Function -ErrorAction SilentlyContinue)) {"
-    assert code.count(guard) == 1
-    before, after = code.split(guard)
-    for name in ("Microsoft.Win32", "Get-CimInstance", "WindowsIdentity", "GetFolderPath", "[Console]"):
-        assert name not in before, name
-    synthetic = (TESTS_DIR / "KbdCrashDump.Synthetic.ps1").read_text(encoding="ascii")
-    adapters = re.findall(r"^    function ([A-Za-z-]+) \{", after, re.MULTILINE)
-    replaced = set(re.findall(r"^function ([A-Za-z-]+) \{", synthetic, re.MULTILINE))
-    # Every adapter the portable code calls is replaced by the synthetic backend.
-    internal = {"Open-KcdBaseKey", "Open-KcdParentForWrite"}
-    assert set(adapters) - internal <= replaced, set(adapters) - internal - replaced
+def test_the_guards_catch_what_they_are_for():
+    planted = (
+        "function Invoke-KcdApply {\n    $k.SetValue('x', 1)\n}\n"
+        "if ($true) {\n    function Get-KcdRegistryKey {\n        $b.OpenSubKey('p', $true)\n    }\n"
+        "    function Invoke-KcdRegExport {\n        & $reg 'import' $File\n    }\n}\n"
+        "function Show-KcdState {\n    reg.exe query x\n}\n"
+    )
+    assert sorted(write_offenders(planted)) == ["Get-KcdRegistryKey", "Invoke-KcdApply"]
+    assert sorted(reg_offenders(planted)) == ["Invoke-KcdRegExport: import", "Show-KcdState"]
 
 
 def test_the_operator_page_covers_the_brief():
@@ -145,48 +121,28 @@ def test_the_operator_page_covers_the_brief():
 
 
 # ---------------------------------------------------------------------------
-# PowerShell
+# The unmodified script as a process (needs pwsh)
 # ---------------------------------------------------------------------------
 
 def find_pwsh() -> str | None:
-    candidates = [os.environ.get("WF_PWSH"), str(REPO_ROOT / "tools" / "pwsh" / "pwsh"), shutil.which("pwsh")]
-    for candidate in candidates:
+    for candidate in (os.environ.get("WF_PWSH"), str(REPO_ROOT / "tools" / "pwsh" / "pwsh"), shutil.which("pwsh")):
         if candidate and Path(candidate).is_file():
             return candidate
     return None
 
 
 PWSH = find_pwsh()
-MODULES = os.environ.get("WF_PSMODULES") or str(REPO_ROOT / "tools" / "psmodules")
-needs_pwsh = pytest.mark.skipif(PWSH is None, reason="no pwsh; run scripts/fetch_pwsh.sh or set WF_PWSH")
 
 
-def run(args: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess:
-    env = dict(os.environ, NO_COLOR="1")
-    return subprocess.run([PWSH, "-NoProfile", "-NonInteractive", *args], cwd=cwd, env=env, stdin=subprocess.DEVNULL,
-                          capture_output=True, text=True, timeout=900)
-
-
-@needs_pwsh
-def test_script_analyzer_and_pester_suite_pass():
-    args = ["-File", str(TESTS_DIR / "Invoke-Checks.ps1")]
-    if Path(MODULES).is_dir():
-        args += ["-ModulePath", MODULES]
-    result = run(args)
-    if result.returncode == 3:
-        pytest.skip("Pester 5 or PSScriptAnalyzer is not installed; run scripts/fetch_pwsh.sh")
-    assert result.returncode == 0, result.stdout[-6000:] + result.stderr[-3000:]
-    assert "PSScriptAnalyzer: 0 findings" in result.stderr
-    assert "Failed: 0" in result.stdout
-
-
-@needs_pwsh
+@pytest.mark.skipif(PWSH is None, reason="no pwsh; run scripts/fetch_pwsh.sh or set WF_PWSH")
 @pytest.mark.skipif(sys.platform == "win32", reason="on Windows the real adapters would read the machine")
 @pytest.mark.parametrize("verb", ["-Plan", "-Apply", "-Undo", "-Readback"])
 def test_real_adapters_fail_closed_off_windows(verb, tmp_path):
-    """The unmodified script as a process where no Windows API exists: every read fails, and it must refuse."""
+    """Every read fails where no Windows API exists, and the script must refuse without writing."""
     root = tmp_path / "evidence root"
-    result = run(["-File", str(SCRIPT), verb, "-EvidenceRoot", str(root)])
+    result = subprocess.run([PWSH, "-NoProfile", "-NonInteractive", "-File", str(SCRIPT), verb, "-EvidenceRoot", str(root)],
+                            env=dict(os.environ, NO_COLOR="1"), stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                            timeout=600)
     assert result.returncode == 1, result.stdout + result.stderr
     assert result.stderr == ""
     if verb in ("-Plan", "-Apply"):

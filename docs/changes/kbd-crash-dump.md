@@ -2,9 +2,9 @@
 
 This page is for the person at the gaming PC. It covers one change, `changes/windows/kbd-crash-dump.ps1`, which lets a hard freeze be ended from the keyboard with a stop error that Windows records, instead of with the power button. A power off leaves only a Kernel-Power 41 record with no code. A keyboard initiated stop error leaves a stop code in the System log and, if the dump path works, a memory dump of what the processors and drivers were doing at that moment.
 
-The change is applied only on the captain's own word, at the PC, by hand. Nothing in this repository runs it for him: not the collectors, not the scenario runner, not the SSH front door. The rules for change scripts are in [changes/windows/README.md](../changes/windows/README.md).
+The change is applied only on the captain's own word, at the PC, by hand. Nothing in this repository runs it for him: not the collectors, not the scenario runner, not the SSH front door. The rules for change scripts are in [changes/windows/README.md](../../changes/windows/README.md).
 
-Every Windows fact below comes from Microsoft Learn and is cited where it is used. Anything Learn does not say is marked unverified, and the things only the PC can show are on the list in [changes/windows/README.md](../changes/windows/README.md), "Facts to verify on the PC".
+Every Windows fact below comes from Microsoft Learn and is cited where it is used. Anything Learn does not say is marked unverified, and the things only the PC can show are on the list in [changes/windows/README.md](../../changes/windows/README.md), "Facts to verify on the PC".
 
 ## What the change is
 

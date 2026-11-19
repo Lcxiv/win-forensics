@@ -1,0 +1,22 @@
+{
+  "source": "link_state",
+  "api": "Get-CimInstance -Namespace root/StandardCimv2 -ClassName MSFT_NetAdapter -Filter InterfaceIndex = <the default route interface> -Property InterfaceIndex,MediaConnectState,InterfaceOperationalStatus,ReceiveLinkSpeed,TransmitLinkSpeed,NdisPhysicalMedium",
+  "every_slots": 10,
+  "stop_reading": "one more reading after the last slot, written with seq equal to the slot count",
+  "route_same": "true when the preferred IPv4 default route still has the interface and next hop the session started with, false when it changed or is gone, null when the route table could not be read; neither value is written",
+  "values": "MediaConnectState, InterfaceOperationalStatus and NdisPhysicalMedium as numbers, ReceiveLinkSpeed and TransmitLinkSpeed in bits per second (null when unknown)",
+  "session": {
+    "duration_seconds": 10,
+    "interval_seconds": 1,
+    "slots": 10,
+    "timeout_seconds": 70,
+    "max_artifact_bytes": 67108864,
+    "qpc_frequency_hz": 10000000,
+    "qpc_high_resolution": true,
+    "slot_rule": "slot k is due at the session start counter plus k seconds; a slot reached more than one interval late is written as a missed line and not taken late",
+    "stamp": "qpc_before, filetime_utc_100ns, qpc_after are read right before the probe is sent (Stopwatch.GetTimestamp, DateTime.UtcNow.ToFileTimeUtc, Stopwatch.GetTimestamp); qpc_done right after it completed",
+    "samples_file": "samples.jsonl, one JSON object per line in the order written; a decoder cites line:<n>",
+    "network_traffic": "the probes are packets this PC sends: one ICMP echo of 32 bytes per target per slot and one DNS A query per DNS target every 10 slots; no setting is read for writing or changed",
+    "privacy": "the gateway address is read from the route table into memory and written only as the label gateway; the public targets are constants of the collector; no local address, hardware address, network name, adapter name or description, DNS answer or exception message is written"
+  }
+}

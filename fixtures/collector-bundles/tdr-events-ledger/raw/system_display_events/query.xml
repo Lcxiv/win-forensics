@@ -1,0 +1,5 @@
+<QueryList>
+  <Query Id="0" Path="System">
+    <Select Path="System">*[System[Provider[@Name='Display'] and TimeCreated[@SystemTime &gt;= '2026-01-30T12:00:03.000Z' and @SystemTime &lt;= '2026-03-01T12:00:03.000Z']]]</Select>
+  </Query>
+</QueryList>

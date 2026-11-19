@@ -1,0 +1,1394 @@
+{
+  "manifest_version": "1.1.0",
+  "bundle_id": "20260301T120001Z_session_ledger_ae3a76a9",
+  "created_utc": "2026-03-01T12:01:08.0000000Z",
+  "scenario": {
+    "id": "session_ledger",
+    "version": "1.0.0",
+    "requested_duration_s": 2592000,
+    "target_process": null,
+    "marks": []
+  },
+  "capture": {
+    "start_utc": "2026-03-01T12:00:01.0000000Z",
+    "stop_utc": "2026-03-01T12:01:08.0000000Z",
+    "orchestrator": "wf-collector:session-ledger",
+    "orchestrator_version": "1.3.0",
+    "elevated": false,
+    "incomplete": false
+  },
+  "machine": {
+    "machine_id": "ae3a76a9f32fa71b72616118339e376c",
+    "hostname": "SYNTHETIC-PC",
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26100",
+      "build": 26100,
+      "ubr": 1,
+      "display_version": "24H2",
+      "architecture": "64-bit",
+      "edition": "Professional"
+    },
+    "cpu": {
+      "name": "Synthetic CPU",
+      "logical_processors": 16,
+      "qpc_frequency_hz": 10000000
+    },
+    "memory_bytes": 34359738368,
+    "gpus": [
+      {
+        "name": "Synthetic Display Adapter",
+        "driver_version": "1.2.3.4",
+        "driver_date": "2026-01-15T00:00:00.0000000Z",
+        "device_id": "PCI\\VEN_FFFF&DEV_0001"
+      }
+    ],
+    "bios": {
+      "vendor": "Synthetic Firmware",
+      "version": "S1.00",
+      "release_date": "2025-11-01T00:00:00.0000000Z"
+    },
+    "board": {
+      "manufacturer": "Synthetic Boards",
+      "product": "SB-1"
+    },
+    "drivers": [],
+    "time_zone": {
+      "name": "UTC",
+      "utc_offset_minutes": 0,
+      "dst_active": false
+    }
+  },
+  "collectors": [
+    {
+      "id": "overwatch_logs",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:04.0000000Z",
+        "checks": [
+          {
+            "name": "parent_folder_exists",
+            "ok": true,
+            "detail": null
+          },
+          {
+            "name": "folder_exists",
+            "ok": true,
+            "detail": "<MyDocuments>\\Overwatch\\Logs"
+          },
+          {
+            "name": "folder_listed",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.IO.DirectoryInfo.EnumerateFileSystemInfos",
+        "<MyDocuments>\\Overwatch\\Logs"
+      ],
+      "started_utc": "2026-03-01T12:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:06.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "c9c195166115dd7c68f7345f22084e282a2e59e431edb9aa4034f484422569da"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "folder": "MyDocuments",
+          "path_tail": "Overwatch\\Logs",
+          "path_display": "<MyDocuments>\\Overwatch\\Logs",
+          "path_documented": "https://us.support.blizzard.com/en/article/82454",
+          "depth": 1,
+          "include": [
+            "*.log",
+            "*.txt"
+          ],
+          "name_pattern": "^[A-Za-z]{1,40}(-backup)?([-_. ][0-9]{1,20}){0,8}\\.(log|txt)$",
+          "folder_pattern": "^[A-Za-z]{1,40}$",
+          "prefix_pattern": null,
+          "absence": "unproven",
+          "max_entries": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
+          "mode": "metadata",
+          "content_read": false,
+          "why_no_content": "the question is when these files were written and how large they are; the names, sizes and times are read from the folder listing, and no file is opened, hashed or copied",
+          "name_rule": "a name that matches name_pattern (folder_pattern for a folder) is kept verbatim; any other is name-<first 12 hex of SHA-256(salt, lower cased name)> with a random salt that is not stored"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path_display": "<MyDocuments>\\Overwatch\\Logs",
+          "exists": true,
+          "file_count": 4,
+          "folder_count": 1,
+          "truncated": false,
+          "content_read": false
+        },
+        "verified_by": "the folder listing completed without error; every entry carries only its name, size and times"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/overwatch_logs/listing.json",
+          "bytes": 1251,
+          "sha256": "8f626999a1647372decddb6923ee33c29ed9229a46e498c1e5be640f5f844951",
+          "role": "primary"
+        },
+        {
+          "path": "raw/overwatch_logs/result.json",
+          "bytes": 352,
+          "sha256": "9489d4548c46e217882afdef27f6e9a695b72023a2100963ac2c081e561d9321",
+          "role": "report"
+        },
+        {
+          "path": "raw/overwatch_logs/source.json",
+          "bytes": 952,
+          "sha256": "c9c195166115dd7c68f7345f22084e282a2e59e431edb9aa4034f484422569da",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:02.0000000Z",
+        "end": "2026-03-01T12:00:05.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the Overwatch log folder exists and holds at least one log",
+        "met": true,
+        "detail": "folder exists: True; 4 files and 1 folders listed"
+      },
+      "target_process": null
+    },
+    {
+      "id": "battlenet_logs",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:09.0000000Z",
+        "checks": [
+          {
+            "name": "parent_folder_exists",
+            "ok": true,
+            "detail": null
+          },
+          {
+            "name": "folder_exists",
+            "ok": true,
+            "detail": "<LocalApplicationData>\\Battle.net\\Logs"
+          },
+          {
+            "name": "folder_listed",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.IO.DirectoryInfo.EnumerateFileSystemInfos",
+        "<LocalApplicationData>\\Battle.net\\Logs"
+      ],
+      "started_utc": "2026-03-01T12:00:07.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:11.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "e205726509786d412cd26f005f28d6e7a62609f178099c70501d4e9c76042218"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "folder": "LocalApplicationData",
+          "path_tail": "Battle.net\\Logs",
+          "path_display": "<LocalApplicationData>\\Battle.net\\Logs",
+          "path_documented": "not documented by Blizzard; working assumption, see collectors/windows/README.md",
+          "depth": 0,
+          "include": [
+            "*.log"
+          ],
+          "name_pattern": "^[A-Za-z]{1,40}(-backup)?([-_. ][0-9]{1,20}){0,8}\\.(log|txt)$",
+          "folder_pattern": "^[A-Za-z]{1,40}(-backup)?([-_. ][0-9]{1,20}){0,8}\\.(log|txt)$",
+          "prefix_pattern": null,
+          "absence": "unproven",
+          "max_entries": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
+          "mode": "metadata",
+          "content_read": false,
+          "why_no_content": "the question is when these files were written and how large they are; the names, sizes and times are read from the folder listing, and no file is opened, hashed or copied",
+          "name_rule": "a name that matches name_pattern (folder_pattern for a folder) is kept verbatim; any other is name-<first 12 hex of SHA-256(salt, lower cased name)> with a random salt that is not stored"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path_display": "<LocalApplicationData>\\Battle.net\\Logs",
+          "exists": true,
+          "file_count": 1,
+          "folder_count": 0,
+          "truncated": false,
+          "content_read": false
+        },
+        "verified_by": "the folder listing completed without error; every entry carries only its name, size and times"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/battlenet_logs/listing.json",
+          "bytes": 250,
+          "sha256": "024b5936d42bab74c1095ac8cb13eb6759b1c05615f002e6db392f8d3749eb30",
+          "role": "primary"
+        },
+        {
+          "path": "raw/battlenet_logs/result.json",
+          "bytes": 362,
+          "sha256": "aceeaee72be58b40f618dad1da93aff2e719391617c8f9dc0365891e0400a662",
+          "role": "report"
+        },
+        {
+          "path": "raw/battlenet_logs/source.json",
+          "bytes": 1037,
+          "sha256": "e205726509786d412cd26f005f28d6e7a62609f178099c70501d4e9c76042218",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:07.0000000Z",
+        "end": "2026-03-01T12:00:10.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the Battle.net log folder exists and holds at least one log",
+        "met": true,
+        "detail": "folder exists: True; 1 files and 0 folders listed"
+      },
+      "target_process": null
+    },
+    {
+      "id": "fortnite_logs",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:14.0000000Z",
+        "checks": [
+          {
+            "name": "parent_folder_exists",
+            "ok": true,
+            "detail": null
+          },
+          {
+            "name": "folder_exists",
+            "ok": true,
+            "detail": "<LocalApplicationData>\\FortniteGame\\Saved\\Logs"
+          },
+          {
+            "name": "folder_listed",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.IO.DirectoryInfo.EnumerateFileSystemInfos",
+        "<LocalApplicationData>\\FortniteGame\\Saved\\Logs"
+      ],
+      "started_utc": "2026-03-01T12:00:12.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:16.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "a860ab6bde9248a3be5bf4ab8ab4abc29ae6c2262b84066b52be67660d0c0b39"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "folder": "LocalApplicationData",
+          "path_tail": "FortniteGame\\Saved\\Logs",
+          "path_display": "<LocalApplicationData>\\FortniteGame\\Saved\\Logs",
+          "path_documented": "https://www.epicgames.com/help/en-US/c-Category_Fortnite/c-Fortnite_TechnicalSupport/how-do-i-gather-logs-for-fortnite-a000084841",
+          "depth": 0,
+          "include": [
+            "FortniteGame*.log"
+          ],
+          "name_pattern": "^[A-Za-z]{1,40}(-backup)?([-_. ][0-9]{1,20}){0,8}\\.(log|txt)$",
+          "folder_pattern": "^[A-Za-z]{1,40}(-backup)?([-_. ][0-9]{1,20}){0,8}\\.(log|txt)$",
+          "prefix_pattern": null,
+          "absence": "unproven",
+          "max_entries": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
+          "mode": "metadata",
+          "content_read": false,
+          "why_no_content": "the question is when these files were written and how large they are; the names, sizes and times are read from the folder listing, and no file is opened, hashed or copied",
+          "name_rule": "a name that matches name_pattern (folder_pattern for a folder) is kept verbatim; any other is name-<first 12 hex of SHA-256(salt, lower cased name)> with a random salt that is not stored"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path_display": "<LocalApplicationData>\\FortniteGame\\Saved\\Logs",
+          "exists": true,
+          "file_count": 2,
+          "folder_count": 0,
+          "truncated": false,
+          "content_read": false
+        },
+        "verified_by": "the folder listing completed without error; every entry carries only its name, size and times"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/fortnite_logs/listing.json",
+          "bytes": 524,
+          "sha256": "7abe7a6301717a51324473d476db4ab202bddd04f0281cae7edfb20781aa62a9",
+          "role": "primary"
+        },
+        {
+          "path": "raw/fortnite_logs/result.json",
+          "bytes": 371,
+          "sha256": "c747b6e3d102457f3bcd48013dc16a4cdee96dbbf14ad32d6fee1e874f749246",
+          "role": "report"
+        },
+        {
+          "path": "raw/fortnite_logs/source.json",
+          "bytes": 1116,
+          "sha256": "a860ab6bde9248a3be5bf4ab8ab4abc29ae6c2262b84066b52be67660d0c0b39",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:12.0000000Z",
+        "end": "2026-03-01T12:00:15.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the Fortnite log folder exists and holds at least one log",
+        "met": true,
+        "detail": "folder exists: True; 2 files and 0 folders listed"
+      },
+      "target_process": null
+    },
+    {
+      "id": "epic_launcher_logs",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:19.0000000Z",
+        "checks": [
+          {
+            "name": "parent_folder_exists",
+            "ok": true,
+            "detail": null
+          },
+          {
+            "name": "folder_exists",
+            "ok": true,
+            "detail": "<LocalApplicationData>\\EpicGamesLauncher\\Saved\\Logs"
+          },
+          {
+            "name": "folder_listed",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.IO.DirectoryInfo.EnumerateFileSystemInfos",
+        "<LocalApplicationData>\\EpicGamesLauncher\\Saved\\Logs"
+      ],
+      "started_utc": "2026-03-01T12:00:17.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:21.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "ccdcd743be2bfe45c420daa28c3c43bcbe78280b4f159601790911739cf42945"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "folder": "LocalApplicationData",
+          "path_tail": "EpicGamesLauncher\\Saved\\Logs",
+          "path_display": "<LocalApplicationData>\\EpicGamesLauncher\\Saved\\Logs",
+          "path_documented": "https://www.epicgames.com/help/en-US/c-Category_EpicGamesStore/c-EpicGamesStore_LauncherSupport/how-do-i-gather-logs-for-epic-games-launcher-a000084789",
+          "depth": 0,
+          "include": [
+            "EpicGamesLauncher*.log"
+          ],
+          "name_pattern": "^[A-Za-z]{1,40}(-backup)?([-_. ][0-9]{1,20}){0,8}\\.(log|txt)$",
+          "folder_pattern": "^[A-Za-z]{1,40}(-backup)?([-_. ][0-9]{1,20}){0,8}\\.(log|txt)$",
+          "prefix_pattern": null,
+          "absence": "unproven",
+          "max_entries": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
+          "mode": "metadata",
+          "content_read": false,
+          "why_no_content": "the question is when these files were written and how large they are; the names, sizes and times are read from the folder listing, and no file is opened, hashed or copied",
+          "name_rule": "a name that matches name_pattern (folder_pattern for a folder) is kept verbatim; any other is name-<first 12 hex of SHA-256(salt, lower cased name)> with a random salt that is not stored"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path_display": "<LocalApplicationData>\\EpicGamesLauncher\\Saved\\Logs",
+          "exists": true,
+          "file_count": 1,
+          "folder_count": 0,
+          "truncated": false,
+          "content_read": false
+        },
+        "verified_by": "the folder listing completed without error; every entry carries only its name, size and times"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/epic_launcher_logs/listing.json",
+          "bytes": 255,
+          "sha256": "8fd54cab663bba9aa3f6e9e0e95509cba3e9428b8d7ac2478fc610c4f77a72bb",
+          "role": "primary"
+        },
+        {
+          "path": "raw/epic_launcher_logs/result.json",
+          "bytes": 376,
+          "sha256": "cc2a768b8605efdaef0217227139de609ff893aae23dc10310b1c685db8cf6c1",
+          "role": "report"
+        },
+        {
+          "path": "raw/epic_launcher_logs/source.json",
+          "bytes": 1153,
+          "sha256": "ccdcd743be2bfe45c420daa28c3c43bcbe78280b4f159601790911739cf42945",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:17.0000000Z",
+        "end": "2026-03-01T12:00:20.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the Epic Games Launcher log folder exists and holds at least one log",
+        "met": true,
+        "detail": "folder exists: True; 1 files and 0 folders listed"
+      },
+      "target_process": null
+    },
+    {
+      "id": "display_adapters",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:26.0000000Z",
+        "checks": [
+          {
+            "name": "class_readable",
+            "ok": true,
+            "detail": "root/cimv2:Win32_PnPEntity"
+          }
+        ]
+      },
+      "command": [
+        "Get-CimInstance",
+        "-Namespace",
+        "root/cimv2",
+        "-ClassName",
+        "Win32_PnPEntity",
+        "-Property",
+        "Name,Service,Status,ConfigManagerErrorCode,Present",
+        "-OperationTimeoutSec",
+        "300",
+        "-Filter",
+        "ClassGuid = '{4d36e968-e325-11ce-bfc1-08002be10318}'"
+      ],
+      "started_utc": "2026-03-01T12:00:22.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:27.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "616357f3b9a64b68cf7d086bccb4bb08c95c07bfa243b01e521ad85bf43ccdb3"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_PnPEntity",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Name",
+            "Service",
+            "Status",
+            "ConfigManagerErrorCode",
+            "Present"
+          ],
+          "filter": "ClassGuid = '{4d36e968-e325-11ce-bfc1-08002be10318}'",
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "coverage_probe_filter": null,
+          "max_records": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "class": "Win32_PnPEntity",
+          "namespace": "root/cimv2",
+          "properties": [
+            "Name",
+            "Service",
+            "Status",
+            "ConfigManagerErrorCode",
+            "Present"
+          ],
+          "filter": "ClassGuid = '{4d36e968-e325-11ce-bfc1-08002be10318}'",
+          "time_property": null,
+          "window_days": null,
+          "window_start_utc": null,
+          "window_end_utc": null,
+          "records_read": 1,
+          "records_exported": 1,
+          "truncated": false,
+          "coverage_probe": null
+        },
+        "verified_by": "Get-CimInstance returned without error under its operation timeout; the instance count and the coverage probe are in the expectation detail"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/display_adapters/query.json",
+          "bytes": 456,
+          "sha256": "616357f3b9a64b68cf7d086bccb4bb08c95c07bfa243b01e521ad85bf43ccdb3",
+          "role": "config"
+        },
+        {
+          "path": "raw/display_adapters/records.json",
+          "bytes": 119,
+          "sha256": "b1e64cea5ec5632dfc1c6ac9206aa7d5d1937c33eacdbf2388ee081fcfb07176",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:26.0000000Z",
+        "end": "2026-03-01T12:00:26.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the class returns at least one instance",
+        "met": true,
+        "detail": "1 instances"
+      },
+      "target_process": null
+    },
+    {
+      "id": "display_driver_events",
+      "kind": "eventlog",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:35.0000000Z",
+        "checks": [
+          {
+            "name": "channel_found",
+            "ok": true,
+            "detail": "channel System"
+          },
+          {
+            "name": "channel_readable",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.Diagnostics.Eventing.Reader.EventLogReader",
+        "System",
+        "raw/display_driver_events/query.xml"
+      ],
+      "started_utc": "2026-03-01T12:00:28.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:37.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "57826984c57c6fab61ea19b3d6600913308ef209ba53c73e19da7f6ec397f280"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [
+          "synthdisp"
+        ],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "System",
+          "event_ids": [],
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:00:29.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:29.0000000Z",
+          "max_events": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
+          "query_sha256": "57826984c57c6fab61ea19b3d6600913308ef209ba53c73e19da7f6ec397f280"
+        }
+      },
+      "enabled": {
+        "providers": [
+          "synthdisp"
+        ],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "System",
+          "query_accepted": true,
+          "window_start_utc": "2026-01-30T12:00:29.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:29.0000000Z",
+          "records_read": 1,
+          "records_exported": 1,
+          "truncated": false,
+          "timed_out": false,
+          "evtx_exported": false,
+          "evtx_exit_code": null,
+          "evtx_message": "synthetic backend: wevtutil does not exist off Windows",
+          "evtx_command": null
+        },
+        "verified_by": "EventLogReader accepted the query in query.xml; the oldest retained record and the provider list are in channel_state.json"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/display_driver_events/channel_state.json",
+          "bytes": 801,
+          "sha256": "f560aee216423718d37354034ec976e66259fce29eb82e690e4c83215851112a",
+          "role": "report"
+        },
+        {
+          "path": "raw/display_driver_events/events.json",
+          "bytes": 999,
+          "sha256": "6c3f1a979bfa1c0ef459ceed12d30cdbc32d6e803455a0b05df050360d508584",
+          "role": "primary"
+        },
+        {
+          "path": "raw/display_driver_events/query.xml",
+          "bytes": 252,
+          "sha256": "57826984c57c6fab61ea19b3d6600913308ef209ba53c73e19da7f6ec397f280",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-01-30T12:00:29.0000000Z",
+        "end": "2026-03-01T12:00:29.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
+        "met": true,
+        "detail": "1 records read; requested window 2026-01-30T12:00:29.0000000Z to 2026-03-01T12:00:29.0000000Z; covered range starts 2026-01-30T12:00:29.0000000Z"
+      },
+      "target_process": null
+    },
+    {
+      "id": "werkernel_events",
+      "kind": "eventlog",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:45.0000000Z",
+        "checks": [
+          {
+            "name": "channel_found",
+            "ok": true,
+            "detail": "channel Microsoft-Windows-WerKernel/Operational"
+          },
+          {
+            "name": "channel_readable",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.Diagnostics.Eventing.Reader.EventLogReader",
+        "Microsoft-Windows-WerKernel/Operational",
+        "raw/werkernel_events/query.xml"
+      ],
+      "started_utc": "2026-03-01T12:00:38.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:47.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "c4084831305aae68d7698f5fe7becd20120dde6d8739b18246dd771a66b92747"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "Microsoft-Windows-WerKernel/Operational",
+          "event_ids": [],
+          "window_days": 30,
+          "window_start_utc": "2026-01-30T12:00:39.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:39.0000000Z",
+          "max_events": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
+          "query_sha256": "c4084831305aae68d7698f5fe7becd20120dde6d8739b18246dd771a66b92747"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "channel": "Microsoft-Windows-WerKernel/Operational",
+          "query_accepted": true,
+          "window_start_utc": "2026-01-30T12:00:39.0000000Z",
+          "window_end_utc": "2026-03-01T12:00:39.0000000Z",
+          "records_read": 1,
+          "records_exported": 1,
+          "truncated": false,
+          "timed_out": false,
+          "evtx_exported": false,
+          "evtx_exit_code": null,
+          "evtx_message": "synthetic backend: wevtutil does not exist off Windows",
+          "evtx_command": null
+        },
+        "verified_by": "EventLogReader accepted the query in query.xml; the oldest retained record and the provider list are in channel_state.json"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/werkernel_events/channel_state.json",
+          "bytes": 806,
+          "sha256": "604edfb2ffac919e2231166bb46d65f5a3a107cfa9a479de911b9b4f502da14b",
+          "role": "report"
+        },
+        {
+          "path": "raw/werkernel_events/events.json",
+          "bytes": 1006,
+          "sha256": "1b929784c5bf49d166730900184898cc24d2ef60a440de5b3de8e8589e2f4d64",
+          "role": "primary"
+        },
+        {
+          "path": "raw/werkernel_events/query.xml",
+          "bytes": 100,
+          "sha256": "c4084831305aae68d7698f5fe7becd20120dde6d8739b18246dd771a66b92747",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-01-30T12:00:39.0000000Z",
+        "end": "2026-03-01T12:00:39.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "every record matching query.xml inside the covered range is exported completely, within the caps and the deadline, and an empty export is only called a quiet window when the oldest retained record proves the range was covered",
+        "met": true,
+        "detail": "1 records read; requested window 2026-01-30T12:00:39.0000000Z to 2026-03-01T12:00:39.0000000Z; covered range starts 2026-01-30T12:00:39.0000000Z"
+      },
+      "target_process": null
+    },
+    {
+      "id": "live_kernel_reports",
+      "kind": "dump",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:50.0000000Z",
+        "checks": [
+          {
+            "name": "parent_folder_exists",
+            "ok": true,
+            "detail": null
+          },
+          {
+            "name": "folder_exists",
+            "ok": true,
+            "detail": "<Windows>\\LiveKernelReports"
+          },
+          {
+            "name": "folder_listed",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.IO.DirectoryInfo.EnumerateFileSystemInfos",
+        "<Windows>\\LiveKernelReports"
+      ],
+      "started_utc": "2026-03-01T12:00:48.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:52.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "584725308e36a3774afe47c8ce73b866e978286108a8ba571cd2d8b9c5336d74"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "folder": "Windows",
+          "path_tail": "LiveKernelReports",
+          "path_display": "<Windows>\\LiveKernelReports",
+          "path_documented": "https://learn.microsoft.com/windows-hardware/drivers/debugger/kernel-live-dump-code-reference",
+          "depth": 1,
+          "include": [
+            "*.dmp"
+          ],
+          "name_pattern": "^[A-Za-z0-9]{1,40}([-_][0-9]{1,20}){0,6}\\.dmp$",
+          "folder_pattern": "^[A-Za-z0-9]{1,40}$",
+          "prefix_pattern": null,
+          "absence": "observation",
+          "max_entries": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
+          "mode": "metadata",
+          "content_read": false,
+          "why_no_content": "the question is when these files were written and how large they are; the names, sizes and times are read from the folder listing, and no file is opened, hashed or copied",
+          "name_rule": "a name that matches name_pattern (folder_pattern for a folder) is kept verbatim; any other is name-<first 12 hex of SHA-256(salt, lower cased name)> with a random salt that is not stored"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path_display": "<Windows>\\LiveKernelReports",
+          "exists": true,
+          "file_count": 1,
+          "folder_count": 1,
+          "truncated": false,
+          "content_read": false
+        },
+        "verified_by": "the folder listing completed without error; every entry carries only its name, size and times"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/live_kernel_reports/listing.json",
+          "bytes": 502,
+          "sha256": "7cdb4faa6627bc6f380401969a7e82efd53884acb012408bbb780c618a41128b",
+          "role": "primary"
+        },
+        {
+          "path": "raw/live_kernel_reports/result.json",
+          "bytes": 350,
+          "sha256": "fad491a937d492ccf5873b8dd1d56c3b742d1107942115d7e2a1663517f8ff38",
+          "role": "report"
+        },
+        {
+          "path": "raw/live_kernel_reports/source.json",
+          "bytes": 971,
+          "sha256": "584725308e36a3774afe47c8ce73b866e978286108a8ba571cd2d8b9c5336d74",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:48.0000000Z",
+        "end": "2026-03-01T12:00:51.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the live kernel dump folder could be listed",
+        "met": true,
+        "detail": "folder exists: True; 1 files and 1 folders listed"
+      },
+      "target_process": null
+    },
+    {
+      "id": "minidumps",
+      "kind": "dump",
+      "required": false,
+      "status": "observed_zero",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:55.0000000Z",
+        "checks": [
+          {
+            "name": "parent_folder_exists",
+            "ok": true,
+            "detail": null
+          },
+          {
+            "name": "folder_exists",
+            "ok": true,
+            "detail": "<Windows>\\Minidump"
+          },
+          {
+            "name": "folder_listed",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.IO.DirectoryInfo.EnumerateFileSystemInfos",
+        "<Windows>\\Minidump"
+      ],
+      "started_utc": "2026-03-01T12:00:53.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:57.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "9b5b4b51f721c5419b9b5afa4ad8412bc6921cd6b48a561536d331eee8b74a09"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "folder": "Windows",
+          "path_tail": "Minidump",
+          "path_display": "<Windows>\\Minidump",
+          "path_documented": "https://learn.microsoft.com/windows-hardware/drivers/debugger/small-memory-dump",
+          "depth": 0,
+          "include": [
+            "*.dmp"
+          ],
+          "name_pattern": "^[A-Za-z0-9]{1,40}([-_][0-9]{1,20}){0,6}\\.dmp$",
+          "folder_pattern": "^[A-Za-z0-9]{1,40}([-_][0-9]{1,20}){0,6}\\.dmp$",
+          "prefix_pattern": null,
+          "absence": "observation",
+          "max_entries": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
+          "mode": "metadata",
+          "content_read": false,
+          "why_no_content": "the question is when these files were written and how large they are; the names, sizes and times are read from the folder listing, and no file is opened, hashed or copied",
+          "name_rule": "a name that matches name_pattern (folder_pattern for a folder) is kept verbatim; any other is name-<first 12 hex of SHA-256(salt, lower cased name)> with a random salt that is not stored"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path_display": "<Windows>\\Minidump",
+          "exists": true,
+          "file_count": 0,
+          "folder_count": 0,
+          "truncated": false,
+          "content_read": false
+        },
+        "verified_by": "the folder listing completed without error; every entry carries only its name, size and times"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/minidumps/listing.json",
+          "bytes": 3,
+          "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+          "role": "primary"
+        },
+        {
+          "path": "raw/minidumps/result.json",
+          "bytes": 289,
+          "sha256": "bde8131f37c57456e482e8a04923f1cdc25b021e56a7dd7d9adc6bf6ea6cc082",
+          "role": "report"
+        },
+        {
+          "path": "raw/minidumps/source.json",
+          "bytes": 967,
+          "sha256": "9b5b4b51f721c5419b9b5afa4ad8412bc6921cd6b48a561536d331eee8b74a09",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:53.0000000Z",
+        "end": "2026-03-01T12:00:56.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the small memory dump folder could be listed",
+        "met": true,
+        "detail": "folder exists: True; 0 files and 0 folders listed"
+      },
+      "target_process": null
+    },
+    {
+      "id": "wer_report_queue",
+      "kind": "other",
+      "required": false,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:01:00.0000000Z",
+        "checks": [
+          {
+            "name": "parent_folder_exists",
+            "ok": true,
+            "detail": null
+          },
+          {
+            "name": "folder_exists",
+            "ok": true,
+            "detail": "<ProgramData>\\Microsoft\\Windows\\WER\\ReportQueue"
+          },
+          {
+            "name": "folder_listed",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.IO.DirectoryInfo.EnumerateFileSystemInfos",
+        "<ProgramData>\\Microsoft\\Windows\\WER\\ReportQueue"
+      ],
+      "started_utc": "2026-03-01T12:00:58.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:02.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "37c0218613e70b82afbac53fea825ac22933b5ecee72dced63b9514ae550c8ba"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "folder": "ProgramData",
+          "path_tail": "Microsoft\\Windows\\WER\\ReportQueue",
+          "path_display": "<ProgramData>\\Microsoft\\Windows\\WER\\ReportQueue",
+          "path_documented": "https://learn.microsoft.com/windows-server/failover-clustering/troubleshooting-using-wer-reports",
+          "depth": 1,
+          "include": [],
+          "name_pattern": "^[A-Za-z0-9]{1,40}(\\.[A-Za-z0-9]{1,12}){1,3}$",
+          "folder_pattern": "^$",
+          "prefix_pattern": "^([A-Za-z]{1,32})_",
+          "absence": "observation",
+          "max_entries": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
+          "mode": "metadata",
+          "content_read": false,
+          "why_no_content": "the question is when these files were written and how large they are; the names, sizes and times are read from the folder listing, and no file is opened, hashed or copied",
+          "name_rule": "a name that matches name_pattern (folder_pattern for a folder) is kept verbatim; any other is name-<first 12 hex of SHA-256(salt, lower cased name)> with a random salt that is not stored"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path_display": "<ProgramData>\\Microsoft\\Windows\\WER\\ReportQueue",
+          "exists": true,
+          "file_count": 1,
+          "folder_count": 1,
+          "truncated": false,
+          "content_read": false
+        },
+        "verified_by": "the folder listing completed without error; every entry carries only its name, size and times"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/wer_report_queue/listing.json",
+          "bytes": 515,
+          "sha256": "d7d6185c8abc93847bde1484515b5a5bad3ee7d9fa800a7c7f733a504075512f",
+          "role": "primary"
+        },
+        {
+          "path": "raw/wer_report_queue/result.json",
+          "bytes": 373,
+          "sha256": "d30ff7480bcf202ff4fda9ed1697617aec2c7a68ca22932f80e7ce8af4ee56da",
+          "role": "report"
+        },
+        {
+          "path": "raw/wer_report_queue/source.json",
+          "bytes": 1003,
+          "sha256": "37c0218613e70b82afbac53fea825ac22933b5ecee72dced63b9514ae550c8ba",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:58.0000000Z",
+        "end": "2026-03-01T12:01:01.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the queued report folder could be listed",
+        "met": true,
+        "detail": "folder exists: True; 1 files and 1 folders listed"
+      },
+      "target_process": null
+    },
+    {
+      "id": "wer_report_archive",
+      "kind": "other",
+      "required": false,
+      "status": "observed_zero",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:01:05.0000000Z",
+        "checks": [
+          {
+            "name": "parent_folder_exists",
+            "ok": true,
+            "detail": null
+          },
+          {
+            "name": "folder_exists",
+            "ok": true,
+            "detail": "<ProgramData>\\Microsoft\\Windows\\WER\\ReportArchive"
+          },
+          {
+            "name": "folder_listed",
+            "ok": true,
+            "detail": null
+          }
+        ]
+      },
+      "command": [
+        "System.IO.DirectoryInfo.EnumerateFileSystemInfos",
+        "<ProgramData>\\Microsoft\\Windows\\WER\\ReportArchive"
+      ],
+      "started_utc": "2026-03-01T12:01:03.0000000Z",
+      "stopped_utc": "2026-03-01T12:01:07.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "5e4219ad6954f289b2658864e680b000bbfc0b68254cfef667e897b1c75bc7a1"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "folder": "ProgramData",
+          "path_tail": "Microsoft\\Windows\\WER\\ReportArchive",
+          "path_display": "<ProgramData>\\Microsoft\\Windows\\WER\\ReportArchive",
+          "path_documented": "https://learn.microsoft.com/windows-server/failover-clustering/troubleshooting-using-wer-reports",
+          "depth": 1,
+          "include": [],
+          "name_pattern": "^[A-Za-z0-9]{1,40}(\\.[A-Za-z0-9]{1,12}){1,3}$",
+          "folder_pattern": "^$",
+          "prefix_pattern": "^([A-Za-z]{1,32})_",
+          "absence": "observation",
+          "max_entries": 5000,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 300,
+          "mode": "metadata",
+          "content_read": false,
+          "why_no_content": "the question is when these files were written and how large they are; the names, sizes and times are read from the folder listing, and no file is opened, hashed or copied",
+          "name_rule": "a name that matches name_pattern (folder_pattern for a folder) is kept verbatim; any other is name-<first 12 hex of SHA-256(salt, lower cased name)> with a random salt that is not stored"
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "path_display": "<ProgramData>\\Microsoft\\Windows\\WER\\ReportArchive",
+          "exists": true,
+          "file_count": 0,
+          "folder_count": 0,
+          "truncated": false,
+          "content_read": false
+        },
+        "verified_by": "the folder listing completed without error; every entry carries only its name, size and times"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/wer_report_archive/listing.json",
+          "bytes": 3,
+          "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+          "role": "primary"
+        },
+        {
+          "path": "raw/wer_report_archive/result.json",
+          "bytes": 323,
+          "sha256": "d47982deb84f62ade21889d8186a741552cc5e9977abeb47d6dee613ecdca3b7",
+          "role": "report"
+        },
+        {
+          "path": "raw/wer_report_archive/source.json",
+          "bytes": 1007,
+          "sha256": "5e4219ad6954f289b2658864e680b000bbfc0b68254cfef667e897b1c75bc7a1",
+          "role": "config"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:01:03.0000000Z",
+        "end": "2026-03-01T12:01:06.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the archived report folder could be listed",
+        "met": true,
+        "detail": "folder exists: True; 0 files and 0 folders listed"
+      },
+      "target_process": null
+    }
+  ],
+  "calibration": {
+    "status": "not_applicable",
+    "method": "none: this collector reads historical records that carry their own UTC system time, so there is no QPC session to calibrate",
+    "qpc_frequency_hz": 10000000,
+    "expected_pairs": 0,
+    "pairs": [],
+    "missing_pairs": 0,
+    "time_adjustment": {
+      "start": null,
+      "stop": null
+    },
+    "boot_time_utc": "2026-02-27T12:00:00.0000000Z"
+  },
+  "tools": [
+    {
+      "name": "powershell",
+      "version": "5.1.26100.1",
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "sha256": null
+    },
+    {
+      "name": "wevtutil",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wevtutil.exe",
+      "sha256": null
+    },
+    {
+      "name": "collector:session-ledger",
+      "version": "1.0.0",
+      "path": "<install directory>\\session-ledger.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector-helper:_common.ps1",
+      "version": "1.3.0",
+      "path": "<install directory>\\_common.ps1",
+      "sha256": null
+    }
+  ],
+  "symbols": {
+    "symbol_path": null,
+    "cache_path": null,
+    "dbghelp_version": null
+  },
+  "checksum_algorithm": "sha256",
+  "notes": [
+    "Read only collector session-ledger version 1.0.0: When was a game or launcher played, and which crash records does the machine keep that the history collectors do not read?",
+    "Ran as the collector account (its name is not recorded); elevated: False; member of Event Log Readers (S-1-5-32-573): True.",
+    "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
+    "Each event log query selects a fixed interval, window_end_utc minus the window to window_end_utc, so records raised while the query ran are not part of the result.",
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine.",
+    "source display_driver_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record",
+    "source werkernel_events: the binary .evtx export was not produced (synthetic backend: wevtutil does not exist off Windows); events.json carries the full XML of every record"
+  ]
+}

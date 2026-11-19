@@ -7,7 +7,7 @@
 # in collectors/, the scenario runner or remote-access/ may call it, and it is
 # run only by hand, elevated, at the PC, on the captain's own word. The rules
 # for this area are in changes/windows/README.md; the operator page is
-# docs/kbd-crash-dump.md.
+# docs/changes/kbd-crash-dump.md.
 #
 # Verbs, exactly one (-Plan when none is named):
 #   -Plan      Read only. Prints the current values, exactly what -Apply would

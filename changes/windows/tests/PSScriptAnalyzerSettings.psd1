@@ -1,11 +1,12 @@
-# PSScriptAnalyzer settings for the change scripts. The compatibility rules check
-# syntax, commands and types against Windows PowerShell 5.1, which is what the
-# change scripts run under; the profile is the Windows 10 one that ships with
-# PSScriptAnalyzer.
+# PSScriptAnalyzer settings for the change scripts, the same rules as the
+# collectors use (this area keeps its own copy and never refers to
+# collectors/). The compatibility rules check syntax, commands and types
+# against Windows PowerShell 5.1, which is what the change scripts run under;
+# the profile is the Windows 10 one that ships with PSScriptAnalyzer.
 @{
-    # The scripts' functions are internal, not cmdlets for interactive use:
-    # plural nouns name lists, and the state changing functions are the verbs
-    # the operator names, which never prompt (-Apply and -Undo stand in for ShouldProcess).
+    # The library's functions are internal, not cmdlets for interactive use:
+    # plural nouns name lists, and the scripts take an explicit verb instead
+    # of -WhatIf (Plan is the default and reads only).
     ExcludeRules = @('PSUseSingularNouns', 'PSUseShouldProcessForStateChangingFunctions')
     Rules        = @{
         PSUseCompatibleSyntax   = @{
