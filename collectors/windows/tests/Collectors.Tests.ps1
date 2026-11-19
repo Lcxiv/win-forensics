@@ -3963,3 +3963,516 @@ for (`$i = 1; `$i -le `$Count; `$i++) {
         ($pairs[3].qpc_before - $pairs[2].qpc_before) | Should -BeLessThan 50020000
     }
 }
+
+Describe 'diskio-trace against the synthetic backend' {
+    BeforeAll {
+        # The collector's pure functions (path rules, number and summary
+        # readers, the header reader), loaded from the script without running
+        # its body, so the rules can be checked one by one.
+        $script:DiskIoScript = Join-Path $script:CollectorRoot 'diskio-trace.ps1'
+        $parsed = [System.Management.Automation.Language.Parser]::ParseFile($script:DiskIoScript, [ref]$null, [ref]$null)
+        foreach ($fn in $parsed.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $false)) {
+            if ($fn.Name -like '*-DiskIo*') { . ([scriptblock]::Create($fn.Extent.Text)) }
+        }
+        $pmParsed = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $script:CollectorRoot 'presentmon-frames.ps1'), [ref]$null, [ref]$null)
+        foreach ($fn in $pmParsed.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Read-WfEtlHeader' }, $false)) {
+            . ([scriptblock]::Create($fn.Extent.Text))
+        }
+        $script:DiskGold = Join-Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))) 'fixtures/presentmon/gold-test_case_0.first-buffer.etl'
+
+        function Start-DiskCase {
+            # The named case's machine, or the default machine with options.
+            param([string]$Case = 'diskio-trace', [hashtable]$Machine = $null)
+            Reset-WfSynthetic
+            $selected = @(Get-WfSyntheticCases | Where-Object { $_['Case'] -eq $Case })[0]
+            if ($null -ne $Machine) { New-WfSyntheticDiskIoMachine @Machine } else { & $selected['Setup'] }
+            return $selected['Arguments']
+        }
+        function Invoke-DiskCase {
+            param([string]$Name, [hashtable]$Arguments)
+            $out = Join-Path $TestDrive $Name
+            return (Invoke-TestCollector -Collector 'diskio-trace' -OutputDirectory $out -Arguments $Arguments)
+        }
+        function Get-DiskSource {
+            param($Run, [string]$Id)
+            return @($Run.Manifest.collectors | Where-Object { $_.id -eq $Id })[0]
+        }
+        function Get-DiskWprCalls {
+            return @($global:WfSynthetic.Processes | Where-Object { $_.FilePath -like '*wpr.exe' } | ForEach-Object {
+                    $tokens = Split-WfSyntheticArguments -Arguments $_.Arguments
+                    [pscustomobject]@{ Verb = $tokens[0]; Instance = (Get-WfSyntheticInstance -Tokens $tokens); Arguments = $_.Arguments }
+                })
+        }
+        function Get-DiskWprVerbs { return @(Get-DiskWprCalls | ForEach-Object { $_.Verb }) }
+        function Get-DiskTracerptRuns { return @($global:WfSynthetic.Processes | Where-Object { $_.FilePath -like '*tracerpt.exe' }) }
+        function Get-DiskRows {
+            param([string]$Out)
+            $path = Join-Path $Out 'raw/diskio_aggregate/aggregate.jsonl'
+            return @(Get-Content -LiteralPath $path | Where-Object { $_.Trim() } | ForEach-Object { $_ | ConvertFrom-Json })
+        }
+        function Assert-DiskNothingLeft {
+            param([string]$Out)
+            Test-Path -LiteralPath (Join-Path $Out 'private') | Should -BeFalse -Because 'the trace and its dump never leave the machine'
+            @(Get-ChildItem -LiteralPath $Out -Recurse -File | Where-Object { $_.Extension -in @('.etl', '.xml') }).Count | Should -Be 0
+            @(Get-ChildItem -LiteralPath $Out -Directory | ForEach-Object { $_.Name } | Sort-Object) | Should -Be @('logs', 'raw')
+        }
+        function Get-DiskBundleText {
+            param([string]$Out)
+            return ((Get-ChildItem -LiteralPath $Out -Recurse -File | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join "`n")
+        }
+    }
+
+    It 'records a clean session, aggregates it on the machine, and keeps only the aggregate, the rules and the hashes' {
+        $arguments = Start-DiskCase
+        $out = Join-Path $TestDrive 'clean'
+        $run = Invoke-TestCollector -Collector 'diskio-trace' -OutputDirectory $out -Arguments $arguments
+        $run.ExitCode | Should -Be 0
+        ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'ok'
+        $calls = Get-DiskWprCalls
+        @($calls | ForEach-Object { $_.Verb }) | Should -Be @('-status', '-profiles', '-start', '-status', '-stop', '-status')
+        $calls[0].Instance | Should -BeExactly '' -Because 'the preflight looks at the default instance and never touches it'
+        foreach ($call in $calls[2..5]) { $call.Arguments | Should -Match ' -instancename WfDiskIoTrace-[0-9]{8}T[0-9]{6}Z$' -Because 'the instance name is the last parameter' }
+        $tracerpt = @(Get-DiskTracerptRuns)
+        $tracerpt.Count | Should -Be 1 -Because 'one call writes the dump and the summary, each under a name the collector gave, so no file is written under a default name'
+        $tracerpt[0].Arguments | Should -Match 'private[/\\]trace\.etl -o .*private[/\\]dump\.xml -of XML -summary .*raw[/\\]wpr_trace[/\\]tracerpt-summary\.txt -y$'
+        Assert-DiskNothingLeft -Out $out
+        $trace = Get-DiskSource -Run $run -Id 'wpr_trace'
+        $trace.status | Should -BeExactly 'observed'
+        $trace.kind | Should -BeExactly 'wpr'
+        @($trace.requested.keywords) | Should -Be @('DiskIO', 'Filename', 'HardFaults', 'ProcessThread')
+        @($trace.enabled.keywords) | Should -Be @($trace.requested.keywords)
+        $trace.events_lost | Should -Be 0
+        $trace.buffers_lost | Should -Be 0
+        $trace.enabled.options.clock_type | Should -BeExactly 'qpc'
+        $trace.enabled.options.concurrent_kernel_session_check | Should -BeExactly 'not_checked'
+        $trace.enabled.options.session_confirmed_stopped | Should -BeTrue
+        (Get-TestUtcText -Value $trace.raw_time_range.start) | Should -BeExactly '2026-03-01T12:00:07.0000000Z' -Because 'the range is the trace header''s own start and end'
+        @($trace.artifacts | ForEach-Object { $_.path }) | Should -Be @('raw/wpr_trace/diskio-trace.wprp', 'raw/wpr_trace/session.json', 'raw/wpr_trace/status.txt', 'raw/wpr_trace/tracerpt-summary.txt')
+        $wprp = Join-Path $out 'raw/wpr_trace/diskio-trace.wprp'
+        $trace.config_hash.value | Should -BeExactly (Get-TestSha256 -Path $wprp)
+        $xml = [xml](Get-Content -LiteralPath $wprp -Raw)
+        @($xml.WindowsPerformanceRecorder.Profiles.SystemProvider.Keywords.Keyword | ForEach-Object { $_.Value }) | Should -Be @('DiskIO', 'Filename', 'HardFaults', 'ProcessThread')
+        @($xml.WindowsPerformanceRecorder.Profiles.Profile | ForEach-Object { $_.Id }) | Should -Be @('WfDiskIoTrace.Verbose.File', 'WfDiskIoTrace.Verbose.Memory')
+        $aggregate = Get-DiskSource -Run $run -Id 'diskio_aggregate'
+        $aggregate.status | Should -BeExactly 'observed'
+        @($aggregate.artifacts | ForEach-Object { $_.path }) | Should -Be @('raw/diskio_aggregate/aggregate.jsonl', 'raw/diskio_aggregate/command.json', 'raw/diskio_aggregate/result.json')
+        @($aggregate.command) | Should -Be @('C:\Windows\System32\tracerpt.exe', '<bundle>/private/trace.etl', '-o', '<bundle>/private/dump.xml', '-of', 'XML', '-summary', '<bundle>/raw/wpr_trace/tracerpt-summary.txt', '-y')
+        $aggregate.enabled.options.recording_and_dump_removed | Should -BeTrue
+        $aggregate.enabled.options.trace_sha256 | Should -BeExactly $trace.enabled.options.trace_sha256
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/diskio_aggregate/result.json') -Raw | ConvertFrom-Json
+        $result.dump_events | Should -Be $result.trace_events_processed
+        $result.counts.malformed | Should -Be 0
+        $rows = Get-DiskRows -Out $out
+        $rows.Count | Should -Be $result.rows
+        ($rows | Measure-Object -Property operations -Sum).Sum | Should -Be 14
+        $game = @($rows | Where-Object { $_.process_image -eq 'SyntheticGame.exe' -and $_.operation -eq 'read' -and $_.extension -eq '.pak' })
+        $game.Count | Should -Be 1
+        $game[0].operations | Should -Be 2
+        $game[0].transferred_bytes | Should -Be 196608
+        $game[0].response_time_max_us | Should -Be 250 -Because 'HighResResponseTime ticks over a 10 MHz PerfFreq'
+        $game[0].directory | Should -Match '^\\Program Files\\SyntheticGame\\dir-[0-9a-f]{12}\\dir-[0-9a-f]{12}$'
+        @($rows | Where-Object { $_.operation -eq 'hard_fault' })[0].disk_number | Should -BeNullOrEmpty
+        @($rows | Where-Object { $_.extension -eq '.sav' })[0].process_image | Should -BeExactly 'SyntheticLauncher.exe' -Because 'a thread named only by its end event is resolved at the end of the read'
+        @($rows | Where-Object { $_.extension -eq '.sav' })[0].directory | Should -Match '^\\Users\\<profile>\\dir-[0-9a-f]{12}\\dir-[0-9a-f]{12}$'
+        @($rows | Where-Object { $_.extension -eq '.dat' })[0].directory | Should -Match '^\\ProgramData\\SyntheticLauncher\\dir-'
+        @($rows | Where-Object { $null -eq $_.process_id }).Count | Should -Be 1 -Because 'a thread the trace never names has no process, never a guessed one'
+        @($rows | Where-Object { $_.path_class -eq 'unnamed' }).Count | Should -Be 1
+        @($rows | Where-Object { $_.process_id -eq 3400 })[0].process_image | Should -Match '^image-[0-9a-f]{12}$'
+        @($rows | Where-Object { $_.directory -eq '\' }).Count | Should -Be 1 -Because 'a file in the volume root counts under \ without its name'
+        $text = Get-DiskBundleText -Out $out
+        foreach ($secret in @('SyntheticOwner', 'secret-token', '02-00-5E-10-20-30', 'S-1-5-21-', 'cache01', 'world.pak', 'slot1', 'index.dat', 'ShaderCache', 'Saved Games', 'Synthetic-Operational', 'Manifests')) {
+            $text | Should -Not -Match ([regex]::Escape($secret)) -Because "$secret was in the trace and must not leave the machine"
+        }
+        $recorded = (Get-ChildItem -LiteralPath (Join-Path $out 'raw') -Recurse -File | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join "`n"
+        $recorded + (Get-Content -LiteralPath (Join-Path $out 'manifest.json') -Raw) | Should -Not -Match ([regex]::Escape($out)) -Because 'the bundle records no absolute path of its own location'
+        @($run.Manifest.tools | ForEach-Object { $_.name }) | Should -Be @('powershell', 'wevtutil', 'collector:diskio-trace', 'collector-helper:_common.ps1', 'wpr', 'tracerpt')
+        $run.Manifest.capture.elevated | Should -BeTrue
+        $run.Manifest.calibration.status | Should -BeExactly 'not_collected'
+    }
+
+    It 'salts its pseudonyms per run: the same directory keeps one pseudonym inside a bundle and another in the next' {
+        $arguments = Start-DiskCase
+        $first = Join-Path $TestDrive 'salt-a'
+        $null = Invoke-TestCollector -Collector 'diskio-trace' -OutputDirectory $first -Arguments $arguments
+        $cache = @(Get-DiskRows -Out $first | Where-Object { $_.extension -eq '.bin' } | ForEach-Object { $_.directory } | Sort-Object -Unique)
+        $cache.Count | Should -Be 1 -Because 'three rows of the same directory share its pseudonym'
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Salt = 'synthetic-salt-0002'
+        $second = Join-Path $TestDrive 'salt-b'
+        $null = Invoke-TestCollector -Collector 'diskio-trace' -OutputDirectory $second -Arguments $arguments
+        $other = @(Get-DiskRows -Out $second | Where-Object { $_.extension -eq '.bin' } | ForEach-Object { $_.directory } | Sort-Object -Unique)
+        $other[0] | Should -Not -BeExactly $cache[0]
+        $other[0] | Should -Match '^\\Users\\<profile>\\AppData\\Local\\SyntheticGame\\dir-'
+    }
+
+    It 'counts the collector''s own files apart, without a directory' {
+        $out = Join-Path $TestDrive 'own-files'
+        $arguments = Start-DiskCase -Machine @{ CollectorRoot = (Resolve-WfBundleRoot -OutputDirectory $out) }
+        $run = Invoke-TestCollector -Collector 'diskio-trace' -OutputDirectory $out -Arguments $arguments
+        $run.ExitCode | Should -Be 0
+        $own = @(Get-DiskRows -Out $out | Where-Object { $_.path_class -eq 'collector' })
+        $own.Count | Should -Be 1
+        $own[0].directory | Should -BeNullOrEmpty
+        $own[0].transferred_bytes | Should -Be 65536
+    }
+
+    It 'charges a request to the image that owned the process id when it happened, when the id is reused inside the window' {
+        $arguments = Start-DiskCase -Machine @{ PidReuse = $true }
+        $out = Join-Path $TestDrive 'pid-reuse'
+        $run = Invoke-TestCollector -Collector 'diskio-trace' -OutputDirectory $out -Arguments $arguments
+        $run.ExitCode | Should -Be 0
+        (Get-DiskSource -Run $run -Id 'diskio_aggregate').status | Should -BeExactly 'observed'
+        $rows = Get-DiskRows -Out $out
+        $reused = @($rows | Where-Object { $_.process_id -eq 5120 } | Sort-Object -Property bin_start_s)
+        $reused.Count | Should -Be 2
+        $reused[0].bin_start_s | Should -Be 3
+        $reused[0].process_image | Should -BeExactly 'SyntheticUpdater.exe' -Because 'the updater owned the id when it wrote, whatever started under that id later'
+        $reused[0].transferred_bytes | Should -Be 1048576
+        $reused[1].bin_start_s | Should -Be 5
+        $reused[1].process_image | Should -BeExactly 'SyntheticOther.exe'
+        $reused[1].transferred_bytes | Should -Be 512
+        $late = @($rows | Where-Object { $_.process_id -eq 6000 })
+        $late.Count | Should -Be 1
+        $late[0].process_image | Should -BeExactly 'SyntheticEarly.exe' -Because 'an id first named after the request takes the first image the trace gives it, not the last'
+        $early = @($rows | Where-Object { $_.transferred_bytes -eq 3072 })
+        $early.Count | Should -Be 1
+        $early[0].process_id | Should -Be 1200 -Because 'a request before its thread''s first Thread event belongs to the first process the trace gives that thread id, not to the one the id went to later'
+        $early[0].process_image | Should -BeExactly 'SyntheticGame.exe'
+        $unnamedThen = @($rows | Where-Object { $_.transferred_bytes -eq 5120 })
+        $unnamedThen.Count | Should -Be 1
+        $unnamedThen[0].directory | Should -Match '^\\ProgramData\\SyntheticGame\\dir-[0-9a-f]{12}\\dir-[0-9a-f]{12}$' -Because 'a request before its file object''s first name event belongs to the first file the trace names by that object, not to the one the address named later'
+        $unnamedThen[0].extension | Should -BeExactly '.log'
+    }
+
+    It 'fails the run and keeps no aggregate when the recording cannot be confirmed removed' {
+        $arguments = Start-DiskCase
+        $out = Join-Path $TestDrive 'held'
+        $global:DiskPrivateDir = Join-Path $out 'private'
+        # As a file another process holds open without delete sharing: nothing can be removed from the folder.
+        $global:WfSynthetic.Tracerpt.OnDump = { & chmod 555 $global:DiskPrivateDir }
+        try {
+            $run = Invoke-TestCollector -Collector 'diskio-trace' -OutputDirectory $out -Arguments $arguments
+            Test-Path -LiteralPath (Join-Path $global:DiskPrivateDir 'trace.etl') | Should -BeTrue -Because 'the case is about a recording that is still there'
+        } finally {
+            if (Test-Path -LiteralPath $global:DiskPrivateDir) { & chmod 755 $global:DiskPrivateDir }
+        }
+        $run.ExitCode | Should -Be 1
+        ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'failed'
+        $aggregate = Get-DiskSource -Run $run -Id 'diskio_aggregate'
+        $aggregate.status | Should -BeExactly 'capture_failed'
+        $aggregate.status_reason | Should -Match 'recording under <bundle>/private .* could not be confirmed removed'
+        $aggregate.expectation.met | Should -BeFalse
+        $aggregate.enabled.options.recording_and_dump_removed | Should -BeFalse
+        @($aggregate.artifacts | ForEach-Object { $_.path }) | Should -Be @('raw/diskio_aggregate/command.json', 'raw/diskio_aggregate/result.json')
+        Test-Path -LiteralPath (Join-Path $out 'raw/diskio_aggregate/aggregate.jsonl') | Should -BeFalse
+        $trace = Get-DiskSource -Run $run -Id 'wpr_trace'
+        $trace.status | Should -BeExactly 'capture_failed' -Because 'no source of a run that left its recording behind is presented as observed'
+        $trace.status_reason | Should -Match 'could not be confirmed removed'
+        $trace.expectation.met | Should -BeFalse
+        $run.Manifest.capture.incomplete | Should -BeTrue
+        @($run.Manifest.notes | Where-Object { $_ -match 'delete <bundle>/private by hand' }).Count | Should -Be 1
+        $result = Get-Content -LiteralPath (Join-Path $out 'raw/diskio_aggregate/result.json') -Raw | ConvertFrom-Json
+        $result.recording_and_dump_removed | Should -BeFalse
+        $result.rows | Should -Be 0
+        (Get-Content -LiteralPath (Join-Path $out 'manifest.json') -Raw) + (Get-Content -LiteralPath (Join-Path $out 'raw/diskio_aggregate/result.json') -Raw) | Should -Not -Match ([regex]::Escape($out)) -Because 'the reason names the folder as <bundle>/private, not by its location'
+    }
+
+    It 'runs nothing when the account is not elevated, and the aggregate says why' {
+        $arguments = Start-DiskCase -Case 'diskio-trace-not-elevated'
+        $out = Join-Path $TestDrive 'not-elevated'
+        $run = Invoke-TestCollector -Collector 'diskio-trace' -OutputDirectory $out -Arguments $arguments
+        $run.ExitCode | Should -Be 1
+        $global:WfSynthetic.Processes.Count | Should -Be 0
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status_reason | Should -Match 'not elevated'
+        $aggregate = Get-DiskSource -Run $run -Id 'diskio_aggregate'
+        $aggregate.status | Should -BeExactly 'not_collected'
+        $aggregate.status_reason | Should -Match 'no complete trace'
+        @($aggregate.artifacts | Where-Object { $_.role -eq 'primary' }).Count | Should -Be 0
+        Assert-DiskNothingLeft -Out $out
+    }
+
+    It 'refuses a busy default instance, a missing wpr or tracerpt, and a profile wpr does not enumerate' {
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Wpr.State = 'recording'
+        $run = Invoke-DiskCase -Name 'busy' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status_reason | Should -Match 'did not read as idle'
+        Get-DiskWprVerbs | Should -Be @('-status') -Because 'a recording it did not start is never cancelled'
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Wpr.Present = $false
+        $run = Invoke-DiskCase -Name 'no-wpr' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status | Should -BeExactly 'not_collected'
+        $global:WfSynthetic.Processes.Count | Should -Be 0
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Tracerpt.Present = $false
+        $run = Invoke-DiskCase -Name 'no-tracerpt' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status_reason | Should -Match 'tracerpt.exe'
+        $global:WfSynthetic.Processes.Count | Should -Be 0
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Wpr.ProfilesExitCode = 2
+        $run = Invoke-DiskCase -Name 'bad-profile' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status_reason | Should -Match 'did not enumerate'
+        Get-DiskWprVerbs | Should -Be @('-status', '-profiles')
+    }
+
+    It 'reports a refused start as not_collected, and cancels what a refused start left running' {
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Wpr.StartExitCode = 1
+        $global:WfSynthetic.Wpr.StartStdErr = "The NT Kernel Logger session is already in use.`r`n"
+        $run = Invoke-DiskCase -Name 'start-refused' -Arguments $arguments
+        $trace = Get-DiskSource -Run $run -Id 'wpr_trace'
+        $trace.status | Should -BeExactly 'not_collected'
+        $trace.status_reason | Should -Match 'wpr -start was refused'
+        $trace.status_reason | Should -Match 'already in use'
+        Get-DiskWprVerbs | Should -Be @('-status', '-profiles', '-start', '-status')
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Wpr.StartExitCode = 1
+        $global:WfSynthetic.Wpr.StartLeavesRunning = $true
+        $run = Invoke-DiskCase -Name 'start-left-running' -Arguments $arguments
+        Get-DiskWprVerbs | Should -Be @('-status', '-profiles', '-start', '-status', '-cancel', '-status')
+        (Get-DiskSource -Run $run -Id 'wpr_trace').enabled.options.session_confirmed_stopped | Should -BeTrue
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Wpr.StartStuck = $true
+        $global:WfSynthetic.Wpr.CancelLeavesRunning = $true
+        $run = Invoke-DiskCase -Name 'start-stuck' -Arguments $arguments
+        $trace = Get-DiskSource -Run $run -Id 'wpr_trace'
+        $trace.status | Should -BeExactly 'capture_failed'
+        $trace.status_reason | Should -Match 'may still be recording'
+        @($run.Manifest.notes | Where-Object { $_ -match 'wpr -cancel -instancename WfDiskIoTrace-' }).Count | Should -Be 1
+    }
+
+    It 'cancels a session whose settings cannot be verified, and never records it' {
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Wpr.Keywords = @('DiskIO', 'Filename', 'ProcessThread')
+        $run = Invoke-DiskCase -Name 'no-hardfaults' -Arguments $arguments
+        $trace = Get-DiskSource -Run $run -Id 'wpr_trace'
+        $trace.status | Should -BeExactly 'capture_failed'
+        $trace.status_reason | Should -Match 'no HardFaults keyword'
+        Get-DiskWprVerbs | Should -Be @('-status', '-profiles', '-start', '-status', '-status', '-cancel', '-status')
+        (Get-DiskSource -Run $run -Id 'diskio_aggregate').status | Should -BeExactly 'not_collected'
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Wpr.EventsLostText = 'n/a'
+        $run = Invoke-DiskCase -Name 'unreadable-loss' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status_reason | Should -Match 'Events Lost'
+    }
+
+    It 'cancels and confirms when the stop fails or does not finish, and keeps nothing' {
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Wpr.StopExitCode = 1
+        $global:WfSynthetic.Wpr.StopStdErr = "synthetic stop failure`r`n"
+        $out = Join-Path $TestDrive 'stop-failed'
+        $run = Invoke-TestCollector -Collector 'diskio-trace' -OutputDirectory $out -Arguments $arguments
+        $trace = Get-DiskSource -Run $run -Id 'wpr_trace'
+        $trace.status | Should -BeExactly 'capture_failed'
+        $trace.status_reason | Should -Match 'wpr -stop failed'
+        Get-DiskWprVerbs | Should -Be @('-status', '-profiles', '-start', '-status', '-stop', '-status', '-cancel', '-status')
+        Assert-DiskNothingLeft -Out $out
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Wpr.StopStuck = $true
+        $run = Invoke-DiskCase -Name 'stop-stuck' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status_reason | Should -Match 'did not finish within'
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Wpr.StopLeavesRunning = $true
+        $global:WfSynthetic.Wpr.CancelLeavesRunning = $true
+        $run = Invoke-DiskCase -Name 'still-running' -Arguments $arguments
+        $trace = Get-DiskSource -Run $run -Id 'wpr_trace'
+        $trace.status | Should -BeExactly 'capture_failed'
+        $trace.enabled.options.session_confirmed_stopped | Should -BeFalse
+        (Get-DiskSource -Run $run -Id 'diskio_aggregate').status | Should -BeExactly 'not_collected'
+    }
+
+    It 'fails the trace on any final loss, an unreadable header, a header without an end, and a clock other than the counter' {
+        $arguments = Start-DiskCase -Case 'diskio-trace-events-lost'
+        $run = Invoke-DiskCase -Name 'lost' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status_reason | Should -Match 'lost 544 events'
+        @(Get-DiskTracerptRuns).Count | Should -Be 1 -Because 'no dump is made from a lossy trace'
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Tracerpt.BuffersLost = 2
+        $run = Invoke-DiskCase -Name 'lost-buffers' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status | Should -BeExactly 'capture_failed'
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Tracerpt.Labels = 'nonnumeric'
+        $run = Invoke-DiskCase -Name 'loss-unreadable' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status_reason | Should -Match 'no single whole number'
+        (Get-DiskSource -Run $run -Id 'wpr_trace').events_lost | Should -BeNullOrEmpty -Because 'an unreadable figure is null, never zero'
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Wpr.EtlContent = $null
+        $run = Invoke-DiskCase -Name 'no-header' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status_reason | Should -Match 'log file header could not be read'
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Wpr.EtlContent = New-WfSyntheticEtlBytes -DurationSeconds 10 -NoEndTime
+        $run = Invoke-DiskCase -Name 'no-end' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status_reason | Should -Match 'no end time'
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Wpr.EtlContent = New-WfSyntheticEtlBytes -DurationSeconds 10 -ClockType 2
+        $run = Invoke-DiskCase -Name 'system-clock' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status_reason | Should -Match 'system_time clock'
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Wpr.EtlContent = New-WfSyntheticEtlBytes -DurationSeconds 10 -EventsLost 3
+        $run = Invoke-DiskCase -Name 'header-loss' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status_reason | Should -Match 'header records 3 events lost'
+    }
+
+    It 'never presents a dump it could not read whole as an aggregate' {
+        $arguments = Start-DiskCase -Case 'diskio-trace-dump-unrendered'
+        $out = Join-Path $TestDrive 'unrendered'
+        $run = Invoke-TestCollector -Collector 'diskio-trace' -OutputDirectory $out -Arguments $arguments
+        $run.ExitCode | Should -Be 0
+        ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'partial'
+        $aggregate = Get-DiskSource -Run $run -Id 'diskio_aggregate'
+        $aggregate.status | Should -BeExactly 'capture_failed'
+        $aggregate.status_reason | Should -Match 'could not be read'
+        Test-Path -LiteralPath (Join-Path $out 'raw/diskio_aggregate/aggregate.jsonl') | Should -BeFalse
+        Assert-DiskNothingLeft -Out $out
+
+        $arguments = Start-DiskCase -Machine @{ ExtraProcessed = 1 }
+        $run = Invoke-DiskCase -Name 'count-mismatch' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'diskio_aggregate').status_reason | Should -Match 'events processed'
+
+        $arguments = Start-DiskCase -Machine @{ NoDiskEvents = $true }
+        $run = Invoke-DiskCase -Name 'no-disk' -Arguments $arguments
+        $aggregate = Get-DiskSource -Run $run -Id 'diskio_aggregate'
+        $aggregate.status | Should -BeExactly 'capture_failed' -Because 'zero disk requests is never a quiet window'
+        $aggregate.status_reason | Should -Match 'not accepted as a quiet window'
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Tracerpt.Stuck = $true
+        $out = Join-Path $TestDrive 'read-stuck'
+        $run = Invoke-TestCollector -Collector 'diskio-trace' -OutputDirectory $out -Arguments $arguments
+        $run.ExitCode | Should -Be 1
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status | Should -BeExactly 'capture_failed'
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status_reason | Should -Match 'final loss statistics could not be read.*did not finish within'
+        (Get-DiskSource -Run $run -Id 'diskio_aggregate').status | Should -BeExactly 'not_collected'
+        @(Get-DiskTracerptRuns).Count | Should -Be 1 -Because 'the aggregate starts no tracerpt of its own'
+        Assert-DiskNothingLeft -Out $out
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Tracerpt.ExitCode = 5
+        $run = Invoke-DiskCase -Name 'read-failed' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'wpr_trace').status_reason | Should -Match 'final loss statistics could not be read'
+        (Get-DiskSource -Run $run -Id 'diskio_aggregate').status | Should -BeExactly 'not_collected'
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Tracerpt.DumpXml = $null
+        $run = Invoke-DiskCase -Name 'dump-missing' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'diskio_aggregate').status_reason | Should -Match 'wrote no dump'
+
+        $arguments = Start-DiskCase
+        $global:WfSynthetic.Tracerpt.DumpXml = '<Events><Event><System>'
+        $run = Invoke-DiskCase -Name 'dump-broken' -Arguments $arguments
+        (Get-DiskSource -Run $run -Id 'diskio_aggregate').status | Should -BeExactly 'capture_failed'
+    }
+
+    It 'refuses a run whose worst case exceeds the dispatcher budget, and values out of range' {
+        Start-DiskCase | Out-Null
+        $run = Invoke-DiskCase -Name 'too-long' -Arguments @{ DurationSeconds = 300; TimeoutSeconds = 120 }
+        $run.ExitCode | Should -Be 1
+        ($run.Stdout[0] | ConvertFrom-Json).status | Should -BeExactly 'failed'
+        Test-Path -LiteralPath (Join-Path $TestDrive 'too-long') | Should -BeFalse
+        $global:WfSynthetic.Processes.Count | Should -Be 0
+        $run = Invoke-DiskCase -Name 'small-dump-cap' -Arguments @{ MaxDumpBytes = 1024 }
+        $run.ExitCode | Should -Be 1
+        (Get-DiskIoWorstCaseSeconds -DurationSeconds 60 -TimeoutSeconds 120) | Should -Be 690
+    }
+
+    It 'keeps fixed roots and one level below them, replaces the user folder, and pseudonymises everything deeper' {
+        $salt = 'unit-salt'
+        $p = ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Users\Alice\Documents\Taxes\2025\return.pdf' -Salt $salt -CollectorPrefix ''
+        $p.volume | Should -BeExactly 'HarddiskVolume3'
+        $p.directory | Should -BeExactly ('\Users\<profile>\Documents\Taxes\' + (ConvertTo-WfPseudonym -Kind 'dir' -Value '\users\alice\documents\taxes\2025' -Salt $salt))
+        $p.extension | Should -BeExactly '.pdf'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Users\Alice\notes.txt' -Salt $salt -CollectorPrefix '').directory | Should -BeExactly '\Users\<profile>'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Users\Alice\Music\Band\a.mp3' -Salt $salt -CollectorPrefix '').directory | Should -Match '^\\Users\\<profile>\\dir-[0-9a-f]{12}\\dir-[0-9a-f]{12}$'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Users\Alice\AppData\Roaming\App\x\y.db' -Salt $salt -CollectorPrefix '').directory | Should -Match '^\\Users\\<profile>\\AppData\\Roaming\\App\\dir-[0-9a-f]{12}$'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Windows\System32\drivers\x.sys' -Salt $salt -CollectorPrefix '').directory | Should -Match '^\\Windows\\System32\\dir-[0-9a-f]{12}$'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Program Files (x86)\Vendor\bin\a.dll' -Salt $salt -CollectorPrefix '').directory | Should -Match '^\\Program Files \(x86\)\\Vendor\\dir-'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\$Mft' -Salt $salt -CollectorPrefix '').directory | Should -BeExactly '\'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\$Extend\$UsnJrnl' -Salt $salt -CollectorPrefix '').directory | Should -BeExactly '\$Extend'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\pagefile.sys' -Salt $salt -CollectorPrefix '').extension | Should -BeExactly '.sys'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\$Extend\$RmMetadata\$TxfLog\$TxfLog.blf' -Salt $salt -CollectorPrefix '').directory | Should -Match '^\\\$Extend\\\$RmMetadata\\dir-[0-9a-f]{12}$'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\$Extend\Alice\x.dat' -Salt $salt -CollectorPrefix '').directory | Should -Match '^\\\$Extend\\dir-[0-9a-f]{12}$' -Because 'below $Extend only the names NTFS reserves there stay readable'
+        $bin = ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\$Recycle.Bin\S-1-5-21-1000000001-1000000002-1000000003-1001\$I1234.txt' -Salt $salt -CollectorPrefix ''
+        $bin.directory | Should -Match '^\\dir-[0-9a-f]{12}\\dir-[0-9a-f]{12}$' -Because 'a $ name that is not NTFS metadata is no root, so the account id below the recycle bin is never readable'
+        $bin.directory | Should -Not -Match 'S-1-5|Recycle'
+        $bin.extension | Should -BeExactly '.txt'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\$WINDOWS.~BT\Sources\Panther\setup.log' -Salt $salt -CollectorPrefix '').directory | Should -Match '^(\\dir-[0-9a-f]{12}){3}$'
+        $c = ConvertTo-DiskIoPathParts -FileName 'C:\Games\Library\Title\data.bin' -Salt $salt -CollectorPrefix ''
+        $c.volume | Should -BeNullOrEmpty
+        $c.directory | Should -Match '^(\\dir-[0-9a-f]{12}){4}$' -Because 'a name with a drive letter, which the kernel does not write, has no fixed root: every component is a pseudonym'
+        $share = ConvertTo-DiskIoPathParts -FileName '\Device\Mup\fileserver\share\f.txt' -Salt $salt -CollectorPrefix ''
+        $share.volume | Should -BeExactly 'Mup'
+        $share.directory | Should -Not -Match 'fileserver|share'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\Weird-Name\a.txt' -Salt $salt -CollectorPrefix '').volume | Should -Match '^dir-[0-9a-f]{12}$'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Windows\a.tar~1' -Salt $salt -CollectorPrefix '').extension | Should -BeExactly 'other'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Windows\README' -Salt $salt -CollectorPrefix '').extension | Should -BeNullOrEmpty
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Windows\Setup.LOG' -Salt $salt -CollectorPrefix '').extension | Should -BeExactly '.log'
+        # The trace cannot tell a folder from a file: the tail of a dotted folder name is never kept as an extension.
+        $profileFolder = ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Users\john.smith' -Salt $salt -CollectorPrefix ''
+        $profileFolder.directory | Should -BeExactly '\Users'
+        $profileFolder.extension | Should -BeExactly 'other'
+        $dotted = ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Users\x\Documents\Private\Taxes.2025' -Salt $salt -CollectorPrefix ''
+        $dotted.directory | Should -BeExactly '\Users\<profile>\Documents\Private'
+        $dotted.extension | Should -BeExactly 'other'
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Users\Alice\Music\Band\a.mp3' -Salt $salt -CollectorPrefix '').extension | Should -BeExactly 'other' -Because 'only the listed file classes keep their extension'
+        @((Get-DiskIoPseudonymRules).kept_extensions) | Should -Be @(Get-DiskIoKeptExtensions) -Because 'the bundle states the list the rule applied'
+        $own = ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Out\Bundle\private\trace.etl' -Salt $salt -CollectorPrefix '\out\bundle'
+        $own.path_class | Should -BeExactly 'collector'
+        $own.directory | Should -BeNullOrEmpty
+        (ConvertTo-DiskIoPathParts -FileName '\Device\HarddiskVolume3\Out\BundleOther\x.etl' -Salt $salt -CollectorPrefix '\out\bundle').path_class | Should -BeExactly 'named'
+        ConvertTo-DiskIoImageName -Image 'Game-Shipping.exe' -Salt $salt | Should -BeExactly 'Game-Shipping.exe'
+        ConvertTo-DiskIoImageName -Image 'C:\Users\Alice\x.exe' -Salt $salt | Should -Match '^image-[0-9a-f]{12}$'
+        ConvertTo-DiskIoImageName -Image '' -Salt $salt | Should -BeNullOrEmpty
+    }
+
+    It 'reads numbers and summaries without ever turning an unreadable value into zero' {
+        ConvertTo-DiskIoNumber -Text ' 12 ' | Should -Be 12
+        ConvertTo-DiskIoNumber -Text '0x1F' | Should -Be 31
+        ConvertTo-DiskIoNumber -Text '-1' | Should -BeNullOrEmpty
+        ConvertTo-DiskIoNumber -Text '1,234' | Should -BeNullOrEmpty
+        ConvertTo-DiskIoNumber -Text $null | Should -BeNullOrEmpty
+        $summary = Read-DiskIoSummary -Text "Total Buffers Processed 69`r`nTotal Events  Processed 31`r`nTotal Events  Lost      0`r`nTotal Buffers Lost      0`r`n"
+        $summary.events_processed | Should -Be 31
+        $summary.events_lost | Should -Be 0
+        $summary.buffers_lost | Should -Be 0
+        (Read-DiskIoSummary -Text "Events Lost: 0`nEvents Lost: 4`nBuffers Lost: 0").events_lost | Should -BeNullOrEmpty -Because 'two lines that disagree give no figure'
+        (Read-DiskIoSummary -Text "Events Lost: n/a`nBuffers Lost: 0").events_lost | Should -BeNullOrEmpty
+        (Read-DiskIoSummary -Text 'nothing here').events_processed | Should -BeNullOrEmpty
+    }
+
+    It 'reads the log file header as the presentmon-frames reader does, on the vendor''s first buffer and the synthetic one' {
+        foreach ($path in @($script:DiskGold)) {
+            $mine = Read-DiskIoEtlHeader -Path $path
+            $theirs = Read-WfEtlHeader -Path $path
+            $mine.found | Should -BeTrue
+            $mine.clock_type | Should -BeExactly $theirs.clock_type
+            $mine.perf_freq_hz | Should -Be $theirs.perf_freq_hz
+            $mine.start_time_utc | Should -BeExactly $theirs.start_time_utc
+            $mine.end_time_utc | Should -BeExactly $theirs.end_time_utc
+            $mine.events_lost | Should -Be $theirs.events_lost
+            $mine.buffers_lost | Should -Be $theirs.buffers_lost
+        }
+        Reset-WfSynthetic
+        $synthetic = Join-Path $TestDrive 'synthetic-header.etl'
+        [System.IO.File]::WriteAllBytes($synthetic, (New-WfSyntheticEtlBytes -DurationSeconds 10))
+        $header = Read-DiskIoEtlHeader -Path $synthetic
+        $header.found | Should -BeTrue
+        $header.clock_type | Should -BeExactly 'qpc'
+        $header.start_time_utc | Should -BeExactly '2026-03-01T12:00:07.0000000Z'
+        $filler = Join-Path $TestDrive 'filler.etl'
+        Write-WfSyntheticFiller -Path $filler -Bytes 4096
+        (Read-DiskIoEtlHeader -Path $filler).found | Should -BeFalse
+    }
+}

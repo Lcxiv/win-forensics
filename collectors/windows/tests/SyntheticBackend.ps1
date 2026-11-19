@@ -57,7 +57,11 @@
 #              events lost, a lost buffers line), the bytes of the temporary recording and of
 #              the saved trace, and whether a stop or cancel leaves the session running
 #   Tracerpt   the synthetic tracerpt: Present, ExitCode, Stuck, EventsLost and BuffersLost of
-#              the saved trace, Labels ('english', 'missing' or 'nonnumeric')
+#              the saved trace, Labels ('english', 'missing' or 'nonnumeric'), EventsProcessed
+#              (the summary's processed count), and for a call that also names an XML dump
+#              ("-o <file> -of XML", diskio-trace) DumpXml (the text written, none when null) and
+#              OnDump (a scriptblock run once the dump is written, for a case that changes
+#              the files under the collector's feet)
 #   Tools      full path of an operator supplied tool -> @{ Sha256; Version } (nothing is read
 #              from disk, so the fixtures stay reproducible)
 #   PinnedTools  tool name -> list of @{ Version; Sha256; Source } the helper reports as pinned
@@ -100,7 +104,7 @@ function Reset-WfSynthetic {
         Elevated     = $false
         PerformanceLogUsers = $false
         Wpr          = New-WfSyntheticWpr
-        Tracerpt     = @{ Present = $true; ExitCode = 0; Stuck = $false; EventsLost = 0; BuffersLost = 0; Labels = 'english' }
+        Tracerpt     = @{ Present = $true; ExitCode = 0; Stuck = $false; EventsLost = 0; BuffersLost = 0; Labels = 'english'; EventsProcessed = 107340; DumpXml = $null; OnDump = $null }
         Tools        = @{}
         PinnedTools  = @{}
         Xperf        = @{ ExitCode = 0; StdOut = ''; StdErr = ''; Stuck = $false }
@@ -1001,6 +1005,8 @@ function New-WfSyntheticWpr {
         BufferSizeKb        = 1024
         TempBytes           = 4096
         EtlBytes            = 4096
+        EtlContent          = $null
+        ProfileName         = 'WfDpcIsrTrace'
         TempDir             = $null
     }
 }
@@ -1072,7 +1078,7 @@ function Get-WfSyntheticWprStatusText {
     if ($Collectors) {
         $lines.Add('')
         $lines.Add('Recording system activity using the following set of profiles:')
-        $lines.Add('Profile                 : WfDpcIsrTrace.Verbose.File')
+        $lines.Add('Profile                 : ' + [string]$wpr.ProfileName + '.Verbose.File')
         $lines.Add('')
         $lines.Add('Actively recording collectors:')
         if ($wpr.CollectorName) {
@@ -1114,7 +1120,7 @@ function Invoke-WfSyntheticWpr {
         }
         '-profiles' {
             $Result.ExitCode = [int]$wpr.ProfilesExitCode
-            if ($Result.ExitCode -eq 0) { $Result.StdOut = "Profile                 : WfDpcIsrTrace.Verbose.File`r`nProfile                 : WfDpcIsrTrace.Verbose.Memory`r`n" }
+            if ($Result.ExitCode -eq 0) { $Result.StdOut = ("Profile                 : {0}.Verbose.File`r`nProfile                 : {0}.Verbose.Memory`r`n" -f [string]$wpr.ProfileName) }
             else { $Result.StdErr = "synthetic wpr: the profile file is not valid`r`n" }
         }
         '-start' {
@@ -1150,7 +1156,12 @@ function Invoke-WfSyntheticWpr {
                 $Result.ExitCode = [int]$wpr.StopExitCode
                 $Result.StdErr = [string]$wpr.StopStdErr
             } else {
-                if ($tokens.Count -gt 1) { Write-WfSyntheticFiller -Path $tokens[1] -Bytes ([int64]$wpr.EtlBytes) }
+                if ($tokens.Count -gt 1 -and $null -ne $wpr.EtlContent) {
+                    # A trace whose first buffer the collector reads (diskio-trace reads its header).
+                    $parent = Split-Path -Parent $tokens[1]
+                    if ($parent -and -not (Test-Path -LiteralPath $parent)) { $null = New-Item -ItemType Directory -Force -Path $parent }
+                    [System.IO.File]::WriteAllBytes($tokens[1], [byte[]]$wpr.EtlContent)
+                } elseif ($tokens.Count -gt 1) { Write-WfSyntheticFiller -Path $tokens[1] -Bytes ([int64]$wpr.EtlBytes) }
                 if ($wpr.TempDir -and (Test-Path -LiteralPath (Join-Path $wpr.TempDir 'synthetic-temporary-recording.etl'))) {
                     Remove-Item -LiteralPath (Join-Path $wpr.TempDir 'synthetic-temporary-recording.etl') -Force
                 }
@@ -1177,8 +1188,9 @@ function Invoke-WfSyntheticWpr {
 }
 
 function Invoke-WfSyntheticTracerpt {
-    # "tracerpt <trace> -summary <file> -y": writes an invented summary whose
-    # loss lines follow the Labels knob. The real tool's text is not
+    # "tracerpt <trace> [-o <file> -of XML] -summary <file> -y": writes an
+    # invented summary whose loss lines follow the Labels knob, and the dump
+    # when the call names one. The real tool's text is not
     # documented and is a verification item in the README.
     param([string]$Arguments, [int]$TimeoutSeconds, $Result)
     $tracerpt = $global:WfSynthetic.Tracerpt
@@ -1193,7 +1205,11 @@ function Invoke-WfSyntheticTracerpt {
     }
     $trace = $(if ($tokens.Count -gt 0) { $tokens[0] } else { '' })
     $summaryPath = $null
-    for ($i = 0; $i -lt $tokens.Count - 1; $i++) { if ($tokens[$i] -eq '-summary') { $summaryPath = $tokens[$i + 1] } }
+    $dumpPath = $null
+    for ($i = 0; $i -lt $tokens.Count - 1; $i++) {
+        if ($tokens[$i] -eq '-summary') { $summaryPath = $tokens[$i + 1] }
+        if ($tokens[$i] -eq '-o') { $dumpPath = $tokens[$i + 1] }
+    }
     if (-not $trace -or -not (Test-Path -LiteralPath $trace)) {
         $Result.ExitCode = 1
         $Result.StdErr = 'synthetic tracerpt: the trace file does not exist'
@@ -1204,12 +1220,17 @@ function Invoke-WfSyntheticTracerpt {
         $Result.StdErr = 'synthetic tracerpt: failed'
         return $Result
     }
+    if ($dumpPath) {
+        # "-o <file> -of XML" in the same call: the dump diskio-trace reads.
+        if ($null -ne $tracerpt['DumpXml']) { Write-WfTextFile -Path $dumpPath -Text ([string]$tracerpt['DumpXml']) }
+        if ($tracerpt['OnDump'] -is [scriptblock]) { & $tracerpt['OnDump'] }
+    }
     $nl = "`r`n"
     $lines = New-Object 'System.Collections.Generic.List[string]'
     $lines.Add('Files Processed:')
     $lines.Add("`t" + $trace)
     $lines.Add('Total Buffers Processed 69')
-    $lines.Add('Total Events  Processed 107340')
+    $lines.Add('Total Events  Processed ' + [string]$tracerpt['EventsProcessed'])
     switch ([string]$tracerpt['Labels']) {
         'english' {
             $lines.Add('Total Events  Lost      ' + [string]$tracerpt['EventsLost'])

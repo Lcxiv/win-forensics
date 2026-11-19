@@ -38,10 +38,20 @@ UNAVAILABLE = {"power_mode", "timer_resolution"}
 ALLOWED_WPR_VERBS = {"-status", "-profiles", "-start", "-stop", "-cancel"}
 # The only xperf action: the DPC and ISR report of the trace in the bundle, with -tle only after a loss.
 ALLOWED_XPERF = re.compile(r"^-i <bundle>/private/trace\.etl -a dpcisr( -tle)?$")
-# The only tracerpt action: the summary of the trace in the private folder, written into the bundle, never prompting.
-ALLOWED_TRACERPT = re.compile(r"^<bundle>/private/trace\.etl -summary <bundle>/raw/wpr_trace/tracerpt-summary\.txt -y$")
+# The only tracerpt action of each kernel trace collector, never prompting. dpcisr-trace: the summary of the trace in the
+# private folder, written into the bundle. diskio-trace: one call that also names the XML dump, in the private folder, where
+# it is read and deleted on the PC.
+ALLOWED_TRACERPT = {
+    "dpcisr-trace": re.compile(r"^<bundle>/private/trace\.etl -summary <bundle>/raw/wpr_trace/tracerpt-summary\.txt -y$"),
+    "diskio-trace": re.compile(r"^<bundle>/private/trace\.etl -o <bundle>/private/dump\.xml -of XML -summary <bundle>/raw/wpr_trace/tracerpt-summary\.txt -y$"),
+}
 # Collectors whose cases run elevated (the live capture needs it) and carry a QPC trace.
-LIVE_CAPTURE = {"dpcisr-trace"}
+LIVE_CAPTURE = {"dpcisr-trace", "diskio-trace"}
+# What each kernel trace collector asks of WPR: its profile, its instance prefix, its keywords and why.
+KERNEL_TRACES = {
+    "dpcisr-trace": ("dpcisr-trace.wprp", "WfDpcIsrTrace", ["Interrupt", "DPC", "Loader"], "DPC and interrupt attribution only: no process, thread or scheduling events"),
+    "diskio-trace": ("diskio-trace.wprp", "WfDiskIoTrace", ["DiskIO", "Filename", "HardFaults", "ProcessThread"], "disk attribution: no file I/O, no stacks, no scheduling events"),
+}
 # The one PresentMon command line presentmon-frames may record: the recording read offline, the CSV on
 # stdout, QPC time stamps, and process names only (never --process_id, never a live session, never a
 # file written by PresentMon). The wpr command lines are the four verbs below, every one ending in the
@@ -107,6 +117,10 @@ EXPECTED = {
     "dpcisr-trace-no-xperf": ("partial", {"wpr_trace": "observed", "dpcisr_report": "not_collected"}),
     "dpcisr-trace-events-lost": ("failed", {"wpr_trace": "capture_failed", "dpcisr_report": "capture_failed"}),
     "dpcisr-trace-not-elevated": ("failed", {"wpr_trace": "not_collected", "dpcisr_report": "not_collected"}),
+    "diskio-trace": ("ok", {"wpr_trace": "observed", "diskio_aggregate": "observed"}),
+    "diskio-trace-events-lost": ("failed", {"wpr_trace": "capture_failed", "diskio_aggregate": "not_collected"}),
+    "diskio-trace-not-elevated": ("failed", {"wpr_trace": "not_collected", "diskio_aggregate": "not_collected"}),
+    "diskio-trace-dump-unrendered": ("partial", {"wpr_trace": "observed", "diskio_aggregate": "capture_failed"}),
     "presentmon-frames": ("ok", {"presentmon_frames": "observed"}),
     "presentmon-frames-no-frames": ("failed", {"presentmon_frames": "capture_failed"}),
     "presentmon-frames-no-binary": ("failed", {"presentmon_frames": "not_collected"}),
@@ -172,7 +186,7 @@ def test_manifest_identifies_the_collector(case):
     if name in LIVE_CAPTURE:
         # The kernel trace needs an elevated account (the not-elevated case shows the refusal), its
         # timestamps are QPC and the calibration pairs come from the clock collector, a separate piece.
-        assert manifest["capture"]["elevated"] is (case != "dpcisr-trace-not-elevated")
+        assert manifest["capture"]["elevated"] is (not case.endswith("-not-elevated"))
         assert manifest["calibration"]["status"] == "not_collected" and manifest["calibration"]["pairs"] == []
         assert manifest["scenario"]["requested_duration_s"] == 10
     elif name == "clock-calibration":
@@ -340,9 +354,10 @@ def test_status_and_evidence_stay_separate(case):
             assert collector["preflight"]["ok"] is False and collector["requested"]["options"]["documented_paths"]
             assert primary == [] and collector["expectation"]["met"] is False
         elif collector["kind"] == "wpr":
+            profile_file, profile_name, keywords, why = KERNEL_TRACES[load_summary(case)["collector"]]
             assert collector["command"][0].endswith("\\wpr.exe") and collector["command"][1] == "-start"
-            assert collector["command"][2:6] == ["<bundle>/raw/wpr_trace/dpcisr-trace.wprp!WfDpcIsrTrace.Verbose", "-filemode", "-recordtempto", "<bundle>/private/temp"], "file mode, the recording under the private folder, no absolute path recorded"
-            assert collector["command"][6] == "-instancename" and re.fullmatch(r"WfDpcIsrTrace-\d{8}T\d{6}Z", collector["command"][7]), "the session is scoped to the collector's own instance"
+            assert collector["command"][2:6] == [f"<bundle>/raw/wpr_trace/{profile_file}!{profile_name}.Verbose", "-filemode", "-recordtempto", "<bundle>/private/temp"], "file mode, the recording under the private folder, no absolute path recorded"
+            assert collector["command"][6] == "-instancename" and re.fullmatch(profile_name + r"-\d{8}T\d{6}Z", collector["command"][7]), "the session is scoped to the collector's own instance"
             session = json.loads((BUNDLES / case / "raw" / collector["id"] / "session.json").read_text(encoding="utf-8"))
             wpr_runs = [run for run in session["runs"] if run["tool"] == "wpr.exe"]
             verbs = ["-" + run["verb"] for run in wpr_runs]
@@ -354,9 +369,9 @@ def test_status_and_evidence_stay_separate(case):
                     assert run["arguments"].endswith(f"-instancename {session['instance_name']}"), run
             for run in session["runs"]:
                 if run["tool"] == "tracerpt.exe":
-                    assert ALLOWED_TRACERPT.fullmatch(run["arguments"]), run["arguments"]
+                    assert ALLOWED_TRACERPT[load_summary(case)["collector"]].fullmatch(run["arguments"]), run["arguments"]
             assert collector["buffers"] == {"size_kb": 1024, "count": 64, "mode": "file"}
-            assert collector["requested"]["keywords"] == ["Interrupt", "DPC", "Loader"], "DPC and interrupt attribution only: no process, thread or scheduling events"
+            assert collector["requested"]["keywords"] == keywords, why
             assert session["trace_kept_in_bundle"] is False and not any(a["path"].endswith(".etl") for a in collector["artifacts"]), "the kernel trace never leaves the machine"
             if collector["status"] in OBSERVED:
                 assert collector["events_lost"] == 0 and collector["buffers_lost"] == 0
@@ -365,6 +380,18 @@ def test_status_and_evidence_stay_separate(case):
                 assert primary[0]["path"].endswith("/tracerpt-summary.txt")
             if collector["status_reason"] and "lost" in collector["status_reason"] and "events" in collector["status_reason"]:
                 assert (collector["events_lost"] or 0) + (collector["buffers_lost"] or 0) > 0
+        elif collector["id"] == "diskio_aggregate":
+            # The aggregate made on the PC from the dump the trace source's one tracerpt call wrote: it starts no process itself.
+            assert collector["kind"] == "other" and collector["command"][0].endswith("\\tracerpt.exe")
+            arguments = " ".join(collector["command"][1:])
+            assert arguments == "" or ALLOWED_TRACERPT["diskio-trace"].fullmatch(arguments), arguments
+            result = json.loads((BUNDLES / case / "raw" / collector["id"] / "result.json").read_text(encoding="utf-8"))
+            assert "runs" not in result
+            assert result["recording_and_dump_removed"] is True, "the trace and its dump never leave the PC"
+            assert collector["requested"]["options"]["recording_kept"] is False
+            if collector["status"] in OBSERVED:
+                assert primary[0]["path"].endswith("/aggregate.jsonl") and collector["status"] == "observed", "zero disk requests is never a quiet window"
+                assert result["dump_events"] == result["trace_events_processed"] and result["counts"]["malformed"] == 0
         elif collector["kind"] == "xperf":
             if collector["preflight"]["ok"]:
                 assert collector["command"][0].endswith("\\xperf.exe")

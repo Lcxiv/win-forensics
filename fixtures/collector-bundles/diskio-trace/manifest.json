@@ -1,0 +1,425 @@
+{
+  "manifest_version": "1.1.0",
+  "bundle_id": "20260301T120001Z_diskio_trace_ae3a76a9",
+  "created_utc": "2026-03-01T12:00:18.0000000Z",
+  "scenario": {
+    "id": "diskio_trace",
+    "version": "1.0.0",
+    "requested_duration_s": 10,
+    "target_process": null,
+    "marks": []
+  },
+  "capture": {
+    "start_utc": "2026-03-01T12:00:01.0000000Z",
+    "stop_utc": "2026-03-01T12:00:18.0000000Z",
+    "orchestrator": "wf-collector:diskio-trace",
+    "orchestrator_version": "1.2.0",
+    "elevated": true,
+    "incomplete": false
+  },
+  "machine": {
+    "machine_id": "ae3a76a9f32fa71b72616118339e376c",
+    "hostname": "SYNTHETIC-PC",
+    "os": {
+      "caption": "Microsoft Windows 11 Pro",
+      "version": "10.0.26100",
+      "build": 26100,
+      "ubr": 1,
+      "display_version": "24H2",
+      "architecture": "64-bit",
+      "edition": "Professional"
+    },
+    "cpu": {
+      "name": "Synthetic CPU",
+      "logical_processors": 16,
+      "qpc_frequency_hz": 10000000
+    },
+    "memory_bytes": 34359738368,
+    "gpus": [
+      {
+        "name": "Synthetic Display Adapter",
+        "driver_version": "1.2.3.4",
+        "driver_date": "2026-01-15T00:00:00.0000000Z",
+        "device_id": "PCI\\VEN_FFFF&DEV_0001"
+      }
+    ],
+    "bios": {
+      "vendor": "Synthetic Firmware",
+      "version": "S1.00",
+      "release_date": "2025-11-01T00:00:00.0000000Z"
+    },
+    "board": {
+      "manufacturer": "Synthetic Boards",
+      "product": "SB-1"
+    },
+    "drivers": [],
+    "time_zone": {
+      "name": "UTC",
+      "utc_offset_minutes": 0,
+      "dst_active": false
+    }
+  },
+  "collectors": [
+    {
+      "id": "wpr_trace",
+      "kind": "wpr",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:04.0000000Z",
+        "checks": [
+          {
+            "name": "tool_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\wpr.exe"
+          },
+          {
+            "name": "tracerpt_present",
+            "ok": true,
+            "detail": "C:\\Windows\\System32\\tracerpt.exe"
+          },
+          {
+            "name": "account_elevated",
+            "ok": true,
+            "detail": "controlling an NT Kernel Logger session needs an elevated account (see the collector header for the citation)"
+          },
+          {
+            "name": "concurrent_kernel_session",
+            "ok": true,
+            "detail": "not checked: Microsoft documents no read only command that lists the kernel trace sessions in progress; this collector is run alone, and a start that collides with another NT Kernel Logger session is refused by WPR and reported"
+          },
+          {
+            "name": "no_recording_in_progress",
+            "ok": true,
+            "detail": "wpr -status (default instance) reads as idle: WPR is not recording"
+          },
+          {
+            "name": "profile_enumerated",
+            "ok": true,
+            "detail": "wpr -profiles enumerated the profile file and exited 0"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\wpr.exe",
+        "-start",
+        "<bundle>/raw/wpr_trace/diskio-trace.wprp!WfDiskIoTrace.Verbose",
+        "-filemode",
+        "-recordtempto",
+        "<bundle>/private/temp",
+        "-instancename",
+        "WfDiskIoTrace-20260301T120002Z"
+      ],
+      "started_utc": "2026-03-01T12:00:02.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:14.0000000Z",
+      "exit_code": 0,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "945fbbc8ac4b80c1b62edd29698747df725dfe76ab345b4caeacedfe11bb9b12"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [
+          "NT Kernel Logger"
+        ],
+        "keywords": [
+          "DiskIO",
+          "Filename",
+          "HardFaults",
+          "ProcessThread"
+        ],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "profile_name": "WfDiskIoTrace",
+          "profile_id": "WfDiskIoTrace.Verbose.File",
+          "logging_mode": "file",
+          "instance_name": "WfDiskIoTrace-20260301T120002Z",
+          "buffer_size_kb": 1024,
+          "buffer_count": 64,
+          "duration_seconds": 10,
+          "max_trace_bytes": 2147483648,
+          "events_lost_bound": 0,
+          "buffers_lost_bound": 0,
+          "record_temp_to": "<bundle>/private/temp",
+          "trace_path": "<bundle>/private/trace.etl",
+          "trace_kept_in_bundle": false,
+          "stop_arguments": [
+            "-stop",
+            "<bundle>/private/trace.etl",
+            "win-forensics diskio-trace 20260301T120002Z",
+            "-skipPdbGen",
+            "-instancename",
+            "WfDiskIoTrace-20260301T120002Z"
+          ],
+          "tool_timeout_seconds": 120,
+          "short_timeout_seconds": 30,
+          "worst_case_seconds": 660,
+          "concurrent_kernel_session_check": "not_checked",
+          "run_alone": "until the PC verification of two WPR instances with system collectors recording at once has passed (README verification list), this collector is run alone and never next to dpcisr-trace"
+        }
+      },
+      "enabled": {
+        "providers": [
+          "NT Kernel Logger"
+        ],
+        "keywords": [
+          "DiskIO",
+          "Filename",
+          "HardFaults",
+          "ProcessThread"
+        ],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "instance_name": "WfDiskIoTrace-20260301T120002Z",
+          "dropped_events_after_start": 0,
+          "events_lost_after_start": 0,
+          "buffers_lost_listed_after_start": false,
+          "logging_mode": "File",
+          "final_events_lost": 0,
+          "final_buffers_lost": 0,
+          "final_events_processed": 31,
+          "clock_type": "qpc",
+          "perf_freq_hz": 10000000,
+          "header_events_lost": 0,
+          "header_buffers_lost": 0,
+          "session_started_utc": "2026-03-01T12:00:03.0000000Z",
+          "session_stop_issued_utc": "2026-03-01T12:00:13.0000000Z",
+          "recording_seconds": 10,
+          "trace_bytes": 4096,
+          "trace_sha256": "53e27a449710f975a7c15321395dca8f467d760a3b73fc3e69892d771f8edde9",
+          "trace_kept_in_bundle": false,
+          "temp_bytes_seen": 4096,
+          "stopped_early_at_cap": false,
+          "concurrent_kernel_session_check": "not_checked",
+          "session_state_after_stop": "idle",
+          "session_state_final": "idle",
+          "session_confirmed_stopped": true
+        },
+        "verified_by": "keywords and buffer size from \"wpr -status profiles collectors -details -instancename <name>\" right after the start (status.txt); clock, PerfFreq, start, end and the header loss counters from the saved trace's log file header (session.json header); final events lost and buffers lost from the summary of \"tracerpt <trace> -o <private dump> -of XML -summary <file> -y\" after the stop (tracerpt-summary.txt); the session end from \"wpr -status -instancename <name>\""
+      },
+      "events_lost": 0,
+      "buffers_lost": 0,
+      "buffers": {
+        "size_kb": 1024,
+        "count": 64,
+        "mode": "file"
+      },
+      "artifacts": [
+        {
+          "path": "raw/wpr_trace/diskio-trace.wprp",
+          "bytes": 1630,
+          "sha256": "945fbbc8ac4b80c1b62edd29698747df725dfe76ab345b4caeacedfe11bb9b12",
+          "role": "config"
+        },
+        {
+          "path": "raw/wpr_trace/session.json",
+          "bytes": 6501,
+          "sha256": "72050892ca4984eb5e22fdcb3e2ce2676ccf6985ca62dc1bb076c7dc7f30dab7",
+          "role": "report"
+        },
+        {
+          "path": "raw/wpr_trace/status.txt",
+          "bytes": 451,
+          "sha256": "7ba20bf3cb7e76b586ed94d318f51eccd0cce3653a35ad3c7dee45858ab73ad2",
+          "role": "report"
+        },
+        {
+          "path": "raw/wpr_trace/tracerpt-summary.txt",
+          "bytes": 270,
+          "sha256": "c5d940774cf20f66463a52392d63f3c53c20da94f8e6d0f20876662fcabe2fd3",
+          "role": "primary"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:07.0000000Z",
+        "end": "2026-03-01T12:00:28.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "wpr starts the profile under the collector's own instance name, lists the kernel collector with DiskIO, Filename, HardFaults and ProcessThread and a readable loss figure, records for the requested duration, saves a non empty trace within the cap whose header names the performance counter clock, an end time and no loss, reads as idle after the stop, and the one tracerpt call that writes the dump into the private folder and the summary reports zero events lost and zero buffers lost",
+        "met": true,
+        "detail": "final events lost 0; final buffers lost 0; trace 4096 bytes; clock qpc; recording 10 s of 10 requested; session idle"
+      },
+      "target_process": null
+    },
+    {
+      "id": "diskio_aggregate",
+      "kind": "other",
+      "required": true,
+      "status": "observed",
+      "status_reason": null,
+      "preflight": {
+        "ok": true,
+        "at_utc": "2026-03-01T12:00:16.0000000Z",
+        "checks": [
+          {
+            "name": "trace_observed",
+            "ok": true,
+            "detail": "the wpr_trace source is observed: zero events and buffers lost, the session confirmed stopped, a performance counter clock"
+          }
+        ]
+      },
+      "command": [
+        "C:\\Windows\\System32\\tracerpt.exe",
+        "<bundle>/private/trace.etl",
+        "-o",
+        "<bundle>/private/dump.xml",
+        "-of",
+        "XML",
+        "-summary",
+        "<bundle>/raw/wpr_trace/tracerpt-summary.txt",
+        "-y"
+      ],
+      "started_utc": "2026-03-01T12:00:15.0000000Z",
+      "stopped_utc": "2026-03-01T12:00:17.0000000Z",
+      "exit_code": null,
+      "config_hash": {
+        "algorithm": "sha256",
+        "value": "5d1730ca867f589afe863d22e2bb9c66c13c22384e6424306e503babff3aa928"
+      },
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "max_dump_bytes": 4294967296,
+          "max_artifact_bytes": 67108864,
+          "timeout_seconds": 120,
+          "bin_seconds": 1,
+          "readable_levels_below_root": 1,
+          "recording_kept": false
+        }
+      },
+      "enabled": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {
+          "rows": 11,
+          "dump_events": 31,
+          "trace_events_processed": 31,
+          "disk_read_events": 7,
+          "disk_write_events": 5,
+          "hard_fault_events": 2,
+          "malformed_events": 0,
+          "unresolved_thread_operations": 1,
+          "unnamed_file_operations": 1,
+          "trace_sha256": "53e27a449710f975a7c15321395dca8f467d760a3b73fc3e69892d771f8edde9",
+          "dump_bytes": 29592,
+          "dump_sha256": "a95eebac2b3e328d93ec8e26962c595eac381f1f32c5de15e7616763cf71908c",
+          "recording_and_dump_removed": true,
+          "clock_type": "qpc",
+          "perf_freq_hz": 10000000,
+          "trace_start_utc": "2026-03-01T12:00:07.0000000Z"
+        },
+        "verified_by": "the dump's event count against the tracerpt summary's events processed, every counted event read whole, and the removal of the trace and the dump checked on disk (result.json)"
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [
+        {
+          "path": "raw/diskio_aggregate/aggregate.jsonl",
+          "bytes": 5074,
+          "sha256": "1301e4af9e9e38c269ba13950d86b8e47ca30c46ae2a15822e093ff83f98acb9",
+          "role": "primary"
+        },
+        {
+          "path": "raw/diskio_aggregate/command.json",
+          "bytes": 5811,
+          "sha256": "5d1730ca867f589afe863d22e2bb9c66c13c22384e6424306e503babff3aa928",
+          "role": "config"
+        },
+        {
+          "path": "raw/diskio_aggregate/result.json",
+          "bytes": 1569,
+          "sha256": "1418160ffee5531aab5734d38626a1fd9218abf12196cbee4755772dd7a3f626",
+          "role": "report"
+        }
+      ],
+      "raw_time_range": {
+        "start": "2026-03-01T12:00:07.0000000Z",
+        "end": "2026-03-01T12:00:28.0000000Z",
+        "domain": "system_time",
+        "unit": "iso_utc"
+      },
+      "expectation": {
+        "declared": "the XML dump tracerpt made of the observed trace is there and within the cap, the dump holds exactly the events the summary says were processed, every disk, hard fault, file name, thread and process event reads whole, at least one disk request is recognised, the aggregate fits the cap, and the trace and the dump are deleted and seen gone (when they are not, both sources are capture_failed and the run is failed)",
+        "met": true,
+        "detail": "31 events in the dump, 7 reads, 5 writes, 2 hard faults, 0 malformed, 11 rows; trace and dump removed: True"
+      },
+      "target_process": null
+    }
+  ],
+  "calibration": {
+    "status": "not_collected",
+    "method": "none in this collector: the aggregate's bins are seconds on the trace's own performance counter clock from its header StartTime (etw_qpc_relative); the calibration pairs that relate it to system time come from the clock collector, a separate piece. Run alone: no other kernel trace session was checked for (Microsoft documents no read only listing of them)",
+    "qpc_frequency_hz": 10000000,
+    "expected_pairs": 0,
+    "pairs": [],
+    "missing_pairs": 0,
+    "time_adjustment": {
+      "start": null,
+      "stop": null
+    },
+    "boot_time_utc": "2026-02-27T12:00:00.0000000Z"
+  },
+  "tools": [
+    {
+      "name": "powershell",
+      "version": "5.1.26100.1",
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "sha256": null
+    },
+    {
+      "name": "wevtutil",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wevtutil.exe",
+      "sha256": null
+    },
+    {
+      "name": "collector:diskio-trace",
+      "version": "1.0.0",
+      "path": "<install directory>\\diskio-trace.ps1",
+      "sha256": null
+    },
+    {
+      "name": "collector-helper:_common.ps1",
+      "version": "1.2.0",
+      "path": "<install directory>\\_common.ps1",
+      "sha256": null
+    },
+    {
+      "name": "wpr",
+      "version": null,
+      "path": "C:\\Windows\\System32\\wpr.exe",
+      "sha256": null
+    },
+    {
+      "name": "tracerpt",
+      "version": null,
+      "path": "C:\\Windows\\System32\\tracerpt.exe",
+      "sha256": null
+    }
+  ],
+  "symbols": {
+    "symbol_path": null,
+    "cache_path": null,
+    "dbghelp_version": null
+  },
+  "checksum_algorithm": "sha256",
+  "notes": [
+    "Read only collector diskio-trace version 1.0.0: What reads from and writes to disk while the PC is in use, per process, per directory, per disk, in one second bins?",
+    "Ran as SYNTHETIC-PC\\wf-collector; elevated: True; member of Event Log Readers (S-1-5-32-573): True.",
+    "The bundle directory is created and named by the dispatcher; bundle_id in this manifest is the authoritative id.",
+    "This bundle holds capture output only. Decoded tables, evidence rows and a verdict are written later, off the machine."
+  ]
+}

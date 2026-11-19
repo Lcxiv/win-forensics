@@ -1,0 +1,73 @@
+{
+  "tool": "C:\\Windows\\System32\\wpr.exe",
+  "tracerpt": "C:\\Windows\\System32\\tracerpt.exe",
+  "instance_name": "WfDiskIoTrace-20260301T120002Z",
+  "profile_file": "raw/wpr_trace/diskio-trace.wprp",
+  "profile_name": "WfDiskIoTrace",
+  "profile_id": "WfDiskIoTrace.Verbose.File",
+  "requested_keywords": [
+    "DiskIO",
+    "Filename",
+    "HardFaults",
+    "ProcessThread"
+  ],
+  "buffer_size_kb": 1024,
+  "buffer_count": 64,
+  "logging_mode": "file",
+  "duration_seconds": 10,
+  "max_trace_bytes": 2147483648,
+  "tool_timeout_seconds": 120,
+  "short_timeout_seconds": 30,
+  "worst_case_seconds": 660,
+  "events_lost_bound": 0,
+  "buffers_lost_bound": 0,
+  "concurrent_kernel_session_check": "not_checked",
+  "start_arguments": [
+    "<bundle>/raw/wpr_trace/diskio-trace.wprp!WfDiskIoTrace.Verbose",
+    "-filemode",
+    "-recordtempto",
+    "<bundle>/private/temp"
+  ],
+  "stop_arguments": [
+    "<bundle>/private/trace.etl",
+    "win-forensics diskio-trace 20260301T120002Z",
+    "-skipPdbGen"
+  ],
+  "tracerpt_arguments": [
+    "<bundle>/private/trace.etl",
+    "-o",
+    "<bundle>/private/dump.xml",
+    "-of",
+    "XML",
+    "-summary",
+    "<bundle>/raw/wpr_trace/tracerpt-summary.txt",
+    "-y"
+  ],
+  "session_started_utc": null,
+  "session_stop_issued_utc": null,
+  "recording_seconds": null,
+  "stopped_early_at_cap": false,
+  "temp_bytes_seen": 0,
+  "trace_bytes": null,
+  "trace_sha256": null,
+  "trace_kept_in_bundle": false,
+  "trace_removed_reason": "the trace holds full file paths, process command lines and user ids, and system configuration events with hardware and network addresses; it is read on the machine and never leaves it (collectors/windows/README.md, The diskio-trace sources)",
+  "header": null,
+  "status_after_start": null,
+  "settings_verified": null,
+  "final": {
+    "events_lost": null,
+    "buffers_lost": null,
+    "events_processed": null,
+    "source": "the summary written by the one tracerpt read of the saved trace",
+    "events_lost_lines": 0,
+    "buffers_lost_lines": 0,
+    "events_processed_lines": 0,
+    "labelled_lines": 0,
+    "protection": null
+  },
+  "session_state_after_stop": null,
+  "session_state_final": null,
+  "session_confirmed_stopped": null,
+  "runs": []
+}

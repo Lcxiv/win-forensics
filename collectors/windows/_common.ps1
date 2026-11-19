@@ -4463,8 +4463,10 @@ function Invoke-WfProcess {
     # inbox wpr.exe (status, profiles, start, stop and cancel of the one
     # session dpcisr-trace owns), the inbox tracerpt.exe (the summary of that
     # trace), a pinned xperf.exe (the dpcisr report of that trace), the same
-    # wpr.exe for the one named recording presentmon-frames owns, and the pinned
-    # PresentMon console binary reading that recording offline (presentmon-frames.ps1).
+    # wpr.exe for the one named recording presentmon-frames owns, the pinned
+    # PresentMon console binary reading that recording offline (presentmon-frames.ps1),
+    # and the same wpr.exe and tracerpt.exe (summary and XML dump) for the one
+    # session diskio-trace owns (diskio-trace.ps1).
     param([string]$FilePath, [string]$Arguments, [int]$TimeoutSeconds, $OutputEncoding = $null, [int64]$MaxBytes = 0)
     $result = [ordered]@{ Started = $false; ExitCode = $null; StdOut = ''; StdErr = ''; TimedOut = $false; Oversized = $false; Error = $null; DurationMs = $null; StdOutBytes = [int64]0; StdErrBytes = [int64]0; Diagnostic = $null }
     if ($TimeoutSeconds -lt 1) {
