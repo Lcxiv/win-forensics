@@ -21,6 +21,9 @@ TESTS_DIR = CHANGES_DIR / "tests"
 ENTRY_SCRIPTS = sorted(p for p in CHANGES_DIR.glob("*.ps1") if not p.name.startswith("_"))
 # Arguments each entry script needs besides the verb, so it fails only on what the test checks.
 EXTRA_ARGS = {"gpu-affinity-1a.ps1": ["-StutterGuardDataDirectory", "{tmp}"]}
+# kbd-crash-dump.ps1 keeps the reverse exit codes (1 refused, 2 failed after a change began; see
+# AGENTS.md); tests/test_change_kbd_crash_dump.py and its Pester suite check its refusals instead.
+STEP_EXIT_CODE_SCRIPTS = [p for p in ENTRY_SCRIPTS if p.name != "kbd-crash-dump.ps1"]
 
 
 def extra_args(script: Path, tmp_path: Path) -> list[str]:
@@ -56,7 +59,7 @@ def test_script_analyzer_and_pester_suite_pass():
     assert "Failed: 0" in result.stdout
 
 
-@pytest.mark.parametrize("script", ENTRY_SCRIPTS, ids=lambda p: p.name)
+@pytest.mark.parametrize("script", STEP_EXIT_CODE_SCRIPTS, ids=lambda p: p.name)
 def test_two_verbs_are_refused_by_the_real_script(script, tmp_path):
     result = run(["-File", str(script), "-Apply", "-Undo", *extra_args(script, tmp_path), "-EvidenceRoot", str(tmp_path / "ev")])
     assert result.returncode == 2
@@ -64,7 +67,7 @@ def test_two_verbs_are_refused_by_the_real_script(script, tmp_path):
     assert not (tmp_path / "ev").exists()
 
 
-@pytest.mark.parametrize("script", ENTRY_SCRIPTS, ids=lambda p: p.name)
+@pytest.mark.parametrize("script", STEP_EXIT_CODE_SCRIPTS, ids=lambda p: p.name)
 def test_plan_off_windows_stops_without_writing(script, tmp_path):
     """Off Windows the adapters cannot run; Plan must stop with exit 2 and change nothing."""
     result = run(["-File", str(script), *extra_args(script, tmp_path), "-EvidenceRoot", str(tmp_path / "ev")])

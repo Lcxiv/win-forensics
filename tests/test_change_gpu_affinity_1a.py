@@ -20,6 +20,10 @@ WRITERS = {"Set-Wf1aRegistryValue", "Remove-Wf1aRegistryValue"}
 # tuning library's, which this guard covers too since it walks every change script.
 REG_RUNNERS = {"Export-Wf1aRegistryKey", "Export-WfNtRegistryKey"}
 NT_LIB = CHANGES_DIR / "_network-tuning-lib.ps1"
+# Scripts whose own static test applies the same two guards to their own write adapters; every
+# other change script stays under this file's guards by default.
+GUARDED_ELSEWHERE = {"kbd-crash-dump.ps1"}  # tests/test_change_kbd_crash_dump.py
+GUARDED_HERE = [p for p in CHANGE_SCRIPTS if p.name not in GUARDED_ELSEWHERE]
 
 WRITE_PRIMITIVE = re.compile(
     r"\.SetValue\(|\.DeleteValue\(|\.DeleteValueAsync\(|OpenSubKey\([^)]*,\s*(\$true|\[[^\]]*RegistryKeyPermissionCheck\]|\[[^\]]*RegistryRights\])"
@@ -66,13 +70,13 @@ def reg_offenders(code: str) -> list[str]:
 
 
 def test_only_the_two_write_adapters_hold_a_registry_write():
-    for path in CHANGE_SCRIPTS:
+    for path in GUARDED_HERE:
         assert not write_offenders(code_lines(path)), path.name
     assert WRITERS <= set(function_bodies(code_lines(LIB))), "the guard names adapters the library no longer has"
 
 
 def test_reg_exe_is_only_run_to_export():
-    for path in CHANGE_SCRIPTS:
+    for path in GUARDED_HERE:
         assert not reg_offenders(code_lines(path)), path.name
     assert "Export-Wf1aRegistryKey" in function_bodies(code_lines(LIB))
     assert "Export-WfNtRegistryKey" in function_bodies(code_lines(NT_LIB))
