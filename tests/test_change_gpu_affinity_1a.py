@@ -16,7 +16,10 @@ CHANGES_DIR = REPO_ROOT / "changes" / "windows"
 LIB = CHANGES_DIR / "_gpu-affinity-1a-lib.ps1"
 JOURNAL = CHANGES_DIR / "_stutter-guard-journal.ps1"
 WRITERS = {"Set-Wf1aRegistryValue", "Remove-Wf1aRegistryValue"}
-REG_RUNNER = "Export-Wf1aRegistryKey"
+# The functions that may run reg.exe, and only with ``export``: step 1a's, and the network
+# tuning library's, which this guard covers too since it walks every change script.
+REG_RUNNERS = {"Export-Wf1aRegistryKey", "Export-WfNtRegistryKey"}
+NT_LIB = CHANGES_DIR / "_network-tuning-lib.ps1"
 # Scripts whose own static test applies the same two guards to their own write adapters; every
 # other change script stays under this file's guards by default.
 GUARDED_ELSEWHERE = {"kbd-crash-dump.ps1"}  # tests/test_change_kbd_crash_dump.py
@@ -54,9 +57,9 @@ def reg_offenders(code: str) -> list[str]:
     for name, body in bodies.items():
         if name == "Get-Wf1aRegExe":
             continue
-        if name != REG_RUNNER and REG_EXE.search(body):
+        if name not in REG_RUNNERS and REG_EXE.search(body):
             offenders.append(name)
-        if name == REG_RUNNER:
+        if name in REG_RUNNERS:
             offenders += [f"{name}: {verb}" for _, verb in CALL_OPERATOR.findall(body) if verb.lower() != "export"]
     rest = code
     for body in bodies.values():
@@ -75,7 +78,8 @@ def test_only_the_two_write_adapters_hold_a_registry_write():
 def test_reg_exe_is_only_run_to_export():
     for path in GUARDED_HERE:
         assert not reg_offenders(code_lines(path)), path.name
-    assert REG_RUNNER in function_bodies(code_lines(LIB))
+    assert "Export-Wf1aRegistryKey" in function_bodies(code_lines(LIB))
+    assert "Export-WfNtRegistryKey" in function_bodies(code_lines(NT_LIB))
 
 
 def test_the_write_guard_catches_writes_outside_the_adapters():

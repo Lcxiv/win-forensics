@@ -100,6 +100,8 @@ def test_entry_scripts_default_to_plan_and_take_explicit_verbs(path):
     for verb in ("Plan", "Apply", "Undo", "Readback"):
         assert re.search(rf"\[switch\]\${verb}\s*,", code), verb
         assert not re.search(rf"\[switch\]\${verb}\s*=", code), f"{verb} must not default to on"
+    if path.name != "kbd-crash-dump.ps1":  # its own wording, checked by KbdCrashDump.Tests.ps1
+        assert "name one verb" in code
 
 
 @pytest.mark.parametrize("path", ENTRY_SCRIPTS, ids=lambda p: p.name)
