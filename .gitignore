@@ -10,6 +10,9 @@ captures/
 *.dmp
 *.blg
 *.evtx
+# Evidence a change script saves on the PC (changes/windows/): registry exports never enter the repository
+*.reg
+wf-changes/
 # Runner harness outputs and downloaded tools
 out/
 tools/

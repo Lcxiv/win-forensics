@@ -36,6 +36,11 @@ FORBIDDEN = [
     "Set-ItemProperty", "New-ItemProperty", "Remove-ItemProperty", "CreateSubKey", "DeleteSubKey", "ConvertTo-Json",
     "$script:", "$global:",
 ]
+# A narrow exception per script, with its reason. kbd-crash-dump.ps1 sets values Microsoft says to
+# create in a Parameters or crashdump key that need not exist, so it may create that one subkey under
+# an existing service key and remove it again on undo when it is empty;
+# tests/test_change_kbd_crash_dump.py confines both calls to its two key adapters.
+ALLOWED_PER_SCRIPT = {"kbd-crash-dump.ps1": {"CreateSubKey", "DeleteSubKey"}}
 
 
 def code_lines(path):
@@ -84,7 +89,8 @@ def test_files_are_plain_ascii(path):
 @pytest.mark.parametrize("path", CHANGE_SCRIPTS, ids=lambda p: p.name)
 def test_change_scripts_avoid_forbidden_commands(path):
     code = code_lines(path)
-    found = [token for token in FORBIDDEN if token.lower() in code.lower()]
+    allowed = ALLOWED_PER_SCRIPT.get(path.name, set())
+    found = [token for token in FORBIDDEN if token not in allowed and token.lower() in code.lower()]
     assert not found, found
 
 
@@ -94,6 +100,8 @@ def test_entry_scripts_default_to_plan_and_take_explicit_verbs(path):
     for verb in ("Plan", "Apply", "Undo", "Readback"):
         assert re.search(rf"\[switch\]\${verb}\s*,", code), verb
         assert not re.search(rf"\[switch\]\${verb}\s*=", code), f"{verb} must not default to on"
+    if path.name != "kbd-crash-dump.ps1":  # its own wording, checked by KbdCrashDump.Tests.ps1
+        assert "name one verb" in code
 
 
 @pytest.mark.parametrize("path", ENTRY_SCRIPTS, ids=lambda p: p.name)
