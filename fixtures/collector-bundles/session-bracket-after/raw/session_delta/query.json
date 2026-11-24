@@ -1,5 +1,5 @@
 {
-  "baseline_folder": "the folder that holds this bundle, or -BaselineDirectory",
+  "baseline_folder": "the folder that holds this bundle",
   "selection": "the newest bundle of this collector whose boot source recorded phase baseline, whose capture started before this run, and whose boot time was observed; newer baselines without an observed boot time (the game guard stopped them, or the read failed) are passed over and named",
   "refuse_when": [
     "no usable baseline",

@@ -98,9 +98,6 @@ param(
     # SpecialFolder DesktopDirectory), never a hard coded profile path, and a
     # <bundle>.sha256 file next to it records the SHA-256 of its manifest.
     [switch]$ToEvidenceFolder,
-    # Where the after phase looks for baseline bundles. Default: the folder
-    # that holds this run's bundle.
-    [string]$BaselineDirectory = '',
     # Image names that count as a game for the guard, compared without
     # regard to case. The defaults are the two names seen in the captain's
     # own process lists; neither vendor documents them (README verification
@@ -789,9 +786,9 @@ $invokeSessionDelta = {
     $entry.started_utc = ConvertTo-WfUtcString -Value $started
     $entry.command = @('session-bracket', 'session_delta', 'baseline', 'newest in the same folder, same boot')
     try {
-        $directory = [string]$Source['BaselineDirectory']
+        $directory = Split-Path -Parent $BundleRoot
         $plan = [ordered]@{
-            baseline_folder = 'the folder that holds this bundle, or -BaselineDirectory'
+            baseline_folder = 'the folder that holds this bundle'
             selection = 'the newest bundle of this collector whose boot source recorded phase baseline, whose capture started before this run, and whose boot time was observed; newer baselines without an observed boot time (the game guard stopped them, or the read failed) are passed over and named'
             refuse_when = @('no usable baseline', 'a listed baseline artifact is missing or its SHA-256 differs from the baseline manifest', 'this read has no observed boot time', 'the boot times differ (a reboot between the reads)', 'the baseline or this read has no observed process list')
             process_identity = 'ProcessId plus CreationDate'
@@ -986,9 +983,6 @@ if ($ToEvidenceFolder) {
         exit 1
     }
 }
-if (-not $BaselineDirectory) {
-    if ($null -ne $evidence) { $BaselineDirectory = $evidence } else { $BaselineDirectory = Split-Path -Parent (Resolve-WfBundleRoot -OutputDirectory $bundleTarget) }
-}
 
 $names = @($GameProcessNames | Where-Object { $_ } | ForEach-Object { [string]$_ })
 $guardNote = 'game guard: ' + ($names -join ', ')
@@ -1115,13 +1109,12 @@ $sources = @(
 )
 if ($Phase -eq 'after') {
     $sources += @{
-        Id                = 'session_delta'
-        Type              = 'script'
-        Required          = $true
-        Invoke            = $invokeSessionDelta
-        BaselineDirectory = $BaselineDirectory
-        Reads             = 'the newest baseline bundle of the same boot'
-        Expectation       = 'the newest baseline is intact and from the same boot, both process lists are observed, and every process row has a delta or a gap code'
+        Id          = 'session_delta'
+        Type        = 'script'
+        Required    = $true
+        Invoke      = $invokeSessionDelta
+        Reads       = 'the newest baseline bundle of the same boot'
+        Expectation = 'the newest baseline is intact and from the same boot, both process lists are observed, and every process row has a delta or a gap code'
     }
 }
 

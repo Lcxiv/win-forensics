@@ -515,9 +515,10 @@ function Get-WfSyntheticCases {
             Setup = { New-WfSyntheticBracketMachine -Stage 'after' -SystemLogWrapped }
         })
 
-    # No baseline in the folder named: nothing is subtracted. Status partial.
+    # The after read alone in an empty parent folder (the case name carries
+    # the parent): no baseline, nothing is subtracted. Status partial.
     $cases.Add(@{
-            Case = 'session-bracket-after-no-baseline'; Collector = 'session-bracket'; ExitCode = 0; Arguments = @{ Phase = 'after'; BaselineDirectory = 'fixtures/no-session-baselines-here' }
+            Case = 'no-session-baseline/session-bracket-after-no-baseline'; Collector = 'session-bracket'; ExitCode = 0; Arguments = @{ Phase = 'after' }
             Setup = { New-WfSyntheticBracketMachine -Stage 'after' }
         })
 

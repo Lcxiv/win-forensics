@@ -333,7 +333,8 @@ def test_diskio_trace_sources_and_privacy_rules_are_documented_and_kept():
 def test_session_bracket_sources_and_guard_are_documented_and_kept():
     """The session-bracket bundles run the game guard first, read processes by named properties only, and the README names every source."""
     readme = (COLLECTOR_DIR / "README.md").read_text(encoding="utf-8")
-    bundles = sorted((REPO_ROOT / "fixtures" / "collector-bundles").glob("session-bracket*/manifest.json"))
+    root = REPO_ROOT / "fixtures" / "collector-bundles"
+    bundles = sorted(list(root.glob("session-bracket*/manifest.json")) + list(root.glob("*/session-bracket*/manifest.json")))
     assert len(bundles) == 7
     reads = ["game_guard", "boot", "process_io", "disk_totals", "memory_paging", "config_readback", "power_active_scheme", "event_counts"]
     seen: set[str] = set()

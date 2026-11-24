@@ -140,7 +140,11 @@ function Protect-SbtText {
     $out = $Text
     foreach ($pair in @(@($Context['ProfilePath'], '<profile>'), @($Context['UserId'], '<user>'), @($Context['UserSid'], '<sid>'), @($Context['UserName'], '<user>'))) {
         $find = [string]$pair[0]
-        if ($find.Length -gt 0) { $out = [regex]::Replace($out, [regex]::Escape($find), [string]$pair[1], [System.Text.RegularExpressions.RegexOptions]::IgnoreCase) }
+        if ($find.Length -gt 0) {
+            $escaped = [regex]::Escape($find)
+            $pattern = '(?<!\w)(?<!<(?=' + $escaped + '>))' + $escaped + '(?!\w)'
+            $out = [regex]::Replace($out, $pattern, [string]$pair[1], [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        }
     }
     return $out
 }
@@ -161,8 +165,9 @@ function ConvertTo-SbtCsv {
     $lines = New-Object 'System.Collections.Generic.List[string]'
     $lines.Add('object,field,value')
     $object = (Get-SbtTaskPath) + (Get-SbtTaskName)
+    $protected = ConvertTo-SbtProtectedMap -Map $Map -Context $Context
     foreach ($field in (Get-SbtFields)) {
-        $lines.Add(((ConvertTo-SbtCsvCell -Value $object), (ConvertTo-SbtCsvCell -Value $field), (ConvertTo-SbtCsvCell -Value (Protect-SbtText -Text ([string]$Map[$field]) -Context $Context))) -join ',')
+        $lines.Add(((ConvertTo-SbtCsvCell -Value $object), (ConvertTo-SbtCsvCell -Value $field), (ConvertTo-SbtCsvCell -Value ([string]$protected[$field]))) -join ',')
     }
     return (($lines.ToArray() -join "`r`n") + "`r`n")
 }
@@ -474,7 +479,9 @@ function Invoke-SbtUndo {
 function ConvertTo-SbtProtectedMap {
     param($Map, [hashtable]$Context)
     $out = [ordered]@{}
-    foreach ($field in (Get-SbtFields)) { $out[$field] = Protect-SbtText -Text ([string]$Map[$field]) -Context $Context }
+    foreach ($field in (Get-SbtFields)) {
+        if ($field -eq 'present') { $out[$field] = [string]$Map[$field] } else { $out[$field] = Protect-SbtText -Text ([string]$Map[$field]) -Context $Context }
+    }
     return $out
 }
 

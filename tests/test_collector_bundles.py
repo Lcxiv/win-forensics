@@ -20,7 +20,8 @@ import wf_schema
 from conftest import REPO_ROOT
 
 BUNDLES = REPO_ROOT / "fixtures" / "collector-bundles"
-CASES = sorted(p.name for p in BUNDLES.iterdir() if p.is_dir())
+# One bundle per case; a case that has to sit alone in its parent folder is one level deeper and carries the parent in its name.
+CASES = sorted(p.parent.relative_to(BUNDLES).as_posix() for pattern in ("*/manifest.json", "*/*/manifest.json") for p in BUNDLES.glob(pattern))
 COLLECTOR_NAME = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 OBSERVED = ("observed", "observed_zero")
 
@@ -147,8 +148,8 @@ EXPECTED = {
                                                  "session_delta": "not_collected"}),
     "session-bracket-after-log-wrapped": ("partial", {**{source: "observed" for source in SESSION_BRACKET_READS}, "game_guard": "observed_zero",
                                                       "event_counts": "capture_failed", "session_delta": "observed"}),
-    "session-bracket-after-no-baseline": ("partial", {**{source: "observed" for source in SESSION_BRACKET_READS}, "game_guard": "observed_zero",
-                                                      "session_delta": "not_collected"}),
+    "no-session-baseline/session-bracket-after-no-baseline": ("partial", {**{source: "observed" for source in SESSION_BRACKET_READS},
+                                                                          "game_guard": "observed_zero", "session_delta": "not_collected"}),
     "session-ledger": ("ok", {"overwatch_logs": "observed", "battlenet_logs": "observed", "fortnite_logs": "observed", "epic_launcher_logs": "observed",
                               "display_adapters": "observed", "display_driver_events": "observed", "werkernel_events": "observed",
                               "live_kernel_reports": "observed", "minidumps": "observed_zero", "wer_report_queue": "observed",

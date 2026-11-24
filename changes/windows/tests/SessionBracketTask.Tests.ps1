@@ -197,6 +197,30 @@ Describe 'the session bracket logon task: apply, readback and undo' {
         (Invoke-Verb -Verb 'Readback').Code | Should -Be 1
     }
 
+    It 'applies and undoes for the account <UserName>, whose name sits inside fixed values and words' -ForEach @(
+        @{ UserName = 'Al' }, @{ UserName = 'False' }, @{ UserName = 'user' }
+    ) {
+        $desktop = Start-Machine -Name ('short-name-' + $UserName)
+        $global:SbtSynthetic.Identity.UserId = 'SYNTHETIC-PC\' + $UserName
+        $global:SbtSynthetic.Identity.UserName = $UserName
+        $apply = Invoke-Verb -Verb 'Apply'
+        $apply.Code | Should -Be 0
+        $apply.Text | Should -Not -Match '<<user>>'
+        $folder = (Get-EvidenceFolders -Desktop $desktop)[0]
+        $before = ConvertFrom-SbtCsv -Text (Get-Content -LiteralPath (Join-Path $folder 'before.csv') -Raw)
+        $before['present'] | Should -BeExactly 'False'
+        $after = ConvertFrom-SbtCsv -Text (Get-Content -LiteralPath (Join-Path $folder 'after.csv') -Raw)
+        $after['present'] | Should -BeExactly 'True'
+        $after['principal_user'] | Should -BeExactly '<user>'
+        $after['trigger_user'] | Should -BeExactly '<user>'
+        $after['description'] | Should -BeExactly (Get-SbtMarker)
+        (Invoke-Verb -Verb 'Readback').Code | Should -Be 0
+        $undo = Invoke-Verb -Verb 'Undo'
+        $undo.Code | Should -Be 0
+        $undo.Text | Should -Match 'PASS: the task is removed'
+        $global:SbtSynthetic.Task | Should -BeNullOrEmpty
+    }
+
     It 'accepts the account written with or without the computer name' {
         $null = Start-Machine -Name 'account-form'
         $global:SbtSynthetic.RegisterDrift = @{ trigger_user = 'Synthetic Owner'; principal_user = 'synthetic owner' }
