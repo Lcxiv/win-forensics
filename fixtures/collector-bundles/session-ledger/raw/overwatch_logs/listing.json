@@ -1,0 +1,7 @@
+[
+{"type":"file","folder":null,"name":"Overwatch-2026.02.20-06.00.00.log","name_kept":true,"name_prefix":null,"extension":".log","bytes":48213,"creation_time_utc":"2026-02-20T06:00:00.0000000Z","last_write_time_utc":"2026-02-20T09:36:00.0000000Z","entered":null},
+{"type":"file","folder":null,"name":"Overwatch-2026.02.25-12.00.00.log","name_kept":true,"name_prefix":null,"extension":".log","bytes":51877,"creation_time_utc":"2026-02-25T12:00:00.0000000Z","last_write_time_utc":"2026-02-25T15:36:00.0000000Z","entered":null},
+{"type":"file","folder":null,"name":"name-ad8b1b41aff2","name_kept":false,"name_prefix":null,"extension":".log","bytes":20480,"creation_time_utc":"2026-02-28T00:00:00.0000000Z","last_write_time_utc":"2026-02-28T02:24:00.0000000Z","entered":null},
+{"type":"folder","folder":null,"name":"Errors","name_kept":true,"name_prefix":null,"extension":null,"bytes":null,"creation_time_utc":"2026-01-30T12:00:00.0000000Z","last_write_time_utc":"2026-02-25T15:21:36.0000000Z","entered":true},
+{"type":"file","folder":"Errors","name":"crash_1.txt","name_kept":true,"name_prefix":null,"extension":".txt","bytes":2048,"creation_time_utc":"2026-02-25T15:21:36.0000000Z","last_write_time_utc":"2026-02-25T15:21:36.0000000Z","entered":null}
+]

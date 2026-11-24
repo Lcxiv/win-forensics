@@ -1,4 +1,4 @@
-2026-03-01T12:00:01.0000000Z collector clock-calibration version 1.0.0, helper version 1.2.0, no time window (snapshot), 80 s per source
+2026-03-01T12:00:01.0000000Z collector clock-calibration version 1.0.0, helper version 1.3.0, no time window (snapshot), 80 s per source
 source clock_calibration: start pair at qpc 27345678911259, 3 interval slots of 5 s, stop at 20 s
 source clock_calibration raised: synthetic backend: the performance counter read failed
 source clock_calibration: the session failed: synthetic backend: the performance counter read failed; the 4 pairs taken are kept and the 1 pairs not taken (the stop pair included) are counted in missing_pairs; timestamps after the last pair are unaligned

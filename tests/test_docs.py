@@ -30,6 +30,7 @@ def guarded_files(repo_root: Path) -> list[Path]:
     out += list((repo_root / "collectors").rglob("*.ps1"))
     out += list((repo_root / "collectors").rglob("*.psd1"))
     out += list((repo_root / "changes").rglob("*.ps1"))
+    out += list((repo_root / "changes").rglob("*.psd1"))
     out += list((repo_root / "tests").glob("*.py"))
     out += list((repo_root / ".github").rglob("*.yml"))
     return out

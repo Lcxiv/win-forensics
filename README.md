@@ -26,17 +26,17 @@ A third live capture, `diskio-trace`, answers what reads from and writes to disk
 
 The same directory holds `clock-calibration`, the clock session collector: for a bounded session it records the calibration triples the timestamp contract asks for (performance counter, system time, performance counter, at the start, every 5 s and at the stop), and it gives the person at the PC a mark command for a second console that stamps "I felt it here" with the same counter the kernel trace uses, without touching the game. `scripts/decode_clock.py` fits the contract's piecewise model on the Mac, writes the `clock_pairs`, `clock_segments` and `operator_marks` tables, and is the library a correlator uses to place a system time stamp on the master clock with its error bound and to refuse a join the calibration cannot support. Method, the deviation from the contract's named precise time API and the limits are in [docs/clock-calibration.md](docs/clock-calibration.md).
 
+It also holds `connection-quality`, a bounded live session that asks whether the connection from the PC drops or slows down, and where: every second an ICMP echo to the default gateway and to two public resolvers, every 10 seconds a DNS query to the gateway and to one resolver, and the link state and speed of the adapter behind the default route, each probe stamped on the performance counter so a loss can be lined up against frames, driver delays and disk activity. The gateway is the label `gateway` and the resolvers `cloudflare` and `google`; no local, gateway or hardware address, network name or DNS answer reaches a bundle. The probes are packets the PC sends and change no setting; inbox cmdlets and .NET only. A slot the PC reached late is a sampling gap, never a loss. Whether it runs while a game is played waits for the owner's word. `scripts/decode_net_quality.py` decodes it into the `net_quality` and `net_quality_bursts` tables ([collectors/windows/README.md](collectors/windows/README.md), "The connection-quality sources").
+
 The same directory holds `rf-survey`, a read only survey of the 2.4 GHz band around the desk for a PC that is on Ethernet but drives a wireless mouse and headset: which adapter carries the traffic, which networks are on the air on which channels, where the receivers sit on the USB tree, and which radios are on. Network names and hardware addresses are pseudonymised before anything is written. `scripts/decode_rf_survey.py` decodes it into five typed tables and `scripts/analyze_rf_survey.py` writes evidence rows and a plain language report with a cited recommendation for the router channel, the receiver ports and the unused radios. The method, its limits (a packet capture cannot see RF noise), and the before and after test the owner runs are in [docs/rf-survey.md](docs/rf-survey.md).
 
 It also holds `config-snapshot`, the first piece of the live latency capture: the machine configuration that confounds every run, read before and after a capture (`-Snapshot start`, `-Snapshot stop`). It records each PCI function's interrupt affinity policy and MSI mode as the registry holds them, read through the documented device key API (type and bytes, decoded alongside, never reconciled with the routing a trace shows), the GPU timeout detection values, the CPU counts and caches with the SMT sibling map from `GetLogicalProcessorInformationEx`, the active power scheme with the AC and DC processor and idle settings, and the state of two third party tuning tools (installed files with versions and hashes, running components by process name, protected copies of their configuration and journal, and a summary of the vendor log that carries none of its text). Two questions it cannot answer with a documented read only path (which power mode overlay is active, the current timer resolution) are recorded `not_collected` with their reasons rather than guessed. `scripts/decode_config_snapshot.py` decodes a bundle into `config_snapshot`, `powercfg` and `process_inventory`.
 
 The same directory holds the local scenario runner, `_run-scenario.ps1`, which the owner starts at the PC (never through SSH). Before anything runs it makes read only preflight checks (Windows PowerShell 5.1, the token's elevation and groups as booleans, each collector's rights, free space against the scenario's minimum, the pinned SHA-256 of every operator supplied tool) and refuses rather than fixes. Then it runs scenario S1's collectors as separate processes in a fixed order, each under a deadline: the clock session in the background across the three live captures (the DPC trace, the frame recording and the disk activity trace, one after another), then the history collectors, with two reserved slots for the configuration snapshot before and after. A collector stopped at its deadline has its partial raw data removed and its live session read and cancelled. The runner merges every collector's sources into one bundle whose manifest (contract 1.2.0, with `preflight` and `run` sections) is written last. The four live collectors (with the clock session) share one tested session path in the helper (start, bound, stop, end check), and each still runs on its own with unchanged output. The method, the deadlines, the privacy rules and what is still to verify on the PC are in [collectors/windows/README.md](collectors/windows/README.md), "Scenario runner".
 
-It also holds `session-bracket`, the automatic play session bracket: one read only collector run twice in a boot, `-Phase baseline` at logon and `-Phase after` when a session ends. Each read records the boot time, every process's write counters with its identity (name, process id, creation time; no command line or path), the raw disk and page file counters, the GPU timeout, crash dump and error reporting values with the active power plan, and System and Application event counts since boot. The after read subtracts against the newest intact baseline of the same boot, refuses across a reboot, matches processes on process id plus creation time and names every gap (exited, new, restarted, counter missing). Its first source is a game guard that reads only the process names and, when a game is already running, reads nothing else. The baseline is started by a per user logon task registered by a change script, which is the captain's own action at the PC (next section).
+It also holds `session-ledger`, the history behind the session and incident ledger: the names, sizes and times of the Overwatch, Fortnite, Battle.net and Epic Games Launcher log files, never their text, the display driver's System log records under the service name WMI reports, the WerKernel channel, and the names, sizes and times of the live kernel dumps, minidumps and Windows Error Reporting report folders, never their content. It runs between play sessions as the account that plays and never touches a game. On the Mac, `scripts/build_session_ledger.py` joins it with the `bugcheck-history`, `tdr-events`, `application-errors` and `whea-errors` bundles of the same machine and an operator's configuration periods file into the `session_ledger` and `session_ledger_periods` tables: every session and incident on one timeline, and per period the hours played, the sessions and the incidents by type, each count beside its hours and coverage and a rate only when every input is complete ([docs/session-ledger.md](docs/session-ledger.md)).
 
-## The change area
-
-`changes/windows/` holds the scripts that change the PC, one self contained script per change, kept apart from everything that reads it: collectors stay read only, and no file under `collectors/`, `remote-access/` or `scripts/` names the change area, so nothing the dispatcher, the scenario runner or a collector does can call one (`tests/test_changes_area.py`). Every change script has the verbs `-Plan` (the default, read only), `-Apply`, `-Undo` and `-Readback`, saves the before state to a hashed evidence folder before it changes anything and refuses without it, and ends every apply and undo with a PASS or FAIL readback per value. Each runs only when the captain runs it at the PC; [changes/windows/README.md](changes/windows/README.md) holds the rules, the scripts and their facts still to verify. The first is `session-bracket-task.ps1`, the per user, non elevated logon task that starts the `session-bracket` baseline.
+It also holds `session-bracket`, the automatic play session bracket: one read only collector run twice in a boot, `-Phase baseline` at logon and `-Phase after` when a session ends. Each read records the boot time, every process's write counters with its identity (name, process id, creation time; no command line or path), the raw disk and page file counters, the GPU timeout, crash dump and error reporting values with the active power plan, and System and Application event counts since boot. The after read subtracts against the newest intact baseline of the same boot, refuses across a reboot, matches processes on process id plus creation time and names every gap (exited, new, restarted, counter missing). Its first source is a game guard that reads only the process names and, when a game is already running, reads nothing else. The baseline is started by a per user logon task that `changes/windows/session-bracket-task.ps1` registers, which is the captain's own action at the PC.
 
 ## The four contracts
 
@@ -55,13 +55,18 @@ Process Monitor facts settled on the GitHub hosted Windows runner, with the fixt
 docs/contracts/          the contracts above plus procmon-facts.md
 docs/rf-survey.md        the RF survey: method, limits, citations, and the before and after test
 docs/clock-calibration.md  the clock calibration session and operator marks: how the clocks are read, the fit, the limits
+docs/session-ledger.md   the session and incident ledger: the split, the session and rate rules, the refusals, follow-up
 schemas/                 JSON Schema (draft 2020-12), one file per table, plus manifest, evidence, verdict, common,
-                         and analysis/ for an analyzer's structured result
+                         analysis/ for an analyzer's structured result, and input/ for operator written files
 collectors/windows/      read only PowerShell collectors for the PC, their shared helper _common.ps1, the scenario runner
                          _run-scenario.ps1 with its library _scenarios.ps1, and README.md;
                          tests/ holds the Pester suite, the synthetic backend, and the fixture generator
-changes/windows/         the scripts that change the PC, one per change, run only by the captain at the PC, with
-                         README.md and tests/ (synthetic backends, Pester); nothing that reads the PC calls them
+changes/windows/         the change scripts, the only code here that writes to the PC: one self contained script per
+                         change: an undo order step (gpu-affinity-1a.ps1, with the Stutter Guard journal reader)
+                         or a researched change (network-tuning.ps1, kbd-crash-dump.ps1), or the session bracket's
+                         logon task (session-bracket-task.ps1); README.md with the area's
+                         rules and its facts to verify; tests/ holds their Pester suite and synthetic backend
+docs/changes/            one operator page per change, and the research behind a change
 scripts/                 wf_schema.py (schema registry and validation), decode_dpcisr.py, decode_pdh.py, decode_eventlog.py,
                          decode_tracestats.py (trace loss from the recorder's status text and the tracerpt summary),
                          decode_presentmon.py (the presentmon_frames table from a presentmon-frames bundle),
@@ -69,16 +74,19 @@ scripts/                 wf_schema.py (schema registry and validation), decode_d
                          decode_rf_survey.py and analyze_rf_survey.py (the RF survey tables, evidence rows and report),
                          decode_config_snapshot.py (config_snapshot, powercfg and process_inventory from a config-snapshot bundle),
                          decode_clock.py (the clock calibration tables, the fitted model, alignment and join refusal),
+                         build_session_ledger.py (the session_ledger and session_ledger_periods tables from several bundles),
+                         decode_net_quality.py (the net_quality and net_quality_bursts tables from a connection-quality bundle),
                          verify_bundle.py (manifest, checksums, no unlisted raw file), fetch_pwsh.sh (PowerShell 7 into tools/),
                          make_procmon_pmc.py, procmon_facts.ps1 and procmon_facts_summarize.py (runner harness)
 fixtures/example-bundle/ one bundle laid out to the contract from two win-opt format fixtures
 fixtures/collector-bundles/  synthetic bundles written by the collectors against the synthetic backend, one per case
 fixtures/scenario-runs/  synthetic bundles written by the scenario runner with the real collectors as its children
+fixtures/session-ledger/ the example periods file and the ledger built from five synthetic collector bundles
 fixtures/procmon/        committed .pmc test configurations and the runner's facts and export heads
 fixtures/presentmon/     the first buffer of a PresentMon regression recording (the one .etl git keeps), with its
                          provenance and licence
-tests/                   pytest: schemas, decoders, the example bundle, collector bundles and scripts, documentation
-                         hygiene, procmon fixtures
+tests/                   pytest: schemas, decoders, the example bundle, collector bundles and scripts, the change area,
+                         documentation hygiene, procmon fixtures
 .github/workflows/       procmon-facts.yml only
 ```
 
@@ -153,13 +161,33 @@ python scripts/decode_clock.py --bundle <bundle directory> [--align 2026-03-01T1
 
 which writes the three clock tables and prints the master clock, and with `--align` places a UTC stamp on it with its bound or says why it cannot.
 
+A `connection-quality` bundle is decoded with:
+
+```
+python scripts/decode_net_quality.py --bundle <bundle directory>
+```
+
+which checks the samples against the manifest and the collector's record and writes `decoded/net_quality.jsonl` (one row per probe) and `decoded/net_quality_bursts.jsonl` (runs of losses, failed queries, link down readings, route changes and sampling gaps) with their sidecars, whose checks summarise loss and round trip per target, or reports `not_collected` and writes nothing when no source was observed.
+
+The session ledger is built from several bundles of one machine and the operator's periods file; the committed example is rebuilt with:
+
+```
+rm -rf fixtures/session-ledger/example
+python scripts/build_session_ledger.py --bundle fixtures/collector-bundles/session-ledger \
+    --bundle fixtures/collector-bundles/bugcheck-history-ledger --bundle fixtures/collector-bundles/tdr-events-ledger \
+    --bundle fixtures/collector-bundles/application-errors --bundle fixtures/collector-bundles/whea-errors-quiet \
+    --periods fixtures/session-ledger/periods.json --out fixtures/session-ledger/example --decoded-at 2026-09-03T00:00:00Z
+```
+
+after a change to the builder, its schemas or those bundles, or `tests/test_session_ledger.py` fails on the stale comparison. It refuses, writing nothing, bundles that do not verify, bundles from two machines, and a periods file that fails its schema or overlaps.
+
 A `config-snapshot` bundle is decoded with:
 
 ```
 python scripts/decode_config_snapshot.py --bundle <bundle directory>
 ```
 
-The collector checks that need PowerShell (PSScriptAnalyzer with the Windows PowerShell 5.1 compatibility rules, the Pester suite, fixture freshness) run from `tests/test_collectors_pwsh.py` and skip when no `pwsh` is found. `scripts/fetch_pwsh.sh` fetches a pinned PowerShell 7 and the two modules into `tools/`, which git ignores. The change scripts' analyzer and Pester suite run the same way from `tests/test_changes_area.py` (`changes/windows/tests/Invoke-Checks.ps1`), which also skips without `pwsh`.
+The collector checks that need PowerShell (PSScriptAnalyzer with the Windows PowerShell 5.1 compatibility rules, the Pester suite, fixture freshness) run from `tests/test_collectors_pwsh.py` and skip when no `pwsh` is found. `scripts/fetch_pwsh.sh` fetches a pinned PowerShell 7 and the two modules into `tools/`, which git ignores.
 
 ## What the fixtures are and are not
 
@@ -172,3 +200,7 @@ The one file in `fixtures/presentmon/` is a format fixture from the PresentMon p
 ## Reaching the gaming PC
 
 `remote-access/` holds the SSH front door from the captain's plan for reaching the gaming PC from his Mac: an elevated, idempotent setup script he runs once at the PC, the dispatcher that is the only thing the dedicated standard account can run (an exact allowlist: a health check, named collectors, and fetching a finished bundle with its SHA-256), the Mac side scripts for the key, the host key pin, the acceptance checks, and the transfer, the three action flow (one Mac command, one double click at the PC, one Mac command) that orchestrates them, and the checklist he follows. No agent runs any of it against the PC. Start with [remote-access/README.md](remote-access/README.md), which carries the design, its sources, and the list of what is still unverified on Windows; the person at the PC follows [remote-access/CHECKLIST.md](remote-access/CHECKLIST.md). `tests/test_remote_access.py` covers it and skips its PowerShell parts when no `pwsh` is found.
+
+## Changing the PC
+
+Everything above reads. The only code that changes the gaming PC lives in `changes/windows/`, one self contained script per change (a step of the undo order, a researched change such as the network tuning, or the session bracket's logon task), run by hand at the PC on the captain's own Yes for that change: `-Plan` (the default) reads and refuses with a reason, `-Apply` saves the before-state first and refuses without it, `-Undo` restores exactly what was saved, and `-Readback` prints PASS or FAIL per value. No collector, no part of the scenario runner and nothing in `remote-access/` may refer to that directory or start anything in it; `tests/test_changes_area.py` enforces it. The rules, sources and facts still to verify are in [changes/windows/README.md](changes/windows/README.md); each change's operator page is under `docs/changes/`: [step 1a](docs/changes/step-1a-gpu-affinity.md), and [network tuning](docs/changes/network-tuning.md) with its [research](docs/changes/network-tuning-research.md). Besides the undo order, `kbd-crash-dump.ps1` sets Microsoft's documented keyboard initiated crash (`CrashOnCtrlScroll` for USB and PS/2 keyboards, or the alternate `Dump1Keys` and `Dump2Key` for a keyboard without SCROLL LOCK), so a hard freeze can be ended with stop error 0xE2 and a memory dump instead of a power off; it takes effect after a restart, which the script never makes, and its operator page is [docs/changes/kbd-crash-dump.md](docs/changes/kbd-crash-dump.md). Their PowerShell checks run from `tests/test_changes_pwsh.py` and skip without `pwsh`, like the collectors'.

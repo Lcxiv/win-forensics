@@ -1,83 +1,121 @@
-"""The change area: scripts that change the gaming PC live apart from everything that reads it.
+"""Static checks on the change tooling area, ``changes/windows/``, that need no PowerShell.
 
-changes/windows/ holds one self contained script per change, run only by the captain at the PC.
-Nothing the dispatcher, the scenario runner or a collector does may call one, so no file under
-collectors/, remote-access/ or scripts/ names the area. The Pester suite under changes/windows/tests runs
-every verb against synthetic backends; it skips without pwsh, like tests/test_collectors_pwsh.py.
+Change scripts are the only code in this repository that writes to the PC, so the area is kept
+apart from everything that runs unattended: no collector, no part of the scenario runner and no
+part of the SSH front door may refer to it, and every change script follows the shared rules in
+``changes/windows/README.md`` (one self contained script per change, Plan by default, nothing that
+prompts, installs, downloads, schedules or restarts).
 """
 from __future__ import annotations
 
-import os
 import re
-import shutil
-import subprocess
-from pathlib import Path
 
 import pytest
 
 from conftest import REPO_ROOT
 
-CHANGES = REPO_ROOT / "changes" / "windows"
-# Everything that reads the PC or runs on it: the collectors (with their tests, fixtures and
-# README and the scenario runner), the SSH front door, and the Mac side scripts.
-READERS = [REPO_ROOT / "collectors", REPO_ROOT / "remote-access", REPO_ROOT / "scripts"]
-# Anything that would let a reader find or start a change script: the folder name in either
-# separator style, and the script's own name.
-REFERENCE = re.compile(r"changes[\\/]|session-bracket-task", re.IGNORECASE)
+CHANGES_DIR = REPO_ROOT / "changes" / "windows"
+CHANGE_FILES = sorted(p for p in CHANGES_DIR.rglob("*") if p.is_file())
+CHANGE_SCRIPTS = sorted(p for p in CHANGES_DIR.glob("*.ps1"))
+ENTRY_SCRIPTS = [p for p in CHANGE_SCRIPTS if not p.name.startswith("_")]
+
+# Anything that would let unattended code reach a change script: the directory in either slash
+# form, or the name of any script in it.
+REFERENCE = re.compile(r"changes[/\\]|" + "|".join(re.escape(p.stem) for p in CHANGE_SCRIPTS), re.IGNORECASE)
+UNATTENDED_ROOTS = [REPO_ROOT / "collectors", REPO_ROOT / "remote-access", REPO_ROOT / "scripts"]
+
+# Never in a change script: prompts and credentials, code from text, native interop, the network,
+# installs, scheduled tasks, services, restarts, other processes, whole key imports, and the
+# PowerShell registry setters (writes go through the two audited .NET adapters instead).
+FORBIDDEN = [
+    "Read-Host", "Get-Credential", "ConvertTo-SecureString", "Invoke-Expression", "Invoke-Command", "EncodedCommand",
+    "Add-Type", "DllImport", "Invoke-WebRequest", "Invoke-RestMethod", "Net.WebClient", "Net.Http", "Start-BitsTransfer",
+    "Install-", "Uninstall-", "Register-ScheduledTask", "Set-ScheduledTask", "Enable-ScheduledTask", "Disable-ScheduledTask",
+    "schtasks", "New-Service", "Set-Service", "Start-Service", "Stop-Service", "Restart-Service", "sc.exe", "Start-Process",
+    "Stop-Process", "Restart-Computer", "Stop-Computer", "shutdown", "Set-ExecutionPolicy", "regedit", "reg import",
+    "Set-ItemProperty", "New-ItemProperty", "Remove-ItemProperty", "CreateSubKey", "DeleteSubKey", "ConvertTo-Json",
+    "$script:", "$global:",
+]
+# A narrow exception per script, with its reason. kbd-crash-dump.ps1 sets values Microsoft says to
+# create in a Parameters or crashdump key that need not exist, so it may create that one subkey under
+# an existing service key and remove it again on undo when it is empty;
+# tests/test_change_kbd_crash_dump.py confines both calls to its two key adapters.
+# session-bracket-task.ps1 is the one change whose subject is a scheduled task: it registers, and on
+# undo unregisters, exactly one per user logon task with the standard token that runs the read only
+# session-bracket baseline (changes/windows/README.md); SessionBracketTask.Tests.ps1 records the
+# arguments its two adapters pass to the cmdlets.
+ALLOWED_PER_SCRIPT = {"kbd-crash-dump.ps1": {"CreateSubKey", "DeleteSubKey"}, "session-bracket-task.ps1": {"Register-ScheduledTask"}}
 
 
-def reader_files() -> list[Path]:
-    out: list[Path] = []
-    for root in READERS:
-        out += [p for p in root.rglob("*") if p.is_file() and "__pycache__" not in p.parts
-                and p.suffix in (".ps1", ".psm1", ".psd1", ".cmd", ".sh", ".py", ".json", ".jsonl", ".md", ".txt", ".csv", ".xml")]
-    return out
+def code_lines(path):
+    """The script without comment lines, so a rule can be named in a comment that explains it."""
+    return "\n".join(line for line in path.read_text(encoding="ascii").splitlines() if not line.lstrip().startswith("#"))
 
 
-def test_readers_never_reference_the_change_area():
+def function_bodies(code: str) -> dict[str, str]:
+    bodies: dict[str, str] = {}
+    for header in re.finditer(r"^function ([A-Za-z0-9\-]+) \{", code, re.MULTILINE):
+        close = re.compile(r"^\}[ \t]*$", re.MULTILINE).search(code, header.end())
+        bodies[header.group(1)] = code[header.start():close.end() if close else len(code)]
+    return bodies
+
+
+def test_the_area_exists_with_its_readme():
+    assert ENTRY_SCRIPTS, "no change script found"
+    assert (CHANGES_DIR / "README.md").is_file()
+
+
+def test_unattended_code_never_refers_to_the_change_area():
     offenders = []
-    for path in reader_files():
-        text = path.read_text(encoding="utf-8", errors="replace")
-        for i, line in enumerate(text.splitlines(), start=1):
-            if REFERENCE.search(line):
-                offenders.append(f"{path.relative_to(REPO_ROOT)}:{i}: {line.strip()}")
+    for root in UNATTENDED_ROOTS:
+        for path in root.rglob("*"):
+            if not path.is_file() or path.suffix.lower() not in {".ps1", ".psd1", ".psm1", ".sh", ".py", ".cmd", ".md", ".json", ".txt"}:
+                continue
+            for number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), start=1):
+                if REFERENCE.search(line):
+                    offenders.append(f"{path.relative_to(REPO_ROOT)}:{number}")
     assert not offenders, offenders
 
 
-def test_the_reference_guard_catches_both_spellings():
-    for line in ("& (Join-Path $root 'changes\\windows\\x.ps1')", "source changes/windows/x.ps1", "session-bracket-task.ps1 -Apply"):
-        assert REFERENCE.search(line), line
-    assert not REFERENCE.search("records the changes in the manifest")
+def test_the_reference_guard_catches_both_slash_forms_and_script_names():
+    assert REFERENCE.search(r"& .\changes\windows\x.ps1")
+    assert REFERENCE.search("changes/windows/x.ps1")
+    for script in CHANGE_SCRIPTS:
+        assert REFERENCE.search("run " + script.name)
+    assert not REFERENCE.search("no changes are made")
 
 
-@pytest.mark.parametrize("path", sorted(CHANGES.rglob("*.ps1")), ids=lambda p: p.name)
-def test_change_scripts_are_plain_ascii(path):
-    data = path.read_bytes()
-    assert not data.startswith(b"\xef\xbb\xbf")
-    offenders = [i for i, b in enumerate(data) if b > 126 or (b < 32 and b not in (9, 10))]
-    assert not offenders, f"{path.name}: byte offsets {offenders[:5]}"
+@pytest.mark.parametrize("path", CHANGE_FILES, ids=lambda p: str(p.relative_to(CHANGES_DIR)))
+def test_files_are_plain_ascii(path):
+    path.read_bytes().decode("ascii")
 
 
-@pytest.mark.parametrize("path", sorted(CHANGES.glob("*.ps1")), ids=lambda p: p.name)
-def test_each_change_script_has_a_readme_entry(path):
-    readme = (CHANGES / "README.md").read_text(encoding="utf-8")
-    assert f"`{path.name}`" in readme, path.name
+@pytest.mark.parametrize("path", CHANGE_SCRIPTS, ids=lambda p: p.name)
+def test_change_scripts_avoid_forbidden_commands(path):
+    code = code_lines(path)
+    allowed = ALLOWED_PER_SCRIPT.get(path.name, set())
+    found = [token for token in FORBIDDEN if token not in allowed and token.lower() in code.lower()]
+    assert not found, found
 
 
-def find_pwsh() -> str | None:
-    for candidate in (os.environ.get("WF_PWSH"), str(REPO_ROOT / "tools" / "pwsh" / "pwsh"), shutil.which("pwsh")):
-        if candidate and Path(candidate).is_file():
-            return candidate
-    return None
+@pytest.mark.parametrize("path", ENTRY_SCRIPTS, ids=lambda p: p.name)
+def test_entry_scripts_default_to_plan_and_take_explicit_verbs(path):
+    code = code_lines(path)
+    for verb in ("Plan", "Apply", "Undo", "Readback"):
+        assert re.search(rf"\[switch\]\${verb}\s*[,)]", code), verb
+        assert not re.search(rf"\[switch\]\${verb}\s*=", code), f"{verb} must not default to on"
+    if path.name != "kbd-crash-dump.ps1":  # its own wording, checked by KbdCrashDump.Tests.ps1
+        assert "name one verb" in code
 
 
-@pytest.mark.skipif(find_pwsh() is None, reason="no pwsh; run scripts/fetch_pwsh.sh or set WF_PWSH")
-def test_change_script_analyzer_and_pester_suite_pass():
-    modules = os.environ.get("WF_PSMODULES") or str(REPO_ROOT / "tools" / "psmodules")
-    result = subprocess.run([find_pwsh(), "-NoProfile", "-NonInteractive", "-File", str(CHANGES / "tests" / "Invoke-Checks.ps1"), "-ModulePath", modules],
-                            env=dict(os.environ, NO_COLOR="1"), capture_output=True, text=True, timeout=900)
-    if result.returncode == 3:
-        pytest.skip("Pester 5 and PSScriptAnalyzer are not installed: " + result.stderr.strip())
-    assert result.returncode == 0, result.stdout[-4000:] + result.stderr[-4000:]
-    assert "PSScriptAnalyzer: 0 findings" in result.stderr
-    assert "Failed: 0" in result.stdout
+@pytest.mark.parametrize("path", ENTRY_SCRIPTS, ids=lambda p: p.name)
+def test_every_change_script_is_documented(path):
+    readme = (CHANGES_DIR / "README.md").read_text(encoding="utf-8")
+    assert f"`{path.name}`" in readme
+
+
+def test_verification_items_are_numbered_once():
+    readme = (CHANGES_DIR / "README.md").read_text(encoding="utf-8")
+    ids = re.findall(r"^(\d+[a-z]?\.\d+)\. ", readme, re.MULTILINE)
+    assert ids, "the README has no verification list"
+    assert len(ids) == len(set(ids)), ids

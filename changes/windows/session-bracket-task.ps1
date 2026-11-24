@@ -221,12 +221,36 @@ function Get-SbtContext {
     return $context
 }
 
+function Get-SbtGameNames {
+    # The games and launchers nothing in the change area runs beside
+    # (changes/windows/README.md, "Rules for every change script"), as
+    # Get-Process reports ProcessName (no extension). Unverified on the PC:
+    # README item S6.
+    return @('Overwatch', 'Battle.net', 'FortniteClient-Win64-Shipping', 'EpicGamesLauncher')
+}
+
+function Get-SbtGameCheck {
+    # The no_game_running check: names only, compared ignoring case; a list
+    # that cannot be read fails the check, because whether a game runs is
+    # then unknown.
+    $names = $null
+    try { $names = @(Get-SbtProcessNames) } catch { return [ordered]@{ name = 'no_game_running'; ok = $false; detail = 'the process names could not be read: ' + $_.Exception.Message } }
+    $found = @()
+    foreach ($game in (Get-SbtGameNames)) {
+        foreach ($name in $names) { if ([string]::Equals([string]$name, $game, [System.StringComparison]::OrdinalIgnoreCase)) { $found += $game; break } }
+    }
+    if ($found.Count -gt 0) { return [ordered]@{ name = 'no_game_running'; ok = $false; detail = ('running: ' + ($found -join ', ') + '; close the game and its launcher first') } }
+    return [ordered]@{ name = 'no_game_running'; ok = $true; detail = 'none of ' + ((Get-SbtGameNames) -join ', ') + ' runs' }
+}
+
 function Get-SbtPreconditions {
     # Every check -Apply makes before it changes anything, in order.
     param([hashtable]$Context)
     $checks = New-Object 'System.Collections.Generic.List[object]'
     $add = { param([string]$Name, [bool]$Ok, [string]$Detail) $checks.Add([ordered]@{ name = $Name; ok = $Ok; detail = $Detail }) }
     $sid = [string]$Context['UserSid']
+    $game = Get-SbtGameCheck
+    & $add $game['name'] ([bool]$game['ok']) ([string]$game['detail'])
     & $add 'not_elevated' (-not [bool]$Context['Elevated']) 'run it from a normal (not "Run as administrator") Windows PowerShell; the task must carry the standard user token'
     & $add 'not_builtin_administrator' (-not ($sid -match '^S-1-5-21-.+-500$')) 'the built in Administrator account (RID 500) runs every task elevated whatever its run level; use a normal account'
     $uac = $Context['Uac']
@@ -397,6 +421,11 @@ function Invoke-SbtUndo {
         Write-SbtLine -Text ('REFUSED, nothing changed: the task list could not be read: ' + [string]$Context['Task']['Error']) -Context $Context
         return 2
     }
+    $game = Get-SbtGameCheck
+    if (-not $game['ok']) {
+        Write-SbtLine -Text ('REFUSED, nothing changed: no_game_running: ' + [string]$game['detail']) -Context $Context
+        return 2
+    }
     $folder = Find-SbtSavedState -Context $Context
     if ($null -eq $folder) {
         Write-SbtLine -Text 'REFUSED, nothing changed: no saved before state (session-bracket-task-*\before.csv with a matching .sha256) under <Desktop>\latency-evidence' -Context $Context
@@ -506,7 +535,7 @@ function Invoke-SbtMain {
     param([bool]$PlanVerb, [bool]$ApplyVerb, [bool]$UndoVerb, [bool]$ReadbackVerb, [string]$ScriptRoot)
     $named = @(@($PlanVerb, $ApplyVerb, $UndoVerb, $ReadbackVerb) | Where-Object { $_ }).Count
     if ($named -gt 1) {
-        Write-SbtOutput -Text 'REFUSED, nothing changed: name exactly one of -Plan, -Apply, -Undo, -Readback'
+        Write-SbtOutput -Text 'REFUSED, nothing changed: name one verb, exactly one of -Plan, -Apply, -Undo, -Readback'
         return 2
     }
     $context = $null
@@ -641,6 +670,12 @@ function Unregister-SbtTask {
 function Get-SbtExecutionPolicy {
     param([string]$Scope)
     return [string](Get-ExecutionPolicy -Scope $Scope)
+}
+
+function Get-SbtProcessNames {
+    # Names only: ProcessName of each process, nothing else read from it.
+    # https://learn.microsoft.com/powershell/module/microsoft.powershell.management/get-process
+    return @(Get-Process -ErrorAction Stop | ForEach-Object { [string]$_.ProcessName })
 }
 
 function Test-SbtZoneIdentifier {

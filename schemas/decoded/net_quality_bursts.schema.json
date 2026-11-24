@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/net_quality_bursts.schema.json",
+  "title": "net_quality_bursts: one run of failed, unknown or missed probes in a connection-quality session",
+  "description": "One row per run of consecutive lines of one source, probe and target sharing a condition, and per run of consecutive missed slots of one source. The provenance lists every line of the run. See docs/contracts/decoded-tables.md section 5.22.",
+  "x-schema-version": "0.1.0",
+  "x-decoded-table": "net_quality_bursts",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "source_id",
+    "probe",
+    "target",
+    "first_seq",
+    "last_seq",
+    "count",
+    "qpc_start",
+    "qpc_end",
+    "start_utc",
+    "end_utc",
+    "provenance"
+  ],
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "loss_burst",
+        "dns_failure_burst",
+        "probe_unknown",
+        "link_down",
+        "link_unknown",
+        "route_changed",
+        "sampling_gap"
+      ],
+      "description": "loss_burst: consecutive echoes to one target not answered; dns_failure_burst: consecutive failed queries to one server; probe_unknown: consecutive echoes whose outcome is unknown; link_down: consecutive readings not connected or not up; link_unknown: consecutive readings that could not be made; route_changed: consecutive readings on a changed default route; sampling_gap: consecutive missed slots of one source (not a loss)."
+    },
+    "source_id": {
+      "type": "string",
+      "enum": [
+        "gateway_probes",
+        "public_probes",
+        "link_state"
+      ],
+      "description": "The collector source whose samples file holds the line."
+    },
+    "probe": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "ping",
+        "dns",
+        "link",
+        null
+      ],
+      "description": "Null for a sampling gap."
+    },
+    "target": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "gateway",
+        "cloudflare",
+        "google",
+        null
+      ],
+      "description": "Fixed label of the probed address; null for a link reading. The gateway address itself never reaches a bundle."
+    },
+    "first_seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "last_seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Lines in the run. The seq span of a probe run can include missed slots, which are their own sampling_gap rows."
+    },
+    "qpc_start": {
+      "type": "integer",
+      "description": "qpc_before of the first probe, or the slot_qpc of the first missed slot."
+    },
+    "qpc_end": {
+      "type": "integer",
+      "description": "qpc_done of the last probe, or the counter reading that found the last slot missed."
+    },
+    "start_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+      "description": "time_utc of the first probe; null for a sampling gap."
+    },
+    "end_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+      "description": "time_utc of the last probe; null for a sampling gap."
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "decoded_table": {
+              "const": "net_quality_bursts"
+            },
+            "schema_version": {
+              "const": "0.1.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

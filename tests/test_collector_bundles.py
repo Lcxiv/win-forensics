@@ -32,7 +32,9 @@ ALLOWED_NETSH = re.compile(r"^wlan show (interfaces|drivers|networks mode=bssid|
 # page changes a setting, a scheme, or writes a report file outside the bundle.
 ALLOWED_POWERCFG = re.compile(r"^/(list|getactivescheme|aliases|query|qh)$")
 # The configuration snapshot's two questions without a documented read only path.
-UNAVAILABLE = {"power_mode", "timer_resolution"}
+UNAVAILABLE = {"power_mode", "timer_resolution", "display_driver_events"}
+# The pnp sources: Win32_PnPEntity listed whole and then read device by device, so they carry no -Property.
+PNP_SOURCES = {"interrupt_policy", "usb_device_tree", "bluetooth_devices"}
 # The only wpr verbs the live capture collector may use: read the status, enumerate the profile file,
 # start the one session it owns, stop it, cancel it. No boot trace, no marker, no configuration change.
 ALLOWED_WPR_VERBS = {"-status", "-profiles", "-start", "-stop", "-cancel"}
@@ -47,6 +49,8 @@ ALLOWED_TRACERPT = {
 }
 # Collectors whose cases run elevated (the live capture needs it) and carry a QPC trace.
 LIVE_CAPTURE = {"dpcisr-trace", "diskio-trace"}
+# The connection-quality sources and the target labels each one probes.
+NET_QUALITY = {"gateway_probes": ["gateway"], "public_probes": ["cloudflare", "google"], "link_state": None}
 # What each kernel trace collector asks of WPR: its profile, its instance prefix, its keywords and why.
 KERNEL_TRACES = {
     "dpcisr-trace": ("dpcisr-trace.wprp", "WfDpcIsrTrace", ["Interrupt", "DPC", "Loader"], "DPC and interrupt attribution only: no process, thread or scheduling events"),
@@ -79,6 +83,10 @@ EXPECTED = {
     "clock-calibration-clock-step": ("ok", {"clock_calibration": "observed", "operator_marks": "observed"}),
     "clock-calibration-missed-slot": ("ok", {"clock_calibration": "observed", "operator_marks": "observed_zero"}),
     "clock-calibration-read-failed": ("ok", {"clock_calibration": "observed", "operator_marks": "observed_zero"}),
+    "connection-quality": ("ok", {"gateway_probes": "observed", "public_probes": "observed", "link_state": "observed"}),
+    "connection-quality-link-drop": ("ok", {"gateway_probes": "observed", "public_probes": "observed", "link_state": "observed"}),
+    "connection-quality-no-gateway": ("partial", {"gateway_probes": "not_collected", "public_probes": "observed", "link_state": "not_collected"}),
+    "connection-quality-session-failed": ("failed", {"gateway_probes": "capture_failed", "public_probes": "capture_failed", "link_state": "capture_failed"}),
     "driver-inventory": ("ok", {"pnp_signed_drivers": "observed", "system_drivers": "observed"}),
     "reliability-records": ("ok", {"reliability_records": "observed", "reliability_stability_metrics": "observed"}),
     "rf-survey": ("ok", {"net_adapters": "observed", "default_routes": "observed", "wlan_interfaces": "observed", "wlan_drivers": "observed",
@@ -141,6 +149,17 @@ EXPECTED = {
                                                       "event_counts": "capture_failed", "session_delta": "observed"}),
     "session-bracket-after-no-baseline": ("partial", {**{source: "observed" for source in SESSION_BRACKET_READS}, "game_guard": "observed_zero",
                                                       "session_delta": "not_collected"}),
+    "session-ledger": ("ok", {"overwatch_logs": "observed", "battlenet_logs": "observed", "fortnite_logs": "observed", "epic_launcher_logs": "observed",
+                              "display_adapters": "observed", "display_driver_events": "observed", "werkernel_events": "observed",
+                              "live_kernel_reports": "observed", "minidumps": "observed_zero", "wer_report_queue": "observed",
+                              "wer_report_archive": "observed_zero"}),
+    "session-ledger-standard-account": ("partial", {"overwatch_logs": "not_collected", "battlenet_logs": "not_collected", "fortnite_logs": "not_collected",
+                                                    "epic_launcher_logs": "not_collected", "display_adapters": "observed",
+                                                    "display_driver_events": "not_collected", "werkernel_events": "unsupported",
+                                                    "live_kernel_reports": "not_collected", "minidumps": "observed_zero",
+                                                    "wer_report_queue": "observed_zero", "wer_report_archive": "capture_failed"}),
+    "bugcheck-history-ledger": ("ok", {"system_restart_events": "observed"}),
+    "tdr-events-ledger": ("ok", {"system_display_events": "observed", "system_bugcheck_events": "observed"}),
 }
 
 
@@ -295,7 +314,21 @@ def test_status_and_evidence_stay_separate(case):
                     assert literal[:-1] + "0000Z" == recorded, (literal, recorded)
             if collector["raw_time_range"] is not None:
                 assert collector["raw_time_range"]["end"] == options["window_end_utc"]
-        elif collector["command"][0] == "Get-CimInstance" and "Win32_PnPEntity" not in collector["command"]:
+        elif collector["id"] in NET_QUALITY:
+            # connection-quality: probes by label only, the timeout below the one second slot, the link read by its fixed properties.
+            options = collector["requested"]["options"]
+            config = json.loads((BUNDLES / case / "raw" / collector["id"] / "command.json").read_text(encoding="utf-8"))
+            assert config["session"]["interval_seconds"] == 1 and options["timeout_seconds"] == options["duration_seconds"] + 60
+            if collector["id"] == "link_state":
+                assert collector["command"][:5] == ["Get-CimInstance", "-Namespace", "root/StandardCimv2", "-ClassName", "MSFT_NetAdapter"]
+                assert options["properties"] == ["InterfaceIndex", "MediaConnectState", "InterfaceOperationalStatus", "ReceiveLinkSpeed", "TransmitLinkSpeed", "NdisPhysicalMedium"]
+            else:
+                assert options["targets"] == NET_QUALITY[collector["id"]]
+                assert options["ping_timeout_milliseconds"] < 1000 and options["dns_every_slots"] == 10
+                assert collector["command"][0] == "System.Net.NetworkInformation.Ping.SendPingAsync" and "-DnsOnly" in collector["command"]
+            if collector["status"] in OBSERVED:
+                assert primary[0]["path"].endswith("/samples.jsonl") and collector["enabled"]["options"]["failure"] is None
+        elif collector["command"][0] == "Get-CimInstance" and collector["id"] not in PNP_SOURCES:
             assert "-OperationTimeoutSec" in collector["command"] and "-Property" in collector["command"]
             if collector["requested"]["options"]["time_property"]:
                 assert "-Filter" in collector["command"] and collector["requested"]["options"]["filter"].startswith("TimeGenerated >= '")
@@ -346,6 +379,17 @@ def test_status_and_evidence_stay_separate(case):
             assert collector["requested"]["options"]["mode"] == "listing" and collector["requested"]["options"]["recursive"] is False
             if collector["status"] in OBSERVED:
                 assert primary[0]["path"].endswith("/listing.json") and collector["enabled"]["options"]["content_kept"] is False
+        elif collector["command"][0] == "System.IO.DirectoryInfo.EnumerateFileSystemInfos":
+            # The metadata source: names, sizes and times from the folder listing; no file is opened, and the folder is named by
+            # its known folder token, never by its resolved path (under the profile that path carries the account name).
+            options = collector["requested"]["options"]
+            assert options["mode"] == "metadata" and options["content_read"] is False and options["depth"] in (0, 1)
+            assert re.fullmatch(r"<(Windows|ProgramData|LocalApplicationData|MyDocuments)>\\[A-Za-z0-9 ._\\-]+", collector["command"][1]), collector["command"]
+            assert options["absence"] in ("observation", "unproven")
+            if collector["status"] in OBSERVED:
+                assert primary[0]["path"].endswith("/listing.json") and collector["enabled"]["options"]["content_read"] is False
+            if options["absence"] == "unproven":
+                assert collector["status"] != "observed_zero", "no retained log is never a quiet window"
         elif "SetupDiOpenDevRegKey" in collector["command"]:
             # The device key API path: global scope, the hardware key, read access, the two fixed relative subkeys.
             assert collector["command"][5:9] == ["SetupDiOpenDevRegKey", "DICS_FLAG_GLOBAL", "DIREG_DEV", "KEY_READ"]
@@ -896,3 +940,32 @@ def test_presentmon_failures_are_honest_about_what_was_recorded():
     overflow = load_manifest("presentmon-frames-overflow")["collectors"][0]
     assert overflow["status"] == "capture_failed" and overflow["enabled"]["options"]["presentmon_overflowed_presents"] == 37
     assert "threw away 37 presents" in overflow["status_reason"]
+
+
+@pytest.mark.parametrize("case", ["session-ledger", "session-ledger-standard-account"])
+def test_session_ledger_bundles_are_documented_list_only_and_name_no_profile(case):
+    """Every source the collector recorded is documented, a metadata source keeps only its listing, and no resolved path leaves."""
+    readme = (REPO_ROOT / "collectors" / "windows" / "README.md").read_text(encoding="utf-8")
+    for term in ("docs/session-ledger.md", "<MyDocuments>", "<LocalApplicationData>", "name-", "QuietClaimVerified", "Process Lasso"):
+        assert term in readme, term
+    manifest = load_manifest(case)
+    ids = [c["id"] for c in manifest["collectors"]]
+    assert len(ids) == 11 and len(set(ids)) == 11, ids
+    metadata = 0
+    for collector in manifest["collectors"]:
+        assert f"`{collector['id']}`" in readme, collector["id"]
+        if collector["command"] and collector["command"][0] == "System.IO.DirectoryInfo.EnumerateFileSystemInfos":
+            metadata += 1
+            assert collector["requested"]["options"]["content_read"] is False
+            if collector["enabled"] is not None:
+                assert collector["enabled"]["options"].get("content_read") in (False, None)
+            written = sorted(a["path"].rsplit("/", 1)[1] for a in collector["artifacts"])
+            assert set(written) <= {"listing.json", "result.json", "source.json"}, written
+            on_disk = sorted(p.name for p in (BUNDLES / case / "raw" / collector["id"]).iterdir()) if (BUNDLES / case / "raw" / collector["id"]).is_dir() else []
+            assert set(on_disk) <= {"listing.json", "result.json", "source.json"}, on_disk
+    assert metadata == 8
+    for path in (BUNDLES / case).rglob("*"):
+        if path.is_file():
+            text = path.read_text(encoding="utf-8")
+            for leak in ("synthetic-player", "C:\\Users", "C:\\\\Users", "AppData"):
+                assert leak not in text, (path, leak)

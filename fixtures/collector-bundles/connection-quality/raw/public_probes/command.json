@@ -1,0 +1,45 @@
+{
+  "source": "public_probes",
+  "targets": [
+    {
+      "label": "cloudflare",
+      "address": "1.1.1.1",
+      "ping": true,
+      "dns": true
+    },
+    {
+      "label": "google",
+      "address": "8.8.8.8",
+      "ping": true,
+      "dns": false
+    }
+  ],
+  "ping": {
+    "api": "System.Net.NetworkInformation.Ping.SendPingAsync(IPAddress, Int32, Byte[]), one Ping per target, all sent before any is awaited (Task.WaitAll)",
+    "timeout_milliseconds": 800,
+    "payload_bytes": 32,
+    "kept": "the reply Status by IPStatus name and RoundtripTime in milliseconds when Status is Success; a faulted send is error with its innermost exception type; a send still pending after the wait is not_completed"
+  },
+  "dns": {
+    "api": "Resolve-DnsName -Name <name> -Type A -Server <target> -DnsOnly -QuickTimeout -NoHostsFile",
+    "name": "www.microsoft.com",
+    "type": "A",
+    "every_slots": 10,
+    "kept": "answered or failed, the number of records returned (never the records), and for a failure the exception type, the FullyQualifiedErrorId when it has the documented error id shape (else withheld) and the NativeErrorCode when the exception has one",
+    "timing": "qpc_done - qpc_after spans the cmdlet call, so it is an upper bound on the query time"
+  },
+  "session": {
+    "duration_seconds": 30,
+    "interval_seconds": 1,
+    "slots": 30,
+    "timeout_seconds": 90,
+    "max_artifact_bytes": 67108864,
+    "qpc_frequency_hz": 10000000,
+    "qpc_high_resolution": true,
+    "slot_rule": "slot k is due at the session start counter plus k seconds; a slot reached more than one interval late is written as a missed line and not taken late",
+    "stamp": "qpc_before, filetime_utc_100ns, qpc_after are read right before the probe is sent (Stopwatch.GetTimestamp, DateTime.UtcNow.ToFileTimeUtc, Stopwatch.GetTimestamp); qpc_done right after it completed",
+    "samples_file": "samples.jsonl, one JSON object per line in the order written; a decoder cites line:<n>",
+    "network_traffic": "the probes are packets this PC sends: one ICMP echo of 32 bytes per target per slot and one DNS A query per DNS target every 10 slots; no setting is read for writing or changed",
+    "privacy": "the gateway address is read from the route table into memory and written only as the label gateway; the public targets are constants of the collector; no local address, hardware address, network name, adapter name or description, DNS answer or exception message is written"
+  }
+}

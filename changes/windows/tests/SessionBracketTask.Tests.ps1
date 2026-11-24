@@ -45,7 +45,7 @@ Describe 'the session bracket logon task: plan' {
         $run.Text | Should -Match ([regex]::Escape('-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File "<profile>\win-forensics\collectors\windows\session-bracket.ps1" -Phase baseline -ToEvidenceFolder'))
         $run.Text | Should -Match 'run_level\s+Limited'
         $run.Text | Should -Match 'logon_type\s+Interactive'
-        foreach ($check in @('not_elevated', 'not_builtin_administrator', 'uac_on', 'task_absent', 'collector_present', 'helper_present', 'collector_not_blocked', 'execution_policy_machinepolicy', 'desktop_resolved')) {
+        foreach ($check in @('not_elevated', 'not_builtin_administrator', 'uac_on', 'task_absent', 'collector_present', 'helper_present', 'collector_not_blocked', 'execution_policy_machinepolicy', 'desktop_resolved', 'no_game_running')) {
             $run.Text | Should -Match ('PASS\s+' + $check)
         }
         $global:SbtSynthetic.Calls.Count | Should -Be 0
@@ -87,7 +87,10 @@ Describe 'the session bracket logon task: preconditions refuse before anything c
         @{ Name = 'the streams cannot be listed'; Check = 'collector_not_blocked'; Setup = { $global:SbtSynthetic.Zone['C:\Users\Synthetic Owner\win-forensics\collectors\windows\session-bracket.ps1'] = 'throw' } },
         @{ Name = 'Group Policy sets AllSigned'; Check = 'execution_policy_machinepolicy'; Setup = { $global:SbtSynthetic.Policies['MachinePolicy'] = 'AllSigned' } },
         @{ Name = 'the user policy cannot be read'; Check = 'execution_policy_userpolicy'; Setup = { $global:SbtSynthetic.Policies['UserPolicy'] = 'throw' } },
-        @{ Name = 'the Desktop cannot be resolved'; Check = 'desktop_resolved'; Setup = { $global:SbtSynthetic.Desktop = $null } }
+        @{ Name = 'the Desktop cannot be resolved'; Check = 'desktop_resolved'; Setup = { $global:SbtSynthetic.Desktop = $null } },
+        @{ Name = 'a game runs'; Check = 'no_game_running'; Setup = { $global:SbtSynthetic.Processes = @('explorer', 'overwatch') } },
+        @{ Name = 'a launcher runs'; Check = 'no_game_running'; Setup = { $global:SbtSynthetic.Processes = @('Battle.net') } },
+        @{ Name = 'the process list cannot be read'; Check = 'no_game_running'; Setup = { $global:SbtSynthetic.Processes = 'throw' } }
     ) {
         $desktop = Start-Machine -Name ('refuse-' + $Check + '-' + $Name.Length)
         & $Setup
@@ -217,6 +220,16 @@ Describe 'the session bracket logon task: apply, readback and undo' {
         $readback.Code | Should -Be 0
         $readback.Text | Should -Match 'the last run could not be read'
         $readback.Text | Should -Match 'PASS: the task is as -Apply registered it'
+    }
+
+    It 'refuses to undo while a game runs, and removes nothing' {
+        $null = Start-Machine -Name 'undo-game'
+        $null = Invoke-Verb -Verb 'Apply'
+        $global:SbtSynthetic.Processes = @('FortniteClient-Win64-Shipping')
+        $undo = Invoke-Verb -Verb 'Undo'
+        $undo.Code | Should -Be 2
+        $undo.Text | Should -Match 'no_game_running: running: FortniteClient-Win64-Shipping'
+        @($global:SbtSynthetic.Calls) | Should -Be @('register')
     }
 
     It 'refuses to undo a task with this name that is not the one apply registered' {

@@ -1,0 +1,24 @@
+{
+  "channel": "Microsoft-Windows-WerKernel/Operational",
+  "read_at_utc": "2026-03-01T12:00:33.0000000Z",
+  "state": {
+    "found": false,
+    "readable": false,
+    "error": "synthetic backend: no channel named Microsoft-Windows-WerKernel/Operational",
+    "error_kind": "not_found",
+    "record_count": null,
+    "oldest_record_number": null,
+    "oldest_record_time_utc": null,
+    "oldest_probe": null,
+    "file_size_bytes": null,
+    "is_log_full": null,
+    "last_write_time_utc": null,
+    "is_enabled": null,
+    "log_mode": null,
+    "maximum_size_bytes": null,
+    "isolation": null,
+    "security_descriptor": null,
+    "configuration_error": null
+  },
+  "providers_registered": {}
+}

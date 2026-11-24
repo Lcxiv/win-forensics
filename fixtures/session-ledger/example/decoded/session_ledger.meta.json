@@ -1,0 +1,137 @@
+{
+  "decoded_table": "session_ledger",
+  "schema_version": "0.1.0",
+  "decoder": "build_session_ledger",
+  "decoder_version": "1.0.0",
+  "tool": {
+    "name": "collectors/windows bundles joined by scripts/build_session_ledger.py",
+    "version": null
+  },
+  "source_files": [
+    {
+      "path": "raw/inputs/20260301T120001Z_application_errors_ae3a76a9/raw/application_error_events/events.json",
+      "sha256": "1acd3b568ab43da0b133b58ac58cb25064e3cef1a4e8e306d5d9ea556fa996f5"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_bugcheck_history_ae3a76a9/raw/system_restart_events/events.json",
+      "sha256": "433eebf9f977cff6670cb5e1ff8146f535614fe8bb6c19317f3f32d407753fd7"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/battlenet_logs/listing.json",
+      "sha256": "024b5936d42bab74c1095ac8cb13eb6759b1c05615f002e6db392f8d3749eb30"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/battlenet_logs/result.json",
+      "sha256": "aceeaee72be58b40f618dad1da93aff2e719391617c8f9dc0365891e0400a662"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/display_driver_events/events.json",
+      "sha256": "6c3f1a979bfa1c0ef459ceed12d30cdbc32d6e803455a0b05df050360d508584"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/epic_launcher_logs/listing.json",
+      "sha256": "8fd54cab663bba9aa3f6e9e0e95509cba3e9428b8d7ac2478fc610c4f77a72bb"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/epic_launcher_logs/result.json",
+      "sha256": "cc2a768b8605efdaef0217227139de609ff893aae23dc10310b1c685db8cf6c1"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/fortnite_logs/listing.json",
+      "sha256": "7abe7a6301717a51324473d476db4ab202bddd04f0281cae7edfb20781aa62a9"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/fortnite_logs/result.json",
+      "sha256": "c747b6e3d102457f3bcd48013dc16a4cdee96dbbf14ad32d6fee1e874f749246"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/live_kernel_reports/listing.json",
+      "sha256": "7cdb4faa6627bc6f380401969a7e82efd53884acb012408bbb780c618a41128b"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/live_kernel_reports/result.json",
+      "sha256": "fad491a937d492ccf5873b8dd1d56c3b742d1107942115d7e2a1663517f8ff38"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/minidumps/listing.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/minidumps/result.json",
+      "sha256": "bde8131f37c57456e482e8a04923f1cdc25b021e56a7dd7d9adc6bf6ea6cc082"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/overwatch_logs/listing.json",
+      "sha256": "8f626999a1647372decddb6923ee33c29ed9229a46e498c1e5be640f5f844951"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/overwatch_logs/result.json",
+      "sha256": "9489d4548c46e217882afdef27f6e9a695b72023a2100963ac2c081e561d9321"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/wer_report_archive/listing.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/wer_report_archive/result.json",
+      "sha256": "d47982deb84f62ade21889d8186a741552cc5e9977abeb47d6dee613ecdca3b7"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/wer_report_queue/listing.json",
+      "sha256": "d7d6185c8abc93847bde1484515b5a5bad3ee7d9fa800a7c7f733a504075512f"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/wer_report_queue/result.json",
+      "sha256": "d30ff7480bcf202ff4fda9ed1697617aec2c7a68ca22932f80e7ce8af4ee56da"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_session_ledger_ae3a76a9/raw/werkernel_events/events.json",
+      "sha256": "1b929784c5bf49d166730900184898cc24d2ef60a440de5b3de8e8589e2f4d64"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_tdr_events_ae3a76a9/raw/system_bugcheck_events/events.json",
+      "sha256": "80c01118e30e2d91acf81729ed8296b03d2547df4753f89cce54c955d8fc72db"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_tdr_events_ae3a76a9/raw/system_display_events/events.json",
+      "sha256": "8a0bd46cfe9a62bbb7c1d050ff91afe5299a90515a0ba8a24b851d9be5f4cfdb"
+    },
+    {
+      "path": "raw/inputs/20260301T120001Z_whea_errors_ae3a76a9/raw/system_whea_events/events.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    }
+  ],
+  "row_count": 16,
+  "time_domain": "system_time",
+  "native_time_range": {
+    "start": "2026-02-20T06:00:00.0000000Z",
+    "end": "2026-03-01T01:12:00.0000000Z",
+    "domain": "system_time",
+    "unit": "iso_utc"
+  },
+  "status": "observed",
+  "status_reason": null,
+  "checks": [
+    {
+      "name": "bundles_verified",
+      "ok": true,
+      "detail": "5 bundles match their manifests"
+    },
+    {
+      "name": "one_machine",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "periods_valid",
+      "ok": true,
+      "detail": "2 periods, revision 1"
+    },
+    {
+      "name": "rows_validate",
+      "ok": true,
+      "detail": null
+    }
+  ],
+  "decoded_at_utc": "2026-09-03T00:00:00Z"
+}

@@ -1,12 +1,13 @@
-# Runs the checks that need PowerShell for the change scripts: PSScriptAnalyzer
-# (with the Windows PowerShell 5.1 compatibility rules the collectors use) and
-# the Pester suite under this folder, which runs every verb against synthetic
-# backends and never touches the machine.
+# Runs the checks that need PowerShell: PSScriptAnalyzer over the change scripts
+# (including the Windows PowerShell 5.1 compatibility rules) and the Pester
+# suite.
 #
 #   pwsh -NoProfile -File changes/windows/tests/Invoke-Checks.ps1 [-ModulePath <dir>]
 #
-# Exit codes: 0 all checks passed, 1 a check failed, 3 a module is missing
-# (tests/test_changes_area.py turns that into a skip).
+# -ModulePath is a directory that holds Pester 5 and PSScriptAnalyzer when
+# they are not installed for the user, for example one filled with
+# Save-Module. Exit codes: 0 all checks passed, 1 a check failed, 3 a module
+# is missing (tests/test_changes_pwsh.py turns that into a skip).
 [CmdletBinding()]
 param(
     [string]$ModulePath = ''
@@ -25,9 +26,12 @@ Import-Module $pester.Path
 Import-Module $analyzer.Path
 
 $changeRoot = Split-Path -Parent $PSScriptRoot
-$settings = Join-Path (Split-Path -Parent (Split-Path -Parent $changeRoot)) 'collectors/windows/tests/PSScriptAnalyzerSettings.psd1'
+$settings = Join-Path $PSScriptRoot 'PSScriptAnalyzerSettings.psd1'
 $failed = $false
 
+# The shipped scripts must be clean under every rule in the settings file.
+# The test files only have to parse as Windows PowerShell 5.1; they use
+# Pester 5 commands, which the 5.1 command profile does not know.
 $findings = @()
 foreach ($file in @(Get-ChildItem -LiteralPath $changeRoot -Filter '*.ps1' -File)) {
     $findings += @(Invoke-ScriptAnalyzer -Path $file.FullName -Settings $settings)

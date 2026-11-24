@@ -1,0 +1,253 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Lcxiv/win-forensics/schemas/decoded/net_quality.schema.json",
+  "title": "net_quality: one probe of a connection-quality session",
+  "description": "One row per probe line of raw/<source>/samples.jsonl of the connection-quality collector: an ICMP echo, a DNS query or a reading of the default route adapter, stamped on the performance counter. See docs/contracts/decoded-tables.md section 5.21.",
+  "x-schema-version": "0.1.0",
+  "x-decoded-table": "net_quality",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_id",
+    "probe",
+    "target",
+    "seq",
+    "slot_qpc",
+    "qpc_before",
+    "qpc_after",
+    "qpc_done",
+    "filetime_utc_100ns",
+    "time_utc",
+    "qpc_mid",
+    "half_width_100ns",
+    "elapsed_ms",
+    "status",
+    "ok",
+    "rtt_ms",
+    "answer_records",
+    "error_type",
+    "error_id",
+    "error_code",
+    "media_connect_state",
+    "media_connect_state_text",
+    "operational_status",
+    "operational_status_text",
+    "receive_link_speed_bps",
+    "transmit_link_speed_bps",
+    "physical_medium",
+    "physical_medium_text",
+    "route_same",
+    "provenance"
+  ],
+  "properties": {
+    "source_id": {
+      "type": "string",
+      "enum": [
+        "gateway_probes",
+        "public_probes",
+        "link_state"
+      ],
+      "description": "The collector source whose samples file holds the line."
+    },
+    "probe": {
+      "type": "string",
+      "enum": [
+        "ping",
+        "dns",
+        "link"
+      ]
+    },
+    "target": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "gateway",
+        "cloudflare",
+        "google",
+        null
+      ],
+      "description": "Fixed label of the probed address; null for a link reading. The gateway address itself never reaches a bundle."
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Slot number from the session start, one slot per second; the link reading at the stop carries the slot count."
+    },
+    "slot_qpc": {
+      "type": "integer",
+      "description": "Counter value the slot was due at."
+    },
+    "qpc_before": {
+      "type": "integer",
+      "description": "Verbatim: counter read right before the probe was sent."
+    },
+    "qpc_after": {
+      "type": "integer",
+      "description": "Verbatim: counter read after the system time reading, right before the probe was sent."
+    },
+    "qpc_done": {
+      "type": "integer",
+      "description": "Verbatim: counter read right after the probe completed."
+    },
+    "filetime_utc_100ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Verbatim: the system time read between qpc_before and qpc_after, as a FILETIME."
+    },
+    "time_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,7})?Z$",
+      "description": "Derived: filetime_utc_100ns as ISO 8601 UTC with seven fractional digits."
+    },
+    "qpc_mid": {
+      "type": "integer",
+      "description": "Derived: floor((qpc_before + qpc_after) / 2), the counter value the probe's send stands for."
+    },
+    "half_width_100ns": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Derived: ceil((bracket / 2 + 1 tick) * 10^7 / qpc_frequency_hz), timestamps.md section 3."
+    },
+    "elapsed_ms": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Derived: (qpc_done - qpc_after) in milliseconds. For a DNS row, an upper bound on the answer time (it spans the cmdlet call); for an echo, the time until every echo of the slot completed."
+    },
+    "status": {
+      "type": "string",
+      "description": "Verbatim: an IPStatus name, error or not_completed for an echo; answered or failed for a query; read, not_found or error for a link reading."
+    },
+    "ok": {
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "description": "Derived: true when the echo was answered (Success), the query answered, or the adapter connected and up; false when the echo was sent and not answered, the query failed, or the adapter was read not connected or not up; null when the outcome is unknown (an echo that faulted or did not complete, an adapter that could not be read)."
+    },
+    "rtt_ms": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Verbatim: PingReply.RoundtripTime in whole milliseconds, for Success only."
+    },
+    "answer_records": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Verbatim: records returned by an answered query (never the records themselves)."
+    },
+    "error_type": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Verbatim: the innermost exception type of a failed probe or reading; the message is never kept."
+    },
+    "error_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Verbatim: the Resolve-DnsName FullyQualifiedErrorId of a failed query, or withheld when it did not have the documented shape."
+    },
+    "error_code": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "description": "Verbatim: the NativeErrorCode of a failed query's exception, when it has one."
+    },
+    "media_connect_state": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Verbatim: MSFT_NetAdapter MediaConnectState."
+    },
+    "media_connect_state_text": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Derived from the MSFT_NetAdapter documentation."
+    },
+    "operational_status": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Verbatim: MSFT_NetAdapter InterfaceOperationalStatus."
+    },
+    "operational_status_text": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Derived from the MSFT_NetAdapter documentation."
+    },
+    "receive_link_speed_bps": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Verbatim: MSFT_NetAdapter ReceiveLinkSpeed in bits per second; null when unknown."
+    },
+    "transmit_link_speed_bps": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Verbatim: MSFT_NetAdapter TransmitLinkSpeed in bits per second; null when unknown."
+    },
+    "physical_medium": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Verbatim: MSFT_NetAdapter NdisPhysicalMedium."
+    },
+    "physical_medium_text": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Derived from the MSFT_NetAdapter documentation."
+    },
+    "route_same": {
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "description": "Verbatim: whether the preferred IPv4 default route still had the interface and next hop the session started with; null when it could not be read or for a probe row."
+    },
+    "provenance": {
+      "allOf": [
+        {
+          "$ref": "provenance.schema.json"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "decoded_table": {
+              "const": "net_quality"
+            },
+            "schema_version": {
+              "const": "0.1.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

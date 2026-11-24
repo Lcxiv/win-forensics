@@ -17,6 +17,7 @@
 #   ExportError    text: Export-ScheduledTask throws
 #   FailWritesUnder a path prefix under which every file write throws
 #   Policies       scope -> policy name, or 'throw'
+#   Processes      the process names Get-Process would report, or 'throw'
 #   Zone           path -> $true / $false / 'throw'
 #   Files          paths that exist besides real files (the repository files)
 #   Output         every line the script printed
@@ -38,6 +39,7 @@ function Reset-SbtSynthetic {
         ExportError     = $null
         FailWritesUnder = $null
         Policies        = @{ MachinePolicy = 'Undefined'; UserPolicy = 'Undefined' }
+        Processes       = @('explorer', 'svchost')
         Zone            = @{}
         Files           = @{}
         Output          = New-Object 'System.Collections.Generic.List[string]'
@@ -105,6 +107,11 @@ function Unregister-SbtTask {
     $global:SbtSynthetic.Calls.Add('unregister')
     if ($global:SbtSynthetic.UnregisterError) { throw $global:SbtSynthetic.UnregisterError }
     $global:SbtSynthetic.Task = $null
+}
+
+function Get-SbtProcessNames {
+    if ($global:SbtSynthetic.Processes -eq 'throw') { throw 'synthetic: the process list could not be read' }
+    return @($global:SbtSynthetic.Processes)
 }
 
 function Get-SbtExecutionPolicy {
