@@ -133,15 +133,12 @@ Exit codes: 0 done (Plan: ready; Readback: every value PASS), 1 refused or a rea
 - `tests/KbdCrashDump.Synthetic.ps1` replaces the adapters with an invented registry, reg export, identity, clock and boot time; `tests/KbdCrashDump.Tests.ps1` runs the real script against it: every verb, every precondition, export failures (exit code and a missing file), an evidence folder that cannot be created, a value that moves during the save, a failed write followed by an undo that restores the exact before-state, a readback mismatch, a tampered or foreign CSV, a value changed by something else before an undo, a key the apply created and the undo removes or keeps, and the alternate keys.
 - `tests/test_change_kbd_crash_dump.py` keeps the guards that hold even for code no test reaches (registry writes only in the write adapters, reg.exe only with `export`, each with a planted negative case), checks the operator page's required sections and the K list, and runs the unmodified script as a process off Windows, where every adapter fails and it must refuse without writing anything. The area rules are checked by `tests/test_changes_area.py`, and `tests/test_changes_pwsh.py` runs the analyzer and the whole Pester suite.
 
-## `session-bracket-task.ps1`
+## `session-bracket-task.ps1`: the session bracket logon task
 
-Registers, reads back and removes the per user logon task that starts the read only `session-bracket` collector's baseline (`collectors/windows/README.md`, "The session-bracket sources"), so a play session never depends on anyone announcing it first. Run it from a normal Windows PowerShell window, not "Run as administrator", in the repository checkout the task should use:
+Not an undo order step: it registers, reads back and removes the per user logon task that starts the read only `session-bracket` collector's baseline (`collectors/windows/README.md`, "The session-bracket sources"), so a play session never depends on anyone announcing it first. It runs from a normal Windows PowerShell window, never elevated. The operator page with the sequence, the after read, what happens when a game starts at logon and what to record is [docs/changes/session-bracket-task.md](../../docs/changes/session-bracket-task.md).
 
 ```
-powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\changes\windows\session-bracket-task.ps1            # -Plan
-powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\changes\windows\session-bracket-task.ps1 -Apply
-powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\changes\windows\session-bracket-task.ps1 -Readback
-powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File .\changes\windows\session-bracket-task.ps1 -Undo
+session-bracket-task.ps1 [-Plan] | -Apply | -Undo | -Readback
 ```
 
 Exit codes: 0 done (every readback value PASS), 1 a change or a readback failed (run `-Readback`, then `-Undo`), 2 refused before anything changed. Each run prints PASS or FAIL per value; it never prompts.
@@ -177,10 +174,6 @@ Preconditions, each printed by `-Plan` and checked again by `-Apply`:
 What `-Apply` saves, in `<Desktop>\latency-evidence\session-bracket-task-<UTC>\`, each file with its `.sha256`: `before.csv` (the task absent), `collector-hashes.csv` (the SHA-256 of the collector and `_common.ps1` it registers), `apply-started.txt`, then `after.csv` and `task-after.xml` (the `Export-ScheduledTask` XML with the account written `<user>`, its SID `<sid>`, the profile `<profile>`). `-Undo` saves `undo-before-<UTC>.csv` before it removes anything, removes the task only when its definition is the expected one or the one saved in `after.csv` (so a partial `-Apply` can be undone), and never touches a task with this name that changed since. `-Readback` also prints the last run time and result (`0` the collector exited 0, `1` its bundle failed, `0x41303` not yet run, `0x41301` running: [Task Scheduler error and success constants](https://learn.microsoft.com/windows/win32/taskschd/task-scheduler-error-and-success-constants)) and whether the collector or the helper changed since `-Apply`.
 
 The cmdlets: [Register-ScheduledTask](https://learn.microsoft.com/powershell/module/scheduledtasks/register-scheduledtask), [New-ScheduledTaskPrincipal](https://learn.microsoft.com/powershell/module/scheduledtasks/new-scheduledtaskprincipal), [New-ScheduledTaskTrigger](https://learn.microsoft.com/powershell/module/scheduledtasks/new-scheduledtasktrigger), [New-ScheduledTaskSettingsSet](https://learn.microsoft.com/powershell/module/scheduledtasks/new-scheduledtasksettingsset), [Unregister-ScheduledTask](https://learn.microsoft.com/powershell/module/scheduledtasks/unregister-scheduledtask), [Export-ScheduledTask](https://learn.microsoft.com/powershell/module/scheduledtasks/export-scheduledtask), [Get-ScheduledTaskInfo](https://learn.microsoft.com/powershell/module/scheduledtasks/get-scheduledtaskinfo).
-
-### If a game starts at logon
-
-The task does not wait for anything: Microsoft documents that logon tasks also run when the Task Scheduler service starts and enumerates the users already logged on ([LogonTrigger](https://learn.microsoft.com/windows/win32/taskschd/logontrigger)), so the baseline can start after a launcher has already started a game. The collector's first source is its game guard: it reads the `Name` of each process from `Win32_Process`, compares them with the game names, and when a game is running reads nothing else and writes a `partial` bundle that says so. It never opens, injects into, overlays, suspends or reprioritises a process. The after read then subtracts against the newest earlier baseline of the same boot, or says there is none. Whether the WMI provider opens process handles to fill `Name` is not documented (collectors README item 112).
 
 ## Facts to verify on the PC
 
