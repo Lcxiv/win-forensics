@@ -54,6 +54,7 @@ docs/contracts/          the contracts above plus procmon-facts.md
 docs/rf-survey.md        the RF survey: method, limits, citations, and the before and after test
 docs/clock-calibration.md  the clock calibration session and operator marks: how the clocks are read, the fit, the limits
 docs/session-ledger.md   the session and incident ledger: the split, the session and rate rules, the refusals, follow-up
+docs/driver-classes.md   the driver classes of DPC and ISR modules: the rules, the cited inbox map, the setup class table
 schemas/                 JSON Schema (draft 2020-12), one file per table, plus manifest, evidence, verdict, common,
                          analysis/ for an analyzer's structured result, and input/ for operator written files
 collectors/windows/      read only PowerShell collectors for the PC, their shared helper _common.ps1, the scenario runner
