@@ -1,6 +1,6 @@
 # Driver classes for DPC and ISR time
 
-The `xperf -a dpcisr` report names the driver image that ran each DPC or interrupt service routine (`storport.sys`, `ntoskrnl.exe`). The decoder gives every module of `dpcisr_module_cpu` a driver class and says how it decided, and sums the classes per CPU in `dpcisr_class_cpu` ([contracts/decoded-tables.md](contracts/decoded-tables.md) sections 5.1, 5.21 and 5.22). The classes are `gpu`, `network`, `usb`, `bluetooth`, `audio`, `storage`, `kernel`, `other` and `unclassified`. The code is `scripts/driver_classes.py`; this page and that file must agree, and `tests/test_driver_classes.py` checks that they do.
+The `xperf -a dpcisr` report names the driver image that ran each DPC or interrupt service routine (`storport.sys`, `ntoskrnl.exe`). The decoder gives every module of `dpcisr_module_cpu` a driver class and says how it decided, and sums the classes per CPU in `dpcisr_class_cpu` ([contracts/decoded-tables.md](contracts/decoded-tables.md) sections 5.1, 5.25 and 5.26). The classes are `gpu`, `network`, `usb`, `bluetooth`, `audio`, `storage`, `kernel`, `other` and `unclassified`. The code is `scripts/driver_classes.py`; this page and that file must agree, and `tests/test_driver_classes.py` checks that they do.
 
 Map version 1.0.0. Any change to an entry below is a new map version, and every row records the version it was classed with.
 

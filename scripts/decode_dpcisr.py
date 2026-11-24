@@ -409,6 +409,7 @@ def decode(bundle: Path, source: str, decoded_at: str | None = None, inventory: 
     decoded_dir = bundle / "decoded"
     decoded_dir.mkdir(parents=True, exist_ok=True)
     status, reason, sections, checks = "observed", None, [], []
+    summary: list[dict[str, Any]] = []
     try:
         sections = parse_report(text, source)
         checks = checks_for(sections)
@@ -421,7 +422,8 @@ def decode(bundle: Path, source: str, decoded_at: str | None = None, inventory: 
                 prov = r.pop("provenance")
                 r.update(classes[r["module"]])
                 r["provenance"] = prov
-        checks += class_checks(sections, class_rows(sections, source))
+        summary = class_rows(sections, source)
+        checks += class_checks(sections, summary)
         if not all(c["ok"] for c in checks):
             status, reason = "decode_failed", "a decoder self check failed; see checks"
     except DecodeError as exc:
@@ -433,7 +435,7 @@ def decode(bundle: Path, source: str, decoded_at: str | None = None, inventory: 
 
     module_rows = [r for s in sections for r in s.module_rows]
     interval_rows = [r for s in sections for r in s.interval_rows]
-    summary_rows = class_rows(sections, source) if status == "observed" else []
+    summary_rows = summary if status == "observed" else []
     if status == "observed" and not module_rows:
         status, reason = "decode_failed", "report parsed but no module rows were found"
 
