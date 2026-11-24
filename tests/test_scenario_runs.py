@@ -106,7 +106,7 @@ def test_a_refused_run_starts_nothing_and_lists_every_declared_source():
     assert "rights:dpcisr" in failed and "rights:dpcisr" in manifest["preflight"]["required"]
     assert {s["outcome"] for s in manifest["run"]["steps"]} == {"not_started", "absent"}
     assert all(c["status"] == "not_collected" and "refused to start" in c["status_reason"] and c["artifacts"] == [] for c in manifest["collectors"])
-    assert len(manifest["collectors"]) == 16
+    assert len(manifest["collectors"]) == 17
     assert list((RUNS / "s1-preflight-refused" / "raw").iterdir()) == [] if (RUNS / "s1-preflight-refused" / "raw").exists() else True
     assert not (RUNS / "s1-preflight-refused" / "logs" / "steps").exists()
     assert manifest["calibration"]["status"] == "not_collected" and manifest["calibration"]["pairs"] == []

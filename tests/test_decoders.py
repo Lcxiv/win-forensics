@@ -99,7 +99,7 @@ def test_dpcisr_interval_rows_validate_and_tile_the_trace(dpcisr_out):
 
 
 def test_dpcisr_sidecars_validate_and_report_checks(dpcisr_out):
-    for table in ("dpcisr_module_cpu", "dpcisr_interval"):
+    for table in ("dpcisr_module_cpu", "dpcisr_interval", "dpcisr_class_cpu"):
         meta = json.loads((dpcisr_out / "decoded" / f"{table}.meta.json").read_text())
         assert wf_schema.validate_object(meta, "decoded/table_meta.schema.json") == []
         assert meta["status"] == "observed"
@@ -205,7 +205,8 @@ def test_pdh_non_pdh_csv_is_decode_failed(tmp_path, example_bundle):
 
 # ---------------------------------------------------------------- committed outputs are current
 
-@pytest.mark.parametrize("table,fixture", [("dpcisr_module_cpu", "dpcisr_out"), ("dpcisr_interval", "dpcisr_out"), ("pdh_counters", "pdh_out")])
+@pytest.mark.parametrize("table,fixture", [("dpcisr_module_cpu", "dpcisr_out"), ("dpcisr_interval", "dpcisr_out"),
+                                                 ("dpcisr_class_cpu", "dpcisr_out"), ("pdh_counters", "pdh_out")])
 def test_committed_decoded_tables_match_a_fresh_decode(request, example_bundle, table, fixture):
     fresh = request.getfixturevalue(fixture)
     for suffix in (".jsonl", ".meta.json"):

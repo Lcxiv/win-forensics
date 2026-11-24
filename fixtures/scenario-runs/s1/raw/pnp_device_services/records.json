@@ -1,0 +1,12 @@
+[
+{"Service":"synthgfx","ClassGuid":"{4d36e968-e325-11ce-bfc1-08002be10318}"},
+{"Service":"synthnic","ClassGuid":"{4D36E972-E325-11CE-BFC1-08002BE10318}"},
+{"Service":"synthusb","ClassGuid":"{36fc9e60-c465-11cf-8056-444553540000}"},
+{"Service":"synthusb","ClassGuid":"{36fc9e60-c465-11cf-8056-444553540000}"},
+{"Service":"synthaudio","ClassGuid":"{4d36e96c-e325-11ce-bfc1-08002be10318}"},
+{"Service":"synthbt","ClassGuid":"{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}"},
+{"Service":"HDAudBus","ClassGuid":"{4d36e97d-e325-11ce-bfc1-08002be10318}"},
+{"Service":"ACPI","ClassGuid":"{4d36e97d-e325-11ce-bfc1-08002be10318}"},
+{"Service":"synthumdf","ClassGuid":"{88bae032-5a81-49f0-bc3d-a4ff138216d6}"},
+{"Service":null,"ClassGuid":null}
+]

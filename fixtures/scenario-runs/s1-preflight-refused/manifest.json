@@ -635,6 +635,42 @@
       "raw_time_range": null,
       "expectation": null,
       "target_process": null
+    },
+    {
+      "id": "pnp_device_services",
+      "kind": "config_snapshot",
+      "required": false,
+      "status": "not_collected",
+      "status_reason": "the scenario runner refused to start; nothing ran. Failed preflight checks: rights:dpcisr, rights:frames",
+      "preflight": null,
+      "command": null,
+      "started_utc": null,
+      "stopped_utc": null,
+      "exit_code": null,
+      "config_hash": null,
+      "filter_hash": null,
+      "requested": {
+        "providers": [],
+        "keywords": [],
+        "stack_walk": [],
+        "counters": [],
+        "options": {}
+      },
+      "enabled": {
+        "providers": null,
+        "keywords": null,
+        "stack_walk": null,
+        "counters": null,
+        "options": null,
+        "verified_by": null
+      },
+      "events_lost": null,
+      "buffers_lost": null,
+      "buffers": null,
+      "artifacts": [],
+      "raw_time_range": null,
+      "expectation": null,
+      "target_process": null
     }
   ],
   "calibration": {
@@ -837,7 +873,7 @@
       {
         "name": "free_space",
         "ok": true,
-        "detail": "500000000000 bytes free on C:\\; the scenario needs at least 10118758400"
+        "detail": "500000000000 bytes free on C:\\; the scenario needs at least 10185867264"
       },
       {
         "name": "tool:xperf",
@@ -855,7 +891,7 @@
     "runner_version": "1.0.0",
     "scenario": "s1",
     "scenario_version": "1.0.0",
-    "minimum_free_bytes": 10118758400,
+    "minimum_free_bytes": 10185867264,
     "clock_brackets_live": null,
     "steps": [
       {
@@ -1069,14 +1105,15 @@
         "required": false,
         "sources": [
           "pnp_signed_drivers",
-          "system_drivers"
+          "system_drivers",
+          "pnp_device_services"
         ],
         "outcome": "not_started",
         "exit_code": null,
         "summary_status": null,
         "started_utc": null,
         "stopped_utc": null,
-        "deadline_seconds": 1020,
+        "deadline_seconds": 1320,
         "ready": null,
         "private_removed": null,
         "session_end": null,
