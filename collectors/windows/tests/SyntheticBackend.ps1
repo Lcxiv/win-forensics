@@ -134,6 +134,7 @@ function Reset-WfSynthetic {
         PinnedTools  = @{}
         Xperf        = @{ ExitCode = 0; StdOut = ''; StdErr = ''; Stuck = $false }
         Clock        = $null
+        Desktop      = $null
         Net          = $null
         Stdout       = New-Object 'System.Collections.Generic.List[string]'
         Stderr       = New-Object 'System.Collections.Generic.List[string]'
@@ -694,6 +695,12 @@ function Get-WfKnownFolderPath {
     param([string]$Name)
     if ($Name -eq 'ProgramData') { return 'C:\ProgramData' }
     if ($Name -eq 'ProgramFiles') { return 'C:\Program Files' }
+    # The session bracket writes under the Desktop; a test points it at a
+    # temporary folder, and an unset one fails as the real adapter does.
+    if ($Name -eq 'Desktop') {
+        if (-not $global:WfSynthetic.Desktop) { throw 'synthetic backend: the Desktop folder is not set' }
+        return [string]$global:WfSynthetic.Desktop
+    }
     if ($Name -eq 'Windows') { return 'C:\Windows' }
     # The two profile folders carry the invented account name, which the
     # tests check never reaches a bundle.

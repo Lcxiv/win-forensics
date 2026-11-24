@@ -1,0 +1,15 @@
+{
+  "class": "Win32_Process",
+  "namespace": "root/cimv2",
+  "properties": [
+    "Name"
+  ],
+  "filter": null,
+  "game_process_names": [
+    "Overwatch.exe",
+    "FortniteClient-Win64-Shipping.exe"
+  ],
+  "comparison": "ordinal, ignoring case, on the whole image name",
+  "max_records": 50000,
+  "timeout_seconds": 90
+}

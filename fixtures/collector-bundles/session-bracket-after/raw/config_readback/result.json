@@ -1,0 +1,14 @@
+{
+  "started_utc": "2026-03-01T15:00:46.0000000Z",
+  "stopped_utc": "2026-03-01T15:00:55.0000000Z",
+  "devices_present": null,
+  "devices_selected": null,
+  "devices_unknown": null,
+  "elements": 6,
+  "keys_read": 3,
+  "keys_absent": 3,
+  "keys_unknown": 0,
+  "peer_nodes_pseudonymised": 0,
+  "truncated": false,
+  "error": null
+}

@@ -1,0 +1,5 @@
+[
+{"Name":"System","ProcessId":4,"CreationDate":"2026-03-01T13:00:00.0000000Z","WriteTransferCount":48000000,"WriteOperationCount":2100},
+{"Name":"svchost.exe","ProcessId":912,"CreationDate":"2026-03-01T13:00:09.0000000Z","WriteTransferCount":1200000,"WriteOperationCount":310},
+{"Name":"example-launcher.exe","ProcessId":6020,"CreationDate":"2026-03-01T13:02:00.0000000Z","WriteTransferCount":830000000,"WriteOperationCount":41000}
+]

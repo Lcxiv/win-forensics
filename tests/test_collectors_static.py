@@ -1,6 +1,7 @@
 """Static checks on the collector scripts that need no PowerShell: the seam, read only posture, citations."""
 from __future__ import annotations
 
+import json
 import re
 
 import pytest
@@ -15,7 +16,7 @@ HELPER = "_common.ps1"
 RUNNER = ("_run-scenario.ps1", "_scenarios.ps1")
 SHIPPED = sorted(COLLECTOR_DIR.glob("*.ps1"))
 COLLECTORS = [p for p in SHIPPED if p.name != HELPER and p.name not in RUNNER]
-EXPECTED_COLLECTORS = ["application-errors", "bugcheck-history", "clock-calibration", "config-snapshot", "connection-quality", "diskio-trace", "dpcisr-trace", "driver-inventory", "presentmon-frames", "reliability-records", "rf-survey", "session-ledger", "tdr-events", "whea-errors"]
+EXPECTED_COLLECTORS = ["application-errors", "bugcheck-history", "clock-calibration", "config-snapshot", "connection-quality", "diskio-trace", "dpcisr-trace", "driver-inventory", "presentmon-frames", "reliability-records", "rf-survey", "session-bracket", "session-ledger", "tdr-events", "whea-errors"]
 
 # Commands that change the machine, reach the network, prompt, handle credentials, or run text
 # as code. A read only collector has no use for any of them.
@@ -328,3 +329,32 @@ def test_diskio_trace_sources_and_privacy_rules_are_documented_and_kept():
     for term in ("`wpr_trace`", "`diskio_aggregate`", "`diskio_activity`", "`<profile>`", "dir-", "image-", "The diskio-trace sources"):
         assert term in readme, term
 
+
+def test_session_bracket_sources_and_guard_are_documented_and_kept():
+    """The session-bracket bundles run the game guard first, read processes by named properties only, and the README names every source."""
+    readme = (COLLECTOR_DIR / "README.md").read_text(encoding="utf-8")
+    root = REPO_ROOT / "fixtures" / "collector-bundles"
+    bundles = sorted(list(root.glob("session-bracket*/manifest.json")) + list(root.glob("*/session-bracket*/manifest.json")))
+    assert len(bundles) == 7
+    reads = ["game_guard", "boot", "process_io", "disk_totals", "memory_paging", "config_readback", "power_active_scheme", "event_counts"]
+    seen: set[str] = set()
+    for path in bundles:
+        collectors = json.loads(path.read_text(encoding="utf-8"))["collectors"]
+        ids = [c["id"] for c in collectors]
+        assert ids in (reads, reads + ["session_delta"]), (path.parent.name, ids)
+        seen.update(ids)
+        for collector in collectors:
+            options = collector["requested"]["options"]
+            if collector["id"] == "game_guard":
+                assert options["class"] == "Win32_Process" and options["properties"] == ["Name"], "the guard reads image names only"
+            if collector["id"] == "process_io" and options.get("class") is not None:
+                assert options["properties"] == ["Name", "ProcessId", "CreationDate", "WriteTransferCount", "WriteOperationCount"]
+            if options.get("class") == "Win32_Process":
+                for forbidden in ("CommandLine", "ExecutablePath", "ExecutionState", "Handle", "SessionId", "ParentProcessId"):
+                    assert forbidden not in options["properties"], (path.parent.name, collector["id"], forbidden)
+    for source_id in sorted(seen):
+        assert f"`{source_id}`" in readme, source_id
+    # The logon task is described here but never named by path: nothing under collectors/ points at
+    # the change area (tests/test_changes_area.py).
+    for term in ("The session-bracket sources", "gap code", "ToEvidenceFolder", "logon task"):
+        assert term in readme, term

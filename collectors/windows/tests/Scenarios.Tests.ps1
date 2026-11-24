@@ -139,10 +139,12 @@ Describe 'the portable JSON reader' {
     }
 
     It 'reads every committed collector manifest back to the same bytes' {
-        foreach ($bundle in @(Get-ChildItem -LiteralPath (Join-Path $script:CollectorRoot '../../fixtures/collector-bundles') -Directory)) {
-            $path = Join-Path $bundle.FullName 'manifest.json'
+        $manifests = @(Get-ChildItem -LiteralPath (Join-Path $script:CollectorRoot '../../fixtures/collector-bundles') -Filter 'manifest.json' -File -Recurse)
+        $manifests.Count | Should -BeGreaterThan 40
+        foreach ($manifest in $manifests) {
+            $path = $manifest.FullName
             $text = [System.IO.File]::ReadAllText($path)
-            ((ConvertTo-WfJson -Value (Read-WfJsonFile -Path $path) -Indent 0) + "`n") | Should -BeExactly $text -Because $bundle.Name
+            ((ConvertTo-WfJson -Value (Read-WfJsonFile -Path $path) -Indent 0) + "`n") | Should -BeExactly $text -Because $path
         }
     }
 

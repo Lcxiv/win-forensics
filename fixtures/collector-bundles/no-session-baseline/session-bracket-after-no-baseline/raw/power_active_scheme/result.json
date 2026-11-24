@@ -1,0 +1,27 @@
+{
+  "started_utc": "2026-03-01T15:00:57.0000000Z",
+  "stopped_utc": "2026-03-01T15:01:00.0000000Z",
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_ms": 7,
+  "stdout_bytes": 82,
+  "stdout_bytes_read": 82,
+  "diagnostic": null,
+  "stderr": "",
+  "records": 1,
+  "records_meaning": "lines carrying a GUID (the active scheme)",
+  "protection": {
+    "mac_addresses_replaced": 0,
+    "network_names_replaced": 0
+  },
+  "profiles": null,
+  "fields": [
+    {
+      "line": 1,
+      "block": 0,
+      "indent": 0,
+      "label": "Power Scheme GUID",
+      "value": "11111111-2222-4333-8444-555555555555  (Synthetic Low Latency)"
+    }
+  ]
+}

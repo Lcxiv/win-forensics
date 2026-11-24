@@ -1,0 +1,22 @@
+{
+  "channels": [
+    {
+      "channel": "System",
+      "records": 4,
+      "truncated": false,
+      "oldest_record_time_utc": "2026-01-30T15:00:00.0000000Z",
+      "oldest_probe": "read",
+      "covers_boot": true,
+      "error": null
+    },
+    {
+      "channel": "Application",
+      "records": 1,
+      "truncated": false,
+      "oldest_record_time_utc": "2026-01-30T15:00:00.0000000Z",
+      "oldest_probe": "read",
+      "covers_boot": true,
+      "error": null
+    }
+  ]
+}

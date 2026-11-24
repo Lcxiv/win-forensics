@@ -22,7 +22,7 @@ ENTRY_SCRIPTS = [p for p in CHANGE_SCRIPTS if not p.name.startswith("_")]
 # Anything that would let unattended code reach a change script: the directory in either slash
 # form, or the name of any script in it.
 REFERENCE = re.compile(r"changes[/\\]|" + "|".join(re.escape(p.stem) for p in CHANGE_SCRIPTS), re.IGNORECASE)
-UNATTENDED_ROOTS = [REPO_ROOT / "collectors", REPO_ROOT / "remote-access"]
+UNATTENDED_ROOTS = [REPO_ROOT / "collectors", REPO_ROOT / "remote-access", REPO_ROOT / "scripts"]
 
 # Never in a change script: prompts and credentials, code from text, native interop, the network,
 # installs, scheduled tasks, services, restarts, other processes, whole key imports, and the
@@ -40,7 +40,11 @@ FORBIDDEN = [
 # create in a Parameters or crashdump key that need not exist, so it may create that one subkey under
 # an existing service key and remove it again on undo when it is empty;
 # tests/test_change_kbd_crash_dump.py confines both calls to its two key adapters.
-ALLOWED_PER_SCRIPT = {"kbd-crash-dump.ps1": {"CreateSubKey", "DeleteSubKey"}}
+# session-bracket-task.ps1 is the one change whose subject is a scheduled task: it registers, and on
+# undo unregisters, exactly one per user logon task with the standard token that runs the read only
+# session-bracket baseline (changes/windows/README.md); SessionBracketTask.Tests.ps1 records the
+# arguments its two adapters pass to the cmdlets.
+ALLOWED_PER_SCRIPT = {"kbd-crash-dump.ps1": {"CreateSubKey", "DeleteSubKey"}, "session-bracket-task.ps1": {"Register-ScheduledTask"}}
 
 
 def code_lines(path):
@@ -98,7 +102,7 @@ def test_change_scripts_avoid_forbidden_commands(path):
 def test_entry_scripts_default_to_plan_and_take_explicit_verbs(path):
     code = code_lines(path)
     for verb in ("Plan", "Apply", "Undo", "Readback"):
-        assert re.search(rf"\[switch\]\${verb}\s*,", code), verb
+        assert re.search(rf"\[switch\]\${verb}\s*[,)]", code), verb
         assert not re.search(rf"\[switch\]\${verb}\s*=", code), f"{verb} must not default to on"
     if path.name != "kbd-crash-dump.ps1":  # its own wording, checked by KbdCrashDump.Tests.ps1
         assert "name one verb" in code

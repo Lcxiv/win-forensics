@@ -8,7 +8,7 @@ This directory holds the only code in the repository that changes the PC. Each s
 - **Verbs.** `-Plan` is the default and reads only: it prints the current state, exactly what would change and every precondition, and refuses with the reason when one fails. `-Apply` saves the before-state, checks, writes and reads back. `-Undo` restores the saved before-state. `-Readback` reads only and prints PASS or FAIL per value. Only `-Apply` and `-Undo` change anything; each must be named, one verb per run, and no script ever prompts.
 - **Save before change, refuse without it.** `-Apply` writes every affected key to a timestamped evidence folder first (a values CSV, `reg export` files and a SHA-256 list written last) and refuses if any part of that fails. `-Undo` restores exactly what was saved: a value that was absent is deleted again, and nothing else is touched. Every Apply and Undo ends with a readback that prints PASS or FAIL per value.
 - **Stop on the unexpected.** The precheck refuses when a live value is not the one the plan expects, and prints what is there instead.
-- **Nothing else.** No installs, downloads, network calls, scheduled tasks, services, restarts, game handles, injection or overlays, and nothing runs while the game or its launcher runs. Nothing gives itself lasting elevation: a script that needs administrator rights says so and the operator starts an elevated Windows PowerShell by hand.
+- **Nothing else.** No installs, downloads, network calls, scheduled tasks (the one exception is `session-bracket-task.ps1`, whose change is exactly one per user logon task with the standard token), services, restarts, game handles, injection or overlays, and nothing runs while the game or its launcher runs. Nothing gives itself lasting elevation: a script that needs administrator rights says so and the operator starts an elevated Windows PowerShell by hand.
 - **Privacy.** Output uses fixed labels (`display-adapter-1`, `ethernet-1`) and `<profile>`; it never prints a user name, profile path, command line, device instance path, or hardware or network address. Evidence folders stay on the PC.
 - **Windows PowerShell 5.1, plain ASCII,** and no `ConvertTo-Json`. Every Windows fact is cited to Microsoft Learn or the tool's own documentation next to the code, and anything not yet seen on the PC is on the list at the end of this page.
 
@@ -133,6 +133,48 @@ Exit codes: 0 done (Plan: ready; Readback: every value PASS), 1 refused or a rea
 - `tests/KbdCrashDump.Synthetic.ps1` replaces the adapters with an invented registry, reg export, identity, clock and boot time; `tests/KbdCrashDump.Tests.ps1` runs the real script against it: every verb, every precondition, export failures (exit code and a missing file), an evidence folder that cannot be created, a value that moves during the save, a failed write followed by an undo that restores the exact before-state, a readback mismatch, a tampered or foreign CSV, a value changed by something else before an undo, a key the apply created and the undo removes or keeps, and the alternate keys.
 - `tests/test_change_kbd_crash_dump.py` keeps the guards that hold even for code no test reaches (registry writes only in the write adapters, reg.exe only with `export`, each with a planted negative case), checks the operator page's required sections and the K list, and runs the unmodified script as a process off Windows, where every adapter fails and it must refuse without writing anything. The area rules are checked by `tests/test_changes_area.py`, and `tests/test_changes_pwsh.py` runs the analyzer and the whole Pester suite.
 
+## `session-bracket-task.ps1`: the session bracket logon task
+
+Not an undo order step: it registers, reads back and removes the per user logon task that starts the read only `session-bracket` collector's baseline (`collectors/windows/README.md`, "The session-bracket sources"), so a play session never depends on anyone announcing it first. It runs from a normal Windows PowerShell window, never elevated. The operator page with the sequence, the after read, what happens when a game starts at logon and what to record is [docs/changes/session-bracket-task.md](../../docs/changes/session-bracket-task.md).
+
+```
+session-bracket-task.ps1 [-Plan] | -Apply | -Undo | -Readback
+```
+
+Exit codes: 0 done (every readback value PASS), 1 a change or a readback failed (run `-Readback`, then `-Undo`), 2 refused before anything changed. Each run prints PASS or FAIL per value; it never prompts.
+
+The task, in the root folder of the Task Scheduler library:
+
+| Field | Value |
+|---|---|
+| Name | `win-forensics-session-bracket-baseline` |
+| Trigger | At logon of the account that ran `-Apply`, nobody else |
+| Principal | That account, logon type Interactive (no password stored), run level Limited |
+| Action | `<System32>\WindowsPowerShell\v1.0\powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File "<repository>\collectors\windows\session-bracket.ps1" -Phase baseline -ToEvidenceFolder` |
+| Settings | Stop after 10 minutes; a second start while one runs is ignored |
+| Description | Names the undo command |
+
+Why it can carry no more than the account's standard token: Microsoft documents that a user who is not an administrator may register a task for their own account with the interactive logon type and no password, that from a process that is not elevated only the low run level (LUA, Limited) can be registered, and that members of Users can read, change, delete and run only the tasks they created ([Security Contexts for Tasks](https://learn.microsoft.com/windows/win32/taskschd/security-contexts-for-running-tasks)). The same page says the run level is ignored for the built in Administrator account and when UAC is turned off, so the task would then run elevated; the preconditions refuse both.
+
+Preconditions, each printed by `-Plan` and checked again by `-Apply`:
+
+| Check | Why |
+|---|---|
+| `no_game_running` | None of the games or launchers runs, as `Get-Process` reports `ProcessName` (names only); a list that cannot be read is refused. `-Undo` checks it too. The area's rule: nothing runs beside the game or its launcher. |
+| `not_elevated` | `WindowsPrincipal.IsInRole(Administrator)` is false until the process is elevated under UAC ([IsInRole](https://learn.microsoft.com/dotnet/api/system.security.principal.windowsprincipal.isinrole)); an elevated shell is refused so nothing elevated is registered. |
+| `not_builtin_administrator` | The built in Administrator has RID 500 (same page); its tasks ignore the run level. |
+| `uac_on` | `EnableLUA` under `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System` is 1 ([UAC settings](https://learn.microsoft.com/windows/security/application-security/application-control/user-account-control/settings-and-configuration)); 0, absent or unreadable is refused. |
+| `task_absent` | `-Apply` registers a new task only; an existing one is read with `-Readback` and removed with `-Undo`. A task list that cannot be read is refused. |
+| `collector_present`, `helper_present`, `powershell_present` | The files the task runs exist. |
+| `path_quotable` | The collector path holds no double quote, so it passes quoted to `-File`. |
+| `collector_not_blocked`, `helper_not_blocked` | No `Zone.Identifier` stream: `RemoteSigned` refuses a script downloaded from the internet until `Unblock-File` removes the stream ([about_Execution_Policies](https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_execution_policies), [Unblock-File](https://learn.microsoft.com/powershell/module/microsoft.powershell.utility/unblock-file)). A stream that cannot be listed is refused. |
+| `execution_policy_machinepolicy`, `execution_policy_userpolicy` | Group Policy scopes override `-ExecutionPolicy` on the command line (same page); `Restricted` or `AllSigned` there would stop the unsigned collector, so they are refused. |
+| `desktop_resolved` | The evidence folder is `Environment.SpecialFolder.DesktopDirectory` ([SpecialFolder](https://learn.microsoft.com/dotnet/api/system.environment.specialfolder)), never a hard coded profile path. |
+
+What `-Apply` saves, in `<Desktop>\latency-evidence\session-bracket-task-<UTC>\`, each file with its `.sha256`: `before.csv` (the task absent), `collector-hashes.csv` (the SHA-256 of the collector and `_common.ps1` it registers), `apply-started.txt`, then `after.csv` and `task-after.xml` (the `Export-ScheduledTask` XML with the account written `<user>`, its SID `<sid>`, the profile `<profile>`). `-Undo` saves `undo-before-<UTC>.csv` before it removes anything, removes the task only when its definition is the expected one or the one saved in `after.csv` (so a partial `-Apply` can be undone), and never touches a task with this name that changed since. `-Readback` also prints the last run time and result (`0` the collector exited 0, `1` its bundle failed, `0x41303` not yet run, `0x41301` running: [Task Scheduler error and success constants](https://learn.microsoft.com/windows/win32/taskschd/task-scheduler-error-and-success-constants)) and whether the collector or the helper changed since `-Apply`.
+
+The cmdlets: [Register-ScheduledTask](https://learn.microsoft.com/powershell/module/scheduledtasks/register-scheduledtask), [New-ScheduledTaskPrincipal](https://learn.microsoft.com/powershell/module/scheduledtasks/new-scheduledtaskprincipal), [New-ScheduledTaskTrigger](https://learn.microsoft.com/powershell/module/scheduledtasks/new-scheduledtasktrigger), [New-ScheduledTaskSettingsSet](https://learn.microsoft.com/powershell/module/scheduledtasks/new-scheduledtasksettingsset), [Unregister-ScheduledTask](https://learn.microsoft.com/powershell/module/scheduledtasks/unregister-scheduledtask), [Export-ScheduledTask](https://learn.microsoft.com/powershell/module/scheduledtasks/export-scheduledtask), [Get-ScheduledTaskInfo](https://learn.microsoft.com/powershell/module/scheduledtasks/get-scheduledtaskinfo).
+
 ## Facts to verify on the PC
 
 Kept here rather than in the collectors' list, because nothing under `collectors/` may name this area. Each item is unverified until the PC session reports it, with its date and "reported, not reproduced" status.
@@ -178,3 +220,16 @@ The script passes PSScriptAnalyzer's Windows PowerShell 5.1 compatibility rules 
 | K9 | `Win32_OperatingSystem.LastBootUpTime` read through `Get-CimInstance` converts to the correct UTC instant, so `-Readback`'s restart line is right. | After the restart, `-Readback` says `Restart done` with a boot time a few minutes before the run. | The line is advisory only; the values themselves are read directly. |
 | K10 | The profile path redaction catches every printed path: the evidence root under the desktop prints as `<profile>\Desktop\...`. | Read the `-Plan` output for the account's folder name. | Report it before sharing any output. |
 | K11 | The default evidence root, `[Environment]::GetFolderPath('Desktop')` in the elevated window, is the desktop of the account that opened it, so the captain finds the folders where the operator page says. With other credentials typed at the elevation prompt it would be that account's desktop (inference). | After `-Apply`, the `Saved:` line names `<profile>\Desktop\wf-changes\kbd-crash-dump\...` and the folder is on his desktop. | Pass `-EvidenceRoot <folder>` to every verb, including `-Undo` and `-Readback`. |
+
+### session-bracket-task (S items)
+
+The script passes PSScriptAnalyzer's Windows PowerShell 5.1 compatibility rules and every verb runs against `tests/SessionBracketTaskBackend.ps1`, but each item below needs evidence from the PC.
+
+| # | Unverified | How to check at the PC | If it fails |
+|---|---|---|---|
+| S1 | `powershell.exe -WindowStyle Hidden` started by Task Scheduler at logon shows no window, or only a brief flash, over a full screen game. | Watch the Desktop at a logon after `-Apply`. | Accept the flash at logon (no game is in front yet), or start through a launcher the captain approves. |
+| S2 | Task Scheduler reports the trigger and principal user as `COMPUTER\name` or as `name`; the change script compares the part after the last backslash, ignoring case. | `session-bracket-task.ps1 -Readback` after `-Apply` shows PASS for `trigger_user` and `principal_user`. | Adjust `Get-SbtComparable` to the reported form. |
+| S3 | `Get-ScheduledTask` returns `Settings.ExecutionTimeLimit` as `PT10M` and `Triggers[0].CimClass.CimClassName` as `MSFT_TaskLogonTrigger` for the task as registered. | `-Readback` PASS for `execution_time_limit` and `trigger`. | Normalize the reported spelling in `Get-SbtLiveTask`. |
+| S4 | `LastTaskResult` after a baseline run is 0, or 1 when the collector's bundle failed, and 0x41303 before the first run (Task Scheduler constants). | `-Readback` after the next logon. | Read the result text the readback prints; the evidence folder still holds the bundle and its summary. |
+| S5 | A standard account reads `EnableLUA` under `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System`. | `-Plan` shows PASS for `uac_on`. | The plan refuses with the reason; the captain checks UAC in Control Panel and the precondition is reworded. |
+| S6 | The games and launchers run as `Overwatch`, `Battle.net`, `FortniteClient-Win64-Shipping` and `EpicGamesLauncher` in `Get-Process` `ProcessName`, as `no_game_running` compares them. No vendor documents them. | With a game open, `-Plan` shows FAIL for `no_game_running` naming it. | Correct the list in `Get-SbtGameNames`. |

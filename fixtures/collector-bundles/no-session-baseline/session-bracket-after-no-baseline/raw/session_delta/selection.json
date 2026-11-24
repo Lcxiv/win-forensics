@@ -1,0 +1,7 @@
+{
+  "baseline_bundle_id": null,
+  "baseline_boot_utc": null,
+  "boot_utc": "2026-02-27T12:00:00.0000000Z",
+  "passed_over": [],
+  "refused": "no usable baseline bundle of this collector was found in the baseline folder before this run (0 passed over without an observed boot time), so nothing is subtracted"
+}

@@ -1,0 +1,4 @@
+[
+{"Name":"0 C:","DiskWriteBytesPersec":61000000000,"DiskWritesPersec":2900000,"DiskReadBytesPersec":88000000000,"DiskReadsPersec":3500000,"Timestamp_Sys100NS":134168400000000000,"Frequency_Sys100NS":10000000},
+{"Name":"_Total","DiskWriteBytesPersec":61000000000,"DiskWritesPersec":2900000,"DiskReadBytesPersec":88000000000,"DiskReadsPersec":3500000,"Timestamp_Sys100NS":134168400000000000,"Frequency_Sys100NS":10000000}
+]

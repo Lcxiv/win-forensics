@@ -1,0 +1,23 @@
+{
+  "channels": [
+    "System",
+    "Application"
+  ],
+  "predicate": "(Level >= 0)",
+  "since_boot_utc": "2026-02-27T12:00:00.0000000Z",
+  "until_utc": "2026-03-01T12:01:03.0000000Z",
+  "counted_by": [
+    "channel",
+    "provider_name",
+    "event_id",
+    "level"
+  ],
+  "kept": "counts only; no message, event data or user id is written",
+  "max_records_per_channel": 50000,
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 90,
+  "queries": {
+    "System": "<QueryList>\n  <Query Id=\"0\" Path=\"System\">\n    <Select Path=\"System\">*[System[(Level &gt;= 0) and TimeCreated[@SystemTime &gt;= '2026-02-27T12:00:00.000Z' and @SystemTime &lt;= '2026-03-01T12:01:03.000Z']]]</Select>\n  </Query>\n</QueryList>\n",
+    "Application": "<QueryList>\n  <Query Id=\"0\" Path=\"Application\">\n    <Select Path=\"Application\">*[System[(Level &gt;= 0) and TimeCreated[@SystemTime &gt;= '2026-02-27T12:00:00.000Z' and @SystemTime &lt;= '2026-03-01T12:01:03.000Z']]]</Select>\n  </Query>\n</QueryList>\n"
+  }
+}

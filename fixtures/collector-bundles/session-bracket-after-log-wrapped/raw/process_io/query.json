@@ -1,0 +1,24 @@
+{
+  "class": "Win32_Process",
+  "namespace": "root/cimv2",
+  "properties": [
+    "Name",
+    "ProcessId",
+    "CreationDate",
+    "WriteTransferCount",
+    "WriteOperationCount"
+  ],
+  "filter": null,
+  "time_property": null,
+  "window_days": null,
+  "window_start_utc": null,
+  "window_end_utc": null,
+  "coverage_probe_filter": null,
+  "max_records": 50000,
+  "max_artifact_bytes": 67108864,
+  "timeout_seconds": 90,
+  "phase": "after",
+  "command_line_requested": false,
+  "image_path_requested": false,
+  "meaning": "write I/O counts file, network and device writes since the process started, never physical disk bytes"
+}

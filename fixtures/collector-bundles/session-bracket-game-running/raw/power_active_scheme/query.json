@@ -1,0 +1,7 @@
+{
+  "source": "power_active_scheme",
+  "read": "powercfg /getactivescheme",
+  "phase": "",
+  "skipped": true,
+  "reason": "a game process was already running (FortniteClient-Win64-Shipping.exe); this read never runs beside a game, so nothing else was read and no process was opened"
+}
